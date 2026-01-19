@@ -42,6 +42,6 @@ impl BinanceFetcher {
         let volume = Decimal::from_str_exact(&response.volume)
             .map_err(|e| TradingError::Decimal(e.to_string()))?;
 
-        Ok(PriceEvent::new(response.symbol, price, volume))
+        PriceEvent::new(response.symbol, price, volume)
     }
 }
