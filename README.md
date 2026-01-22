@@ -1,103 +1,92 @@
 # Event Trading Engine
 
-A high-performance, event-driven cryptocurrency trading system built in Rust. This project demonstrates real-world Rust patterns including ownership, lifetimes, traits, and error handling through a minimal end-to-end trading system.
+A high-performance, event-driven cryptocurrency trading system built in Rust with institutional-grade risk management.
 
 ## 🎯 Project Goals
 
-Build a trading system that can:
-- Fetch live market data from Binance
+- Fetch live market data from multiple exchanges
 - Validate and normalize price data with decimal precision
-- Execute strategies with paper trading (no real money)
-- Track positions and manage a portfolio
-- Process events through a deterministic event loop
-
-**Target Skills:** Ownership & lifetimes, traits for financial behavior, error handling under data failures, and building production-grade systems in Rust.
+- Execute strategies with configurable risk profiles
+- Track positions and manage portfolio risk
+- Process events through a pub/sub event bus
 
 ## 📦 Project Structure
 
 ```
 src/
 ├── main.rs                 # Application entry point
-├── error.rs               # Centralized error handling
-├── engine/                # Event loop & bus
-├── market_data/           # Price ingestion & normalization
-├── strategy/              # Strategy interface & signals
-├── execution/             # Paper trading engine
-├── portfolio/             # Position tracking
-├── instrument/            # Asset definitions
-└── utils/                 # Utilities (clock, etc.)
+├── lib.rs                  # Library exports
+├── error.rs                # Centralized error handling
+├── engine/                 # Event bus & event types
+├── market_data/            # Multi-exchange price ingestion
+├── strategy/               # Strategy interface & implementations
+├── execution/              # Paper trading engine
+├── portfolio/              # Position tracking
+├── risk/                   # Position sizing, stop loss, limits
+├── config/                 # Strategy, exchange & env configuration
+├── instrument/             # Asset definitions
+└── utils/                  # Utilities (clock, etc.)
 ```
 
-## ✅ Completed: Market Data Module
+## ✅ Completed Features
 
-### Features
-- **REST Price Ingestion:** Fetches real-time BTC/USDT prices from Binance API
-- **Unified Event Format:** All market data standardized to `PriceEvent` struct
-- **Validation:** Ensures prices are positive, volumes are non-negative, symbols exist
-- **Normalization:** Rounds all prices to 8 decimal places for consistency
-- **Precision:** Uses `rust_decimal::Decimal` instead of `f64` for financial accuracy
-- **Error Handling:** Zero `.unwrap()` calls—proper error propagation with `?` operator
+### Multi-Exchange Support
+| Exchange | Status | API Key Required |
+|----------|--------|------------------|
+| Binance  | ✅ Live | No (public data) |
+| Bybit    | ✅ Live | No (public data) |
 
-### Data Flow
+### Event Bus Architecture
+- Decoupled pub/sub messaging system
+- Event types: `PriceUpdated`, `SignalGenerated`, `TradeExecuted`, `TradeClosed`, `Error`
+- Multiple strategies can subscribe independently
+
+### Risk Profiles (Institutional-Grade)
 ```
-Binance API
-    ↓
-BinanceFetcher (REST ingestion)
-    ↓
-PriceEvent (Unified format with Decimal precision)
-    ↓
-PriceValidator (Validate + Normalize)
-    ↓
-Clean, standardized event ready to use
+Conservative:  1% risk/trade, 5% daily limit, 1.0x leverage
+Balanced:      2% risk/trade, 10% daily limit, 1.5x leverage
+Aggressive:    3% risk/trade, 15% daily limit, 2.0x leverage
 ```
 
-### Example Output
-```
-📊 Fetching BTC price from Binance...
-✅ Fetched: PriceEvent { symbol: "BTCUSDT", price: 93237.50000000, timestamp: 1768841156417, volume: 15082.81988000 }
+### Financial Data Integrity
+- `rust_decimal::Decimal` for all prices and volumes
+- Zero floating-point errors
+- 8 decimal place precision
 
-🔍 Validating and normalizing price...
-✅ Normalized: PriceEvent { symbol: "BTCUSDT", price: 93237.50000000, timestamp: 1768841156417, volume: 15082.81988000 }
-```
-
-## 🔄 Next Steps
-
-- [ ] Implement Strategy Interface
-- [ ] Build Execution Engine (Paper Trading)
-- [ ] Create Event Loop
-- [ ] Implement Portfolio Tracking
-- [ ] Add Integration Tests
+### Configuration System
+- Environment variables via `.env` file
+- Strategy configuration with validation
+- Exchange configuration with factory pattern
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Rust 1.70+
-- Cargo
 
 ### Run
 ```bash
 cargo run
 ```
 
-### Test
+### Test All Exchanges
+```bash
+cargo run --bin test_all_exchanges
+```
+
+### Run Tests
 ```bash
 cargo test
 ```
 
-## 📚 Key Concepts Used
-
-- **Ownership & Lifetimes:** Borrowing in fetcher and validator functions
-- **Traits:** `PriceValidator` for extensible validation
-- **Error Handling:** `Result<T>` type with `thiserror` crate
-- **Decimal Precision:** `rust_decimal` for accurate financial calculations
-- **Async/Await:** Tokio runtime for non-blocking API calls
-- **Serialization:** Serde for JSON handling
-
 ## 📋 Dependencies
 
 - `tokio` - Async runtime
-- `reqwest` - HTTP client for REST API
-- `serde` - Serialization framework
+- `reqwest` - HTTP client
+- `serde` - JSON serialization
+- `rust_decimal` - Financial precision
+- `thiserror` - Error handling
+- `async_trait` - Async traits
+- `dotenv` - Environment variables
 - `rust_decimal` - High-precision decimal arithmetic
 - `thiserror` - Error handling macros
 
