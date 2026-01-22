@@ -16,7 +16,7 @@ pub enum TradingError {
     Execution(String),
 
     #[error("Invalid decimal: {0}")]
-    Decimal(String),
+    Decimal(#[from] rust_decimal::Error),
 
     #[error("Time error: {0}")]
     Time(String),

@@ -1,6 +1,13 @@
 pub mod event;
-pub mod fetcher;
+pub mod binance_fetcher;
+pub mod fetcher_trait;
+pub mod exchange_factory;
 pub mod normalizer;
+pub mod bybit_fetcher;
 
-pub use fetcher::BinanceFetcher;
+pub use event::PriceEvent;
+pub use binance_fetcher::BinanceFetcher;
+pub use fetcher_trait::MarketDataFetcher;
 pub use normalizer::PriceValidator;
+pub use exchange_factory::ExchangeFactory;
+pub use bybit_fetcher::BybitFetcher;
