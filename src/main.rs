@@ -13,7 +13,7 @@ mod error;
 mod risk;
 mod config;
 
-use market_data::{PriceValidator, ExchangeFactory};
+use market_data::{PriceValidator, ExchangeFactory, PriceMonitor};
 use strategy::StrategyFactory;
 use engine::{EventBus, Event};
 use config::strategy_config::{StrategyConfig, StrategyType};
@@ -21,6 +21,9 @@ use config::exchange_config::{ExchangeConfig, ExchangeType};
 use config::EnvConfig;
 use rust_decimal::Decimal;
 use error::Result;
+use execution::ExecutionEngine;
+use risk::PortfolioLimits;
+use std::sync::{Arc, Mutex};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -67,10 +70,21 @@ async fn main() -> Result<()> {
     println!("🔌 Setting up Event Bus subscribers...\n");
 
     // Subscribe to price updates
-    event_bus.subscribe("PriceUpdated", |event| {
+    let execution_engine_ref: Arc<Mutex<Option<ExecutionEngine>>> = Arc::new(Mutex::new(None));
+    let execution_engine_ref_clone = Arc::clone(&execution_engine_ref);
+    event_bus.subscribe("PriceUpdated", move |event| {
         if let Event::PriceUpdated(price_event) = event {
             println!("  📊 [EventBus] Price Updated: {} @ {}", 
                 price_event.symbol, price_event.price);
+
+            if let Ok(mut guard) = execution_engine_ref_clone.lock() {
+                if let Some(engine) = guard.as_mut() {
+                    if let Err(err) = engine.update_price(&price_event.symbol, price_event.price) {
+                        let _ = engine.is_kill_switch_active();
+                        eprintln!("  ⚠️ [Risk] Price update error: {}", err);
+                    }
+                }
+            }
         }
     })?;
 
@@ -90,6 +104,28 @@ async fn main() -> Result<()> {
         }
     })?;
 
+    // Subscribe to risk halt
+    event_bus.subscribe("RiskHalt", |event| {
+        if let Event::RiskHalt { reason } = event {
+            println!("  🛑 [Risk] Kill-switch activated: {}", reason);
+        }
+    })?;
+
+    // Subscribe to order lifecycle events
+    event_bus.subscribe("OrderSubmitted", |event| {
+        if let Event::OrderSubmitted { order_id, symbol, side, quantity, price } = event {
+            println!("  📝 [OMS] Order {} {:?} {} qty={} price={:?}",
+                order_id, side, symbol, quantity, price);
+        }
+    })?;
+
+    event_bus.subscribe("OrderFilled", |event| {
+        if let Event::OrderFilled { order_id, symbol, filled_qty, price } = event {
+            println!("  ✅ [OMS] Fill {} {} qty={} price={}",
+                order_id, symbol, filled_qty, price);
+        }
+    })?;
+
     // Subscribe to errors
     event_bus.subscribe("Error", |event| {
         if let Event::Error(msg) = event {
@@ -103,7 +139,15 @@ async fn main() -> Result<()> {
     // CREATE EXCHANGE FETCHER (USER'S CHOICE)
     // ==========================================
     println!("📍 Creating market data fetcher...");
-    let fetcher = ExchangeFactory::create_fetcher(&exchange_config, event_bus.clone())?;
+    let fallback_exchange = match exchange_config.exchange_type {
+        ExchangeType::Binance => ExchangeType::Bybit,
+        ExchangeType::Bybit => ExchangeType::Binance,
+    };
+    let fetcher = ExchangeFactory::create_resilient_fetcher(
+        exchange_config.exchange_type.clone(),
+        fallback_exchange,
+        event_bus.clone(),
+    )?;
     println!("✅ Using exchange: {}\n", fetcher.exchange_name());
 
     // ==========================================
@@ -112,6 +156,21 @@ async fn main() -> Result<()> {
     println!("🎯 Creating strategy...");
     let strategy = StrategyFactory::create_strategy(&strategy_config)?;
     println!("✅ Using strategy: {}\n", strategy.name());
+
+    // ==========================================
+    // INITIALIZE RISK ENGINE + EXECUTION ENGINE
+    // ==========================================
+    let initial_balance = Decimal::from_str_exact("10000")?; // Example starting balance
+    let risk_params = strategy_config.get_risk_params();
+    let portfolio_limits = PortfolioLimits::from_risk_params(initial_balance, risk_params)?;
+    let execution_engine = ExecutionEngine::new(
+        initial_balance,
+        portfolio_limits,
+        event_bus.clone(),
+    )?;
+    if let Ok(mut guard) = execution_engine_ref.lock() {
+        *guard = Some(execution_engine);
+    }
 
     // ==========================================
     // FETCH MARKET DATA
@@ -126,6 +185,14 @@ async fn main() -> Result<()> {
     // ==========================================
     println!("🔍 Validating and normalizing price...");
     let normalized = PriceValidator::normalize(price_event)?;
+    let mut monitor = PriceMonitor::new(60_000);
+    let normalized = match monitor.process(normalized)? {
+        Some(event) => event,
+        None => {
+            println!("⚠️ Duplicate market data ignored");
+            return Ok(());
+        }
+    };
     println!("✅ Normalized: {:?}\n", normalized);
 
     // ==========================================
@@ -144,9 +211,29 @@ async fn main() -> Result<()> {
     })?;
 
     // ==========================================
+    // RISK-AWARE EXECUTION
+    // ==========================================
+    let (entry_price, stop_loss_distance, _strategy_position_size) =
+        strategy.get_risk_params(normalized.price)?;
+
+    let _ = execution_engine_ref
+        .lock()
+        .ok()
+        .and_then(|mut guard| {
+            guard.as_mut().map(|engine| {
+                engine.execute(
+                    normalized.symbol.clone(),
+                    signal,
+                    entry_price,
+                    stop_loss_distance,
+                )
+            })
+        })
+        .unwrap_or_else(|| Ok(None))?;
+
+    // ==========================================
     // SUMMARY
     // ==========================================
-    let risk_params = strategy_config.get_risk_params();
     
     println!("📊 System Summary:");
     println!("  Exchange: {}", fetcher.exchange_name());
@@ -161,5 +248,8 @@ async fn main() -> Result<()> {
     println!("  Max Position Size: {}%", risk_params.max_position_size);
     println!("  Max Open Positions: {}", risk_params.max_open_positions);
     println!("  Max Leverage: {}x", risk_params.max_leverage);
+
+    let metrics = event_bus.metrics_snapshot();
+    println!("\n📈 Event Metrics: {:?}", metrics);
     Ok(())
 }

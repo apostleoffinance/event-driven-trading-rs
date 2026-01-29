@@ -9,12 +9,14 @@ pub type EventHandler = Arc<dyn Fn(&Event) + Send + Sync>;
 /// Event Bus - Central pub/sub mechanism for all trading events
 pub struct EventBus {
     subscribers: Arc<Mutex<HashMap<String, Vec<EventHandler>>>>,
+    event_counts: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 impl EventBus {
     pub fn new() -> Self {
         Self {
             subscribers: Arc::new(Mutex::new(HashMap::new())),
+            event_counts: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -33,6 +35,10 @@ impl EventBus {
     /// Publish an event to all subscribers
     pub fn publish(&self, event: Event) -> Result<()> {
         let event_type = event.event_type().to_string();
+        if let Ok(mut counts) = self.event_counts.lock() {
+            let counter = counts.entry(event_type.clone()).or_insert(0);
+            *counter += 1;
+        }
         let subs = self.subscribers.lock().unwrap();
 
         if let Some(handlers) = subs.get(&event_type) {
@@ -42,6 +48,14 @@ impl EventBus {
         }
 
         Ok(())
+    }
+
+    /// Snapshot of event counters for observability
+    pub fn metrics_snapshot(&self) -> HashMap<String, u64> {
+        self.event_counts
+            .lock()
+            .map(|m| m.clone())
+            .unwrap_or_default()
     }
 
     /// Publish to all subscribers regardless of event type
@@ -69,6 +83,7 @@ impl Clone for EventBus {
     fn clone(&self) -> Self {
         Self {
             subscribers: Arc::clone(&self.subscribers),
+            event_counts: Arc::clone(&self.event_counts),
         }
     }
 }

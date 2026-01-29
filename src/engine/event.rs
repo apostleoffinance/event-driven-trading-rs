@@ -31,6 +31,41 @@ pub enum Event {
         exit_price: Decimal,
         pnl: Decimal,
     },
+
+    /// Order submitted event
+    OrderSubmitted {
+        order_id: u64,
+        symbol: String,
+        side: Signal,
+        quantity: Decimal,
+        price: Option<Decimal>,
+    },
+
+    /// Order filled event
+    OrderFilled {
+        order_id: u64,
+        symbol: String,
+        filled_qty: Decimal,
+        price: Decimal,
+    },
+
+    /// Order cancelled event
+    OrderCancelled {
+        order_id: u64,
+        symbol: String,
+    },
+
+    /// Order rejected event
+    OrderRejected {
+        order_id: u64,
+        symbol: String,
+        reason: String,
+    },
+
+    /// Risk kill-switch event
+    RiskHalt {
+        reason: String,
+    },
     
     /// Error event
     Error(String),
@@ -43,6 +78,11 @@ impl Event {
             Event::SignalGenerated { .. } => "SignalGenerated",
             Event::TradeExecuted { .. } => "TradeExecuted",
             Event::TradeClosed { .. } => "TradeClosed",
+            Event::OrderSubmitted { .. } => "OrderSubmitted",
+            Event::OrderFilled { .. } => "OrderFilled",
+            Event::OrderCancelled { .. } => "OrderCancelled",
+            Event::OrderRejected { .. } => "OrderRejected",
+            Event::RiskHalt { .. } => "RiskHalt",
             Event::Error(_) => "Error",
         }
     }

@@ -20,15 +20,15 @@ src/
 ├── engine/                 # Event bus & event types
 ├── market_data/            # Multi-exchange price ingestion
 ├── strategy/               # Strategy interface & implementations
-├── execution/              # Paper trading engine
-├── portfolio/              # Position tracking
-├── risk/                   # Position sizing, stop loss, limits
+├── execution/              # Paper trading engine + OMS/EMS
+├── portfolio/              # Position tracking + PnL
+├── risk/                   # Risk engine & portfolio limits
 ├── config/                 # Strategy, exchange & env configuration
 ├── instrument/             # Asset definitions
 └── utils/                  # Utilities (clock, etc.)
 ```
 
-## ✅ Completed Features
+## ✅ Completed Features (v1)
 
 ### Multi-Exchange Support
 | Exchange | Status | API Key Required |
@@ -38,20 +38,30 @@ src/
 
 ### Event Bus Architecture
 - Decoupled pub/sub messaging system
-- Event types: `PriceUpdated`, `SignalGenerated`, `TradeExecuted`, `TradeClosed`, `Error`
-- Multiple strategies can subscribe independently
+- Event types: `PriceUpdated`, `SignalGenerated`, `TradeExecuted`, `TradeClosed`, `RiskHalt`, `OrderSubmitted`, `OrderFilled`, `OrderCancelled`, `OrderRejected`, `Error`
 
-### Risk Profiles (Institutional-Grade)
-```
-Conservative:  1% risk/trade, 5% daily limit, 1.0x leverage
-Balanced:      2% risk/trade, 10% daily limit, 1.5x leverage
-Aggressive:    3% risk/trade, 15% daily limit, 2.0x leverage
-```
+### Risk Engine (Institutional-Grade)
+- Pre-trade validation: limits, exposure, leverage
+- Margin checks and daily loss limits
+- Live monitoring with kill-switch
+- Automatic liquidation on kill-switch activation
 
-### Financial Data Integrity
-- `rust_decimal::Decimal` for all prices and volumes
-- Zero floating-point errors
-- 8 decimal place precision
+### OMS/EMS (Paper Trading)
+- Order lifecycle with submit/cancel/replace
+- Partial fills and fill simulation
+- Rejections and state tracking
+
+### Portfolio & PnL
+- Position tracking with realized/unrealized PnL
+- Reconciliation hooks
+
+### Market Data Reliability
+- Price normalization with Decimal precision
+- Dedupe and gap detection
+- Resilient fetcher with primary/secondary failover
+
+### Observability (Basic)
+- Event counters in the event bus
 
 ### Configuration System
 - Environment variables via `.env` file
@@ -87,8 +97,6 @@ cargo test
 - `thiserror` - Error handling
 - `async_trait` - Async traits
 - `dotenv` - Environment variables
-- `rust_decimal` - High-precision decimal arithmetic
-- `thiserror` - Error handling macros
 
 ## 📝 License
 

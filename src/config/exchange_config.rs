@@ -35,4 +35,15 @@ impl ExchangeConfig {
         // For paper trading, they're optional
         Ok(())
     }
+
+    pub fn validate_for_trading(&self) -> Result<()> {
+        if self.enabled {
+            if self.api_key.is_none() || self.api_secret.is_none() {
+                return Err(crate::error::TradingError::Config(
+                    "Missing API credentials for trading".to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
 }

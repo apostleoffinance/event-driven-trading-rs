@@ -1,7 +1,9 @@
 use rust_decimal::Decimal;
+use crate::config::strategy_config::RiskParams;
 use crate::error::{TradingError, Result};
 
 /// Manages portfolio-level risk limits
+#[derive(Debug, Clone)]
 pub struct PortfolioLimits {
     pub max_daily_loss: Decimal,
     pub max_position_size: Decimal,
@@ -10,6 +12,25 @@ pub struct PortfolioLimits {
 }
 
 impl PortfolioLimits {
+    /// Build limits from risk profile parameters and account balance
+    pub fn from_risk_params(account_balance: Decimal, params: RiskParams) -> Result<Self> {
+        if account_balance <= Decimal::ZERO {
+            return Err(TradingError::Validation(
+                "Account balance must be positive".to_string(),
+            ));
+        }
+
+        let max_daily_loss = account_balance * (params.max_daily_loss / Decimal::from(100));
+        let max_position_size = account_balance * (params.max_position_size / Decimal::from(100));
+
+        Self::new(
+            max_daily_loss,
+            max_position_size,
+            params.max_leverage,
+            params.max_open_positions,
+        )
+    }
+
     pub fn new(
         max_daily_loss: Decimal,
         max_position_size: Decimal,
