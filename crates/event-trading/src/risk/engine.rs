@@ -4,6 +4,10 @@ use crate::portfolio::portfolio::Portfolio;
 use crate::portfolio::position::PositionSide;
 use rust_decimal::Decimal;
 
+/// Paper-demo risk engine embedded with portfolio state.
+///
+/// **Deprecated for new work:** use `risk-engine::DefaultRiskEvaluator` with
+/// domain `RiskRequest` / `RiskDecision`. This type remains for the legacy demo.
 #[derive(Debug)]
 pub struct RiskEngine {
     account_balance: Decimal,

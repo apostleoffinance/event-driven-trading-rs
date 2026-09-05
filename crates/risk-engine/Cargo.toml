@@ -1,0 +1,15 @@
+[package]
+name = "risk-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic pre-trade risk evaluation"
+
+[dependencies]
+domain = { path = "../domain" }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }

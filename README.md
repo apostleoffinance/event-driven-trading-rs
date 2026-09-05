@@ -12,6 +12,7 @@ crates/
   domain/           # shared trading primitives (Phase 1)
   events/           # typed async events over Tokio mpsc (Phase 2)
   strategy-runtime/ # Strategy trait + intent worker (Phase 3)
+  risk-engine/      # deterministic pre-trade risk (Phase 4)
   event-trading/    # legacy paper engine (preserved)
 strategies/
   mean-reversion/   # stateful mean reversion → TradeIntent
@@ -35,7 +36,7 @@ cargo run -p event-trading --bin test_all_exchanges
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md`, `docs/architecture/DOMAIN.md`, `docs/architecture/EVENTS.md`, and `docs/architecture/STRATEGY.md`.
+See `docs/migration/AUDIT.md`, `docs/architecture/DOMAIN.md`, `docs/architecture/EVENTS.md`, `docs/architecture/STRATEGY.md`, and `docs/architecture/RISK.md`.
 
 ## License
 

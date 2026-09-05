@@ -9,7 +9,7 @@ Baseline tag: `v0.1-paper-engine`
 | 1 | **Done** | Workspace + `crates/domain` |
 | 2 | **Done** | Typed async events (`crates/events`) |
 | 3 | **Done** | Strategy runtime + mean-reversion → `TradeIntent` |
-| 4 | Pending | Deterministic risk-engine |
+| 4 | **Done** | Deterministic risk-engine |
 | 5 | Pending | Account engine |
 | 6 | Pending | OMS / execution lifecycle + idempotency |
 | 7 | Pending | `VenueAdapter` + `SimulatedVenue` |
@@ -42,6 +42,16 @@ Baseline tag: `v0.1-paper-engine`
 - [x] `strategies/mean-reversion` updates rolling window and emits `TradeIntent`
 - [x] No account risk / position sizing inside the strategy
 - [x] Tests: warmup, buy/sell/hold, instrument filter, runtime event flow
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 4 acceptance
+
+- [x] `crates/risk-engine` with `RiskEvaluator`
+- [x] Ordered, independently testable rules
+- [x] Approve / resize / reject / halt paths
+- [x] Determinism test (same request → same decision)
+- [x] `TradeIntent` → `RiskRequest` → `RiskDecision` integration test
+- [x] No venue/order side effects in risk-engine
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

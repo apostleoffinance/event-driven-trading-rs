@@ -1000,6 +1000,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "risk-engine"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "domain",
+ "rust_decimal",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "rkyv"
 version = "0.7.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"

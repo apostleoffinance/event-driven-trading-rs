@@ -87,6 +87,10 @@ pub struct RiskRequest {
     pub stop_loss: Option<Decimal>,
     pub account_state: AccountState,
     pub policy: RiskPolicy,
+    /// Current open notional exposure on the account (Decimal money units).
+    pub current_exposure: Decimal,
+    /// Whether the trading session / hours allow new risk.
+    pub session_allowed: bool,
     pub requested_at: DateTime<Utc>,
 }
 
@@ -111,8 +115,20 @@ impl RiskRequest {
             stop_loss: intent.stop_loss,
             account_state,
             policy,
+            current_exposure: Decimal::ZERO,
+            session_allowed: true,
             requested_at,
         }
+    }
+
+    pub fn with_exposure(mut self, current_exposure: Decimal) -> Self {
+        self.current_exposure = current_exposure;
+        self
+    }
+
+    pub fn with_session_allowed(mut self, session_allowed: bool) -> Self {
+        self.session_allowed = session_allowed;
+        self
     }
 }
 
