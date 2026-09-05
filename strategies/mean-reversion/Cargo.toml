@@ -1,0 +1,17 @@
+[package]
+name = "mean-reversion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Mean-reversion strategy emitting TradeIntents"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../../crates/domain" }
+events = { path = "../../crates/events" }
+rust_decimal = { workspace = true }
+strategy-runtime = { path = "../../crates/strategy-runtime" }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
