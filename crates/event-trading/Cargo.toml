@@ -1,0 +1,29 @@
+[package]
+name = "event-trading"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Legacy paper-trading engine (preserved during infrastructure migration)"
+
+[[bin]]
+name = "event-trading"
+path = "src/main.rs"
+
+[[bin]]
+name = "test_exchanges"
+path = "src/bin/test_exchanges.rs"
+
+[[bin]]
+name = "test_all_exchanges"
+path = "src/bin/test_all_exchanges.rs"
+
+[dependencies]
+anyhow = "1.0"
+async-trait = { workspace = true }
+dotenv = "0.15"
+reqwest = { version = "0.11", features = ["json"] }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "1.0"
+tokio = { workspace = true }
