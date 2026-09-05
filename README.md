@@ -10,6 +10,7 @@ Rust modular monolith for systematic / prop trading infrastructure.
 ```text
 crates/
   domain/           # shared trading primitives (Phase 1)
+  events/           # typed async events over Tokio mpsc (Phase 2)
   event-trading/    # legacy paper engine (preserved)
 docs/
   architecture/
@@ -29,8 +30,9 @@ cargo run -p event-trading --bin test_all_exchanges
 1. Strategy emits **TradeIntent** — never submits orders
 2. Risk Engine owns account limits / sizing / kill switches
 3. **Account ≠ Venue**
+4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md` and `docs/architecture/DOMAIN.md`.
+See `docs/migration/AUDIT.md`, `docs/architecture/DOMAIN.md`, and `docs/architecture/EVENTS.md`.
 
 ## License
 

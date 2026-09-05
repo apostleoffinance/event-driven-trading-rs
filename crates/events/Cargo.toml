@@ -1,0 +1,18 @@
+[package]
+name = "events"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Typed in-process async trading events"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../domain" }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
