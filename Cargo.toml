@@ -3,7 +3,9 @@ resolver = "2"
 members = [
     "crates/domain",
     "crates/events",
+    "crates/strategy-runtime",
     "crates/event-trading",
+    "strategies/mean-reversion",
 ]
 
 [workspace.package]

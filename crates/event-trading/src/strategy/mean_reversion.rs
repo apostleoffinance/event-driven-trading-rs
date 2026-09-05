@@ -5,6 +5,9 @@ use rust_decimal::Decimal;
 
 /// Mean reversion strategy
 /// Buys when price is below average, sells when above average
+///
+/// **Deprecated for new work:** use `mean-reversion` crate + `strategy-runtime`
+/// (`TradeIntent`, stateful window). This legacy type remains for the paper demo.
 pub struct MeanReversionStrategy {
     name: String,
     threshold: Decimal, // Deviation threshold (e.g., 0.02 for 2%)

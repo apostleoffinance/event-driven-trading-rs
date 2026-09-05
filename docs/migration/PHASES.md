@@ -8,7 +8,7 @@ Baseline tag: `v0.1-paper-engine`
 | 0 | **Done** | Audit, tag, baseline `cargo check/test/clippy` |
 | 1 | **Done** | Workspace + `crates/domain` |
 | 2 | **Done** | Typed async events (`crates/events`) |
-| 3 | Pending | Strategy runtime + mean-reversion → `TradeIntent` |
+| 3 | **Done** | Strategy runtime + mean-reversion → `TradeIntent` |
 | 4 | Pending | Deterministic risk-engine |
 | 5 | Pending | Account engine |
 | 6 | Pending | OMS / execution lifecycle + idempotency |
@@ -34,6 +34,14 @@ Baseline tag: `v0.1-paper-engine`
 - [x] `EventsError` / `EventsResult` — no unwrap in library paths
 - [x] Flow test: `MarketDataReceived` → `TradeIntentCreated`
 - [x] Legacy sync bus retained but documented as deprecated for new work
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 3 acceptance
+
+- [x] `crates/strategy-runtime` with stateful `Strategy` trait
+- [x] `strategies/mean-reversion` updates rolling window and emits `TradeIntent`
+- [x] No account risk / position sizing inside the strategy
+- [x] Tests: warmup, buy/sell/hold, instrument filter, runtime event flow
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

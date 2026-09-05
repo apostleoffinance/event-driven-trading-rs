@@ -1,0 +1,18 @@
+[package]
+name = "strategy-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Strategy execution interface and runtime helpers"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../domain" }
+events = { path = "../events" }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

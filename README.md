@@ -11,7 +11,10 @@ Rust modular monolith for systematic / prop trading infrastructure.
 crates/
   domain/           # shared trading primitives (Phase 1)
   events/           # typed async events over Tokio mpsc (Phase 2)
+  strategy-runtime/ # Strategy trait + intent worker (Phase 3)
   event-trading/    # legacy paper engine (preserved)
+strategies/
+  mean-reversion/   # stateful mean reversion → TradeIntent
 docs/
   architecture/
   migration/
@@ -32,7 +35,7 @@ cargo run -p event-trading --bin test_all_exchanges
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md`, `docs/architecture/DOMAIN.md`, and `docs/architecture/EVENTS.md`.
+See `docs/migration/AUDIT.md`, `docs/architecture/DOMAIN.md`, `docs/architecture/EVENTS.md`, and `docs/architecture/STRATEGY.md`.
 
 ## License
 
