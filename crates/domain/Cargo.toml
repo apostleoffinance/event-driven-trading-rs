@@ -1,0 +1,15 @@
+[package]
+name = "domain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared quantitative trading domain primitives"
+
+[dependencies]
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+rust_decimal = { workspace = true }
