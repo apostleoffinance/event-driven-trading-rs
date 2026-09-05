@@ -1,0 +1,19 @@
+[package]
+name = "account-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Account registry, state, snapshots, and account-level controls"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../domain" }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }
+risk-engine = { path = "../risk-engine" }
+rust_decimal = { workspace = true }

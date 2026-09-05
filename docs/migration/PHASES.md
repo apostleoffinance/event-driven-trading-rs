@@ -10,7 +10,7 @@ Baseline tag: `v0.1-paper-engine`
 | 2 | **Done** | Typed async events (`crates/events`) |
 | 3 | **Done** | Strategy runtime + mean-reversion → `TradeIntent` |
 | 4 | **Done** | Deterministic risk-engine |
-| 5 | Pending | Account engine |
+| 5 | **Done** | Account engine |
 | 6 | Pending | OMS / execution lifecycle + idempotency |
 | 7 | Pending | `VenueAdapter` + `SimulatedVenue` |
 | 8 | Pending | PostgreSQL persistence |
@@ -52,6 +52,15 @@ Baseline tag: `v0.1-paper-engine`
 - [x] Determinism test (same request → same decision)
 - [x] `TradeIntent` → `RiskRequest` → `RiskDecision` integration test
 - [x] No venue/order side effects in risk-engine
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 5 acceptance
+
+- [x] `crates/account-engine` with registry, state, snapshots, controls
+- [x] Simulated account support (`AccountType::Simulated` on venue `simulated`)
+- [x] Account ≠ Venue preserved
+- [x] No venue HTTP in account-engine
+- [x] Integration with risk-engine via `AccountState`
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

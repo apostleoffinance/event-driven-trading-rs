@@ -5,6 +5,7 @@ members = [
     "crates/events",
     "crates/strategy-runtime",
     "crates/risk-engine",
+    "crates/account-engine",
     "crates/event-trading",
     "strategies/mean-reversion",
 ]
