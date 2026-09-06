@@ -19,12 +19,15 @@ crates/
   persistence/      # PostgreSQL / SQLx (Phase 8)
   trading-runtime/  # continuous MarketData → Position loop (Phase 9)
   reconciliation/   # internal vs venue compare, alert-only (Phase 10)
+  intent-bridge/    # Python TradeIntent NDJSON → Rust pipeline
   event-trading/    # legacy paper engine (preserved)
 strategies/
-  mean-reversion/   # stateful mean reversion → TradeIntent
+  python/           # Python strategies (primary) → TradeIntent JSON
+  mean-reversion/   # Rust reference strategy (legacy Phase 3)
 docs/
   architecture/
   migration/
+  contracts/        # cross-language JSON schemas
 ```
 
 ## Quick start (legacy paper engine)
@@ -35,14 +38,22 @@ cargo test --workspace
 cargo run -p event-trading --bin test_all_exchanges
 ```
 
+## Python strategy → Rust execution
+
+```bash
+cd strategies/python && python3 -m venv .venv && source .venv/bin/activate && pip install -e .
+python -m trading_strategies.mean_reversion --prices 100,100,100,90 \
+  | cargo run -p intent-bridge -- --venue prop
+```
+
 ## Principles
 
-1. Strategy emits **TradeIntent** — never submits orders
-2. Risk Engine owns account limits / sizing / kill switches
+1. Strategy emits **TradeIntent** — never submits orders (**Python** strategies)
+2. Risk Engine owns account limits / sizing / kill switches (**Rust**)
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE,RUNTIME,RECONCILIATION}.md`.
+See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,STRATEGY_BRIDGE,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE,RUNTIME,RECONCILIATION}.md`.
 
 ### PostgreSQL (Phase 8)
 

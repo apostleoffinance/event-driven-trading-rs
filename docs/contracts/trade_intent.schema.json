@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://event-trading.local/contracts/trade_intent.schema.json",
+  "title": "TradeIntent",
+  "description": "Cross-language TradeIntent wire format (Python → Rust). Decimals are strings.",
+  "type": "object",
+  "required": [
+    "id",
+    "strategy_id",
+    "strategy_version",
+    "deployment_id",
+    "instrument_id",
+    "side",
+    "timestamp"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "strategy_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "strategy_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "deployment_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "instrument_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "side": { "type": "string", "enum": ["Buy", "Sell"] },
+    "target_quantity": { "type": "string", "description": "Decimal string; omit for risk sizing" },
+    "target_notional": { "type": "string" },
+    "entry_price": { "type": "string" },
+    "stop_loss": { "type": "string" },
+    "take_profit": { "type": "string" },
+    "confidence": { "type": "string", "description": "Decimal in [0, 1]" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

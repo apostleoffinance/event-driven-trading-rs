@@ -117,3 +117,8 @@ Baseline tag: `v0.1-paper-engine`
 ## Out of scope until later phases
 
 Rebalancing, vaults, multi-CEX execution, Kafka/K8s, frontend, live prop firm REST/WS.
+
+## Language split (post Phase 11)
+
+- **Python** strategies under `strategies/python/` emit TradeIntent NDJSON
+- **Rust** `crates/intent-bridge` ingests intents into risk → OMS → venue

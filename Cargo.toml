@@ -11,6 +11,7 @@ members = [
     "crates/persistence",
     "crates/trading-runtime",
     "crates/reconciliation",
+    "crates/intent-bridge",
     "crates/event-trading",
     "strategies/mean-reversion",
 ]

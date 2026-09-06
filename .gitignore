@@ -1,6 +1,5 @@
 # Rust build artifacts
 /target/
-Cargo.lock
 **/*.rs.bk
 *.pdb
 
@@ -22,3 +21,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Python
+.venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/

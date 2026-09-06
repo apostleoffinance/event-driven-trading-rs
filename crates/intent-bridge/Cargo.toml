@@ -1,0 +1,29 @@
+[package]
+name = "intent-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Python strategy → Rust execution bridge (JSON TradeIntent ingest)"
+
+[[bin]]
+name = "intent-bridge"
+path = "src/main.rs"
+
+[dependencies]
+account-engine = { path = "../account-engine" }
+chrono = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+domain = { path = "../domain" }
+events = { path = "../events" }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+trading-runtime = { path = "../trading-runtime" }
+venue-connectors = { path = "../venue-connectors" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

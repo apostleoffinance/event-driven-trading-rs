@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trading-strategies"
+version = "0.1.0"
+description = "Python strategies that emit TradeIntent JSON for the Rust execution stack"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.scripts]
+mean-reversion = "trading_strategies.mean_reversion:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["trading_strategies*"]

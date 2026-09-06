@@ -1,17 +1,25 @@
 # Strategy Runtime
 
-## Crates
+## Language split
+
+| Layer | Language | Location |
+|-------|----------|----------|
+| Strategy signals | **Python** | `strategies/python/` |
+| Intent ingest + execution | **Rust** | `crates/intent-bridge` + trading stack |
+
+See `STRATEGY_BRIDGE.md` for the JSON contract and pipe workflow.
+
+## Rust crates (still present)
 
 | Crate | Role |
 |-------|------|
-| `crates/strategy-runtime` | `Strategy` trait, `StrategyContext`, intent ID helper, event worker |
-| `strategies/mean-reversion` | Stateful mean-reversion implementation |
+| `crates/strategy-runtime` | Legacy in-process Rust `Strategy` trait (Phase 3) |
+| `strategies/mean-reversion` | Rust reference strategy — prefer Python for new work |
 
-## Owns
+## Owns (strategy layer)
 
-- Strategy interface (`on_market_data` → `Vec<TradeIntent>`)
-- Deployment context binding
-- Publishing `StrategySignalGenerated` / `TradeIntentCreated` from market envelopes
+- Signal interface → `TradeIntent` only
+- Rolling / research state inside the strategy process
 
 ## Must NOT own
 
@@ -20,25 +28,17 @@
 - OMS / execution
 - Persistence
 
-## Strategy contract
+## Contract
 
 ```text
-MarketDataEvent
+Market data / features
       ↓
-Strategy::on_market_data(&mut self, ctx, event)
+Python strategy
       ↓
-Vec<TradeIntent>   # no Order, no account sizing
+TradeIntent NDJSON
+      ↓
+Rust intent-bridge → Risk → OMS → Venue
 ```
 
-Strategies may keep internal state (rolling windows).  
 Strategies may set optional `entry_price`, `stop_loss`, `take_profit`, `confidence`.  
-Strategies must leave `target_quantity` / account risk to the Risk Engine (Phase 4).
-
-## Mean reversion
-
-1. Warm-up until `window_size` prices are stored (no intents)
-2. Compare new price to mean of the existing window
-3. If deviation > threshold → Buy (below) / Sell (above) `TradeIntent`
-4. Slide the new price into the window
-
-Legacy paper-demo strategy under `crates/event-trading` is deprecated for new work.
+Strategies must leave account risk sizing to the Risk Engine.
