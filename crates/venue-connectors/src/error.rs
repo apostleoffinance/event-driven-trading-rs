@@ -18,6 +18,9 @@ pub enum VenueError {
     #[error("venue failure: {0}")]
     Failed(String),
 
+    #[error("not implemented: {0}")]
+    NotImplemented(String),
+
     #[error(transparent)]
     Domain(#[from] domain::DomainError),
 }

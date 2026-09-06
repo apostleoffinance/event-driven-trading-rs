@@ -1,4 +1,4 @@
-//! Simulated account helpers (paper / prop-prep accounts).
+//! Simulated and prop account helpers.
 
 use chrono::{DateTime, Utc};
 use domain::{Account, AccountId, AccountType};
@@ -6,7 +6,9 @@ use rust_decimal::Decimal;
 
 use crate::config::AccountConfig;
 use crate::error::AccountEngineResult;
-use crate::service::{default_simulated_venue_id, AccountEngine, InMemoryAccountEngine};
+use crate::service::{
+    default_prop_venue_id, default_simulated_venue_id, AccountEngine, InMemoryAccountEngine,
+};
 
 /// Spec for opening a simulated account bound to the simulated venue.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,8 +42,8 @@ impl InMemoryAccountEngine {
         Ok(spec.account_id)
     }
 
-    /// Open a prop-style account record still executing on the simulated venue
-    /// (live prop connector arrives in Phase 11).
+    /// Open a prop-style account still executing on the simulated venue
+    /// (paper dual-path; prefer [`Self::open_prop`] with venue id `prop`).
     pub fn open_prop_on_simulated(
         &mut self,
         account_id: AccountId,
@@ -52,6 +54,21 @@ impl InMemoryAccountEngine {
         let account = Account::new(account_id.clone(), AccountType::Prop, venue_id, created_at);
         let config = AccountConfig::new(starting_capital)?.with_label("prop-simulated");
         self.register(account, config)?;
+        Ok(account_id)
+    }
+
+    /// Open a prop account bound to the prop venue (`venue_id = "prop"`).
+    pub fn open_prop(
+        &mut self,
+        account_id: AccountId,
+        starting_capital: Decimal,
+        created_at: DateTime<Utc>,
+    ) -> AccountEngineResult<AccountId> {
+        let venue_id = default_prop_venue_id()?;
+        let account = Account::new(account_id.clone(), AccountType::Prop, venue_id, created_at);
+        let config = AccountConfig::new(starting_capital)?.with_label("prop");
+        self.register(account, config)?;
+        tracing::info!(account_id = %account_id, capital = %starting_capital, "opened prop account");
         Ok(account_id)
     }
 }

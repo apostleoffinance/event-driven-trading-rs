@@ -15,7 +15,7 @@ crates/
   risk-engine/      # deterministic pre-trade risk (Phase 4)
   account-engine/   # account registry + state (Phase 5)
   execution-engine/ # OMS lifecycle + idempotency (Phase 6)
-  venue-connectors/ # VenueAdapter + SimulatedVenue (Phase 7)
+  venue-connectors/ # VenueAdapter + SimulatedVenue + PropVenue (Phases 7/11)
   persistence/      # PostgreSQL / SQLx (Phase 8)
   trading-runtime/  # continuous MarketData → Position loop (Phase 9)
   reconciliation/   # internal vs venue compare, alert-only (Phase 10)

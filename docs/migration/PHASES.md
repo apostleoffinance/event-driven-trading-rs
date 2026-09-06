@@ -16,7 +16,7 @@ Baseline tag: `v0.1-paper-engine`
 | 8 | **Done** | PostgreSQL persistence |
 | 9 | **Done** | Continuous `trading-runtime` |
 | 10 | **Done** | Reconciliation |
-| 11 | Pending | First prop venue connector |
+| 11 | **Done** | First prop venue connector |
 
 ## Phase 1 acceptance
 
@@ -106,6 +106,14 @@ Baseline tag: `v0.1-paper-engine`
 - [x] `TradingRuntime::reconcile` hook
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
+## Phase 11 acceptance
+
+- [x] `PropVenue` implements `VenueAdapter` (venue id `prop`)
+- [x] Paper mode: single fill + flat commission; OMS e2e via trait
+- [x] Live mode gated with `VenueError::NotImplemented`
+- [x] `AccountEngine::open_prop` + `TradingRuntime::bootstrap_prop`
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
 ## Out of scope until later phases
 
-Rebalancing, vaults, multi-CEX execution, Kafka/K8s, frontend.
+Rebalancing, vaults, multi-CEX execution, Kafka/K8s, frontend, live prop firm REST/WS.

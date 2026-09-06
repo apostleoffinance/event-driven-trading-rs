@@ -7,6 +7,7 @@
 - `VenueAdapter` trait
 - `OrderRequest` / `OrderAck` / `CancelRequest`
 - `SimulatedVenue` (paper fills + positions)
+- `PropVenue` (first prop connector — paper mode + live gate)
 - OMS ↔ venue bridge (`submit_approved_order`)
 
 ## Must NOT own
@@ -23,7 +24,7 @@ ExecutionEngine (OMS)
        ↓
 VenueAdapter          ← execution does not know concrete type
        ↓
-SimulatedVenue   (now)    PropVenue (Phase 11)
+SimulatedVenue | PropVenue | (future CEX)
 ```
 
 ## SimulatedVenue
@@ -31,9 +32,24 @@ SimulatedVenue   (now)    PropVenue (Phase 11)
 Port of the legacy paper fill simulator:
 
 - Splits quantity into up to two partial fills
-- Applies fees
+- Applies percentage fee rate
 - Maintains venue-local positions and account fee impact
 - Idempotent submit by `client_order_id`
+- Venue id: `simulated`
+
+## PropVenue (Phase 11)
+
+First prop firm connector behind the same adapter:
+
+| Concern | Behavior |
+|---------|----------|
+| Venue id | `prop` (`VenueType::Prop`) |
+| Paper mode | Single full fill, flat commission per unit |
+| Live mode | `VenueError::NotImplemented` until a firm REST/WS is wired |
+| Firm label | Vendor-agnostic (`generic-prop` by default) |
+
+No proprietary vendor SDK is committed yet — paper mode unblocks OMS / runtime /
+reconciliation against a real prop venue id.
 
 ## Bridge
 

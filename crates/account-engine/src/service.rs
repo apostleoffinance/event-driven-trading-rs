@@ -349,6 +349,11 @@ pub fn default_simulated_venue_id() -> AccountEngineResult<VenueId> {
     Ok(VenueId::new("simulated")?)
 }
 
+/// Convenience: venue id used by the first prop connector (`PropVenue`).
+pub fn default_prop_venue_id() -> AccountEngineResult<VenueId> {
+    Ok(VenueId::new("prop")?)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]

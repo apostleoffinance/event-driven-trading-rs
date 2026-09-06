@@ -14,6 +14,7 @@ pub mod simulated;
 pub use config::AccountConfig;
 pub use error::{AccountEngineError, AccountEngineResult};
 pub use service::{
-    default_simulated_venue_id, AccountEngine, AccountRecord, InMemoryAccountEngine,
+    default_prop_venue_id, default_simulated_venue_id, AccountEngine, AccountRecord,
+    InMemoryAccountEngine,
 };
 pub use simulated::SimulatedAccountSpec;

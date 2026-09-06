@@ -10,7 +10,7 @@ account-level controls.
 - Status controls (halt / resume / suspend / close)
 - Kill-switch controls
 - `AccountSnapshot` capture
-- Simulated (and prop-on-simulated) account helpers
+- Simulated and prop account helpers
 
 ## Must NOT own
 
@@ -23,15 +23,15 @@ account-level controls.
 
 ```text
 Account: prop-account-001   (capital / risk ownership)
-Venue:   simulated          (where execution occurs)
+Venue:   prop               (where execution occurs)
 ```
 
-## Simulated accounts
+## Account helpers
 
-`InMemoryAccountEngine::open_simulated` creates `AccountType::Simulated`
-bound to venue id `simulated`.
-
-`open_prop_on_simulated` creates `AccountType::Prop` still on the simulated
-venue — live prop connectors arrive in Phase 11.
+| Helper | AccountType | Venue id |
+|--------|-------------|----------|
+| `open_simulated` | Simulated | `simulated` |
+| `open_prop` | Prop | `prop` |
+| `open_prop_on_simulated` | Prop | `simulated` (legacy dual-path) |
 
 Vault account types are rejected until a future phase.

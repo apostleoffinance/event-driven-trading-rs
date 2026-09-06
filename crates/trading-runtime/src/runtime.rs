@@ -10,7 +10,7 @@ use reconciliation::{InternalSnapshot, Reconciler, ReconciliationReport};
 use risk_engine::DefaultRiskEvaluator;
 use rust_decimal::Decimal;
 use strategy_runtime::{process_market_envelope, Strategy, StrategyContext};
-use venue_connectors::{SimulatedVenue, VenueAdapter};
+use venue_connectors::{PropVenue, SimulatedVenue, VenueAdapter};
 
 use crate::config::RuntimeConfig;
 use crate::error::{RuntimeError, RuntimeResult};
@@ -67,6 +67,19 @@ impl TradingRuntime {
 
     pub fn oms(&self) -> &ExecutionEngine {
         &self.oms
+    }
+
+    /// Open a prop account on the prop venue and register venue-local state.
+    pub async fn bootstrap_prop(
+        &mut self,
+        venue: &PropVenue,
+        starting_capital: Decimal,
+    ) -> RuntimeResult<()> {
+        self.accounts
+            .open_prop(self.config.account_id.clone(), starting_capital, Utc::now())?;
+        let state = self.accounts.get(&self.config.account_id)?.state.clone();
+        venue.register_account(state).await?;
+        Ok(())
     }
 
     /// Open a prop account on the simulated venue and register venue-local state.
