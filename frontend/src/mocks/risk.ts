@@ -1,0 +1,61 @@
+import type { RiskDecisionRecord, RiskOverview } from "@/types/domain";
+
+export const mockRiskOverview: RiskOverview = {
+  engineStatus: "HEALTHY",
+  dailyLossPct: 1.82,
+  dailyLossLimitPct: 5,
+  maxDrawdownPct: 2.31,
+  maxDrawdownLimitPct: 10,
+  openRiskPct: 1.14,
+  exposurePct: 35.1,
+  killSwitch: false,
+  tone: "HEALTHY",
+};
+
+export const mockRiskDecisions: RiskDecisionRecord[] = [
+  {
+    id: "rd-1",
+    time: "2026-09-06T21:14:02.850Z",
+    tradeIntentId: "ti-7cf847773ab9",
+    strategyId: "btc-mean-reversion",
+    instrumentId: "EURUSD",
+    accountId: "prop-account-001",
+    requestedQuantity: "0.75",
+    approvedQuantity: "0.42",
+    decision: "RESIZED",
+    reason: "Account max position size constraint",
+  },
+  {
+    id: "rd-2",
+    time: "2026-09-06T20:41:00.050Z",
+    tradeIntentId: "ti-a11",
+    strategyId: "btc-mean-reversion",
+    instrumentId: "BTCUSDT",
+    accountId: "prop-account-001",
+    requestedQuantity: "0.18",
+    approvedQuantity: "0.18",
+    decision: "APPROVED",
+    reason: "Within risk policy",
+  },
+  {
+    id: "rd-3",
+    time: "2026-09-06T19:10:00.020Z",
+    tradeIntentId: "ti-rej1",
+    strategyId: "btc-mean-reversion",
+    instrumentId: "EURUSD",
+    accountId: "prop-account-001",
+    requestedQuantity: "2.00",
+    decision: "REJECTED",
+    reason: "ExposureLimit",
+  },
+  {
+    id: "rd-4",
+    time: "2026-09-06T12:00:00.000Z",
+    tradeIntentId: "ti-halt-demo",
+    strategyId: "es-mean-reversion",
+    instrumentId: "ES",
+    accountId: "prop-account-001",
+    decision: "HALTED",
+    reason: "Strategy kill switch (demo)",
+  },
+];

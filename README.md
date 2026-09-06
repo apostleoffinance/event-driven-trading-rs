@@ -63,6 +63,16 @@ export DATABASE_URL=postgres://trading:trading@127.0.0.1:15432/trading
 cargo test -p persistence
 ```
 
+## Quant OS Frontend
+
+Operational PAPER console (mock-first) lives under [`frontend/`](./frontend/README.md).
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+See also `docs/frontend-api-contract.md`.
+
 ## License
 
 MIT

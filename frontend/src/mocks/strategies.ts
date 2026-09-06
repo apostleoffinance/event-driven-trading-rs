@@ -1,0 +1,37 @@
+import type { Strategy } from "@/types/domain";
+
+export const mockStrategies: Strategy[] = [
+  {
+    id: "btc-mean-reversion",
+    name: "Mean Reversion EURUSD",
+    version: "v1",
+    status: "RUNNING",
+    environment: "PAPER",
+    instrumentId: "EURUSD",
+    signals: 143,
+    trades: 37,
+    returnPct: 8.42,
+    sharpe: 1.74,
+    maxDrawdownPct: 3.21,
+    winRatePct: 59.4,
+    profitFactor: 1.82,
+    description:
+      "Python strategy emitting TradeIntent NDJSON into Rust intent-bridge. No order submission.",
+  },
+  {
+    id: "es-mean-reversion",
+    name: "Mean Reversion ES",
+    version: "v1",
+    status: "PAPER",
+    environment: "PAPER",
+    instrumentId: "ES",
+    signals: 12,
+    trades: 2,
+    returnPct: 0.4,
+    sharpe: 0.6,
+    maxDrawdownPct: 1.1,
+    winRatePct: 50,
+    profitFactor: 1.1,
+    description: "Secondary paper deployment on PropVenue.",
+  },
+];
