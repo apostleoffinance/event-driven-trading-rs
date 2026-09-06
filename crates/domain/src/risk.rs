@@ -146,6 +146,9 @@ pub enum RiskRejectReason {
     LeverageLimit,
     TradeRiskLimit,
     InvalidRequest,
+    /// Required inputs unavailable — fail closed (do not execute).
+    DependencyUnavailable,
+    InstrumentConstraint,
     Other(String),
 }
 

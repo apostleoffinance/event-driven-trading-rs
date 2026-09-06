@@ -17,6 +17,13 @@ export const mockStrategies: Strategy[] = [
     profitFactor: 1.82,
     description:
       "Python strategy emitting TradeIntent NDJSON into Rust intent-bridge. No order submission.",
+    configuration: [
+      { key: "window", value: "20" },
+      { key: "entry_z", value: "1.5" },
+      { key: "environment", value: "PAPER" },
+      { key: "emits", value: "TradeIntent" },
+    ],
+    recentIntentIds: ["ti-7cf847773ab9", "ti-a11", "ti-rej1"],
   },
   {
     id: "es-mean-reversion",
@@ -33,5 +40,11 @@ export const mockStrategies: Strategy[] = [
     winRatePct: 50,
     profitFactor: 1.1,
     description: "Secondary paper deployment on PropVenue.",
+    configuration: [
+      { key: "window", value: "15" },
+      { key: "environment", value: "PAPER" },
+      { key: "emits", value: "TradeIntent" },
+    ],
+    recentIntentIds: ["ti-open1", "ti-halt-demo"],
   },
 ];

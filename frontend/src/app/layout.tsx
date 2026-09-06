@@ -5,14 +5,14 @@ import "@/styles/globals.css";
 
 const sans = IBM_Plex_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-ibm-plex-sans",
   display: "swap",
 });
 
 const mono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600"],
   variable: "--font-ibm-plex-mono",
   display: "swap",
 });
@@ -27,8 +27,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <body className={`${sans.variable} ${mono.variable} ${sans.className}`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("quant-os-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);}else if(window.matchMedia("(prefers-color-scheme: light)").matches){document.documentElement.setAttribute("data-theme","light");}}catch(e){}})();`,
+          }}
+        />
         <AppShell>{children}</AppShell>
       </body>
     </html>

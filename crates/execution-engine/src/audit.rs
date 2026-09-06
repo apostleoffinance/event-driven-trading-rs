@@ -19,6 +19,8 @@ pub enum AuditKind {
     CancelPending,
     Cancelled,
     Failed,
+    /// Ambiguous venue outcome — await reconciliation.
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -10,6 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/table-core": "^8.21.3",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "lucide-react": "^1.41.0",

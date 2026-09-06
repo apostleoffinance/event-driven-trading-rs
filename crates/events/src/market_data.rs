@@ -16,8 +16,12 @@ pub struct MarketDataEvent {
     pub price: Decimal,
     pub volume: Option<Decimal>,
     pub source: String,
+    /// Venue / exchange event time (UTC).
     pub exchanged_at: DateTime<Utc>,
+    /// Gateway receive time (UTC).
     pub received_at: DateTime<Utc>,
+    /// Optional feed sequence for gap detection.
+    pub sequence: Option<u64>,
 }
 
 impl MarketDataEvent {
@@ -46,6 +50,7 @@ impl MarketDataEvent {
             source,
             exchanged_at,
             received_at,
+            sequence: None,
         })
     }
 
@@ -57,6 +62,11 @@ impl MarketDataEvent {
         }
         self.volume = Some(volume);
         Ok(self)
+    }
+
+    pub fn with_sequence(mut self, sequence: u64) -> Self {
+        self.sequence = Some(sequence);
+        self
     }
 }
 

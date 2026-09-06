@@ -48,12 +48,18 @@ python -m trading_strategies.mean_reversion --prices 100,100,100,90 \
 
 ## Principles
 
+See **[`docs/architecture/CONSTITUTION.md`](docs/architecture/CONSTITUTION.md)** for the full
+Trading Systems Engineering Constitution (absolute rules).
+
 1. Strategy emits **TradeIntent** — never submits orders (**Python** strategies)
 2. Risk Engine owns account limits / sizing / kill switches (**Rust**)
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
+5. Money is `Decimal` / NUMERIC / string wire — never floating-point financial state
+6. Ambiguous venue outcomes → `OrderStatus::Unknown` (reconcile; do not guess Failed)
+7. Stale / gapped market data blocks new strategy risk (fail closed)
 
-See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,STRATEGY_BRIDGE,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE,RUNTIME,RECONCILIATION}.md`.
+See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,STRATEGY_BRIDGE,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE,RUNTIME,RECONCILIATION,CONSTITUTION}.md`.
 
 ### PostgreSQL (Phase 8)
 

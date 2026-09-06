@@ -19,6 +19,7 @@ fn kind_str(kind: AuditKind) -> &'static str {
         AuditKind::CancelPending => "cancel_pending",
         AuditKind::Cancelled => "cancelled",
         AuditKind::Failed => "failed",
+        AuditKind::Unknown => "unknown",
     }
 }
 

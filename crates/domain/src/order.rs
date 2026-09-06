@@ -32,6 +32,9 @@ pub enum TimeInForce {
 }
 
 /// Institutional order lifecycle states.
+///
+/// [`OrderStatus::Unknown`] means venue outcome is ambiguous (e.g. timeout after
+/// submit). It is **not** terminal — reconciliation must resolve it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum OrderStatus {
     Created,
@@ -39,6 +42,8 @@ pub enum OrderStatus {
     Approved,
     Rejected,
     Submitted,
+    /// Venue response ambiguous; do not treat as Failed.
+    Unknown,
     Accepted,
     PartiallyFilled,
     Filled,
@@ -55,6 +60,7 @@ impl OrderStatus {
             Self::Approved => "APPROVED",
             Self::Rejected => "REJECTED",
             Self::Submitted => "SUBMITTED",
+            Self::Unknown => "UNKNOWN",
             Self::Accepted => "ACCEPTED",
             Self::PartiallyFilled => "PARTIALLY_FILLED",
             Self::Filled => "FILLED",
@@ -81,7 +87,15 @@ impl OrderStatus {
                 | (Submitted, Accepted)
                 | (Submitted, Rejected)
                 | (Submitted, Failed)
+                | (Submitted, Unknown)
                 | (Submitted, CancelPending)
+                // Reconciliation resolves Unknown — never guess Failed without evidence.
+                | (Unknown, Accepted)
+                | (Unknown, Rejected)
+                | (Unknown, Cancelled)
+                | (Unknown, PartiallyFilled)
+                | (Unknown, Filled)
+                | (Unknown, Failed)
                 | (Accepted, PartiallyFilled)
                 | (Accepted, Filled)
                 | (Accepted, CancelPending)
@@ -102,6 +116,11 @@ impl OrderStatus {
             self,
             Self::Rejected | Self::Filled | Self::Cancelled | Self::Failed
         )
+    }
+
+    /// Ambiguous venue outcome — requires reconciliation, not silent recovery.
+    pub fn is_unknown(self) -> bool {
+        matches!(self, Self::Unknown)
     }
 }
 
@@ -282,5 +301,18 @@ mod tests {
         assert_eq!(order.account_id.as_str(), "prop-account-001");
         assert_eq!(order.venue_id.as_str(), "simulated");
         assert_eq!(order.client_order_id.as_str(), "clid-1");
+    }
+
+    #[test]
+    fn unknown_resolves_via_recon_transitions() {
+        let mut order = sample_order();
+        let now = Utc::now();
+        order.transition_to(OrderStatus::PendingRisk, now).unwrap();
+        order.transition_to(OrderStatus::Approved, now).unwrap();
+        order.transition_to(OrderStatus::Submitted, now).unwrap();
+        order.transition_to(OrderStatus::Unknown, now).unwrap();
+        assert!(!order.status.is_terminal());
+        order.transition_to(OrderStatus::Accepted, now).unwrap();
+        assert_eq!(order.status, OrderStatus::Accepted);
     }
 }

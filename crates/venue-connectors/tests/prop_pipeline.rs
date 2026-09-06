@@ -88,6 +88,7 @@ async fn intent_risk_oms_prop_venue_fill_position() {
             time_in_force: TimeInForce::Ioc,
             price: intent.entry_price,
             risk_decision: decision,
+            instrument_spec: Some(domain::InstrumentSpec::crypto_spot_default().unwrap()),
             created_at: Utc::now(),
         },
     )

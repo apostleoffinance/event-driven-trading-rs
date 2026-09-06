@@ -27,7 +27,7 @@ pub use account::{Account, AccountSnapshot, AccountState, AccountStatus, Account
 pub use error::{DomainError, DomainResult};
 pub use fill::Fill;
 pub use ids::*;
-pub use instrument::{Instrument, InstrumentType};
+pub use instrument::{Instrument, InstrumentSpec, InstrumentType};
 pub use order::{Order, OrderSide, OrderStatus, OrderType, TimeInForce};
 pub use position::{Position, PositionSide};
 pub use risk::{RiskDecision, RiskPolicy, RiskProfile, RiskRejectReason, RiskRequest};

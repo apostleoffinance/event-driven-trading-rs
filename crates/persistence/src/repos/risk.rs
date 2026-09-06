@@ -120,6 +120,8 @@ fn reject_reason_str(reason: &RiskRejectReason) -> String {
         RiskRejectReason::LeverageLimit => "leverage_limit".into(),
         RiskRejectReason::TradeRiskLimit => "trade_risk_limit".into(),
         RiskRejectReason::InvalidRequest => "invalid_request".into(),
+        RiskRejectReason::DependencyUnavailable => "dependency_unavailable".into(),
+        RiskRejectReason::InstrumentConstraint => "instrument_constraint".into(),
         RiskRejectReason::Other(s) => s.clone(),
     }
 }

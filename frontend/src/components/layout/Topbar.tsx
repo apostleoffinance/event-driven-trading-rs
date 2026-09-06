@@ -1,7 +1,8 @@
 "use client";
 
-import { Bell, Menu, PanelLeft, Search, User } from "lucide-react";
+import { Bell, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
+import { useTheme } from "@/features/theme/ThemeProvider";
 
 export function Topbar({
   collapsed,
@@ -15,6 +16,7 @@ export function Topbar({
   onToggleMobile: () => void;
 }) {
   const env = environmentLabel(frontendConfig.environment);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="topbar">
@@ -36,7 +38,10 @@ export function Topbar({
       </button>
       <div className="brand">
         <span className="brand-name">{frontendConfig.appName.toUpperCase()}</span>
-        <span className="env-pill" title="Execution environment">
+        <span
+          className={`env-pill${env === "LIVE" ? " live" : env === "SHADOW" ? " shadow" : ""}`}
+          title="Execution environment — PAPER is simulated, never identical to live"
+        >
           {env}
         </span>
       </div>
@@ -58,6 +63,15 @@ export function Topbar({
           />
           EVENT STREAM
         </span>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
+          onClick={toggleTheme}
+        >
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <button type="button" className="icon-btn" aria-label="Notifications">
           <Bell size={16} />
         </button>

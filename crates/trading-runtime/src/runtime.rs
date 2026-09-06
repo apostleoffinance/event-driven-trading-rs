@@ -3,13 +3,15 @@
 use account_engine::{AccountEngine, InMemoryAccountEngine};
 use chrono::Utc;
 use domain::{Position, TradeIntent};
-use events::{EventEnvelope, EventPublisher, EventSubscriber, TradingEvent};
+use events::{
+    EventEnvelope, EventPublisher, EventSubscriber, MarketDataHealthTracker, TradingEvent,
+};
 use execution_engine::ExecutionEngine;
 use persistence::TradingStore;
 use reconciliation::{InternalSnapshot, Reconciler, ReconciliationReport};
 use risk_engine::DefaultRiskEvaluator;
 use rust_decimal::Decimal;
-use strategy_runtime::{process_market_envelope, Strategy, StrategyContext};
+use strategy_runtime::{process_market_envelope_with_health, Strategy, StrategyContext};
 use venue_connectors::{PropVenue, SimulatedVenue, VenueAdapter};
 
 use crate::config::RuntimeConfig;
@@ -26,6 +28,7 @@ pub struct TradingRuntime {
     pub(crate) oms: ExecutionEngine,
     pub(crate) risk: DefaultRiskEvaluator,
     pub(crate) store: Option<TradingStore>,
+    pub(crate) market_data_health: MarketDataHealthTracker,
 }
 
 /// Summary of handling one inbound market-data envelope.
@@ -38,12 +41,14 @@ pub struct TickOutcome {
 impl TradingRuntime {
     /// Create an in-memory runtime (no PostgreSQL).
     pub fn new(config: RuntimeConfig) -> Self {
+        let max_age = config.market_data_max_age_secs;
         Self {
             config,
             accounts: InMemoryAccountEngine::new(),
             oms: ExecutionEngine::new(),
             risk: DefaultRiskEvaluator::new(),
             store: None,
+            market_data_health: MarketDataHealthTracker::new(max_age),
         }
     }
 
@@ -138,7 +143,14 @@ impl TradingRuntime {
         envelope: &EventEnvelope,
         events_out: &EventPublisher,
     ) -> RuntimeResult<TickOutcome> {
-        let intents = process_market_envelope(strategy, ctx, envelope, events_out).await?;
+        let intents = process_market_envelope_with_health(
+            strategy,
+            ctx,
+            envelope,
+            events_out,
+            Some(&mut self.market_data_health),
+        )
+        .await?;
         let mut executions = Vec::with_capacity(intents.len());
         for intent in &intents {
             executions.push(self.execute_intent(intent, venue, events_out).await?);

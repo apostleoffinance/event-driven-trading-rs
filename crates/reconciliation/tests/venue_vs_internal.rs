@@ -117,6 +117,7 @@ async fn equity_mismatch_alerts_without_overwriting_account() {
             time_in_force: TimeInForce::Ioc,
             price: intent.entry_price,
             risk_decision: decision,
+            instrument_spec: None,
             created_at: Utc::now(),
         },
     )

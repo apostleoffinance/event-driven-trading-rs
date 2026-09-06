@@ -20,6 +20,7 @@ export type OrderStatus =
   | "Approved"
   | "Rejected"
   | "Submitted"
+  | "Unknown"
   | "Accepted"
   | "PartiallyFilled"
   | "Filled"
@@ -61,6 +62,8 @@ export type TradingEventType =
   | "OrderFilled"
   | "OrderCancelled"
   | "OrderFailed"
+  | "OrderUnknown"
+  | "MarketDataUnhealthy"
   | "PositionOpened"
   | "PositionUpdated"
   | "PositionClosed"
@@ -103,6 +106,11 @@ export type Instrument = {
   id: string;
   symbol: string;
   assetClass: string;
+  /** Market-structure rules when known (mirrors Rust InstrumentSpec). */
+  tickSize?: Money;
+  lotSize?: Money;
+  minQuantity?: Money;
+  minNotional?: Money;
 };
 
 export type Strategy = {
@@ -120,6 +128,9 @@ export type Strategy = {
   winRatePct: number;
   profitFactor: number;
   description: string;
+  /** Config keys only — never secrets. */
+  configuration: { key: string; value: string }[];
+  recentIntentIds: string[];
 };
 
 export type TradeIntent = {
@@ -233,6 +244,16 @@ export type RiskOverview = {
   exposurePct: number;
   killSwitch: boolean;
   tone: RiskTone;
+  hierarchy: {
+    id: string;
+    label: string;
+    scope: string;
+    status: HealthStatus;
+    tone: RiskTone;
+    utilizationPct: number;
+    limitLabel: string;
+    note: string;
+  }[];
 };
 
 export type TradingEvent = {

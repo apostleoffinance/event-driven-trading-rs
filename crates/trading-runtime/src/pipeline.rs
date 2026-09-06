@@ -22,6 +22,9 @@ pub struct IntentOutcome {
 
 impl TradingRuntime {
     /// Evaluate risk and, when executable, submit through OMS + venue.
+    ///
+    /// Fail-closed: if account state cannot be loaded, returns
+    /// [`RiskDecision::Halted`] and does not submit.
     pub async fn execute_intent(
         &mut self,
         intent: &TradeIntent,
@@ -32,8 +35,6 @@ impl TradingRuntime {
             store.save_trade_intent(intent).await?;
         }
 
-        let account_state = self.accounts.get(&self.config.account_id)?.state.clone();
-
         events_out
             .publish(TradingEvent::RiskCheckRequested {
                 trade_intent_id: intent.id.clone(),
@@ -41,6 +42,28 @@ impl TradingRuntime {
                 deployment_id: intent.deployment_id.clone(),
             })
             .await?;
+
+        // Fail closed: missing account state → Halted (no new risk).
+        let account_state = match self.accounts.get(&self.config.account_id) {
+            Ok(record) => record.state.clone(),
+            Err(err) => {
+                let decision = RiskDecision::Halted {
+                    reason: format!("account state unavailable (fail closed): {err}"),
+                };
+                self.publish_risk_decision(intent, &decision, events_out)
+                    .await?;
+                if let Some(store) = &self.store {
+                    store
+                        .save_risk_decision(&intent.id, &self.config.account_id, &decision)
+                        .await?;
+                }
+                return Ok(IntentOutcome {
+                    intent: intent.clone(),
+                    decision,
+                    order_status: None,
+                });
+            }
+        };
 
         let risk_req = RiskRequest::from_intent(
             intent,
@@ -87,6 +110,7 @@ impl TradingRuntime {
                 time_in_force: self.config.time_in_force,
                 price: intent.entry_price,
                 risk_decision: decision.clone(),
+                instrument_spec: self.config.instrument_spec.clone(),
                 created_at: Utc::now(),
             },
         )
@@ -121,6 +145,31 @@ impl TradingRuntime {
                         reason: "order failed".into(),
                     })
                     .await?;
+            }
+            OrderStatus::Unknown => {
+                events_out
+                    .publish(TradingEvent::OrderUnknown {
+                        order: outcome.order.clone(),
+                        reason: "ambiguous venue outcome; reconcile before assuming failure".into(),
+                    })
+                    .await?;
+                if let Some(store) = &self.store {
+                    store.save_order(&outcome.order).await?;
+                    for audit in self.oms.audit_for_order(&outcome.order.id) {
+                        store
+                            .save_audit_event(
+                                audit,
+                                Some(&self.config.account_id),
+                                Some(&intent.id),
+                            )
+                            .await?;
+                    }
+                }
+                return Ok(IntentOutcome {
+                    intent: intent.clone(),
+                    decision,
+                    order_status: Some(OrderStatus::Unknown),
+                });
             }
             OrderStatus::Accepted | OrderStatus::PartiallyFilled | OrderStatus::Filled => {
                 events_out

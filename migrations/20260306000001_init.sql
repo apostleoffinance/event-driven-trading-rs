@@ -15,7 +15,13 @@ CREATE TABLE IF NOT EXISTS instruments (
     symbol          TEXT NOT NULL,
     base_asset      TEXT,
     quote_asset     TEXT,
-    enabled         BOOLEAN NOT NULL DEFAULT TRUE
+    enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+    tick_size       NUMERIC(38, 18),
+    lot_size        NUMERIC(38, 18),
+    min_quantity    NUMERIC(38, 18),
+    min_notional    NUMERIC(38, 18),
+    price_precision INTEGER,
+    quantity_precision INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS accounts (

@@ -10,6 +10,9 @@ use crate::types::{CancelRequest, OrderRequest};
 /// Submit a risk-approved order through OMS then the venue adapter.
 ///
 /// Flow: create (idempotent) → mark submitted → venue.submit → apply fills → accept/fill states.
+///
+/// On [`VenueError::Ambiguous`], the order is marked [`domain::OrderStatus::Unknown`]
+/// (never Failed) so reconciliation can resolve truth.
 pub async fn submit_approved_order(
     oms: &mut ExecutionEngine,
     venue: &dyn VenueAdapter,
@@ -26,12 +29,31 @@ pub async fn submit_approved_order(
     oms.mark_submitted(&order_id, at).map_err(map_exec)?;
 
     let order = oms.get(&order_id).map_err(map_exec)?.clone();
-    let ack = venue
+    let ack = match venue
         .submit_order(OrderRequest {
             venue_id: order.venue_id.clone(),
             order,
         })
-        .await?;
+        .await
+    {
+        Ok(ack) => ack,
+        Err(err) if err.is_ambiguous() => {
+            let reason = err.to_string();
+            oms.mark_unknown(&order_id, reason.clone(), Utc::now())
+                .map_err(map_exec)?;
+            let order = oms.get(&order_id).map_err(map_exec)?.clone();
+            return Ok(CreateOrderOutcome {
+                order,
+                created: true,
+            });
+        }
+        Err(err) => {
+            // Definite transport/application failure before acceptance — Failed.
+            // Ambiguous paths are handled above.
+            let _ = oms.mark_failed(&order_id, err.to_string(), Utc::now());
+            return Err(err);
+        }
+    };
 
     if !ack.accepted {
         let reason = ack

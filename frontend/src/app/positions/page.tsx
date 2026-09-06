@@ -1,23 +1,95 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-display/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import type { Position } from "@/types/domain";
 
 export default function PositionsPage() {
-  const [rows, setRows] = useState<Position[]>([]);
   const [side, setSide] = useState<"ALL" | "Long" | "Short">("ALL");
+  const [selected, setSelected] = useState<Position | null>(null);
 
-  useEffect(() => {
-    getRepositories().positions.listPositions().then(setRows);
-  }, []);
+  const { data = [], isLoading, isError, error } = useQuery({
+    queryKey: ["positions"],
+    queryFn: () => getRepositories().positions.listPositions(),
+  });
 
   const filtered = useMemo(
-    () => (side === "ALL" ? rows : rows.filter((r) => r.side === side)),
-    [rows, side],
+    () => (side === "ALL" ? data : data.filter((r) => r.side === side)),
+    [data, side],
   );
+
+  const columns = useMemo<ColumnDef<Position>[]>(
+    () => [
+      { accessorKey: "instrumentId", header: "Instrument" },
+      { accessorKey: "accountId", header: "Account" },
+      { accessorKey: "strategyId", header: "Strategy" },
+      { accessorKey: "side", header: "Side" },
+      {
+        accessorKey: "quantity",
+        header: "Qty",
+        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+      },
+      {
+        accessorKey: "entryPrice",
+        header: "Entry",
+        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+      },
+      {
+        accessorKey: "markPrice",
+        header: "Mark",
+        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+      },
+      {
+        accessorKey: "unrealizedPnl",
+        header: "uP&L",
+        cell: ({ row }) => (
+          <span
+            className={`num ${Number(row.original.unrealizedPnl) >= 0 ? "pos" : "neg"}`}
+          >
+            {formatSignedMoney(row.original.unrealizedPnl)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "realizedPnl",
+        header: "rP&L",
+        cell: ({ row }) => (
+          <span className="num">{formatSignedMoney(row.original.realizedPnl)}</span>
+        ),
+      },
+      {
+        accessorKey: "exposure",
+        header: "Exposure",
+        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+      },
+      {
+        accessorKey: "riskPct",
+        header: "Risk %",
+        cell: ({ getValue }) => (
+          <span className="num">{Number(getValue()).toFixed(2)}</span>
+        ),
+      },
+      {
+        accessorKey: "openedAt",
+        header: "Opened",
+        cell: ({ getValue }) => (
+          <span className="num">
+            {new Date(String(getValue())).toLocaleString()}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  if (isLoading) return <div className="loading">Loading positions…</div>;
+  if (isError)
+    return <div className="error">{(error as Error).message ?? "Failed to load"}</div>;
 
   return (
     <>
@@ -37,54 +109,46 @@ export default function PositionsPage() {
           </select>
         }
       />
-      <div className="data-table-wrap panel">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Instrument</th>
-              <th>Account</th>
-              <th>Strategy</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Entry</th>
-              <th>Mark</th>
-              <th>uP&L</th>
-              <th>rP&L</th>
-              <th>Exposure</th>
-              <th>Risk %</th>
-              <th>Opened</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={12}>
-                  <div className="empty">No open positions.</div>
-                </td>
-              </tr>
-            ) : (
-              filtered.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.instrumentId}</td>
-                  <td>{p.accountId}</td>
-                  <td>{p.strategyId}</td>
-                  <td>{p.side}</td>
-                  <td className="num">{p.quantity}</td>
-                  <td className="num">{p.entryPrice}</td>
-                  <td className="num">{p.markPrice}</td>
-                  <td className={`num ${Number(p.unrealizedPnl) >= 0 ? "pos" : "neg"}`}>
-                    {formatSignedMoney(p.unrealizedPnl)}
-                  </td>
-                  <td className="num">{formatSignedMoney(p.realizedPnl)}</td>
-                  <td className="num">{p.exposure}</td>
-                  <td className="num">{p.riskPct.toFixed(2)}</td>
-                  <td className="num">{new Date(p.openedAt).toLocaleString()}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="panel">
+        <DataTable
+          data={filtered}
+          columns={columns}
+          onRowClick={setSelected}
+          emptyMessage="No open positions."
+        />
       </div>
+      {selected ? (
+        <>
+          <button
+            type="button"
+            className="drawer-backdrop"
+            aria-label="Close position"
+            onClick={() => setSelected(null)}
+          />
+          <aside className="drawer" role="dialog" aria-label="Position detail">
+            <h2 style={{ marginTop: 0, fontSize: 16, fontWeight: 500 }}>
+              {selected.instrumentId} · {selected.side}
+            </h2>
+            <div className="metric-sub">Account {selected.accountId}</div>
+            <div className="metric-sub">Strategy {selected.strategyId}</div>
+            <div className="metric-sub num">Qty {selected.quantity}</div>
+            <div className="metric-sub num">
+              Entry {selected.entryPrice} · Mark {selected.markPrice}
+            </div>
+            <div className="metric-sub num">
+              uP&L {formatSignedMoney(selected.unrealizedPnl)}
+            </div>
+            <button
+              type="button"
+              className="btn"
+              style={{ marginTop: 12 }}
+              onClick={() => setSelected(null)}
+            >
+              Close
+            </button>
+          </aside>
+        </>
+      ) : null}
     </>
   );
 }

@@ -9,9 +9,10 @@ export const mockEvents: TradingEvent[] = [
     accountId: "prop-account-001",
     strategyId: "btc-mean-reversion",
     instrumentId: "EURUSD",
-    correlationId: "ti-7cf847773ab9",
+    correlationId: "corr-ti-7cf847773ab9",
     status: "Filled",
     detail: "Order filled on PropVenue",
+    payload: { fill_qty: "0.42", price: "1.08420" },
   },
   {
     id: "evt-2",
@@ -21,7 +22,7 @@ export const mockEvents: TradingEvent[] = [
     accountId: "prop-account-001",
     strategyId: "btc-mean-reversion",
     instrumentId: "EURUSD",
-    correlationId: "ti-7cf847773ab9",
+    correlationId: "corr-ti-7cf847773ab9",
     detail: "OMS submitted to venue",
   },
   {
@@ -32,7 +33,7 @@ export const mockEvents: TradingEvent[] = [
     accountId: "prop-account-001",
     strategyId: "btc-mean-reversion",
     instrumentId: "EURUSD",
-    correlationId: "ti-7cf847773ab9",
+    correlationId: "corr-ti-7cf847773ab9",
     detail: "Resized 0.75 → 0.42",
   },
   {
@@ -42,7 +43,7 @@ export const mockEvents: TradingEvent[] = [
     entity: "ti-7cf847773ab9",
     strategyId: "btc-mean-reversion",
     instrumentId: "EURUSD",
-    correlationId: "ti-7cf847773ab9",
+    correlationId: "corr-ti-7cf847773ab9",
     detail: "Python mean-reversion emitted Buy intent",
   },
   {
@@ -51,6 +52,7 @@ export const mockEvents: TradingEvent[] = [
     type: "StrategySignalGenerated",
     strategyId: "btc-mean-reversion",
     instrumentId: "EURUSD",
+    correlationId: "corr-ti-7cf847773ab9",
     detail: "Price below rolling mean",
   },
   {
@@ -58,6 +60,29 @@ export const mockEvents: TradingEvent[] = [
     timestamp: "2026-09-06T21:10:00.000Z",
     type: "ReconciliationCompleted",
     accountId: "prop-account-001",
+    correlationId: "corr-recon-1",
     detail: "Internal vs venue compare clean",
+  },
+  {
+    id: "evt-7",
+    timestamp: "2026-09-06T17:45:30.000Z",
+    type: "OrderUnknown",
+    entity: "ord-0997",
+    accountId: "prop-account-001",
+    strategyId: "btc-mean-reversion",
+    instrumentId: "EURUSD",
+    correlationId: "corr-ti-amb1",
+    status: "Unknown",
+    detail:
+      "Ambiguous venue outcome after submit — do not assume Failed; reconcile",
+  },
+  {
+    id: "evt-8",
+    timestamp: "2026-09-06T17:40:00.000Z",
+    type: "MarketDataUnhealthy",
+    instrumentId: "EURUSD",
+    correlationId: "corr-md-eurusd",
+    status: "Stale",
+    detail: "Feed age exceeded threshold — new strategy risk blocked",
   },
 ];

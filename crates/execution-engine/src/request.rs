@@ -2,8 +2,8 @@
 
 use chrono::{DateTime, Utc};
 use domain::{
-    AccountId, ClientOrderId, DeploymentId, InstrumentId, OrderSide, OrderType, RiskDecision,
-    StrategyId, TimeInForce, TradeIntentId, VenueId,
+    AccountId, ClientOrderId, DeploymentId, InstrumentId, InstrumentSpec, OrderSide, OrderType,
+    RiskDecision, StrategyId, TimeInForce, TradeIntentId, VenueId,
 };
 use rust_decimal::Decimal;
 
@@ -25,6 +25,8 @@ pub struct NewOrderRequest {
     pub price: Option<Decimal>,
     /// Must be [`RiskDecision::Approved`] or [`RiskDecision::Resized`].
     pub risk_decision: RiskDecision,
+    /// When set, quantity/price are validated against market-structure rules.
+    pub instrument_spec: Option<InstrumentSpec>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -36,6 +38,9 @@ impl NewOrderRequest {
                     return Err(ExecutionError::RiskNotExecutable(
                         "approved quantity must be positive".to_string(),
                     ));
+                }
+                if let Some(spec) = &self.instrument_spec {
+                    spec.validate_order_params(*quantity, self.price)?;
                 }
                 Ok(*quantity)
             }

@@ -20,7 +20,12 @@ export function orderTone(status: OrderStatus): "ok" | "warn" | "bad" | "info" {
   if (status === "Filled" || status === "Accepted" || status === "Approved")
     return "ok";
   if (status === "Rejected" || status === "Failed") return "bad";
-  if (status === "CancelPending" || status === "Cancelled") return "warn";
+  if (
+    status === "CancelPending" ||
+    status === "Cancelled" ||
+    status === "Unknown"
+  )
+    return "warn";
   return "info";
 }
 

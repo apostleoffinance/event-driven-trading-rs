@@ -15,4 +15,4 @@ pub use context::StrategyContext;
 pub use error::{StrategyError, StrategyResult};
 pub use intent_id::next_trade_intent_id;
 pub use strategy::Strategy;
-pub use worker::process_market_envelope;
+pub use worker::{process_market_envelope, process_market_envelope_with_health};

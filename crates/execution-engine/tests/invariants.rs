@@ -24,6 +24,7 @@ fn req(client: &str, decision: RiskDecision) -> NewOrderRequest {
         time_in_force: TimeInForce::Gtc,
         price: Some(Decimal::from(100)),
         risk_decision: decision,
+        instrument_spec: None,
         created_at: Utc::now(),
     }
 }

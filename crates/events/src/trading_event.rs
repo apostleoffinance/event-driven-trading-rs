@@ -10,13 +10,18 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::error::EventsResult;
-use crate::ids::EventId;
+use crate::ids::{CorrelationId, EventId};
 use crate::market_data::MarketDataEvent;
+use crate::market_data_health::MarketDataHealth;
 
 /// Immutable wrapper around a trading event fact.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventEnvelope {
     pub id: EventId,
+    /// Stable id spanning intent → risk → order → fill.
+    pub correlation_id: Option<CorrelationId>,
+    /// Prior event id that caused this fact (audit chain).
+    pub causation_id: Option<EventId>,
     pub occurred_at: DateTime<Utc>,
     pub event: TradingEvent,
 }
@@ -25,6 +30,8 @@ impl EventEnvelope {
     pub fn wrap(event: TradingEvent, occurred_at: DateTime<Utc>) -> EventsResult<Self> {
         Ok(Self {
             id: EventId::generate("evt")?,
+            correlation_id: None,
+            causation_id: None,
             occurred_at,
             event,
         })
@@ -33,9 +40,21 @@ impl EventEnvelope {
     pub fn with_id(id: EventId, event: TradingEvent, occurred_at: DateTime<Utc>) -> Self {
         Self {
             id,
+            correlation_id: None,
+            causation_id: None,
             occurred_at,
             event,
         }
+    }
+
+    pub fn with_correlation(mut self, correlation_id: CorrelationId) -> Self {
+        self.correlation_id = Some(correlation_id);
+        self
+    }
+
+    pub fn with_causation(mut self, causation_id: EventId) -> Self {
+        self.causation_id = Some(causation_id);
+        self
     }
 
     pub fn correlation_trade_intent_id(&self) -> Option<&TradeIntentId> {
@@ -60,7 +79,8 @@ impl EventEnvelope {
             | TradingEvent::OrderPartiallyFilled { order, .. }
             | TradingEvent::OrderFilled { order, .. }
             | TradingEvent::OrderCancelled { order, .. }
-            | TradingEvent::OrderFailed { order, .. } => order.trade_intent_id.as_ref(),
+            | TradingEvent::OrderFailed { order, .. }
+            | TradingEvent::OrderUnknown { order, .. } => order.trade_intent_id.as_ref(),
             _ => None,
         }
     }
@@ -161,6 +181,17 @@ pub enum TradingEvent {
         reason: String,
     },
 
+    /// Ambiguous venue outcome — requires reconciliation.
+    OrderUnknown {
+        order: Order,
+        reason: String,
+    },
+
+    /// Market data not valid for creating new strategy risk.
+    MarketDataUnhealthy {
+        health: MarketDataHealth,
+    },
+
     PositionOpened {
         position: Position,
     },
@@ -238,6 +269,8 @@ impl TradingEvent {
             Self::OrderFilled { .. } => "OrderFilled",
             Self::OrderCancelled { .. } => "OrderCancelled",
             Self::OrderFailed { .. } => "OrderFailed",
+            Self::OrderUnknown { .. } => "OrderUnknown",
+            Self::MarketDataUnhealthy { .. } => "MarketDataUnhealthy",
             Self::PositionOpened { .. } => "PositionOpened",
             Self::PositionUpdated { .. } => "PositionUpdated",
             Self::PositionClosed { .. } => "PositionClosed",

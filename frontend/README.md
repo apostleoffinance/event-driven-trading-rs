@@ -32,11 +32,15 @@ UI → repository interfaces → MockDataProvider (today)
                           → ApiDataProvider (future Rust REST)
 UI → useEventStream → MockEventStream (today)
                    → WebSocket/SSE (future)
+UI → TanStack Query (cache/loading) + TanStack Table (sortable grids)
 ```
 
-Domain types under `src/types` align with Rust crates (`Buy`/`Sell`, order state machine, `TradeIntentCreated`, Account ≠ Venue).
+Domain types under `src/types` align with Rust crates (`Buy`/`Sell`, order state
+machine including `Unknown`, `TradeIntentCreated`, Account ≠ Venue, correlation IDs).
 
 Money values are **strings** (`Money`), never JS floats for balances/P&L.
+
+Light/dark theme toggle is available in the top bar.
 
 ## Routes
 

@@ -25,8 +25,10 @@
 
 - All money, price, quantity, risk, and P&L fields use `rust_decimal::Decimal`
 - Fallible constructors return `DomainResult<T>` — no silent defaults for invalid money
-- Order transitions are explicit and tested
+- Order transitions are explicit and tested (`OrderStatus`, including `Unknown`)
 - Account (capital/risk ownership) is never conflated with Venue (execution location)
+- [`InstrumentSpec`] encodes tick/lot/min qty/notional; validate before venue submit
+- See [`CONSTITUTION.md`](CONSTITUTION.md) for absolute trading-system rules
 
 ## Conceptual flow (Phase 1 representable)
 

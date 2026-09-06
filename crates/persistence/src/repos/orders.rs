@@ -84,6 +84,7 @@ fn parse_status(s: &str) -> PersistenceResult<OrderStatus> {
         "CANCEL_PENDING" => Ok(OrderStatus::CancelPending),
         "CANCELLED" => Ok(OrderStatus::Cancelled),
         "FAILED" => Ok(OrderStatus::Failed),
+        "UNKNOWN" => Ok(OrderStatus::Unknown),
         o => Err(PersistenceError::Other(format!("unknown status {o}"))),
     }
 }

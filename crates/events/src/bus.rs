@@ -8,7 +8,7 @@ use chrono::Utc;
 use tokio::sync::mpsc;
 
 use crate::error::{EventsError, EventsResult};
-use crate::ids::EventId;
+use crate::ids::{CorrelationId, EventId};
 use crate::trading_event::{EventEnvelope, TradingEvent};
 
 /// Default bounded capacity for the trading event channel.
@@ -46,6 +46,26 @@ impl EventPublisher {
     pub async fn publish(&self, event: TradingEvent) -> EventsResult<EventEnvelope> {
         let envelope = EventEnvelope {
             id: next_event_id()?,
+            correlation_id: None,
+            causation_id: None,
+            occurred_at: Utc::now(),
+            event,
+        };
+        self.publish_envelope(envelope.clone()).await?;
+        Ok(envelope)
+    }
+
+    /// Publish with correlation / causation linkage for audit reconstruction.
+    pub async fn publish_correlated(
+        &self,
+        event: TradingEvent,
+        correlation_id: CorrelationId,
+        causation_id: Option<EventId>,
+    ) -> EventsResult<EventEnvelope> {
+        let envelope = EventEnvelope {
+            id: next_event_id()?,
+            correlation_id: Some(correlation_id),
+            causation_id,
             occurred_at: Utc::now(),
             event,
         };
@@ -57,6 +77,8 @@ impl EventPublisher {
     pub fn try_publish(&self, event: TradingEvent) -> EventsResult<EventEnvelope> {
         let envelope = EventEnvelope {
             id: next_event_id()?,
+            correlation_id: None,
+            causation_id: None,
             occurred_at: Utc::now(),
             event,
         };

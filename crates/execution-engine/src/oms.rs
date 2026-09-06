@@ -227,6 +227,45 @@ impl ExecutionEngine {
         Ok(order)
     }
 
+    /// Mark order as Unknown after ambiguous venue response (timeout / disconnect).
+    ///
+    /// Does **not** assume failure. Reconciliation must resolve the true state.
+    pub fn mark_unknown(
+        &mut self,
+        order_id: &OrderId,
+        reason: impl Into<String>,
+        at: DateTime<Utc>,
+    ) -> ExecutionResult<Order> {
+        let reason = reason.into();
+        let order = self.order_mut(order_id)?;
+        order.transition_to(OrderStatus::Unknown, at)?;
+        let order = order.clone();
+        self.push_audit(at, &order, AuditKind::Unknown, reason);
+        Ok(order)
+    }
+
+    /// Resolve an Unknown order after reconciliation against venue truth.
+    pub fn resolve_unknown(
+        &mut self,
+        order_id: &OrderId,
+        next: OrderStatus,
+        detail: impl Into<String>,
+        at: DateTime<Utc>,
+    ) -> ExecutionResult<Order> {
+        let detail = detail.into();
+        let order = self.order_mut(order_id)?;
+        if order.status != OrderStatus::Unknown {
+            return Err(ExecutionError::IllegalState(format!(
+                "resolve_unknown requires Unknown, got {}",
+                order.status.as_str()
+            )));
+        }
+        order.transition_to(next, at)?;
+        let order = order.clone();
+        self.push_audit(at, &order, AuditKind::Unknown, format!("resolved: {detail}"));
+        Ok(order)
+    }
+
     pub fn request_cancel(
         &mut self,
         order_id: &OrderId,
@@ -397,6 +436,7 @@ mod tests {
             time_in_force: TimeInForce::Ioc,
             price: Some(Decimal::from(100)),
             risk_decision: RiskDecision::Approved { quantity: qty },
+            instrument_spec: None,
             created_at: Utc::now(),
         }
     }

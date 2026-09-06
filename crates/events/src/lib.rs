@@ -10,10 +10,12 @@ pub mod bus;
 pub mod error;
 pub mod ids;
 pub mod market_data;
+pub mod market_data_health;
 pub mod trading_event;
 
 pub use bus::{event_channel, EventPublisher, EventSubscriber, DEFAULT_EVENT_CHANNEL_CAPACITY};
 pub use error::{EventsError, EventsResult};
-pub use ids::EventId;
+pub use ids::{CorrelationId, EventId};
 pub use market_data::MarketDataEvent;
+pub use market_data_health::{MarketDataHealth, MarketDataHealthStatus, MarketDataHealthTracker};
 pub use trading_event::{EventEnvelope, TradingEvent};

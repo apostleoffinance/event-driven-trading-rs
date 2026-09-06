@@ -116,7 +116,16 @@ Baseline tag: `v0.1-paper-engine`
 
 ## Out of scope until later phases
 
-Rebalancing, vaults, multi-CEX execution, Kafka/K8s, frontend, live prop firm REST/WS.
+Rebalancing, vaults, multi-CEX execution, Kafka/K8s, live prop firm REST/WS.
+
+## Constitution hardening (post Phase 11)
+
+- [x] `docs/architecture/CONSTITUTION.md`
+- [x] `OrderStatus::Unknown` + `VenueError::Ambiguous` → mark Unknown (never guess Failed)
+- [x] `InstrumentSpec` + pre-submit validation on `NewOrderRequest`
+- [x] `MarketDataHealthTracker` + fail-closed strategy gating
+- [x] Event envelope `correlation_id` / `causation_id`
+- [x] Risk fail-closed when account state unavailable
 
 ## Language split (post Phase 11)
 
