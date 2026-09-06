@@ -19,7 +19,10 @@ pub struct CreateOrderOutcome {
     pub created: bool,
 }
 
-/// In-memory OMS / execution coordinator (venue adapter arrives in Phase 7).
+/// In-memory OMS / execution coordinator.
+///
+/// Venue I/O goes through `venue_connectors::VenueAdapter` via
+/// `submit_approved_order` — this type stays venue-agnostic.
 #[derive(Debug, Default)]
 pub struct ExecutionEngine {
     orders: HashMap<OrderId, Order>,

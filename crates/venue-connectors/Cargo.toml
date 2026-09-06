@@ -1,0 +1,22 @@
+[package]
+name = "venue-connectors"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Venue adapter trait and connectors (simulated first)"
+
+[dependencies]
+async-trait = { workspace = true }
+chrono = { workspace = true }
+domain = { path = "../domain" }
+execution-engine = { path = "../execution-engine" }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+account-engine = { path = "../account-engine" }
+risk-engine = { path = "../risk-engine" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

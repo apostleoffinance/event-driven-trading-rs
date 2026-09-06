@@ -12,7 +12,7 @@ Baseline tag: `v0.1-paper-engine`
 | 4 | **Done** | Deterministic risk-engine |
 | 5 | **Done** | Account engine |
 | 6 | **Done** | OMS / execution lifecycle + idempotency |
-| 7 | Pending | `VenueAdapter` + `SimulatedVenue` |
+| 7 | **Done** | `VenueAdapter` + `SimulatedVenue` |
 | 8 | Pending | PostgreSQL persistence |
 | 9 | Pending | Continuous `trading-runtime` |
 | 10 | Pending | Reconciliation |
@@ -70,6 +70,14 @@ Baseline tag: `v0.1-paper-engine`
 - [x] Partial/full fills, cancel, reject, fail
 - [x] Audit trail + stored risk decision per order
 - [x] Invariant tests (no order without risk; account/venue/client id)
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 7 acceptance
+
+- [x] `VenueAdapter` trait in `crates/venue-connectors`
+- [x] `SimulatedVenue` with fills + positions
+- [x] OMS submits through adapter (not concrete type)
+- [x] E2E: TradeIntent → Risk → OMS → Venue → Fill → Position
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

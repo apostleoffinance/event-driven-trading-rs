@@ -10,6 +10,10 @@ pub struct Fill {
     pub timestamp: u64,
 }
 
+/// Simulate fills with basic partial fill handling
+///
+/// **Deprecated for new work:** use `venue_connectors::SimulatedVenue`
+/// behind `VenueAdapter`.
 pub struct FillSimulator;
 
 impl FillSimulator {
