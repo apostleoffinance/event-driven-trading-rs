@@ -14,6 +14,7 @@ crates/
   strategy-runtime/ # Strategy trait + intent worker (Phase 3)
   risk-engine/      # deterministic pre-trade risk (Phase 4)
   account-engine/   # account registry + state (Phase 5)
+  execution-engine/ # OMS lifecycle + idempotency (Phase 6)
   event-trading/    # legacy paper engine (preserved)
 strategies/
   mean-reversion/   # stateful mean reversion → TradeIntent
@@ -37,7 +38,7 @@ cargo run -p event-trading --bin test_all_exchanges
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT}.md`.
+See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT,EXECUTION}.md`.
 
 ## License
 

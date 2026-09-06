@@ -11,7 +11,7 @@ Baseline tag: `v0.1-paper-engine`
 | 3 | **Done** | Strategy runtime + mean-reversion → `TradeIntent` |
 | 4 | **Done** | Deterministic risk-engine |
 | 5 | **Done** | Account engine |
-| 6 | Pending | OMS / execution lifecycle + idempotency |
+| 6 | **Done** | OMS / execution lifecycle + idempotency |
 | 7 | Pending | `VenueAdapter` + `SimulatedVenue` |
 | 8 | Pending | PostgreSQL persistence |
 | 9 | Pending | Continuous `trading-runtime` |
@@ -61,6 +61,15 @@ Baseline tag: `v0.1-paper-engine`
 - [x] Account ≠ Venue preserved
 - [x] No venue HTTP in account-engine
 - [x] Integration with risk-engine via `AccountState`
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 6 acceptance
+
+- [x] `crates/execution-engine` OMS with domain order state machine
+- [x] Client order ID idempotency (retry-safe)
+- [x] Partial/full fills, cancel, reject, fail
+- [x] Audit trail + stored risk decision per order
+- [x] Invariant tests (no order without risk; account/venue/client id)
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

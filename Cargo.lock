@@ -282,6 +282,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "execution-engine"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "domain",
+ "rust_decimal",
+ "serde",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

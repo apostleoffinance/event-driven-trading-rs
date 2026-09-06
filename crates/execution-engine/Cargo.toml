@@ -1,0 +1,18 @@
+[package]
+name = "execution-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "OMS order lifecycle, idempotency, and execution coordination"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../domain" }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
