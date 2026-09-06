@@ -2,10 +2,11 @@
 
 use account_engine::{AccountEngine, InMemoryAccountEngine};
 use chrono::Utc;
-use domain::TradeIntent;
+use domain::{Position, TradeIntent};
 use events::{EventEnvelope, EventPublisher, EventSubscriber, TradingEvent};
 use execution_engine::ExecutionEngine;
 use persistence::TradingStore;
+use reconciliation::{InternalSnapshot, Reconciler, ReconciliationReport};
 use risk_engine::DefaultRiskEvaluator;
 use rust_decimal::Decimal;
 use strategy_runtime::{process_market_envelope, Strategy, StrategyContext};
@@ -201,5 +202,35 @@ impl TradingRuntime {
         Err(RuntimeError::Invariant(
             "event channel closed before run_until predicate matched".into(),
         ))
+    }
+
+    /// Compare internal account/OMS/position view to the venue.
+    ///
+    /// Alert-only: never overwrites account or OMS state on mismatch.
+    /// Pass the position book the runtime/store believes is internal truth.
+    pub async fn reconcile(
+        &self,
+        venue: &dyn VenueAdapter,
+        internal_positions: Vec<Position>,
+        events_out: Option<&EventPublisher>,
+    ) -> RuntimeResult<ReconciliationReport> {
+        let account_state = self.accounts.get(&self.config.account_id)?.state.clone();
+        let open_orders: Vec<_> = self
+            .oms
+            .open_orders_for(&self.config.account_id)
+            .into_iter()
+            .cloned()
+            .collect();
+        let internal = InternalSnapshot::new(
+            self.config.account_id.clone(),
+            self.config.venue_id.clone(),
+            account_state,
+        )
+        .with_positions(internal_positions)
+        .with_open_orders(open_orders);
+
+        Ok(Reconciler::new()
+            .reconcile(venue, &internal, events_out)
+            .await?)
     }
 }

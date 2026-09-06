@@ -1,0 +1,21 @@
+[package]
+name = "reconciliation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Internal vs venue state reconciliation (alert-only, no silent overwrite)"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../domain" }
+events = { path = "../events" }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+venue-connectors = { path = "../venue-connectors" }
+
+[dev-dependencies]
+account-engine = { path = "../account-engine" }
+execution-engine = { path = "../execution-engine" }
+risk-engine = { path = "../risk-engine" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

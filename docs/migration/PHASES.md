@@ -15,7 +15,7 @@ Baseline tag: `v0.1-paper-engine`
 | 7 | **Done** | `VenueAdapter` + `SimulatedVenue` |
 | 8 | **Done** | PostgreSQL persistence |
 | 9 | **Done** | Continuous `trading-runtime` |
-| 10 | Pending | Reconciliation |
+| 10 | **Done** | Reconciliation |
 | 11 | Pending | First prop venue connector |
 
 ## Phase 1 acceptance
@@ -95,6 +95,15 @@ Baseline tag: `v0.1-paper-engine`
 - [x] Publishes pipeline `TradingEvent`s on outbound bus
 - [x] Optional `TradingStore` persistence hooks
 - [x] Integration tests: continuous fill + `run_until`
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 10 acceptance
+
+- [x] `crates/reconciliation` compares internal vs venue state
+- [x] Mismatches emit `ReconciliationAlert` only (no silent overwrite)
+- [x] Lifecycle events: Started / Completed / Failed
+- [x] Position, account, and open-order break detection
+- [x] `TradingRuntime::reconcile` hook
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

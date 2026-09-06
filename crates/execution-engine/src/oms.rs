@@ -74,6 +74,19 @@ impl ExecutionEngine {
         self.risk_by_order.get(order_id)
     }
 
+    /// All orders currently tracked by the OMS.
+    pub fn orders(&self) -> Vec<&Order> {
+        self.orders.values().collect()
+    }
+
+    /// Non-terminal orders for an account (open / working).
+    pub fn open_orders_for(&self, account_id: &domain::AccountId) -> Vec<&Order> {
+        self.orders
+            .values()
+            .filter(|o| &o.account_id == account_id && !o.status.is_terminal())
+            .collect()
+    }
+
     /// Create an order from a risk-approved request.
     ///
     /// Retries with the same `client_order_id` return the existing order without

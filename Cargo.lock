@@ -1385,6 +1385,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "reconciliation"
+version = "0.1.0"
+dependencies = [
+ "account-engine",
+ "chrono",
+ "domain",
+ "events",
+ "execution-engine",
+ "risk-engine",
+ "rust_decimal",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "venue-connectors",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2345,6 +2362,7 @@ dependencies = [
  "execution-engine",
  "mean-reversion",
  "persistence",
+ "reconciliation",
  "risk-engine",
  "rust_decimal",
  "strategy-runtime",

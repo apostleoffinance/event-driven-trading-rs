@@ -29,6 +29,9 @@ pub enum RuntimeError {
     #[error("persistence error: {0}")]
     Persistence(#[from] persistence::PersistenceError),
 
+    #[error("reconciliation error: {0}")]
+    Reconciliation(#[from] reconciliation::ReconciliationError),
+
     #[error("runtime invariant: {0}")]
     Invariant(String),
 }

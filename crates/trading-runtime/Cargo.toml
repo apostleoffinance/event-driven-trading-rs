@@ -15,6 +15,7 @@ persistence = { path = "../persistence" }
 risk-engine = { path = "../risk-engine" }
 rust_decimal = { workspace = true }
 strategy-runtime = { path = "../strategy-runtime" }
+reconciliation = { path = "../reconciliation" }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
