@@ -17,6 +17,7 @@ crates/
   execution-engine/ # OMS lifecycle + idempotency (Phase 6)
   venue-connectors/ # VenueAdapter + SimulatedVenue (Phase 7)
   persistence/      # PostgreSQL / SQLx (Phase 8)
+  trading-runtime/  # continuous MarketData → Position loop (Phase 9)
   event-trading/    # legacy paper engine (preserved)
 strategies/
   mean-reversion/   # stateful mean reversion → TradeIntent
@@ -40,7 +41,7 @@ cargo run -p event-trading --bin test_all_exchanges
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE}.md`.
+See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE,RUNTIME}.md`.
 
 ### PostgreSQL (Phase 8)
 

@@ -9,6 +9,7 @@ members = [
     "crates/execution-engine",
     "crates/venue-connectors",
     "crates/persistence",
+    "crates/trading-runtime",
     "crates/event-trading",
     "strategies/mean-reversion",
 ]

@@ -53,5 +53,5 @@ Correlate with domain IDs carried on payloads:
 
 ## Legacy note
 
-The sync `Mutex` pub/sub bus in `crates/event-trading` remains for the paper demo until
-the continuous runtime (Phase 9) is wired to this crate. New code should use `events`.
+The sync `Mutex` pub/sub bus in `crates/event-trading` remains for the paper demo.
+New code should use `crates/events` via `crates/trading-runtime`.

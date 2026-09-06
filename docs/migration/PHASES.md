@@ -14,7 +14,7 @@ Baseline tag: `v0.1-paper-engine`
 | 6 | **Done** | OMS / execution lifecycle + idempotency |
 | 7 | **Done** | `VenueAdapter` + `SimulatedVenue` |
 | 8 | **Done** | PostgreSQL persistence |
-| 9 | Pending | Continuous `trading-runtime` |
+| 9 | **Done** | Continuous `trading-runtime` |
 | 10 | Pending | Reconciliation |
 | 11 | Pending | First prop venue connector |
 
@@ -86,6 +86,15 @@ Baseline tag: `v0.1-paper-engine`
 - [x] Persist orders, fills, positions, account state, trade intents, risk decisions
 - [x] NUMERIC money columns (no floats)
 - [x] Reload/survive-restart integration test
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 9 acceptance
+
+- [x] `crates/trading-runtime` continuous MarketData → Position loop
+- [x] Orchestrates strategy-runtime + risk + account + OMS + VenueAdapter
+- [x] Publishes pipeline `TradingEvent`s on outbound bus
+- [x] Optional `TradingStore` persistence hooks
+- [x] Integration tests: continuous fill + `run_until`
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

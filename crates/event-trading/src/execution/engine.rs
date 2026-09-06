@@ -23,7 +23,7 @@ pub struct Trade {
 ///
 /// **Deprecated for new work:** use `execution-engine::ExecutionEngine` (OMS)
 /// with domain orders, client-order idempotency, and prior `RiskDecision`.
-/// This type remains for the legacy paper demo until Phase 9.
+/// This type remains for the legacy paper demo; new loops use `trading-runtime`.
 pub struct ExecutionEngine {
     risk_engine: RiskEngine,
     trades: Vec<Trade>,

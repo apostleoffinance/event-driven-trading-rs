@@ -1,0 +1,25 @@
+[package]
+name = "trading-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Continuous trading pipeline orchestrator (strategy → risk → OMS → venue)"
+
+[dependencies]
+account-engine = { path = "../account-engine" }
+chrono = { workspace = true }
+domain = { path = "../domain" }
+events = { path = "../events" }
+execution-engine = { path = "../execution-engine" }
+persistence = { path = "../persistence" }
+risk-engine = { path = "../risk-engine" }
+rust_decimal = { workspace = true }
+strategy-runtime = { path = "../strategy-runtime" }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+venue-connectors = { path = "../venue-connectors" }
+
+[dev-dependencies]
+mean-reversion = { path = "../../strategies/mean-reversion" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

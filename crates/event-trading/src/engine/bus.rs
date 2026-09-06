@@ -9,8 +9,8 @@ pub type EventHandler = Arc<dyn Fn(&Event) + Send + Sync>;
 /// Event Bus - Central pub/sub mechanism for all trading events
 ///
 /// **Deprecated for new work:** prefer `events::EventPublisher` / `EventSubscriber`
-/// (Tokio `mpsc`, typed `TradingEvent`). This sync bus remains only for the
-/// legacy paper-trading demo until Phase 9 runtime migration.
+/// (Tokio `mpsc`, typed `TradingEvent`) via `trading-runtime`. This sync bus remains
+/// only for the legacy paper-trading demo.
 pub struct EventBus {
     subscribers: Arc<Mutex<HashMap<String, Vec<EventHandler>>>>,
     event_counts: Arc<Mutex<HashMap<String, u64>>>,
