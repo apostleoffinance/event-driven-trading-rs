@@ -13,7 +13,7 @@ Baseline tag: `v0.1-paper-engine`
 | 5 | **Done** | Account engine |
 | 6 | **Done** | OMS / execution lifecycle + idempotency |
 | 7 | **Done** | `VenueAdapter` + `SimulatedVenue` |
-| 8 | Pending | PostgreSQL persistence |
+| 8 | **Done** | PostgreSQL persistence |
 | 9 | Pending | Continuous `trading-runtime` |
 | 10 | Pending | Reconciliation |
 | 11 | Pending | First prop venue connector |
@@ -78,6 +78,14 @@ Baseline tag: `v0.1-paper-engine`
 - [x] `SimulatedVenue` with fills + positions
 - [x] OMS submits through adapter (not concrete type)
 - [x] E2E: TradeIntent → Risk → OMS → Venue → Fill → Position
+- [x] `cargo fmt/check/test/clippy --workspace` green
+
+## Phase 8 acceptance
+
+- [x] SQLx + PostgreSQL migrations under `migrations/`
+- [x] Persist orders, fills, positions, account state, trade intents, risk decisions
+- [x] NUMERIC money columns (no floats)
+- [x] Reload/survive-restart integration test
 - [x] `cargo fmt/check/test/clippy --workspace` green
 
 ## Out of scope until later phases

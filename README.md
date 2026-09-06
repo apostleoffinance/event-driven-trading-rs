@@ -16,6 +16,7 @@ crates/
   account-engine/   # account registry + state (Phase 5)
   execution-engine/ # OMS lifecycle + idempotency (Phase 6)
   venue-connectors/ # VenueAdapter + SimulatedVenue (Phase 7)
+  persistence/      # PostgreSQL / SQLx (Phase 8)
   event-trading/    # legacy paper engine (preserved)
 strategies/
   mean-reversion/   # stateful mean reversion → TradeIntent
@@ -39,7 +40,15 @@ cargo run -p event-trading --bin test_all_exchanges
 3. **Account ≠ Venue**
 4. Events are immutable facts over in-process async channels (`crates/events`)
 
-See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT,EXECUTION,VENUE}.md`.
+See `docs/migration/AUDIT.md` and `docs/architecture/{DOMAIN,EVENTS,STRATEGY,RISK,ACCOUNT,EXECUTION,VENUE,PERSISTENCE}.md`.
+
+### PostgreSQL (Phase 8)
+
+```bash
+docker compose up -d
+export DATABASE_URL=postgres://trading:trading@127.0.0.1:15432/trading
+cargo test -p persistence
+```
 
 ## License
 

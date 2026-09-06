@@ -1,0 +1,20 @@
+[package]
+name = "persistence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PostgreSQL persistence for trading domain entities"
+
+[dependencies]
+chrono = { workspace = true }
+domain = { path = "../domain" }
+execution-engine = { path = "../execution-engine" }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
