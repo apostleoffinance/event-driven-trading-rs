@@ -2,7 +2,7 @@
 Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
-**Documentation branch created; product docs being added; implementation audit partially source-inspected; Rust tests not run.** Roadmap phases are plans, not implementation claims.
+**Documentation PR opened for review; implementation audit partially source-inspected; Rust tests not run.** Roadmap phases are plans, not implementation claims.
 
 ## Source inspection findings (GitHub source read; tests not run)
 - `crates/venue-connectors/src/adapter.rs`: `VenueAdapter` currently exposes `venue_name`, `account_state`, `submit_order`, `cancel_order`, `open_orders`, `positions`, and `get_order`. It does not yet expose an event stream, explicit capability model, instrument-spec lookup, or adapter health/readiness API.
@@ -27,8 +27,9 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Work log — 2026-10-27
 - Created branch `docs/quant-os-product-operating-system` from `main`.
-- Added `RULES.md` first as the governing document for all other project artifacts.
-- Product documentation is being added to the branch; no code changes or Rust test runs are claimed.
+- Added all eight requested docs (`PRD.md`, `ARCHITECTURE.md`, `DESIGN.md`, `RULES.md`, `TASKS.md`, `PROGRESS.md`, `REVIEWS.md`) plus `ROADMAP.md`.
+- Opened draft PR #1: https://github.com/apostleoffinance/event-driven-trading-rs/pull/1
+- Verified all eight files are readable from the feature branch. Documentation-only change; no code changes or Rust test runs are claimed.
 - Source inspection found the current runtime path is single-account and adapter/sizing capabilities need careful extension before multi-account live routing.
 
 ## Blockers and risks
