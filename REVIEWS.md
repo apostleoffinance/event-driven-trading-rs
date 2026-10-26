@@ -36,8 +36,8 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update:** Existing workflow rules 6–7 require verified progress and accurate claims.
 - **Artifacts changed:** Update this register and `PROGRESS.md`; add all docs on the feature branch.
 - **Regression check:** Verify branch/file URLs and PR creation response.
-- **Verification:** Branch `docs/quant-os-product-operating-system` created successfully.
-- **Remaining risk:** Docs must be committed and PR opened; Rust tests remain unrun.
+- **Verification:** Branch `docs/quant-os-product-operating-system` created; all eight documentation files verified on branch; draft PR #1 opened at https://github.com/apostleoffinance/event-driven-trading-rs/pull/1.
+- **Remaining risk:** PR is unmerged and awaiting review; Rust tests remain unrun.
 
 ## Entry template
 ### REV-XXX — Short title
