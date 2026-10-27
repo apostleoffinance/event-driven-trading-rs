@@ -4,7 +4,7 @@ Last updated: 2026-10-27. This is a source audit and acceptance plan, not an imp
 
 ## 1. Scope and status
 
-**Status: IN PROGRESS — audit and acceptance criteria only.** No runtime code has been changed in this kickoff. The next code slice must be small, deterministic, test-backed, and fail closed. It must not enable live execution or money movement.
+**Status: IN PROGRESS — first implementation slice added; CI pending.** The pure sizing API and risk-gated evaluator entry point exist on `feat/qos-013-instrument-aware-sizing`. The new API fails closed on missing stop geometry, stale context, invalid model parameters, invalid tick distance, volume/min-notional failures, and checked-arithmetic failures. It must not enable live execution or money movement.
 
 Goal: make risk sizing an explicit, instrument-aware decision behind the existing risk authorization path. Strategies remain limited to emitting `TradeIntent`; they must not submit orders or bypass risk authorization.
 
@@ -51,15 +51,18 @@ Out of scope for this slice: live venue integration, MT5 bridge, frontend change
 - [ ] Existing simulated/paper paths remain available; no live venue, live-mode flag, deployment, or money movement is enabled.
 
 ### C. Verification and reporting
-- [ ] Add targeted tests for every implemented branch, including boundary, rounding, missing-data, stale-data, invalid geometry, and invariant cases.
+- [x] Add targeted tests for the initial implemented slice: linear/tick-value calculations, conversion, stop geometry, stale data, tick alignment, minimum volume, costs/buffer, and evaluator gate order. CI result pending.
+- [ ] Add targeted tests for every remaining branch, including all caps, overflow paths, max volume, minimum notional, property/invariant cases, and production risk/execution boundary.
 - [ ] Add tests for all model/currency/venue constraints claimed supported; unimplemented SZ-01–SZ-26 cases remain explicitly open.
 - [ ] Run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets` on the feature branch; report exact CI evidence.
 - [ ] Update `TASKS.md`, `PROGRESS.md`, and `REVIEWS.md` with observed results and unresolved gaps.
 - [ ] Do not claim production or live readiness from a green CI run alone.
 
-## 5. First code-change gate
+## 5. First implementation slice now present
 
-Before editing runtime code, the implementation PR must name the exact supported instrument model and the source of each required input. If the present domain types cannot express the required tick/currency/volume/freshness data, first add the smallest typed domain contract plus tests. Do not “fix” the existing formula by adding more caps around `abs(entry - stop)`; that formula alone does not calculate instrument-aware loss.
+`crates/risk-engine/src/instrument_sizing.rs` adds `LossModel::Linear` and `LossModel::TickValue`, `InstrumentSizingContext`, typed rejection/limiting reasons, exact decimal calculations with checked operations, directionally supplied account-currency rates, explicit freshness status, side-aware stop validation, risk/position/exposure/leverage caps, volume-step round-down, min/max and minimum-notional validation, and post-rounding loss verification. `DefaultRiskEvaluator::evaluate_with_instrument_sizing` runs the existing risk gates before invoking this API. Eight focused tests were added.
+
+The new API is deliberately opt-in because the runtime does not yet provide authoritative timestamped instrument/quote/conversion/margin snapshots. The legacy `evaluate` method remains for compatibility and still calls the legacy sizing function. Do not describe the overall QOS-013 task as complete until production runtime wiring and remaining contract requirements are implemented and verified.
 
 ## 6. Remaining known risks
 
@@ -68,3 +71,8 @@ Before editing runtime code, the implementation PR must name the exact supported
 - Existing account/instrument models do not prove fresh venue specs, conversion, margin, or pending-order reservations.
 - QOS-011 does not add an event-stream surface, so event-stream deduplication/reconnect remains a separate gap.
 - No code or tests have been changed or run as part of this planning artifact.
+
+
+## 7. Implementation slice status
+
+Implemented, pending CI: `instrument_sizing.rs`, exports from `lib.rs`, and `DefaultRiskEvaluator::evaluate_with_instrument_sizing` with a gate-order regression test. The existing default evaluator path is unchanged to preserve compatibility. This is an intentional partial vertical slice, not completion of the full QOS-013 acceptance matrix.
