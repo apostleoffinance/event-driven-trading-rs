@@ -627,7 +627,7 @@
         "instruments": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 128,
+          "maxItems": 64,
           "items": {
             "$ref": "#/$defs/instrument_market_data"
           }
@@ -635,7 +635,7 @@
         "quotes": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 128,
+          "maxItems": 64,
           "items": {
             "$ref": "#/$defs/quote"
           }
