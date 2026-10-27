@@ -734,3 +734,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression coverage:** Added SQLx-backed provider tests for ask-on-buy/bid-on-sell and stale supplement rejection.
 - **Verification:** Exact-head CI is pending; do not mark QOS-013 done until it passes.
 - **Remaining risk:** The caller must configure trusted supplement and capability/position-semantics providers correctly. No live trading readiness is claimed.
+
+
+## REV-064 — Windows MT5 demo smoke harness
+- **Date:** 2026-10-27
+- **Context:** PR #31 merged the QOS-013 runtime consumer, but hosted CI cannot prove behavior against the real Windows MT5 terminal, account, broker symbols, or deployment certificates.
+- **Finding:** Existing Python tests use fake terminal data; a real-host acceptance step was documented but lacked an executable operator harness that jointly checks terminal identity, certificate pin, fresh symbol metadata/quotes, and persisted market/reconciliation snapshots.
+- **Change:** Added `adapters/mt5-python/scripts/mt5-demo-smoke.ps1` and `docs/MT5_DEMO_SMOKE_TEST.md`, linked from the adapter README. The script checks demo login/server/currency, exact symbols, fresh ticks and sizing constraints, client certificate fingerprint and certificate/key pairing, daemon listener, PostgreSQL tables, fresh rows for the exact account/terminal, and at least two distinct market-data sequences. It does not submit, modify, or cancel orders.
+- **Verification boundary:** PowerShell cannot be executed in this authoring environment. The script requires review and execution on the target Windows VPS. Passing this script alone does not complete reconnect recovery or certificate lifecycle review; those remain separate required gates.
+- **Safety:** No live mode or execution command was added. Do not proceed to QOS-015 order execution until target-host smoke, worker restart/reconciliation, credential ACL/rotation review, and exact-head CI all pass.
