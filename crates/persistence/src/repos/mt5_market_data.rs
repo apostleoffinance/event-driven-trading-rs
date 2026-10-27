@@ -1,7 +1,9 @@
 //! Read access to the latest persisted MT5 market-data snapshot.
+
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{types::Json, PgPool};
+
 use crate::error::{PersistenceError, PersistenceResult};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,7 +30,19 @@ pub async fn load_latest(
             "MT5 account and terminal identities are required".into(),
         ));
     }
-    let row = sqlx::query_as::<_, (String, String, String, i64, String, String, DateTime<Utc>, Json<Value>)>(
+    let row = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            i64,
+            String,
+            String,
+            DateTime<Utc>,
+            Json<Value>,
+        ),
+    >(
         r#"SELECT account_id, terminal_id, server, sequence, source, account_currency, captured_at, snapshot
            FROM mt5_bridge_market_data_snapshots
            WHERE account_id = $1 AND terminal_id = $2"#,
@@ -37,19 +51,42 @@ pub async fn load_latest(
     .bind(terminal_id)
     .fetch_optional(pool)
     .await?;
-    row.map(|(account_id, terminal_id, server, sequence, source, account_currency, captured_at, Json(snapshot))| {
-        let sequence = u64::try_from(sequence).map_err(|_| {
-            PersistenceError::Other("persisted MT5 sequence is negative".into())
-        })?;
-        if snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
-            || snapshot.get("server").and_then(Value::as_str) != Some(server.as_str())
-            || snapshot.get("source").and_then(Value::as_str) != Some(source.as_str())
-            || snapshot.get("account_currency").and_then(Value::as_str) != Some(account_currency.as_str())
-        {
-            return Err(PersistenceError::Other(
-                "persisted MT5 market-data identity does not match its database key".into(),
-            ));
-        }
-        Ok(Mt5MarketDataRecord { account_id, terminal_id, server, sequence, source, account_currency, captured_at, snapshot })
-    }).transpose()
+
+    row.map(
+        |(
+            account_id,
+            terminal_id,
+            server,
+            sequence,
+            source,
+            account_currency,
+            captured_at,
+            Json(snapshot),
+        )| {
+            let sequence = u64::try_from(sequence).map_err(|_| {
+                PersistenceError::Other("persisted MT5 sequence is negative".into())
+            })?;
+            if snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
+                || snapshot.get("server").and_then(Value::as_str) != Some(server.as_str())
+                || snapshot.get("source").and_then(Value::as_str) != Some(source.as_str())
+                || snapshot.get("account_currency").and_then(Value::as_str)
+                    != Some(account_currency.as_str())
+            {
+                return Err(PersistenceError::Other(
+                    "persisted MT5 market-data identity does not match its database key".into(),
+                ));
+            }
+            Ok(Mt5MarketDataRecord {
+                account_id,
+                terminal_id,
+                server,
+                sequence,
+                source,
+                account_currency,
+                captured_at,
+                snapshot,
+            })
+        },
+    )
+    .transpose()
 }
