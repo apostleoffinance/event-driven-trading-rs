@@ -54,5 +54,6 @@ Sequence numbers, when available, must be monotonic within the documented termin
 - [x] Bounded incremental NDJSON framing with malformed, blank, non-UTF-8, oversized, split-chunk, multi-frame and incomplete-EOF tests.
 - [ ] Cross-language golden fixtures shared with a terminal-side implementation.
 - [x] Durable account-scoped idempotency ledger, canonical-payload conflict detection, ambiguous prepared/unknown recovery boundary, and persistent sequence checkpoint/readiness API implemented.
-- [ ] End-to-end transport integration around actual send/response paths, plus DB-backed concurrency/restart/reconnect/sequence-gap tests.
+- [x] DB-backed persistence tests cover prepared-claim replay after store restart, same-ID/different-payload rejection, unknown-to-accepted recovery, conflicting terminal outcome rejection, sequence gap degradation, explicit recovery, and sequence overflow.
+- [ ] End-to-end transport integration around actual send/response paths and concurrent duplicate-claim stress tests.
 - [ ] Full workspace CI on the latest branch head.
