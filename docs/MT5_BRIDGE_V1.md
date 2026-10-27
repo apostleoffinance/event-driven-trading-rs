@@ -6,7 +6,7 @@ Status: **protocol implementation in progress**. This is a wire contract and Rus
 
 - Transport v1 is newline-delimited JSON (NDJSON): exactly one UTF-8 JSON frame per line. Maximum frame size for an implementation is 64 KiB; oversized lines must be rejected before deserialization.
 - Every frame carries `schema_version: 1`, `message_id`, `correlation_id`, `account_id`, `sent_at` (RFC 3339 UTC timestamp), and a typed `payload`.
-- The schema is [`mt5_bridge_v1.schema.json`](contracts/mt5_bridge_v1.schema.json). Rust reference types and validation live in `crates/intent-bridge/src/mt5_v1.rs`.
+- The schema is [`mt5_bridge_v1.schema.json`](contracts/mt5_bridge_v1.schema.json). Rust reference types and validation live in `crates/intent-bridge/src/mt5_v1.rs`. `NdjsonFrameDecoder` accepts arbitrary transport chunking, emits only newline-terminated validated frames, accepts CRLF, rejects blank/non-UTF-8/oversized lines, and fails closed after a malformed frame. EOF with a partial frame is an error. A canonical submit example is [`fixtures/mt5_v1_submit_order.json`](contracts/fixtures/mt5_v1_submit_order.json).
 - Unknown schema versions and unknown fields are rejected. IDs are opaque non-empty strings; never encode credentials or secrets in them.
 
 ## Message types
@@ -51,7 +51,7 @@ Sequence numbers, when available, must be monotonic within the documented termin
 - [x] Accepted/rejected/unknown submit outcomes.
 - [x] Cancellation request distinct from terminal state.
 - [x] Snapshot/reconciliation messages and focused unit tests.
-- [ ] NDJSON size/framing transport with malformed-frame tests.
+- [x] Bounded incremental NDJSON framing with malformed, blank, non-UTF-8, oversized, split-chunk, multi-frame and incomplete-EOF tests.
 - [ ] Cross-language golden fixtures shared with a terminal-side implementation.
 - [ ] Persisted idempotency/reconciliation integration and simulated reconnect/sequence-gap tests.
 - [ ] Full workspace CI on the latest branch head.
