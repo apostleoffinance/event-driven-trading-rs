@@ -604,9 +604,13 @@ mod sizing_snapshot_tests {
         missing_conversion.pnl_conversion_path = " ".to_string();
         assert!(cache.publish_snapshot(missing_conversion).await.is_err());
 
-        let mut unknown_capabilities = fresh;
+        let mut unknown_capabilities = fresh.clone();
         unknown_capabilities.venue_capabilities_validated = false;
         assert!(cache.publish_snapshot(unknown_capabilities).await.is_err());
+
+        let mut unknown_semantics = fresh;
+        unknown_semantics.account_position_semantics_known = false;
+        assert!(cache.publish_snapshot(unknown_semantics).await.is_err());
     }
 
     #[tokio::test]
