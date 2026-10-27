@@ -490,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn outbound_frame_encoding_uses_exactly_one_lf_delimiter() {
+    fn outbound_frame_encoding_uses_exactly_one_lf_delimiter() -> BridgeResult<()> {
         let frame = BridgeFrame {
             schema_version: crate::mt5_v1::MT5_BRIDGE_SCHEMA_VERSION,
             message_id: "message-1".into(),
@@ -514,15 +514,16 @@ mod tests {
                 },
             }),
         };
-        let encoded = encode_frame_line(&frame)
-            .unwrap_or_else(|error| panic!("valid heartbeat frame must encode: {error}"));
+        let encoded = encode_frame_line(&frame)?;
         assert_eq!(encoded.last(), Some(&b'\n'));
         assert!(!encoded.ends_with(b"\\n"));
         assert_eq!(encoded.iter().filter(|byte| **byte == b'\n').count(), 1);
-        let json = &encoded[..encoded.len() - 1];
-        let decoded = serde_json::from_slice::<BridgeFrame>(json)
-            .unwrap_or_else(|error| panic!("encoded frame must decode as JSON: {error}"));
+        let json = encoded
+            .strip_suffix(b"\n")
+            .ok_or_else(|| BridgeError::Invalid("encoded NDJSON frame is missing LF".into()))?;
+        let decoded = serde_json::from_slice::<BridgeFrame>(json)?;
         assert_eq!(decoded, frame);
+        Ok(())
     }
 
     #[test]
