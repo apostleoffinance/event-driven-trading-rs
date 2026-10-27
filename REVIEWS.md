@@ -658,3 +658,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Replaced both unwraps with explicit error-reporting branches in the test, preserving coverage for exact LF framing and JSON round-trip.
 - **Verification:** A fresh full CI run is required on the updated PR head. This Clippy failure must not be treated as a code or test pass.
 - **Remaining risk:** MT5 transport integration gates documented in REV-051 and the PR description remain open; no live trading enabled.
+
+
+## REV-054 — QOS-014 test lint correction follow-up
+
+- **Date:** 2026-10-27
+- **Context:** PR #24 rerun `40457817820`, Rust job `122035147781`. Formatting, workspace check and workspace tests passed, but Clippy rejected the first correction because test-only `panic!` branches violated the crate-wide `clippy::panic` deny rule.
+- **Correction:** Changed the framing regression test to return `BridgeResult<()> `, use `?` for serialization/deserialization errors, and return an explicit validation error if the LF suffix is absent. This preserves assertions without `unwrap`, `expect`, or `panic!`.
+- **Verification:** A fresh CI run on this latest head must pass before PR #24 is considered verified.
+- **Remaining risk:** MT5 transport integration gates from REV-051 remain open; no live trading enabled.
