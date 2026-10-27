@@ -464,7 +464,8 @@ mod tests {
         assert_eq!(replay_ack.order_id, first_ack.order_id);
         assert_eq!(replay_ack.fills, first_ack.fills);
         assert_eq!(
-            venue.positions(&AccountId::new("sim-idempotency").unwrap())
+            venue
+                .positions(&AccountId::new("sim-idempotency").unwrap())
                 .await
                 .unwrap()[0]
                 .quantity,
@@ -511,5 +512,4 @@ mod tests {
             Decimal::from(2)
         );
     }
-
 }
