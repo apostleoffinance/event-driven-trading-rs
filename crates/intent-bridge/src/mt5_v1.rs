@@ -764,6 +764,47 @@ mod tests {
     }
 
     #[test]
+    fn reconciliation_snapshot_round_trips_with_decimal_strings() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        let snapshot = ReconciliationSnapshotWire {
+            terminal_id: "terminal-demo-1".into(),
+            server: "Broker-Demo".into(),
+            source: "mt5_python_readonly_v1".into(),
+            sequence: 8,
+            captured_at: now,
+            account_state: ReconciliationAccountStateWire {
+                currency: "USD".into(),
+                balance: "10000.00".into(),
+                equity: "9990.50".into(),
+                margin_used: "100.00".into(),
+                free_margin: "9890.50".into(),
+            },
+            open_orders: vec![ReconciliationOpenOrderWire {
+                venue_order_id: "77".into(),
+                client_order_id: None,
+                instrument_id: "EURUSD.a".into(),
+                side: "buy".into(),
+                order_type: "buy_limit".into(),
+                quantity: "0.10".into(),
+                status: "1".into(),
+            }],
+            positions: vec![ReconciliationPositionWire {
+                venue_position_id: "88".into(),
+                instrument_id: "EURUSD.a".into(),
+                side: "buy".into(),
+                quantity: "0.10".into(),
+                average_price: "1.08000".into(),
+                unrealized_pnl: "-9.50".into(),
+            }],
+        };
+        let frame = frame(BridgePayload::ReconciliationSnapshot(snapshot));
+        frame.validate_at(now, Duration::zero()).unwrap();
+        let json = serde_json::to_string(&frame).unwrap();
+        let decoded: BridgeFrame = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, frame);
+    }
+
+    #[test]
     fn accepts_decimal_string_order_and_round_trips_json() {
         let frame = frame(BridgePayload::SubmitOrder(valid_order()));
         let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 1).unwrap();

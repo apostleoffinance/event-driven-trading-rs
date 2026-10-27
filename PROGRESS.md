@@ -276,3 +276,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added database-backed tests for snapshot completeness, persistence across a new store handle/process-restart simulation, stale checkpoint rejection, session readiness restoration, and identity mismatch fail-closed behavior. Added a full local TLS + PostgreSQL dispatch test that sends one order and verifies the accepted outcome survives replay as an existing durable key.
 - CI has encountered formatting-only failures while the branch was being assembled; those are being corrected and CI must pass on the final head before this slice is verified. Do not treat earlier green frontend jobs or intermediate runs as final verification.
 - **Still not complete for live use:** the repository has no production host daemon invoking this coordinator, no MT5 Expert Advisor/client conformance implementation, no broker-specific symbol/volume/price mapping, and no authoritative snapshot adapter querying actual live account/order/position state. Tests use generated local certificates and controlled snapshot fixtures. Protected credential provisioning/rotation and deployment review also remain open.
+
+
+## QOS-015A — read-only Python MT5 worker (2026-10-27)
+
+- Started branch `feat/qos-015a-python-mt5-readonly` from merged main `3f7c3a213e7777ccae2f723aca01d496afac2ab6`.
+- Added a Windows-only optional MetaTrader5 dependency, environment-driven configuration, TLS 1.3 mutual-authenticated client transport, persisted stream sequence, account identity checks, and read-only account/open-order/position snapshot generation.
+- Added an additive `reconciliation_snapshot` wire payload and Rust mapping into the existing durable reconciliation snapshot path. The session gate permits read-only reconciliation while keeping order submission/cancellation disabled by advertised capabilities.
+- Added Python unit tests and CI job plus Rust serialization/session regressions. Verification is pending on the PR head; no Windows terminal smoke test has run in this environment. No live or demo orders are submitted by this worker.
