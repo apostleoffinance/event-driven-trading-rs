@@ -9,8 +9,7 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use domain::{AccountId, InstrumentId, OrderSide};
 use persistence::{repos::mt5_market_data, TradingStore};
-use risk_engine::{prepare_mt5_sizing, Mt5SizingSupplement, Mt5SizingSupplementProvider as _};
-use rust_decimal::Decimal;
+use risk_engine::{prepare_mt5_sizing, Mt5SizingSupplement};
 
 use crate::{
     InstrumentSizingSnapshotProvider, RuntimeError, RuntimeInstrumentSizingContext, RuntimeResult,
@@ -178,6 +177,3 @@ impl InstrumentSizingSnapshotProvider for Mt5PersistedSizingProvider {
         self.load_for_side(account_id, instrument_id, side).await
     }
 }
-
-// Keep the public adapter's decimal contract explicit for downstream implementations.
-const _: Option<Decimal> = None;
