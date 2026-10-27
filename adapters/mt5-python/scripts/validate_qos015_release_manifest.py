@@ -65,6 +65,9 @@ def validate(manifest: Any) -> list[str]:
         errors.append("schema_version must be 1")
     if manifest.get("venue_execution_enabled") is not False:
         errors.append("venue_execution_enabled must be explicitly false")
+    commit = manifest.get("repository_commit")
+    if not isinstance(commit, str) or len(commit) not in (40, 64) or any(c not in "0123456789abcdefABCDEF" for c in commit):
+        errors.append("repository_commit must be a 40- or 64-character commit hash")
     operator = manifest.get("operator")
     if not isinstance(operator, str) or not operator.strip():
         errors.append("operator must be a non-empty string")
@@ -85,7 +88,14 @@ def validate(manifest: Any) -> list[str]:
             if field == "status":
                 continue
             if isinstance(value, str):
-                if not value.strip() or value.strip().upper() in {"UNKNOWN", "N/A", "TBD", "FAIL", "BLOCKED"}:
+                normalized = value.strip().upper()
+                placeholders = {
+                    "UNKNOWN", "N/A", "TBD", "FAIL", "BLOCKED", "UNVERIFIED",
+                    "PROTECTED_EVIDENCE_REFERENCE", "PROTECTED_RESTART_JSON_REFERENCE",
+                    "REPLACE_WITH_OPERATOR_ID", "REPLACE_WITH_64_CHARACTER_SHA256",
+                    "INDEPENDENT_REVIEWER_ID", "UNASSIGNED",
+                }
+                if not value.strip() or normalized in placeholders or normalized.startswith("REPLACE_WITH_"):
                     errors.append(f"gates.{gate_name}.{field} must contain a resolved value")
             elif isinstance(value, bool):
                 if value is not True:
@@ -103,6 +113,15 @@ def validate(manifest: Any) -> list[str]:
             errors.append("independent reviewer must differ from operator")
         if reviewer_gate.get("no_execution_enabled") is not True:
             errors.append("independent review must explicitly confirm no venue execution was enabled")
+        reviewed_at = reviewer_gate.get("reviewed_at_utc")
+        if isinstance(reviewed_at, str):
+            try:
+                from datetime import datetime
+                parsed = datetime.fromisoformat(reviewed_at.replace("Z", "+00:00"))
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    raise ValueError("timezone missing")
+            except ValueError:
+                errors.append("independent_review.reviewed_at_utc must be a valid timezone-aware ISO-8601 timestamp")
         manifest_hash = reviewer_gate.get("reviewed_manifest_sha256")
         if not isinstance(manifest_hash, str) or len(manifest_hash) != 64 or any(c not in "0123456789abcdefABCDEF" for c in manifest_hash):
             errors.append("independent_review.reviewed_manifest_sha256 must be a 64-character SHA-256 hex digest")
