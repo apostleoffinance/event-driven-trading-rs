@@ -66,3 +66,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** QOS-002 retains executable formatting/check/test/clippy commands; QOS-003 retains frontend script/dependency/token checks. Venue/cancel semantics and multi-account failure injection remain explicit future test requirements.
 - **Verification result:** QOS-001 source audit acceptance met. Local clone failed with `Could not resolve host: github.com`; Rust, Python and frontend checks were not run and are not claimed to pass.
 - **Remaining risk:** Compilation, test behavior, frontend build/lint/typecheck, database migrations, and live venue readiness remain unverified. Do not enable live execution based on this audit.
+
+
+## REV-004 — Initial CI run caught Rust formatting drift
+- **Date:** 2026-10-27
+- **Context:** QOS-002 executable baseline checks via PR #3, run 40425100977.
+- **Finding/correction:** The new CI job successfully initialized PostgreSQL and Rust, then failed at `cargo fmt --all -- --check`. The exact diff identified formatting drift in `crates/domain/src/instrument.rs`, `crates/events/src/market_data_health.rs`, `crates/execution-engine/src/oms.rs`, `crates/strategy-runtime/src/worker.rs`, and `crates/venue-connectors/tests/ambiguous_unknown.rs`. The workspace check, tests, and Clippy were skipped because formatting failed first. Frontend lint, typecheck, and production build all passed in the same run.
+- **Impact:** The initial CI workflow did not yet provide compilation/test evidence; source behavior remained unverified.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40425100977; Rust job https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40425100977/job/121928766731.
+- **Rule that failed:** No substantive coding/safety rule was shown to be violated; repository formatting was not compliant with the declared CI command.
+- **Rule update made in RULES.md:** None. Existing rules require formatting/check/test/clippy evidence and minimal reversible changes.
+- **Code/docs/tests changed:** Applied only the rustfmt-diff changes to the five files above. No behavior changes intended. CI workflow itself remains the same.
+- **Regression/real-use check added:** Re-run CI so formatting, workspace compile, tests, and Clippy can execute sequentially.
+- **Verification result:** Format-only edits were committed to branch `audit/qos-002-rust-checks`; post-fix CI result is pending.
+- **Remaining risk:** Compilation, workspace tests, and Clippy have not yet run successfully or been verified. No live trading or money movement enabled.
