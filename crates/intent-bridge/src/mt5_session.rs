@@ -44,7 +44,9 @@ impl Mt5SessionPolicy {
                 "MT5 session policy requires non-empty allow-listed account IDs".into(),
             ));
         }
-        Ok(Self { allowed_accounts: accounts })
+        Ok(Self {
+            allowed_accounts: accounts,
+        })
     }
 
     pub fn allows_account(&self, account_id: &str) -> bool {
@@ -172,7 +174,10 @@ impl Mt5SessionGate {
     /// Restore readiness only after the caller has reconciled external orders,
     /// positions and account state and persisted the checkpoint. A heartbeat
     /// or reconnect alone must never call this method.
-    pub fn confirm_reconciled(&mut self, persisted_readiness: Mt5StreamReadiness) -> BridgeResult<()> {
+    pub fn confirm_reconciled(
+        &mut self,
+        persisted_readiness: Mt5StreamReadiness,
+    ) -> BridgeResult<()> {
         if self.state == Mt5SessionState::Closed {
             return Err(BridgeError::Invalid("MT5 session is closed".into()));
         }
@@ -180,7 +185,10 @@ impl Mt5SessionGate {
             || self.terminal_id.is_none()
             || self.server.is_none()
             || self.connection_state != Some(ConnectionState::Connected)
-            || !self.capabilities.as_ref().is_some_and(capabilities_support_safe_dispatch)
+            || !self
+                .capabilities
+                .as_ref()
+                .is_some_and(capabilities_support_safe_dispatch)
             || persisted_readiness != Mt5StreamReadiness::Ready
         {
             self.state = Mt5SessionState::ReconciliationRequired;
@@ -222,7 +230,11 @@ impl Mt5SessionGate {
         if !matches!(&frame.payload, BridgePayload::CancelOrder(_)) {
             return Err(BridgeError::Invalid("expected cancel_order frame".into()));
         }
-        if !self.capabilities.as_ref().is_some_and(|caps| caps.cancel_requests) {
+        if !self
+            .capabilities
+            .as_ref()
+            .is_some_and(|caps| caps.cancel_requests)
+        {
             return Err(BridgeError::Invalid(
                 "MT5 terminal does not declare cancellation support".into(),
             ));
@@ -270,11 +282,10 @@ fn capabilities_support_safe_dispatch(capabilities: &BridgeCapabilities) -> bool
 mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use chrono::{TimeZone, Utc};
     use crate::mt5_v1::{
-        CancelOrder, Heartbeat, OrderSide, SubmitOrder, TimeInForce,
-        MT5_BRIDGE_SCHEMA_VERSION,
+        CancelOrder, Heartbeat, OrderSide, SubmitOrder, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
     };
+    use chrono::{TimeZone, Utc};
 
     fn capabilities() -> BridgeCapabilities {
         BridgeCapabilities {
@@ -325,7 +336,8 @@ mod tests {
                 &frame,
                 Mt5SequenceObservation::Accepted,
                 Mt5StreamReadiness::Ready,
-            ).unwrap(),
+            )
+            .unwrap(),
             Mt5SessionState::ReconciliationRequired
         );
         gate.confirm_reconciled(Mt5StreamReadiness::Ready).unwrap();
@@ -357,12 +369,18 @@ mod tests {
     fn fresh_or_gapped_stream_cannot_enable_submit() {
         let policy = Mt5SessionPolicy::new(["acct-1"]).unwrap();
         let mut gate = Mt5SessionGate::after_transport_authentication(policy);
-        let frame = heartbeat("acct-1", "terminal-1", "demo-server", ConnectionState::Connected);
+        let frame = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         gate.observe_heartbeat(
             &frame,
             Mt5SequenceObservation::ReconciliationRequired,
             Mt5StreamReadiness::Degraded,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(gate.authorize_submit(&submit("acct-1")).is_err());
     }
 
@@ -405,11 +423,13 @@ mod tests {
             "demo-server",
             ConnectionState::Connected,
         );
-        assert!(gate.observe_heartbeat(
-            &switched,
-            Mt5SequenceObservation::Accepted,
-            Mt5StreamReadiness::Ready,
-        ).is_err());
+        assert!(gate
+            .observe_heartbeat(
+                &switched,
+                Mt5SequenceObservation::Accepted,
+                Mt5StreamReadiness::Ready,
+            )
+            .is_err());
         assert_eq!(gate.state(), Mt5SessionState::Closed);
     }
 
@@ -437,7 +457,9 @@ mod tests {
         gate.confirm_reconciled(Mt5StreamReadiness::Ready).unwrap();
         assert!(gate.authorize_submit(&submit("acct-1")).is_ok());
         assert!(gate.authorize_submit(&submit("acct-2")).is_err());
-        assert!(gate.confirm_reconciled(Mt5StreamReadiness::Degraded).is_err());
+        assert!(gate
+            .confirm_reconciled(Mt5StreamReadiness::Degraded)
+            .is_err());
     }
 
     #[test]
@@ -450,11 +472,13 @@ mod tests {
             "demo-server",
             ConnectionState::Connected,
         );
-        assert!(gate.observe_heartbeat(
-            &unauthorized,
-            Mt5SequenceObservation::Accepted,
-            Mt5StreamReadiness::Ready,
-        ).is_err());
+        assert!(gate
+            .observe_heartbeat(
+                &unauthorized,
+                Mt5SequenceObservation::Accepted,
+                Mt5StreamReadiness::Ready,
+            )
+            .is_err());
         assert_eq!(gate.state(), Mt5SessionState::Closed);
 
         let mut gate = ready_gate();
