@@ -54,7 +54,7 @@ function Invoke-Smoke([string]$PassName) {
     & "$PSScriptRoot\mt5-demo-smoke.ps1" -TimeoutSeconds $TimeoutSeconds -PollSeconds $PollSeconds
     if ($LASTEXITCODE -ne 0) { throw "$PassName smoke pass failed. Do not treat restart conformance as passed." }
 }
-function Write-Evidence([hashtable]$Record) {
+function Write-Evidence([System.Collections.IDictionary]$Record) {
     $full = [System.IO.Path]::GetFullPath($EvidencePath)
     $parent = Split-Path -Parent $full
     if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
