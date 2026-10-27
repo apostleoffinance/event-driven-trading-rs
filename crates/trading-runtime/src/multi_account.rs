@@ -48,7 +48,7 @@ impl MultiAccountOutcome {
                     Ok(outcome)
                         if outcome.decision.is_executable()
                             && matches!(
-                                outcome.order_status,
+                                outcome.order_status.as_ref(),
                                 Some(OrderStatus::Accepted
                                     | OrderStatus::PartiallyFilled
                                     | OrderStatus::Filled)
@@ -202,6 +202,44 @@ mod tests {
         assert!(matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("venue binding mismatch")));
         drop(targets);
         assert!(account.oms().orders().is_empty());
+    }
+
+
+    #[tokio::test]
+    async fn one_account_error_does_not_prevent_later_account_attempt() {
+        let mut first = runtime("account-failing-events", "simulated");
+        let mut second = runtime("account-later-target", "simulated");
+        let venue_one = SimulatedVenue::new(VenueId::new("simulated").unwrap());
+        let venue_two = SimulatedVenue::new(VenueId::new("simulated").unwrap());
+        let (events_one, subscriber_one) = events::event_channel(8);
+        drop(subscriber_one);
+        let (events_two, _subscriber_two) = events::event_channel(8);
+        let mut targets = [
+            AccountExecutionTarget {
+                runtime: &mut first,
+                venue: &venue_one,
+                events_out: &events_one,
+                sizing_provider: None,
+            },
+            AccountExecutionTarget {
+                runtime: &mut second,
+                venue: &venue_two,
+                events_out: &events_two,
+                sizing_provider: None,
+            },
+        ];
+
+        let outcome = execute_intent_across_accounts(&test_intent(), &mut targets)
+            .await
+            .unwrap();
+
+        assert_eq!(outcome.results.len(), 2);
+        assert!(outcome.results[0].result.is_err());
+        assert!(outcome.results[1].result.is_ok());
+        assert_eq!(outcome.results[1].account_id.as_str(), "account-later-target");
+        drop(targets);
+        assert!(first.oms().orders().is_empty());
+        assert!(second.oms().orders().is_empty());
     }
 
     fn test_intent() -> TradeIntent {
