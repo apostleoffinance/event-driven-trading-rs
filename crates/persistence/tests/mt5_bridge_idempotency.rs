@@ -8,6 +8,43 @@ use persistence::{
 use serde_json::json;
 use sqlx::PgPool;
 
+
+async fn persist_reconciliation_snapshot(
+    store: &TradingStore,
+    account_id: &str,
+    terminal_id: &str,
+    sequence: u64,
+) {
+    let captured_at = chrono::Utc::now();
+    store
+        .persist_mt5_reconciliation_snapshot(
+            account_id,
+            terminal_id,
+            sequence,
+            "mt5_authoritative_snapshot_v1",
+            captured_at,
+            json!({
+                "account_id": account_id,
+                "terminal_id": terminal_id,
+                "server": "broker-demo",
+                "source": "mt5_authoritative_snapshot_v1",
+                "sequence": sequence,
+                "captured_at": captured_at,
+                "account_state": {
+                    "currency": "USD",
+                    "balance": "1000.00",
+                    "equity": "1000.00",
+                    "margin_used": "0.00",
+                    "free_margin": "1000.00"
+                },
+                "open_orders": [],
+                "positions": []
+            }),
+        )
+        .await
+        .unwrap();
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn mt5_order_claim_is_durable_and_payload_conflicts_fail_closed(pool: PgPool) {
     let store = TradingStore::new(pool.clone());
@@ -145,10 +182,7 @@ async fn mt5_sequence_gaps_degrade_stream_until_explicit_reconciliation(pool: Pg
         Mt5StreamReadiness::Degraded
     );
 
-    store
-        .mark_mt5_stream_reconciled("account-stream-01", "terminal-01", 4)
-        .await
-        .unwrap();
+    persist_reconciliation_snapshot(&store, "account-stream-01", "terminal-01", 4).await;
     assert_eq!(
         store
             .observe_mt5_sequence("account-stream-01", "terminal-01", 5)
@@ -178,10 +212,7 @@ async fn mt5_sequence_gaps_degrade_stream_until_explicit_reconciliation(pool: Pg
         Mt5SequenceObservation::ReconciliationRequired
     );
 
-    store
-        .mark_mt5_stream_reconciled("account-stream-01", "terminal-01", 8)
-        .await
-        .unwrap();
+    persist_reconciliation_snapshot(&store, "account-stream-01", "terminal-01", 8).await;
     assert_eq!(
         store
             .observe_mt5_sequence("account-stream-01", "terminal-01", 9)
@@ -200,10 +231,7 @@ async fn mt5_sequence_gaps_degrade_stream_until_explicit_reconciliation(pool: Pg
             .unwrap(),
         Mt5StreamReadiness::Degraded
     );
-    store
-        .mark_mt5_stream_reconciled("account-stream-01", "terminal-01", 9)
-        .await
-        .unwrap();
+    persist_reconciliation_snapshot(&store, "account-stream-01", "terminal-01", 9).await;
     assert_eq!(
         store
             .observe_mt5_sequence("account-stream-01", "terminal-01", 10)
