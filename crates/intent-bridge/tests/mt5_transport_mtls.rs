@@ -16,11 +16,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
-use intent_bridge::mt5_transport::{
-    spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig,
-    Mt5TransportLimits, Mt5TransportPrincipal,
-};
 use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
+use intent_bridge::mt5_transport::{
+    spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
+    Mt5TransportPrincipal,
+};
 use intent_bridge::mt5_v1::{
     BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat,
     MT5_BRIDGE_SCHEMA_VERSION,
@@ -84,10 +84,16 @@ fn make_pki() -> Result<TestPki, Box<dyn Error>> {
     let untrusted_client_key = KeyPair::generate()?;
     let mut untrusted_client_params = CertificateParams::default();
     untrusted_client_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
-    let untrusted_client_cert =
-        untrusted_client_params.signed_by(&untrusted_client_key, &untrusted_ca, &untrusted_ca_key)?;
+    let untrusted_client_cert = untrusted_client_params.signed_by(
+        &untrusted_client_key,
+        &untrusted_ca,
+        &untrusted_ca_key,
+    )?;
     std::fs::write(&untrusted_client_cert_path, untrusted_client_cert.pem())?;
-    std::fs::write(&untrusted_client_key_path, untrusted_client_key.serialize_pem())?;
+    std::fs::write(
+        &untrusted_client_key_path,
+        untrusted_client_key.serialize_pem(),
+    )?;
 
     let mut roots = RootCertStore::empty();
     roots.add(CertificateDer::from(trusted_ca.der().to_vec()))?;
@@ -140,14 +146,7 @@ fn server_config(pki: &TestPki, fingerprint: String) -> Result<Mt5TransportConfi
 async fn establish(
     config: Mt5TransportConfig,
     client_config: Arc<ClientConfig>,
-) -> Result<
-    (
-        AuthenticatedMt5Connection,
-        TlsStream<TcpStream>,
-        SocketAddr,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<(AuthenticatedMt5Connection, TlsStream<TcpStream>, SocketAddr), Box<dyn Error>> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let server_task = tokio::spawn(async move {
@@ -207,16 +206,15 @@ async fn trusted_mtls_peer_and_matching_identity_are_accepted() -> Result<(), Bo
     let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
     let frame = heartbeat_frame("account-001", "terminal-01", "broker-demo");
     write_frame(&mut client, &frame).await?;
-    let decoded = server
-        .read_frame(Utc::now(), Duration::seconds(5))
-        .await?;
+    let decoded = server.read_frame(Utc::now(), Duration::seconds(5)).await?;
     assert_eq!(decoded.account_id, "account-001");
     assert_eq!(server.principal().terminal_id, "terminal-01");
     Ok(())
 }
 
 #[tokio::test]
-async fn untrusted_client_certificate_is_rejected_during_tls_handshake() -> Result<(), Box<dyn Error>> {
+async fn untrusted_client_certificate_is_rejected_during_tls_handshake(
+) -> Result<(), Box<dyn Error>> {
     let pki = make_pki()?;
     let config = server_config(&pki, pki.untrusted_client_fingerprint.clone())?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -256,7 +254,8 @@ async fn trusted_certificate_with_wrong_fingerprint_is_rejected() -> Result<(), 
 }
 
 #[tokio::test]
-async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>> {
+async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>>
+{
     let pki = make_pki()?;
     for frame in [
         heartbeat_frame("account-001", "other-terminal", "broker-demo"),
@@ -274,27 +273,24 @@ async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result
     Ok(())
 }
 
-
 #[tokio::test]
-async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry() -> Result<(), Box<dyn Error>> {
+async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry() -> Result<(), Box<dyn Error>>
+{
     let pki = make_pki()?;
-    let config = server_config(&pki, pki.client_fingerprint.clone())?.with_limits(
-        Mt5TransportLimits {
+    let config =
+        server_config(&pki, pki.client_fingerprint.clone())?.with_limits(Mt5TransportLimits {
             handshake_timeout: StdDuration::from_secs(1),
             io_timeout: StdDuration::from_secs(1),
             heartbeat_timeout: StdDuration::from_millis(40),
             max_concurrent_connections: 2,
-        },
-    )?;
+        })?;
     let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
     write_frame(
         &mut client,
         &heartbeat_frame("account-001", "terminal-01", "broker-demo"),
     )
     .await?;
-    server
-        .read_frame(Utc::now(), Duration::seconds(5))
-        .await?;
+    server.read_frame(Utc::now(), Duration::seconds(5)).await?;
 
     let connection = Arc::new(Mutex::new(server));
     let policy = Mt5SessionPolicy::new(["account-001"])?;
