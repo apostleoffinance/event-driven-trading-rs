@@ -486,3 +486,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Tests cover empty-target rejection, duplicate account IDs rejected before execution, venue binding mismatch rejected before execution, continuation after an account-local failure, and stable/distinct account-scoped IDs.
 - **Verification result:** Source changes are committed to the feature branch. Full latest-head Rust format/check/test/Clippy and frontend CI have not yet been observed; no test pass is claimed.
 - **Remaining risk:** Sequential fan-out is non-atomic and does not guarantee simultaneous fills. Real authoritative per-account snapshots, shared-database persistence semantics, durable cross-process idempotency, cancellation/reconciliation integration, and live venue readiness remain separate work. No live execution, deployment, or money movement enabled.
+
+
+## REV-040 — QOS-014 durable MT5 idempotency and sequence checkpoints
+- **Date:** 2026-10-27
+- **Context:** User requested the next MT5 bridge implementation after QOS-017 merged.
+- **Finding:** The merged MT5 v1 code validates protocol frames but did not persist client-order claims or sequence continuity. A retry after process restart could otherwise mistake a pre-send/pre-response crash as permission to submit again, and a reconnect could be treated as healthy without a durable checkpoint.
+- **Impact:** Duplicate orders and execution from a stale or discontinuous bridge stream are possible unless persistence gates are part of the contract.
+- **Evidence:** Inspected `crates/intent-bridge/src/mt5_v1.rs`, `crates/persistence/src/repos/mod.rs`, `crates/persistence/src/repos/orders.rs`, `crates/persistence/src/pool.rs`, and `docs/MT5_BRIDGE_V1.md` on `main`.
+- **Rule that failed:** No production incident or live behavior violation is claimed; this is a missing safety boundary identified before transport integration.
+- **Rule update made in RULES.md:** None. Existing financial-safety rules require stable idempotency, ambiguous outcomes to remain unknown, and stale/discontinuous state to block new exposure.
+- **Code/docs/tests changed:** Added `migrations/20261027000002_mt5_bridge_idempotency.sql`, `crates/persistence/src/repos/mt5_bridge.rs`, public TradingStore APIs, bridge helpers in `mt5_v1.rs`, persistence error propagation, and MT5 contract/progress updates.
+- **Regression/real-use check added:** Durable claims distinguish a new key from any existing key; JSONB payload mismatch rejects; accepted/rejected state cannot be rewritten by a conflicting late outcome; new/gapped/out-of-order sequence streams require explicit reconciliation before ready.
+- **Verification result:** Changes are committed on `feat/qos-014-mt5-idempotency-v1`. CI and DB-backed concurrency/restart tests have not yet been observed; do not claim acceptance or live readiness.
+- **Remaining risk:** The bridge helper boundary is not yet connected to a real MT5 transport; a process must use the claim result correctly and reconcile existing claims before retry. No live execution, deployment, or money movement enabled.
