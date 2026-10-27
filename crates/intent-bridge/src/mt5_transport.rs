@@ -37,15 +37,19 @@ pub struct Mt5TransportPrincipal {
 impl Mt5TransportPrincipal {
     fn validate(&self) -> BridgeResult<()> {
         if self.certificate_sha256.len() != 64
-            || !self.certificate_sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || !self
+                .certificate_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
             || self.terminal_id.trim().is_empty()
             || self.terminal_id.trim() != self.terminal_id
             || self.server.trim().is_empty()
             || self.server.trim() != self.server
             || self.allowed_accounts.is_empty()
-            || self.allowed_accounts.iter().any(|account| {
-                account.trim().is_empty() || account.trim() != account
-            })
+            || self
+                .allowed_accounts
+                .iter()
+                .any(|account| account.trim().is_empty() || account.trim() != account)
         {
             return Err(BridgeError::Invalid(
                 "invalid MT5 transport principal configuration".into(),
@@ -129,10 +133,7 @@ impl Mt5TransportConfig {
     /// Accept TCP and complete mutual TLS before returning a connection. No
     /// protocol frame is exposed until certificate-chain validation and exact
     /// configured fingerprint mapping both succeed.
-    pub async fn accept(
-        &self,
-        listener: &TcpListener,
-    ) -> BridgeResult<AuthenticatedMt5Connection> {
+    pub async fn accept(&self, listener: &TcpListener) -> BridgeResult<AuthenticatedMt5Connection> {
         let (stream, _) = listener.accept().await.map_err(BridgeError::from)?;
         self.authenticate(stream).await
     }
@@ -143,9 +144,11 @@ impl Mt5TransportConfig {
         &self,
         stream: TcpStream,
     ) -> BridgeResult<AuthenticatedMt5Connection> {
-        let tls_stream = self.acceptor.accept(stream).await.map_err(|_| {
-            BridgeError::Invalid("MT5 mutual-TLS authentication failed".into())
-        })?;
+        let tls_stream = self
+            .acceptor
+            .accept(stream)
+            .await
+            .map_err(|_| BridgeError::Invalid("MT5 mutual-TLS authentication failed".into()))?;
         let certificate = tls_stream
             .get_ref()
             .1
@@ -192,7 +195,9 @@ impl AuthenticatedMt5Connection {
         allowed_clock_skew: Duration,
     ) -> BridgeResult<BridgeFrame> {
         if self.failed {
-            return Err(BridgeError::Invalid("MT5 authenticated connection is closed after a protocol violation".into()));
+            return Err(BridgeError::Invalid(
+                "MT5 authenticated connection is closed after a protocol violation".into(),
+            ));
         }
         loop {
             if let Some(frame) = self.pending_frames.pop_front() {
@@ -213,7 +218,9 @@ impl AuthenticatedMt5Connection {
                     "MT5 authenticated transport closed".into(),
                 ));
             }
-            let frames = self.decoder.push(&chunk[..count], now, allowed_clock_skew)?;
+            let frames = self
+                .decoder
+                .push(&chunk[..count], now, allowed_clock_skew)?;
             self.pending_frames.extend(frames);
         }
     }
