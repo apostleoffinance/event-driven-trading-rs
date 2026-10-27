@@ -9,11 +9,15 @@ description = "Python strategy → Rust execution bridge (JSON TradeIntent inges
 name = "intent-bridge"
 path = "src/main.rs"
 
+[[bin]]
+name = "mt5-bridge-daemon"
+path = "src/bin/mt5-bridge-daemon.rs"
+
 [dependencies]
 async-trait = { workspace = true }
 account-engine = { path = "../account-engine" }
 chrono = { workspace = true }
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 domain = { path = "../domain" }
 events = { path = "../events" }
 persistence = { path = "../persistence" }
