@@ -5,7 +5,7 @@
 //! and does not prevent later accounts from being evaluated. This coordinator is
 //! deliberately sequential: it does not promise simultaneous submissions or fills.
 
-use domain::{AccountId, TradeIntent, TradeIntentId};
+use domain::{AccountId, OrderStatus, TradeIntent, TradeIntentId};
 use events::EventPublisher;
 use venue_connectors::VenueAdapter;
 
@@ -40,9 +40,22 @@ pub struct MultiAccountOutcome {
 
 impl MultiAccountOutcome {
     pub fn succeeded(&self) -> usize {
-        self.results.iter().filter(|result| {
-            matches!(&result.result, Ok(outcome) if outcome.decision.is_executable() && outcome.order_status.is_some())
-        }).count()
+        self.results
+            .iter()
+            .filter(|result| {
+                matches!(
+                    &result.result,
+                    Ok(outcome)
+                        if outcome.decision.is_executable()
+                            && matches!(
+                                outcome.order_status,
+                                Some(OrderStatus::Accepted
+                                    | OrderStatus::PartiallyFilled
+                                    | OrderStatus::Filled)
+                            )
+                )
+            })
+            .count()
     }
 
     pub fn failed_or_blocked(&self) -> usize {
@@ -127,7 +140,7 @@ pub async fn execute_intent_across_accounts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use domain::{AccountId, RiskPolicy, VenueId};
+    use domain::{AccountId, RiskPolicy, StrategyVersion, VenueId};
     use rust_decimal::Decimal;
     use crate::RuntimeConfig;
     use venue_connectors::SimulatedVenue;
@@ -135,11 +148,17 @@ mod tests {
     fn runtime(account: &str, venue: &str) -> TradingRuntime {
         let account_id = AccountId::new(account).unwrap();
         let venue_id = VenueId::new(venue).unwrap();
-        TradingRuntime::new(RuntimeConfig::new(
-            account_id,
-            venue_id,
-            RiskPolicy::default(),
-        ))
+        let policy = RiskPolicy::try_new(
+            Decimal::ONE,
+            Decimal::from(10),
+            Decimal::from(100),
+            Decimal::from(10),
+            Decimal::from(5),
+            Decimal::from(10),
+            10,
+        )
+        .unwrap();
+        TradingRuntime::new(RuntimeConfig::new(account_id, venue_id, policy))
     }
 
     #[tokio::test]
@@ -155,14 +174,15 @@ mod tests {
         let mut second = runtime("same-account", "simulated");
         let venue_one = SimulatedVenue::new(VenueId::new("simulated").unwrap());
         let venue_two = SimulatedVenue::new(VenueId::new("simulated").unwrap());
-        let events_one = EventPublisher::new(8);
-        let events_two = EventPublisher::new(8);
+        let (events_one, _subscriber_one) = events::event_channel(8);
+        let (events_two, _subscriber_two) = events::event_channel(8);
         let mut targets = [
             AccountExecutionTarget { runtime: &mut first, venue: &venue_one, events_out: &events_one, sizing_provider: None },
             AccountExecutionTarget { runtime: &mut second, venue: &venue_two, events_out: &events_two, sizing_provider: None },
         ];
         let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
         assert!(matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("duplicate account")));
+        drop(targets);
         assert!(first.oms().orders().is_empty());
         assert!(second.oms().orders().is_empty());
     }
@@ -171,7 +191,7 @@ mod tests {
     async fn rejects_mismatched_venue_binding_before_any_execution() {
         let mut account = runtime("account-one", "expected-venue");
         let venue = SimulatedVenue::new(VenueId::new("different-venue").unwrap());
-        let events = EventPublisher::new(8);
+        let (events, _subscriber) = events::event_channel(8);
         let mut targets = [AccountExecutionTarget {
             runtime: &mut account,
             venue: &venue,
@@ -180,21 +200,29 @@ mod tests {
         }];
         let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
         assert!(matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("venue binding mismatch")));
+        drop(targets);
         assert!(account.oms().orders().is_empty());
     }
 
     fn test_intent() -> TradeIntent {
         use domain::{DeploymentId, InstrumentId, OrderSide, StrategyId, TradeIntentId};
-        TradeIntent::new(
+        TradeIntent::builder(
             TradeIntentId::new("fanout-intent").unwrap(),
-            DeploymentId::new("fanout-deployment").unwrap(),
             StrategyId::new("fanout-strategy").unwrap(),
+            StrategyVersion::new("v1").unwrap(),
+            DeploymentId::new("fanout-deployment").unwrap(),
             InstrumentId::new("BTCUSDT").unwrap(),
             OrderSide::Buy,
-            Decimal::from(100),
-            Decimal::from(95),
-            Decimal::from(110),
             chrono::Utc::now(),
-        ).unwrap()
+        )
+        .unwrap()
+        .entry_price(Decimal::from(100))
+        .unwrap()
+        .stop_loss(Decimal::from(95))
+        .unwrap()
+        .take_profit(Decimal::from(110))
+        .unwrap()
+        .build()
+        .unwrap()
     }
 }
