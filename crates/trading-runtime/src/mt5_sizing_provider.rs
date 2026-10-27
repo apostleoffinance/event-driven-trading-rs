@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use domain::{AccountId, InstrumentId, OrderSide};
 use persistence::{repos::mt5_market_data, TradingStore};
-use risk_engine::{prepare_mt5_sizing, Mt5SizingSupplement};
+use risk_engine::mt5_market_data::{prepare_mt5_sizing, Mt5SizingSupplement};
 
 use crate::{
     InstrumentSizingSnapshotProvider, RuntimeError, RuntimeInstrumentSizingContext, RuntimeResult,
