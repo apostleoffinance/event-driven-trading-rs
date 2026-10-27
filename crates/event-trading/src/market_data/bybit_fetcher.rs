@@ -75,9 +75,11 @@ impl MarketDataFetcher for BybitFetcher {
             .next()
             .ok_or_else(|| TradingError::MarketData("No ticker data from Bybit".to_string()))?;
 
-        let price = Decimal::from_str_exact(&ticker.last_price).map_err(TradingError::Decimal)?;
+        let price =
+            Decimal::from_str_exact(&ticker.last_price).map_err(TradingError::Decimal)?;
 
-        let volume = Decimal::from_str_exact(&ticker.volume24h).map_err(TradingError::Decimal)?;
+        let volume =
+            Decimal::from_str_exact(&ticker.volume24h).map_err(TradingError::Decimal)?;
 
         let price_event = PriceEvent::new(symbol.to_string(), price, volume)?;
 
