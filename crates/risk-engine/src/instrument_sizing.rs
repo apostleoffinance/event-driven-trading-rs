@@ -370,15 +370,15 @@ pub fn size_order_instrument_aware(
                 && context.max_quantity.is_none_or(|maximum| cap <= maximum)
         }) {
             SizingLimitReason::MarginLimit
-        } else if max_by_exposure <= max_by_position && max_by_exposure <= max_by_leverage {
-            SizingLimitReason::ExposureLimit
-        } else if max_by_leverage <= max_by_position && max_by_leverage <= max_by_exposure {
-            SizingLimitReason::LeverageLimit
         } else if context
             .max_quantity
             .is_some_and(|maximum| maximum <= allowed)
         {
             SizingLimitReason::VenueMaximum
+        } else if max_by_exposure <= max_by_position && max_by_exposure <= max_by_leverage {
+            SizingLimitReason::ExposureLimit
+        } else if max_by_leverage <= max_by_position && max_by_leverage <= max_by_exposure {
+            SizingLimitReason::LeverageLimit
         } else if max_by_position < desired {
             SizingLimitReason::PositionLimit
         } else {
