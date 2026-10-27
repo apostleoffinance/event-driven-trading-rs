@@ -7,7 +7,6 @@ use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr;
 
-
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Mt5SizingDataError {
     #[error("MT5 market-data snapshot is malformed or incomplete")]
