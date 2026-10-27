@@ -275,18 +275,40 @@ pub async fn mark_stream_reconciled(
             "MT5 account ID, terminal ID and non-negative sequence are required".into(),
         ));
     }
+
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+        .bind(account_id)
+        .bind(terminal_id)
+        .execute(&mut *tx)
+        .await?;
+
     let snapshot_sequence = sqlx::query_scalar::<_, Option<i64>>(
         "SELECT MAX(reconciled_sequence) FROM mt5_bridge_reconciliation_snapshots WHERE account_id = $1 AND terminal_id = $2",
     )
     .bind(account_id)
     .bind(terminal_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
     if snapshot_sequence.is_none_or(|snapshot_sequence| snapshot_sequence < sequence) {
         return Err(PersistenceError::Other(
             "MT5 stream cannot become ready without a durable external-state reconciliation snapshot at or beyond the requested sequence".into(),
         ));
     }
+
+    let current_sequence = sqlx::query_scalar::<_, i64>(
+        "SELECT last_sequence FROM mt5_bridge_streams WHERE account_id = $1 AND terminal_id = $2 FOR UPDATE",
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if current_sequence.is_some_and(|current_sequence| sequence < current_sequence) {
+        return Err(PersistenceError::Other(
+            "MT5 reconciliation cannot move the durable sequence checkpoint backwards".into(),
+        ));
+    }
+
     sqlx::query(
         r#"
         INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
@@ -300,8 +322,9 @@ pub async fn mark_stream_reconciled(
     .bind(account_id)
     .bind(terminal_id)
     .bind(sequence)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(())
 }
 
