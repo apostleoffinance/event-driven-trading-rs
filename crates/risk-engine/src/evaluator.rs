@@ -154,6 +154,9 @@ mod tests {
             min_notional_account_currency: None,
             estimated_cost_per_quantity: Decimal::ZERO,
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
+        pending_order_exposure: Decimal::ZERO,
+        available_margin: None,
+        margin_per_quantity: None,
         };
         let decision = evaluator
             .evaluate_with_instrument_sizing(&request, &context)
