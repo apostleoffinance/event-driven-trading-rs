@@ -316,3 +316,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438016915/job/121971313717.
 - **Verification:** Correction pushed to `feat/qos-013-runtime-sizing-boundary` in commit `f0f4a470310e4b42a6842199f7db68d298a06c88`. A new latest-head CI run is required; no compilation/test/Clippy success is claimed until it completes.
 - **Remaining risk:** The runtime sizing entry point is caller-fed and not yet wired to authoritative timestamped data sources. No live execution or money movement enabled.
+
+
+## REV-023 — QOS-013 runtime sizing boundary full CI passed after rustfmt correction
+- **Date:** 2026-10-27
+- **Context:** Corrected PR #10 head `070e822d1afb2636c289d12ab79de042496d8400`; GitHub Actions run 40438207539.
+- **Finding:** After REV-022's formatting correction, the latest-head run completed successfully. Rust job passed `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets`. Frontend job passed lint, typecheck, and production build.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438207539. Run conclusion: success; Rust job 121971942780 and frontend job 121971942194 both concluded success.
+- **Code/docs/tests changed:** No additional code change in this verification record; status summaries updated with exact CI evidence.
+- **Verification result:** The PR head is verified by the full CI workflow. PR #10 remains open and unmerged. This does not establish live or production readiness and does not complete QOS-013.
+- **Remaining risk:** Runtime context remains caller-supplied rather than sourced from authoritative timestamped snapshots; margin, pending-order reserves, structured persistent sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. No live execution or money movement enabled.
