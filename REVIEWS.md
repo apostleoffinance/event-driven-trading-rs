@@ -598,3 +598,34 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/verification:** A new CI run `40455460153` is queued for head `037c678b9a4a22047233b5757b7621e7df543025`; success is not yet confirmed.
 - **Verification result:** Formatting correction committed; latest-head CI pending.
 - **Remaining risk:** Compile/API compatibility and tests still need to pass on the latest head.
+
+
+## REV-048 — QOS-014 transport resource bounds and heartbeat freshness
+
+- **Date:** 2026-10-27
+- **Context:** Follow-up to merged PR #22; user requested QOS-014 continue toward full implementation.
+- **Finding:** The authenticated TLS boundary had a fixed NDJSON frame cap but no explicit handshake/read/write deadlines, connection concurrency cap, or heartbeat-age check. A silent peer or stalled socket could otherwise retain runtime resources or leave stale transport state unnoticed.
+- **Correction:** Added configurable positive handshake/I/O/heartbeat timeout values and maximum concurrent connections to `Mt5TransportLimits`. Defaults are 5s handshake, 15s I/O, 30s heartbeat and 64 concurrent connections. TLS handshakes and I/O are timed; connection capacity is guarded by an owned semaphore permit. Added a fail-closed heartbeat freshness method and invalid-limit tests.
+- **Documentation:** Updated `docs/MT5_TRANSPORT_SECURITY.md`, `TASKS.md` and `PROGRESS.md` to describe implemented bounds and remaining integration gates.
+- **Verification:** Current branch CI has not yet completed. No successful test/Clippy claim is made until CI reports a green result on the final PR head.
+- **Remaining risk:** Heartbeat expiry is a callable watchdog API, not an autonomous background task. The host runtime must invoke it and connect failure to session degradation/reconciliation. Certificate fixture integration tests, dispatch/reconciliation wiring, MT5-side EA/client conformance, protected credential lifecycle, and end-to-end restart tests remain outstanding. No live trading, deployment or money movement enabled.
+
+
+## REV-049 — QOS-014 transport-hardening formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** PR #23 first CI run `40456634638`, Rust job `122031382040`.
+- **Finding:** `cargo fmt --all -- --check` failed on line wrapping in connection semaphore acquisition, transport read errors and the frame identity validator signature. Workspace check/tests/Clippy were skipped by the format gate.
+- **Correction:** Applied the exact formatting changes reported by rustfmt in `crates/intent-bridge/src/mt5_transport.rs`.
+- **Verification:** A new full CI run must pass on the updated PR head before merge. No compile/test/Clippy success is claimed from the failed run.
+- **Remaining risk:** This correction is formatting-only; runtime correctness remains unverified until the next full CI run and integration gaps listed in REV-048 remain open.
+
+
+## REV-050 — QOS-014 transport export formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** Second PR #23 CI run `40456746993`, Rust job `122031744793`.
+- **Finding:** The transport module formatting was corrected, but rustfmt still rejected the long public re-export line in `crates/intent-bridge/src/lib.rs`. Workspace check/tests/Clippy remained skipped.
+- **Correction:** Wrapped the public transport exports in rustfmt's expected multi-line form.
+- **Verification:** Third full CI run is required on the new branch head. No Rust compilation or test pass is claimed from this run.
+- **Remaining risk:** The previous run reached only formatting. The next run must pass formatting, workspace check/tests, Clippy and frontend checks before the slice is considered verified.

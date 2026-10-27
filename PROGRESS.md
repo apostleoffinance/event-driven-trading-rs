@@ -238,3 +238,12 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added direct dependencies for rustls, tokio-rustls, rustls-pemfile and sha2; exported the transport types from `intent-bridge`.
 - Updated the transport security contract and task queue. This code is a transport boundary, not end-to-end MT5 dispatch. It has no EA/broker integration, protected runtime config/rotation flow, connection timeouts/resource limits, durable reconciliation orchestration or live execution.
 - Verification: GitHub Actions is triggered for the PR branch; results must be checked against the final head before claiming success. No local test execution is claimed.
+
+
+## Work log — QOS-014 transport hardening (2026-10-27)
+
+- Added `Mt5TransportLimits` with positive handshake, I/O and heartbeat timeout settings plus a maximum concurrent authenticated connection count (defaults: 5s, 15s, 30s and 64 connections).
+- TLS handshakes and socket accept are bounded; reads/writes time out and poison the connection on failure. A held semaphore permit bounds authenticated concurrent connections and is released when the connection is dropped.
+- Added `check_heartbeat_fresh` to fail closed when the configured heartbeat age is exceeded. This is a watchdog API, not a background timer: the host runtime must call it regularly and must degrade the associated session/reconciliation state when it fails.
+- Added unit tests for zero/invalid timeout and connection-capacity settings. Existing NDJSON frame size limit and exact certificate fingerprint allow-list remain in force.
+- Verification is pending the current branch CI run. No local execution is claimed. End-to-end TLS certificate fixtures/handshake tests, client identity mismatch tests, automatic watchdog orchestration, dispatch/reconciliation wiring, MT5 EA conformance and restart integration remain open; no live trading is enabled.
