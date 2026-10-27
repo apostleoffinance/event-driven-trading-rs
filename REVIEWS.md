@@ -270,3 +270,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Run the complete CI matrix on the latest branch head.
 - **Verification result:** Correction committed as `3dcce8660a26982f30b6a2b085574436e9a525ca`; latest-head CI pending.
 - **Remaining risk:** Compilation, tests, and Clippy remain unverified until the current run finishes.
+
+## REV-019 — QOS-013 compile failure in decimal step rounding and correction
+- **Date:** 2026-10-27
+- **Context:** QOS-013 CI run 40435757549 on commit `3b8a59fbf87eeae3fe329beb9835a2c8f11cb266`.
+- **Finding/correction:** Formatting passed, but `cargo check --workspace` failed with E0631 because `Decimal::trunc` takes `&Decimal`, while `Option::map` expected a function taking `Decimal`. Changed the call to a closure `|steps| steps.trunc()`.
+- **Impact:** Workspace tests and Clippy were skipped because compilation failed.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435757549; Rust job 121963920153 reported E0631 at `instrument_sizing.rs:414`.
+- **Rule that failed:** Compile/test verification rule; implementation used an incompatible method function signature.
+- **Rule update made in RULES.md:** None; current rules already require compiling before claiming correctness.
+- **Code/docs/tests changed:** Corrected step rounding to use a closure; no intended behavior change.
+- **Regression/real-use check added:** Full latest-head CI rerun.
+- **Verification result:** Correction committed as `603282cecc1c46e2788de194f3eed17b9b9f7388`; rerun pending. No test success claimed.
+- **Remaining risk:** Additional compiler/test/Clippy findings may remain until the full CI suite passes.
