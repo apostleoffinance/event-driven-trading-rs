@@ -4,7 +4,7 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
 
-**QOS-001 DONE — source-backed baseline audit documented. QOS-002 remains READY; executable Rust/Python/frontend checks have not been run.** Documentation PR #1 is merged into `main`; the merge commit is `14619a758ac9864edb52958195de57fb5ca4b685`. The current implementation branch is `audit/qos-001-baseline`.
+**QOS-001 DONE — source-backed baseline audit documented. QOS-002 IN PROGRESS — CI confirms the frontend checks passed, but the initial Rust job failed its formatting gate; compile/tests/Clippy have not yet run.** Documentation PR #1 is merged into `main`; the merge commit is `14619a758ac9864edb52958195de57fb5ca4b685`. The current implementation branch is `audit/qos-001-baseline`.
 
 Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
@@ -35,7 +35,8 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - API mode is currently a stub that falls back to mock repositories. Simulation controls emit synthetic intent/risk/order/fill/position events.
 - Environment label can be configured as LIVE independently of backend connectivity; label alone is not evidence of a live backend. Default label is PAPER.
 - Theme provider supports dark/light and defaults to dark; current CSS uses blue accents rather than the white-dominant navy/orange design direction. No UI changes were made.
-- Frontend lint, typecheck and build were not run.
+- Frontend lint, typecheck, and production build were run in CI PR #3 and passed in run 40425100977.
+- Initial Rust CI run 40425100977: PostgreSQL service, checkout, Rust toolchain setup and cache step succeeded. `cargo fmt --all -- --check` failed on five formatting-only diffs; `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets` were skipped. Five rustfmt-only fixes have since been committed to `audit/qos-002-rust-checks`; a new CI result is pending.
 
 ## Work log — 2026-10-27
 - Verified PR #1 merged to `main`; merge commit `14619a758ac9864edb52958195de57fb5ca4b685`.
@@ -66,4 +67,4 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - Hosted strategies and investor-facing vaults require security, operational and legal review.
 
 ## Next
-Run QOS-002 from a working local checkout and preserve exact output; then perform QOS-003 before UI changes. QOS-010/QOS-012 specifications should be completed before adapter/allocator implementation.
+Re-run CI after REV-004 formatting corrections; inspect and resolve any subsequent compile/test/Clippy failures before marking QOS-002 DONE. Then perform QOS-003 before UI changes. QOS-010/QOS-012 specifications should be completed before adapter/allocator implementation.
