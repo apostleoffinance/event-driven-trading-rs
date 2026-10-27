@@ -4,7 +4,7 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
 
-**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract and acceptance-test matrix merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 IMPLEMENTED — venue idempotency and confirmed-cancel semantics have regression tests; CI passed on latest PR head `8b413f5127e906650f8621b84543b5bb4ee0741d` in run 40434342385 (Rust format/check/test/Clippy and frontend lint/typecheck/build). PR remains open/unmerged; event-stream dedup/reconnect remains out of scope until the adapter exposes an event stream. QOS-012 DONE — instrument-aware sizing specification merged in `INSTRUMENT_AWARE_SIZING.md`; QOS-013 is READY now that the specification is merged. These are documentation/specification statuses, not implementation or live-readiness claims.
+**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 DONE — PR #7 merged on 2026-10-27 at `324d327f035ca5ccb573404cc8e446b816990ada`; it implements client-order-ID payload conflict/replay behavior and confirmed cancellation checks. Event-stream deduplication/reconnect remains unimplemented because the adapter trait has no event-stream surface. QOS-012 DONE — instrument-aware sizing specification merged in `INSTRUMENT_AWARE_SIZING.md`. QOS-013 IN PROGRESS — source audit and acceptance plan documented in `QOS-013_IMPLEMENTATION_PLAN.md`; no QOS-013 runtime code has changed yet. Statuses distinguish verified implementation from specification and planning, not live-readiness claims.
 
 Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
@@ -89,8 +89,8 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - Added `INSTRUMENT_AWARE_SIZING.md` defining required per-account inputs, tick-value and linear loss models, currency conversion, costs/buffers, exposure/margin/pending-order constraints, conservative volume-step rounding, audit outputs, and 26 deterministic acceptance scenarios.
 - Updated task/progress/review records. No risk/runtime/frontend code changed. No executable tests run because the change is documentation-only.
 
-## Next
-QOS-011 implementation is verified by CI on PR #7 head `fc36d8bd598e93d231929cc2c10fe34663678de5` (run 40433848539); PR remains open for review. QOS-013 is READY because QOS-012 sizing spec is merged, but remains a separate task. Event-stream deduplication is still a gap because `VenueAdapter` currently exposes no event stream. Do not infer live execution readiness from documentation or green CI. QOS-013 is READY because the QOS-012 sizing specification is merged, but remains a separate task. Event-stream deduplication is still a gap because `VenueAdapter` currently exposes no event stream. Do not infer live execution readiness from documentation or green CI.
+## Status reconciliation
+PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with merge commit `324d327f035ca5ccb573404cc8e446b816990ada`. The old open/unmerged wording below in the historical QOS-011 work log is retained as a time-of-writing record and superseded by this correction. Current next task is QOS-013; its source audit and acceptance plan are in `QOS-013_IMPLEMENTATION_PLAN.md`. No QOS-013 runtime code or live execution was enabled.
 
 
 ## Work log — QOS-011 venue adapter hardening (2026-10-27)
@@ -100,3 +100,11 @@ QOS-011 implementation is verified by CI on PR #7 head `fc36d8bd598e93d231929cc2
 - Added simulated venue tests for same-payload replay and changed-payload conflict, plus a bridge regression test where cancel is acknowledged but the order remains open. Existing ambiguous-submit regression remains in place.
 - Event-stream deduplication remains out of scope for this code slice because the current `VenueAdapter` exposes no event-stream API; this limitation is explicit and no event behavior is claimed.
 - No live adapter, deployment, frontend, sizing logic, or money movement enabled. Initial CI runs found formatting drift and a missing typed `ClientOrderIdConflict` variant (REV-010–REV-012). After correction, latest-head run 40433848539 passed all Rust and frontend jobs (REV-013). PR remains unmerged; no live execution is enabled.
+
+
+## Work log — QOS-011 merge reconciliation and QOS-013 kickoff (2026-10-27)
+- Re-read `RULES.md` before this task; verified PR #7 metadata reports `merged: true`, merged at `2026-10-27T01:48:38Z`, merge commit `324d327f035ca5ccb573404cc8e446b816990ada`.
+- Corrected current task/progress summaries that still described QOS-011 as open/unmerged. Historical work-log entries retain their original time-of-writing status and are explicitly superseded by the correction.
+- Re-inspected `crates/risk-engine/src/sizing.rs`, `crates/risk-engine/src/evaluator.rs`, `crates/domain/src/risk.rs`, `crates/domain/src/instrument.rs`, `crates/domain/src/account.rs`, `crates/trading-runtime/src/pipeline.rs`, and `INSTRUMENT_AWARE_SIZING.md`.
+- Added `QOS-013_IMPLEMENTATION_PLAN.md` to record observed source gaps, scope boundaries, and testable acceptance criteria before implementation.
+- No runtime code or tests changed in this kickoff; no executable checks were run for this documentation-only change. No live mode, deployment, or money movement was enabled.
