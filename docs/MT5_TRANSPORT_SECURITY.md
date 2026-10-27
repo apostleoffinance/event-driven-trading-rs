@@ -1,0 +1,51 @@
+# MT5 Bridge Transport Security Contract — QOS-014
+
+Status: **design contract only**. No authenticated transport, socket listener, terminal EA, credential provisioning, or live execution is implemented by this document.
+
+## Goal and trust boundary
+
+The MT5 v1 JSON protocol and `Mt5SessionGate` assume that a transport has authenticated its peer. The future transport must establish peer authenticity and confidentiality before it creates a session gate or accepts any heartbeat, submit outcome, order snapshot, or reconciliation response. A terminal-provided `account_id`, `terminal_id`, or `server` is an assertion, not proof of identity.
+
+## Required transport properties
+
+1. **Confidentiality and integrity in transit.** Use TLS 1.3 where the selected MT5 deployment can support it. Prefer mutual TLS with a host-managed client certificate for a native bridge agent. If an MT5 Expert Advisor cannot use that model, document the concrete alternative and threat model before implementation; do not silently downgrade to plaintext TCP.
+2. **Peer authentication before protocol parsing.** Validate the server certificate chain and hostname on the client. On the host, authenticate the client certificate against a configured trust root and an explicit credential-to-terminal mapping. Do not trust a client-supplied account ID as an authentication credential.
+3. **Allow-list binding.** After transport authentication, map the authenticated principal to an immutable configured terminal identity and permitted account IDs. Then require the first valid heartbeat to match that binding. The heartbeat must not add accounts or change terminal/server identity.
+4. **No secrets in protocol frames.** Credentials, private keys, bearer tokens and shared secrets must never be placed in JSON frames, IDs, logs, errors, metrics, URLs, or frontend configuration.
+5. **Bounded input and connection resources.** Retain the 64 KiB frame limit. Bound concurrent connections, handshake duration, frame buffering, heartbeat age, and per-connection request rate. Reject malformed or oversized input and close the connection on authentication or framing failure.
+6. **Replay resistance.** Authentication must bind a fresh connection to a server-generated challenge or a TLS session, and application messages must retain schema version, message ID, correlation ID, account ID, timestamp and stream sequence. A replayed handshake must not establish a new trusted session. Durable order idempotency remains mandatory even with authenticated transport.
+7. **Fail-closed reconnect.** A new TCP/TLS connection is a new unauthorised session until authentication and identity binding succeed. Reconnect never clears the durable reconciliation latch; external orders, positions and account state must be reconciled before new exposure.
+8. **Credential lifecycle.** Support rotation and revocation without logging credential material. Revocation, certificate expiry, identity mismatch, failed authentication, or uncertain authentication state blocks new exposure and raises a redacted operational event.
+9. **No unsafe bypass.** There must be no production option that disables certificate validation or authentication. Local tests may use deterministic test certificates only; test bypasses must not be reachable from production configuration.
+
+## Handshake and readiness sequence
+
+1. Host accepts a connection under bounded resource limits.
+2. TLS handshake completes and peer authentication/authorization succeeds.
+3. Host maps the authenticated principal to configured terminal identity and account allow-list.
+4. A fresh `Mt5SessionGate` is created using only host configuration.
+5. The first protocol heartbeat is validated and checked against the authenticated identity binding.
+6. Stream sequence continuity and durable checkpoint are observed.
+7. Host reconciles venue orders, positions, deals and account state; persists the checkpoint.
+8. Only then may the session transition to ready. Risk authorization, OMS lifecycle validation and durable dispatch claim still precede each submit.
+
+Any failure before step 8 must leave the session unable to submit or cancel. Cancel support is enabled only if the authenticated identity is bound and the terminal declares the required capability; a request acknowledgement is not proof of cancellation.
+
+## Required implementation and test gates
+
+Before implementing a real transport, the follow-up code change must define and test:
+
+- Explicit host-side transport configuration with authentication required by default.
+- Certificate/identity mapping and account allow-list enforcement.
+- Authentication failure, unknown principal, expired/revoked credential, hostname mismatch and identity-switch rejection.
+- No heartbeat/session creation before authentication completes.
+- Reconnect creates a fresh session and preserves the reconciliation latch.
+- Oversized, malformed, slow/incomplete and replayed handshake/frame handling.
+- Secret redaction in errors/logs and proof that no credentials enter frames.
+- Deterministic local integration tests with test-only certificates, plus an end-to-end restart/reconciliation test using the durable order ledger.
+
+A green unit test or TLS handshake alone does not establish broker compatibility, terminal correctness, risk correctness, or production readiness.
+
+## Explicit non-scope
+
+This contract does not choose the final MT5 transport implementation, provision certificates, add a socket listener, implement an Expert Advisor, map broker symbols/lots/ticks, connect to a broker, enable live mode, deploy services, or move money. Those actions require a separately reviewed implementation and explicit deployment/account selection.
