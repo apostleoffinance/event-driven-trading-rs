@@ -98,3 +98,26 @@ Run this on the target Windows VPS with a demo account only. Capture the timesta
     python -m unittest discover -s tests -v
 
 Tests use fake terminal data and do not require an MT5 installation, broker credentials, or network access. A demo-terminal smoke test must be run on the target Windows VPS before any order-execution work begins.
+
+
+## macOS developer support and terminal providers
+
+The Rust bridge and portable contract tests can run on macOS. The bundled MetaTraderTerminal uses the official MetaTrader5 Python package and remains Windows-only. The MT5 macOS application by itself does not provide that Windows Python API.
+
+Run the macOS developer checks from the repository root:
+
+    bash adapters/mt5-python/scripts/mt5-macos-preflight.sh
+
+To run only the Python contract tests:
+
+    bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --skip-rust
+
+To fail closed when a real terminal provider is unavailable:
+
+    bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --require-real-terminal
+
+The worker now supports an explicit trusted provider module through MT5_TERMINAL_PROVIDER=module:function. The factory receives the validated Config and must return (terminal, constants), where terminal implements connect, connected, account_info, orders, positions, select_symbol, symbol_info, symbol_info_tick, and shutdown. Do not configure an unreviewed provider. This is an extension interface only: no native macOS MetaTrader provider is bundled, and setting this variable does not prove that a provider works or establish conformance.
+
+A provider intended for real demo use must be separately tested against the actual terminal and account, use the same read-only protocol contract, preserve sequence state across restarts, and produce authenticated persisted snapshots. The current macOS preflight deliberately reports terminal conformance as NOT_RUN and never promotes local contract tests to release evidence.
+
+See docs/QOS-015_MACOS_CONFORMANCE.md for the current platform boundary, certificate review helper, and acceptance requirements. Keep venue execution disabled.
