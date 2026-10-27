@@ -509,7 +509,9 @@ mod tests {
             .unwrap()
             .is_empty());
         let chunk = format!("{}\n{}\r\n", &one[10..], two);
-        let decoded = decoder.push(chunk.as_bytes(), now, Duration::seconds(2)).unwrap();
+        let decoded = decoder
+            .push(chunk.as_bytes(), now, Duration::seconds(2))
+            .unwrap();
         assert_eq!(decoded.len(), 2);
         assert!(decoder.finish().is_ok());
     }
@@ -528,7 +530,10 @@ mod tests {
         assert!(oversized.push(b"{}\n", now, Duration::zero()).is_err());
 
         let mut partial = NdjsonFrameDecoder::new();
-        assert!(partial.push(b"{", now, Duration::zero()).unwrap().is_empty());
+        assert!(partial
+            .push(b"{", now, Duration::zero())
+            .unwrap()
+            .is_empty());
         assert!(partial.finish().is_err());
         assert!(partial.push(b"}\n", now, Duration::zero()).is_err());
         assert!(partial.push(b"{}\n", now, Duration::zero()).is_err());
