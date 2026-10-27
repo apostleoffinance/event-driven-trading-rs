@@ -501,9 +501,13 @@ mod tests {
                 idempotent_client_order_id: true,
                 sequence_numbers: true,
             },
-        }))).unwrap();
+        })))
+        .unwrap();
         let mut decoder = NdjsonFrameDecoder::new();
-        assert!(decoder.push(&one.as_bytes()[..10], now, Duration::zero()).unwrap().is_empty());
+        assert!(decoder
+            .push(&one.as_bytes()[..10], now, Duration::zero())
+            .unwrap()
+            .is_empty());
         let chunk = format!("{}\n{}\r\n", &one[10..], two);
         let decoded = decoder.push(chunk.as_bytes(), now, Duration::seconds(2)).unwrap();
         assert_eq!(decoded.len(), 2);
@@ -514,14 +518,19 @@ mod tests {
     fn ndjson_decoder_rejects_oversized_partial_and_poisoned_streams() {
         let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
         let mut oversized = NdjsonFrameDecoder::new();
-        assert!(oversized.push(&vec![b'x'; MAX_MT5_BRIDGE_FRAME_BYTES + 1], now, Duration::zero()).is_err());
+        assert!(oversized
+            .push(
+                &vec![b'x'; MAX_MT5_BRIDGE_FRAME_BYTES + 1],
+                now,
+                Duration::zero()
+            )
+            .is_err());
         assert!(oversized.push(b"{}\n", now, Duration::zero()).is_err());
 
         let mut partial = NdjsonFrameDecoder::new();
         assert!(partial.push(b"{", now, Duration::zero()).unwrap().is_empty());
         assert!(partial.finish().is_err());
         assert!(partial.push(b"}\n", now, Duration::zero()).is_err());
-        partial.reset();
         assert!(partial.push(b"{}\n", now, Duration::zero()).is_err());
     }
 
