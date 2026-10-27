@@ -449,7 +449,9 @@ mod tests {
 
         let mut order = valid_order();
         order.quantity = "0".into();
-        assert!(frame(BridgePayload::SubmitOrder(order)).validate_at(now, Duration::zero()).is_err());
+        assert!(frame(BridgePayload::SubmitOrder(order))
+            .validate_at(now, Duration::zero())
+            .is_err());
     }
 
     #[test]
