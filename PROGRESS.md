@@ -299,3 +299,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Updated the Windows worker to require `MT5_SYMBOLS` (1–64 exact symbols), query symbol metadata and current ticks from the official MetaTrader5 API, and emit the market-data frame alongside heartbeat/reconciliation frames. The worker remains read-only.
 - Added PostgreSQL migration `20261027000004_mt5_market_data_snapshots.sql`, persistence API, and runtime handling that stores market-data snapshots separately from reconciliation readiness.
 - Added schema, Python contract tests, Rust validation tests, and deployment/protocol docs. CI is pending; Windows demo verification and downstream QOS-013 sizing integration remain outstanding.
+
+
+## Work log — QOS-013 persisted MT5 runtime consumer (2026-10-27)
+- Started `feat/qos-013-mt5-runtime-integration` after PR #30 merged.
+- Added `Mt5PersistedSizingProvider` to load the exact account/terminal snapshot, verify indexed server/currency/sequence/capture metadata, map Quant OS instrument IDs to exact broker symbols, and require a dynamic trusted supplement provider for costs, margin and pending-order reserves.
+- Added side-aware provider loading; buy intents use ask and sell intents use bid. The resulting entry price is now used both by the risk evaluator and the downstream order request, avoiding sizing at one price and submitting at another.
+- Provider fails closed when capability and account-position-semantics gates are not explicitly validated. No order submission/cancellation capability was added; the existing explicit runtime sizing path remains opt-in.
+- Verification status: CI and runtime integration tests pending. Windows MT5 demo-terminal smoke test and certificate lifecycle review remain outstanding. No live mode enabled.
