@@ -124,9 +124,9 @@ pub async fn execute_intent_across_accounts(
                     Err(error) => Err(error),
                 }
             }
-            None => target.runtime
-                .execute_intent(intent, target.venue, target.events_out)
-                .await,
+            None => Err(RuntimeError::Invariant(
+                "multi-account execution requires an instrument-aware snapshot provider; legacy sizing is disabled".into(),
+            )),
         };
         results.push(AccountExecutionResult { account_id, result });
     }
@@ -237,8 +237,12 @@ mod tests {
 
         assert_eq!(outcome.results.len(), 2);
         assert!(outcome.results[0].result.is_err());
-        assert!(outcome.results[1].result.is_ok());
+        assert!(outcome.results[1].result.is_err());
         assert_eq!(outcome.results[1].account_id.as_str(), "account-later-target");
+        assert!(matches!(
+            &outcome.results[1].result,
+            Err(RuntimeError::Invariant(message)) if message.contains("snapshot provider")
+        ));
         drop(targets);
         assert!(first.oms().orders().is_empty());
         assert!(second.oms().orders().is_empty());
