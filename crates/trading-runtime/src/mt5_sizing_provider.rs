@@ -113,8 +113,18 @@ impl Mt5PersistedSizingProvider {
             || record.account_currency != self.expected_account_currency
             || record.snapshot.get("sequence").and_then(serde_json::Value::as_u64)
                 != Some(record.sequence)
-            || record.snapshot.get("captured_at").and_then(serde_json::Value::as_str)
-                != Some(record.captured_at.to_rfc3339().as_str())
+            || record
+                .snapshot
+                .get("captured_at")
+                .and_then(serde_json::Value::as_str)
+                .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+                .is_none_or(|captured| {
+                    captured
+                        .with_timezone(&Utc)
+                        .signed_duration_since(record.captured_at)
+                        .num_microseconds()
+                        .is_none_or(|delta| delta.unsigned_abs() > 1)
+                })
         {
             return Err(RuntimeError::Invariant(
                 "persisted MT5 snapshot identity or indexed metadata mismatch".into(),
