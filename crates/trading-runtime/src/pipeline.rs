@@ -2,7 +2,7 @@
 
 use account_engine::AccountEngine;
 use chrono::Utc;
-use domain::{OrderStatus, RiskDecision, RiskRequest, TradeIntent};
+use domain::{AccountId, InstrumentId, OrderStatus, RiskDecision, RiskRequest, TradeIntent};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
 use risk_engine::{InstrumentSizingContext, RiskEvaluator};
@@ -18,6 +18,15 @@ pub struct IntentOutcome {
     pub intent: TradeIntent,
     pub decision: RiskDecision,
     pub order_status: Option<OrderStatus>,
+}
+
+/// Instrument-aware sizing inputs explicitly bound to the account and instrument
+/// they describe. The caller remains responsible for sourcing trusted, fresh data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeInstrumentSizingContext {
+    pub account_id: AccountId,
+    pub instrument_id: InstrumentId,
+    pub sizing: InstrumentSizingContext,
 }
 
 impl TradingRuntime {
@@ -44,7 +53,7 @@ impl TradingRuntime {
         intent: &TradeIntent,
         venue: &dyn VenueAdapter,
         events_out: &EventPublisher,
-        sizing_context: &InstrumentSizingContext,
+        sizing_context: &RuntimeInstrumentSizingContext,
     ) -> RuntimeResult<IntentOutcome> {
         self.execute_intent_inner(intent, venue, events_out, Some(sizing_context))
             .await
@@ -55,7 +64,7 @@ impl TradingRuntime {
         intent: &TradeIntent,
         venue: &dyn VenueAdapter,
         events_out: &EventPublisher,
-        sizing_context: Option<&InstrumentSizingContext>,
+        sizing_context: Option<&RuntimeInstrumentSizingContext>,
     ) -> RuntimeResult<IntentOutcome> {
         if let Some(store) = &self.store {
             store.save_trade_intent(intent).await?;
@@ -102,9 +111,17 @@ impl TradingRuntime {
         .with_session_allowed(self.config.session_allowed);
 
         let decision = match sizing_context {
-            Some(context) => self
+            Some(snapshot)
+                if snapshot.account_id != self.config.account_id
+                    || snapshot.instrument_id != intent.instrument_id =>
+            {
+                RiskDecision::Rejected {
+                    reason: domain::RiskRejectReason::DependencyUnavailable,
+                }
+            }
+            Some(snapshot) => self
                 .risk
-                .evaluate_with_instrument_sizing(&risk_req, context)?,
+                .evaluate_with_instrument_sizing(&risk_req, &snapshot.sizing)?,
             None => self.risk.evaluate(&risk_req)?,
         };
         self.publish_risk_decision(intent, &decision, events_out)
