@@ -122,3 +122,8 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Initial CI run 40435500152 failed at `cargo fmt --all -- --check`; the workspace check, tests, and Clippy were skipped.
 - Applied the exact formatting differences reported by the Rust job and logged the failure/correction in REV-017.
 - The latest-head full CI rerun is required before claiming verification.
+
+
+## Work log — QOS-013 final formatting correction (2026-10-27)
+- Follow-up CI run 40435630512 still failed `cargo fmt --all -- --check` on one match-arm wrapping difference; compile/tests/Clippy were skipped.
+- Applied the remaining exact rustfmt diff and recorded it in REV-018. Awaiting latest-head CI.
