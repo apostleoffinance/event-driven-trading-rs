@@ -32,7 +32,8 @@ pub trait Mt5SizingSupplementProvider: Send + Sync {
 }
 
 fn timestamps_match(left: &DateTime<Utc>, right: &DateTime<Utc>) -> bool {
-    left.clone().signed_duration_since(right.clone())
+    left.clone()
+        .signed_duration_since(right.clone())
         .num_microseconds()
         .is_some_and(|delta| delta.unsigned_abs() <= 1)
 }
@@ -122,7 +123,10 @@ impl Mt5PersistedSizingProvider {
                 })?;
         if record.server != self.expected_server
             || record.account_currency != self.expected_account_currency
-            || record.snapshot.get("sequence").and_then(serde_json::Value::as_u64)
+            || record
+                .snapshot
+                .get("sequence")
+                .and_then(serde_json::Value::as_u64)
                 != Some(record.sequence)
             || record
                 .snapshot
@@ -152,9 +156,7 @@ impl Mt5PersistedSizingProvider {
             ));
         }
         let max_age_seconds = self.max_age_seconds.min(supplement.max_age_seconds);
-        if now.signed_duration_since(supplement.captured_at)
-            > Duration::seconds(max_age_seconds)
-        {
+        if now.signed_duration_since(supplement.captured_at) > Duration::seconds(max_age_seconds) {
             return Err(RuntimeError::Invariant(
                 "trusted MT5 sizing supplement is stale".into(),
             ));
