@@ -628,4 +628,69 @@ mod tests {
             }
         );
     }
+    #[test]
+    fn pending_order_exposure_reduces_available_exposure_cap() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::ONE;
+        request.policy.max_leverage = Decimal::from(10);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.pending_order_exposure = Decimal::from(50);
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::new(5, 1)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::ExposureLimit,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn available_margin_caps_quantity_independently() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.available_margin = Some(Decimal::from(25));
+        sizing.margin_per_quantity = Some(Decimal::from(10));
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::new(25, 1)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::MarginLimit,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn mismatched_margin_inputs_fail_closed() {
+        let request = sample_request();
+        let mut sizing = context();
+        sizing.available_margin = Some(Decimal::from(100));
+
+        assert_eq!(
+            size_order_instrument_aware(&request, &sizing),
+            InstrumentSizingOutcome::Rejected {
+                reason: SizingRejectReason::InvalidInput,
+            }
+        );
+    }
+
 }
