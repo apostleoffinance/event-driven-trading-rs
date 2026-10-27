@@ -840,15 +840,15 @@ mod tests {
             sequence: 7,
             captured_at: now.clone(),
             account_currency: "USD".into(),
-            instruments: vec![instrument.clone()],
-            quotes: vec![quote.clone()],
+            instruments: vec![instrument],
+            quotes: vec![quote],
         };
         assert!(frame(BridgePayload::MarketDataSnapshot(payload.clone()))
             .validate_at(now.clone(), Duration::zero())
             .is_ok());
 
         let mut stale = payload.clone();
-        stale.quotes[0].tick_time = now - Duration::seconds(61);
+        stale.quotes[0].tick_time = now.clone() - Duration::seconds(61);
         assert!(frame(BridgePayload::MarketDataSnapshot(stale))
             .validate_at(now.clone(), Duration::zero())
             .is_err());
@@ -856,7 +856,8 @@ mod tests {
         let mut crossed = payload.clone();
         crossed.quotes[0].ask = "1.0844".into();
         assert!(frame(BridgePayload::MarketDataSnapshot(crossed))
-            .validate_at(now, Duration::zero()).is_err());
+            .validate_at(now.clone(), Duration::zero())
+            .is_err());
 
         let mut unmatched = payload;
         unmatched.quotes[0].symbol = "EURUSD".into();
