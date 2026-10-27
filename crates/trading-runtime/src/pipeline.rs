@@ -1,7 +1,8 @@
 //! Single-intent pipeline: TradeIntent → Risk → OMS → Venue → Position.
 
 use account_engine::AccountEngine;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use async_trait::async_trait;
 use domain::{AccountId, InstrumentId, OrderStatus, RiskDecision, RiskRequest, TradeIntent};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
@@ -26,7 +27,34 @@ pub struct IntentOutcome {
 pub struct RuntimeInstrumentSizingContext {
     pub account_id: AccountId,
     pub instrument_id: InstrumentId,
+    /// Identifier of the trusted snapshot source (for audit and operations).
+    pub source_id: String,
+    /// Capture time of the oldest required input in this bundle.
+    pub captured_at: DateTime<Utc>,
+    /// Explicit configured freshness bound; unknown/zero bounds are invalid.
+    pub max_age_seconds: i64,
     pub sizing: InstrumentSizingContext,
+}
+
+impl RuntimeInstrumentSizingContext {
+    fn is_fresh_at(&self, now: DateTime<Utc>) -> bool {
+        if self.source_id.trim().is_empty() || self.max_age_seconds <= 0 || self.captured_at > now {
+            return false;
+        }
+        now.signed_duration_since(self.captured_at).num_seconds() <= self.max_age_seconds
+    }
+}
+
+/// Runtime boundary for loading an account/instrument-scoped sizing snapshot.
+/// Implementations must obtain data from authoritative configured sources and
+/// return an error when any required input is missing or inconsistent.
+#[async_trait]
+pub trait InstrumentSizingSnapshotProvider: Send + Sync {
+    async fn load_snapshot(
+        &self,
+        account_id: &AccountId,
+        instrument_id: &InstrumentId,
+    ) -> RuntimeResult<RuntimeInstrumentSizingContext>;
 }
 
 impl TradingRuntime {
@@ -41,6 +69,23 @@ impl TradingRuntime {
         events_out: &EventPublisher,
     ) -> RuntimeResult<IntentOutcome> {
         self.execute_intent_inner(intent, venue, events_out, None)
+            .await
+    }
+
+    /// Load sizing inputs from the configured provider and execute only with the
+    /// resulting account/instrument-bound snapshot. Provider failures propagate
+    /// before any OMS order is created; this method never falls back to legacy sizing.
+    pub async fn execute_intent_with_snapshot_provider(
+        &mut self,
+        intent: &TradeIntent,
+        venue: &dyn VenueAdapter,
+        events_out: &EventPublisher,
+        provider: &dyn InstrumentSizingSnapshotProvider,
+    ) -> RuntimeResult<IntentOutcome> {
+        let snapshot = provider
+            .load_snapshot(&self.config.account_id, &intent.instrument_id)
+            .await?;
+        self.execute_intent_with_instrument_sizing(intent, venue, events_out, &snapshot)
             .await
     }
 
@@ -113,7 +158,8 @@ impl TradingRuntime {
         let decision = match sizing_context {
             Some(snapshot)
                 if snapshot.account_id != self.config.account_id
-                    || snapshot.instrument_id != intent.instrument_id =>
+                    || snapshot.instrument_id != intent.instrument_id
+                    || !snapshot.is_fresh_at(Utc::now()) =>
             {
                 RiskDecision::Rejected {
                     reason: domain::RiskRejectReason::DependencyUnavailable,
