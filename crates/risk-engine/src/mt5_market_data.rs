@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn stale_and_mismatched_account_fail_closed() {
         let now = Utc::now();
-        let stale = snap(now - Duration::seconds(60));
+        let stale = snap(now.clone() - Duration::seconds(60));
         assert_eq!(prepare_mt5_sizing(&stale, "EURUSD.a", "USD", true, now.clone(), Duration::seconds(30), &extra()).unwrap_err(), Mt5SizingDataError::Stale);
         let current = snap(now.clone());
         assert_eq!(prepare_mt5_sizing(&current, "EURUSD.a", "EUR", true, now, Duration::seconds(30), &extra()).unwrap_err(), Mt5SizingDataError::AccountCurrencyMismatch);
