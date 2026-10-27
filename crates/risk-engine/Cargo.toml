@@ -6,6 +6,7 @@ license.workspace = true
 description = "Deterministic pre-trade risk evaluation"
 
 [dependencies]
+chrono = { workspace = true }
 domain = { path = "../domain" }
 rust_decimal = { workspace = true }
 serde_json = { workspace = true }
