@@ -128,6 +128,7 @@ pub fn prepare_mt5_sizing(snapshot:&Value, symbol:&str, account_currency:&str, i
 
 #[cfg(test)]
 mod tests {
+ #![allow(clippy::unwrap_used, clippy::panic)]
  use super::*; use serde_json::json;
  fn snap(now:DateTime<Utc>)->Value { json!({"captured_at":now.to_rfc3339(),"account_currency":"USD","source":"mt5_python_readonly_v1","sequence":8,
  "instruments":[
