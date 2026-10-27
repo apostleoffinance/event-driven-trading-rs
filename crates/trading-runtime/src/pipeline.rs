@@ -37,6 +37,10 @@ pub struct RuntimeInstrumentSizingContext {
     /// Explicit conversion routes used by the trusted source for loss and notional.
     pub pnl_conversion_path: String,
     pub notional_conversion_path: String,
+    /// True only when the provider validated supported instrument/order capabilities.
+    pub venue_capabilities_validated: bool,
+    /// True only when netting/hedging semantics are known and conservatively modeled.
+    pub account_position_semantics_known: bool,
     /// Capture time of the oldest required input in this bundle.
     pub captured_at: DateTime<Utc>,
     /// Explicit configured freshness bound; unknown/zero bounds are invalid.
@@ -57,6 +61,12 @@ impl RuntimeInstrumentSizingContext {
         }
         now.signed_duration_since(self.captured_at)
             <= chrono::Duration::seconds(self.max_age_seconds)
+    }
+
+    fn is_eligible_at(&self, now: DateTime<Utc>) -> bool {
+        self.venue_capabilities_validated
+            && self.account_position_semantics_known
+            && self.is_fresh_at(now)
     }
 }
 
@@ -85,7 +95,7 @@ impl InstrumentSizingSnapshotCache {
         &self,
         snapshot: RuntimeInstrumentSizingContext,
     ) -> RuntimeResult<()> {
-        if !snapshot.is_fresh_at(Utc::now()) {
+        if !snapshot.is_eligible_at(Utc::now()) {
             return Err(crate::RuntimeError::Invariant(
                 "refusing to cache invalid or stale instrument sizing snapshot".to_string(),
             ));
@@ -128,7 +138,7 @@ impl InstrumentSizingSnapshotProvider for InstrumentSizingSnapshotCache {
                     "no instrument sizing snapshot available for account/instrument".to_string(),
                 )
             })?;
-        if !snapshot.is_fresh_at(Utc::now()) {
+        if !snapshot.is_eligible_at(Utc::now()) {
             return Err(crate::RuntimeError::Invariant(
                 "cached instrument sizing snapshot is stale".to_string(),
             ));
@@ -240,7 +250,7 @@ impl TradingRuntime {
             Some(snapshot)
                 if snapshot.account_id != self.config.account_id
                     || snapshot.instrument_id != intent.instrument_id
-                    || !snapshot.is_fresh_at(evaluated_at)
+                    || !snapshot.is_eligible_at(evaluated_at)
                     || risk_req.account_state.updated_at > evaluated_at
                     || evaluated_at.signed_duration_since(risk_req.account_state.updated_at)
                         > chrono::Duration::seconds(snapshot.max_age_seconds) =>
@@ -532,6 +542,8 @@ mod sizing_snapshot_tests {
             source_id: "test-provider".to_string(),
             pnl_conversion_path: "TEST:quote_to_account".to_string(),
             notional_conversion_path: "TEST:price_to_account".to_string(),
+            venue_capabilities_validated: true,
+            account_position_semantics_known: true,
             captured_at: now,
             max_age_seconds: 10,
             sizing: InstrumentSizingContext {
@@ -588,9 +600,13 @@ mod sizing_snapshot_tests {
         stale.captured_at = now - Duration::seconds(120);
         assert!(cache.publish_snapshot(stale).await.is_err());
 
-        let mut missing_conversion = fresh;
+        let mut missing_conversion = fresh.clone();
         missing_conversion.pnl_conversion_path = " ".to_string();
         assert!(cache.publish_snapshot(missing_conversion).await.is_err());
+
+        let mut unknown_capabilities = fresh;
+        unknown_capabilities.venue_capabilities_validated = false;
+        assert!(cache.publish_snapshot(unknown_capabilities).await.is_err());
     }
 
     #[tokio::test]
@@ -688,6 +704,8 @@ fn sizing_audit_payload(
             "source_id": snapshot.source_id,
             "pnl_conversion_path": snapshot.pnl_conversion_path,
             "notional_conversion_path": snapshot.notional_conversion_path,
+            "venue_capabilities_validated": snapshot.venue_capabilities_validated,
+            "account_position_semantics_known": snapshot.account_position_semantics_known,
             "captured_at": snapshot.captured_at.to_rfc3339(),
             "max_age_seconds": snapshot.max_age_seconds,
             "inputs_fresh_flag": snapshot.sizing.inputs_fresh
