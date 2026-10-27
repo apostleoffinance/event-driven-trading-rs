@@ -43,7 +43,8 @@ impl RuntimeInstrumentSizingContext {
         if self.source_id.trim().is_empty() || self.max_age_seconds <= 0 || self.captured_at > now {
             return false;
         }
-        now.signed_duration_since(self.captured_at).num_seconds() <= self.max_age_seconds
+        now.signed_duration_since(self.captured_at)
+            <= chrono::Duration::seconds(self.max_age_seconds)
     }
 }
 
