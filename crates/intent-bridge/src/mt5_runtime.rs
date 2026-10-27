@@ -159,6 +159,32 @@ impl Mt5BridgeRuntime {
                 continue;
             }
             if let BridgePayload::MarketDataSnapshot(snapshot) = &frame.payload {
+                let bound_identity = {
+                    let session = self.session.lock().await;
+                    (
+                        session.account_id().map(str::to_owned),
+                        session.terminal_id().map(str::to_owned),
+                        session.server().map(str::to_owned),
+                    )
+                };
+                if bound_identity.0.as_deref() != Some(frame.account_id.as_str())
+                    || bound_identity.1.as_deref() != Some(snapshot.terminal_id.as_str())
+                    || bound_identity.2.as_deref() != Some(snapshot.server.as_str())
+                {
+                    let mut session = self.session.lock().await;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (bound_identity.0.as_deref(), bound_identity.1.as_deref())
+                    {
+                        let _ = self
+                            .store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, snapshot.sequence)
+                            .await;
+                    }
+                    return Err(BridgeError::Invalid(
+                        "MT5 market-data identity does not match authenticated session".into(),
+                    ));
+                }
                 let serialized = serde_json::to_value(snapshot)?;
                 if let Err(error) = self
                     .store
