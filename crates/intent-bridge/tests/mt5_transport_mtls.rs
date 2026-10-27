@@ -26,7 +26,7 @@ use intent_bridge::mt5_transport::{
     spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
     Mt5TransportPrincipal,
 };
-use persistence::{Mt5DurableOrderState, Mt5OrderClaim, TradingStore};
+use persistence::{Mt5DurableOrderState, Mt5OrderClaim, Mt5StreamReadiness, TradingStore};
 use sqlx::PgPool;
 use intent_bridge::mt5_v1::{
     BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat, OrderSide,
