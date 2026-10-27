@@ -246,6 +246,7 @@ impl Mt5TransportConfig {
 pub fn spawn_heartbeat_watchdog(
     connection: Arc<Mutex<AuthenticatedMt5Connection>>,
     session: Arc<Mutex<Mt5SessionGate>>,
+    store: TradingStore,
     poll_interval: StdDuration,
 ) -> BridgeResult<JoinHandle<()>> {
     if poll_interval.is_zero() {
@@ -264,6 +265,13 @@ pub fn spawn_heartbeat_watchdog(
                 .check_heartbeat_fresh_with_session(&mut session, Utc::now())
                 .is_err()
             {
+                if let (Some(account_id), Some(terminal_id)) =
+                    (session.account_id(), session.terminal_id())
+                {
+                    let _ = store
+                        .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                        .await;
+                }
                 break;
             }
         }
