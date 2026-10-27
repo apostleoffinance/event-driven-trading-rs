@@ -181,6 +181,10 @@ async fn mt5_sequence_gaps_degrade_stream_until_explicit_reconciliation(pool: Pg
             .unwrap(),
         Mt5StreamReadiness::Degraded
     );
+    assert!(store
+        .mark_mt5_stream_reconciled("account-stream-01", "terminal-01", 4)
+        .await
+        .is_err());
 
     persist_reconciliation_snapshot(&store, "account-stream-01", "terminal-01", 4).await;
     assert_eq!(
