@@ -24,7 +24,7 @@ pub use mt5_reconciliation::{
 };
 pub use mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 pub use mt5_transport::{
-    spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig,
-    Mt5TransportLimits, Mt5TransportPrincipal,
+    spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
+    Mt5TransportPrincipal,
 };
 pub use wire::{parse_intent_json, TradeIntentWire};
