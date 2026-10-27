@@ -10,6 +10,7 @@ use std::io::BufReader;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration as StdDuration;
 
 use chrono::{DateTime, Duration, Utc};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 use crate::mt5_v1::{BridgeFrame, BridgePayload, NdjsonFrameDecoder};
@@ -59,10 +61,44 @@ impl Mt5TransportPrincipal {
     }
 }
 
+/// Runtime bounds for the authenticated transport. Defaults are conservative and
+/// cannot be disabled by a terminal frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Mt5TransportLimits {
+    pub handshake_timeout: StdDuration,
+    pub io_timeout: StdDuration,
+    pub heartbeat_timeout: StdDuration,
+}
+
+impl Default for Mt5TransportLimits {
+    fn default() -> Self {
+        Self {
+            handshake_timeout: StdDuration::from_secs(5),
+            io_timeout: StdDuration::from_secs(15),
+            heartbeat_timeout: StdDuration::from_secs(30),
+        }
+    }
+}
+
+impl Mt5TransportLimits {
+    fn validate(self) -> BridgeResult<Self> {
+        if self.handshake_timeout.is_zero()
+            || self.io_timeout.is_zero()
+            || self.heartbeat_timeout.is_zero()
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 transport timeouts must be positive".into(),
+            ));
+        }
+        Ok(self)
+    }
+}
+
 /// TLS server configuration plus an explicit certificate-to-identity allow-list.
 pub struct Mt5TransportConfig {
     acceptor: TlsAcceptor,
     principals: BTreeMap<String, Mt5TransportPrincipal>,
+    limits: Mt5TransportLimits,
 }
 
 impl Mt5TransportConfig {
@@ -121,7 +157,14 @@ impl Mt5TransportConfig {
         Ok(Self {
             acceptor: TlsAcceptor::from(Arc::new(tls_config)),
             principals: mapped,
+            limits: Mt5TransportLimits::default(),
         })
+    }
+
+    /// Replace runtime bounds with validated, non-zero limits.
+    pub fn with_limits(mut self, limits: Mt5TransportLimits) -> BridgeResult<Self> {
+        self.limits = limits.validate()?;
+        Ok(self)
     }
 
     /// Bind a listener only after configuration is validated. The caller controls
@@ -134,7 +177,10 @@ impl Mt5TransportConfig {
     /// protocol frame is exposed until certificate-chain validation and exact
     /// configured fingerprint mapping both succeed.
     pub async fn accept(&self, listener: &TcpListener) -> BridgeResult<AuthenticatedMt5Connection> {
-        let (stream, _) = listener.accept().await.map_err(BridgeError::from)?;
+        let (stream, _) = timeout(self.limits.handshake_timeout, listener.accept())
+            .await
+            .map_err(|_| BridgeError::Invalid("MT5 connection accept timed out".into()))?
+            .map_err(BridgeError::from)?;
         self.authenticate(stream).await
     }
 
@@ -144,10 +190,9 @@ impl Mt5TransportConfig {
         &self,
         stream: TcpStream,
     ) -> BridgeResult<AuthenticatedMt5Connection> {
-        let tls_stream = self
-            .acceptor
-            .accept(stream)
+        let tls_stream = timeout(self.limits.handshake_timeout, self.acceptor.accept(stream))
             .await
+            .map_err(|_| BridgeError::Invalid("MT5 mutual-TLS handshake timed out".into()))?
             .map_err(|_| BridgeError::Invalid("MT5 mutual-TLS authentication failed".into()))?;
         let certificate = tls_stream
             .get_ref()
@@ -167,6 +212,8 @@ impl Mt5TransportConfig {
             decoder: NdjsonFrameDecoder::new(),
             pending_frames: VecDeque::new(),
             heartbeat_seen: false,
+            last_heartbeat_at: None,
+            limits: self.limits,
             failed: false,
         })
     }
@@ -178,12 +225,32 @@ pub struct AuthenticatedMt5Connection {
     decoder: NdjsonFrameDecoder,
     pending_frames: VecDeque<BridgeFrame>,
     heartbeat_seen: bool,
+    last_heartbeat_at: Option<DateTime<Utc>>,
+    limits: Mt5TransportLimits,
     failed: bool,
 }
 
 impl AuthenticatedMt5Connection {
     pub fn principal(&self) -> &Mt5TransportPrincipal {
         &self.principal
+    }
+
+    /// Fail closed when no valid heartbeat has been received within the configured
+    /// freshness window. The runtime must call this from its watchdog/scheduler;
+    /// a blocked read alone cannot detect a silent peer.
+    pub fn check_heartbeat_fresh(&mut self, now: DateTime<Utc>) -> BridgeResult<()> {
+        let fresh = self.last_heartbeat_at.is_some_and(|last| {
+            now.signed_duration_since(last)
+                <= Duration::from_std(self.limits.heartbeat_timeout)
+                    .unwrap_or_else(|_| Duration::zero())
+        });
+        if !fresh {
+            self.failed = true;
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat expired; connection must be reconciled before reuse".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Read the next complete frame, requiring the first application frame to be
@@ -201,7 +268,7 @@ impl AuthenticatedMt5Connection {
         }
         loop {
             if let Some(frame) = self.pending_frames.pop_front() {
-                if let Err(error) = self.validate_frame_identity(&frame) {
+                if let Err(error) = self.validate_frame_identity(&frame, now) {
                     self.failed = true;
                     return Err(error);
                 }
@@ -209,9 +276,17 @@ impl AuthenticatedMt5Connection {
             }
 
             let mut chunk = [0_u8; 4096];
-            let count = self.stream.read(&mut chunk).await.map_err(|_| {
-                BridgeError::Invalid("MT5 authenticated transport read failed".into())
-            })?;
+            let count = match timeout(self.limits.io_timeout, self.stream.read(&mut chunk)).await {
+                Err(_) => {
+                    self.failed = true;
+                    return Err(BridgeError::Invalid("MT5 authenticated transport read timed out".into()));
+                }
+                Ok(Err(_)) => {
+                    self.failed = true;
+                    return Err(BridgeError::Invalid("MT5 authenticated transport read failed".into()));
+                }
+                Ok(Ok(count)) => count,
+            };
             if count == 0 {
                 self.decoder.finish()?;
                 return Err(BridgeError::Invalid(
@@ -259,7 +334,7 @@ impl AuthenticatedMt5Connection {
             .map_err(|_| BridgeError::Invalid("MT5 authenticated transport flush failed".into()))
     }
 
-    fn validate_frame_identity(&mut self, frame: &BridgeFrame) -> BridgeResult<()> {
+    fn validate_frame_identity(&mut self, frame: &BridgeFrame, received_at: DateTime<Utc>) -> BridgeResult<()> {
         if !self.heartbeat_seen {
             let heartbeat = match &frame.payload {
                 BridgePayload::Heartbeat(value) => value,
@@ -278,10 +353,13 @@ impl AuthenticatedMt5Connection {
                 ));
             }
             self.heartbeat_seen = true;
+            self.last_heartbeat_at = Some(received_at);
         } else if !self.principal.allowed_accounts.contains(&frame.account_id) {
             return Err(BridgeError::Invalid(
                 "MT5 frame account is not allowed for authenticated principal".into(),
             ));
+        } else if matches!(frame.payload, BridgePayload::Heartbeat(_)) {
+            self.last_heartbeat_at = Some(received_at);
         }
         Ok(())
     }
