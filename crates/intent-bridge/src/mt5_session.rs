@@ -234,6 +234,7 @@ impl Mt5SessionGate {
     /// state must call this before accepting further exposure.
     pub fn degrade(&mut self) {
         if self.state != Mt5SessionState::Closed {
+            self.connection_state = Some(ConnectionState::Degraded);
             self.state = Mt5SessionState::Degraded;
         }
     }
@@ -417,6 +418,7 @@ mod tests {
         let mut gate = ready_gate();
         gate.degrade();
         assert!(gate.authorize_submit(&submit("acct-1")).is_err());
+        assert!(gate.confirm_reconciled(Mt5StreamReadiness::Ready).is_err());
         let connected = heartbeat(
             "acct-1",
             "terminal-1",
