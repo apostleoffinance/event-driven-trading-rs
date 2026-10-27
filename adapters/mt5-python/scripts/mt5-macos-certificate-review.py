@@ -80,8 +80,8 @@ def check_private_key_permissions(path: Path) -> dict[str, Any]:
         problems.append("private key is not owned by the current user")
     if mode & 0o077:
         problems.append("private key grants group/other permissions; expected owner-only access")
-    if parent_mode & 0o022:
-        problems.append("private-key parent directory is group/world writable")
+    if parent_mode & 0o077:
+        problems.append("private-key parent directory grants group/other permissions; expected owner-only access")
     return {
         "owner_is_current_user": info.st_uid == os.getuid(),
         "mode_octal": oct(mode),
