@@ -37,8 +37,7 @@ def run_openssl(*args: str) -> str:
 
 
 def sha256_certificate(cert_path: Path) -> str:
-    der = run_openssl("x509", "-in", str(cert_path), "-outform", "DER")
-    # OpenSSL's DER output is binary; use a binary invocation instead of text.
+    # DER is binary, so use capture_output as bytes rather than a text decoder.
     result = subprocess.run(
         ["openssl", "x509", "-in", str(cert_path), "-outform", "DER"],
         check=False,
