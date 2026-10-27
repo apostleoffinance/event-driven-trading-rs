@@ -72,7 +72,9 @@ echo "Python: $(python3 --version 2>&1)"
 echo "OpenSSL: $(openssl version 2>&1)"
 echo "Safety boundary: local contract checks do not establish real-terminal conformance."
 
-run_check "MT5 Python adapter contract tests" python3 -m unittest discover -s "$ADAPTER_DIR/tests" -v
+cd "$ADAPTER_DIR"
+run_check "MT5 Python adapter contract tests" python3 -m unittest discover -s tests -v
+cd "$REPO_ROOT"
 
 if ((skip_rust == 0)); then
   if ! command -v cargo >/dev/null 2>&1; then
