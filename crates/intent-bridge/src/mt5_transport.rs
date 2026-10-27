@@ -198,9 +198,13 @@ impl Mt5TransportConfig {
         &self,
         stream: TcpStream,
     ) -> BridgeResult<AuthenticatedMt5Connection> {
-        let connection_slot = self.connection_slots.clone().try_acquire_owned().map_err(|_| {
-            BridgeError::Invalid("MT5 transport connection capacity exhausted".into())
-        })?;
+        let connection_slot = self
+            .connection_slots
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| {
+                BridgeError::Invalid("MT5 transport connection capacity exhausted".into())
+            })?;
         let tls_stream = timeout(self.limits.handshake_timeout, self.acceptor.accept(stream))
             .await
             .map_err(|_| BridgeError::Invalid("MT5 mutual-TLS handshake timed out".into()))?
@@ -294,11 +298,15 @@ impl AuthenticatedMt5Connection {
             let count = match timeout(self.limits.io_timeout, self.stream.read(&mut chunk)).await {
                 Err(_) => {
                     self.failed = true;
-                    return Err(BridgeError::Invalid("MT5 authenticated transport read timed out".into()));
+                    return Err(BridgeError::Invalid(
+                        "MT5 authenticated transport read timed out".into(),
+                    ));
                 }
                 Ok(Err(_)) => {
                     self.failed = true;
-                    return Err(BridgeError::Invalid("MT5 authenticated transport read failed".into()));
+                    return Err(BridgeError::Invalid(
+                        "MT5 authenticated transport read failed".into(),
+                    ));
                 }
                 Ok(Ok(count)) => count,
             };
@@ -362,7 +370,11 @@ impl AuthenticatedMt5Connection {
         }
     }
 
-    fn validate_frame_identity(&mut self, frame: &BridgeFrame, received_at: DateTime<Utc>) -> BridgeResult<()> {
+    fn validate_frame_identity(
+        &mut self,
+        frame: &BridgeFrame,
+        received_at: DateTime<Utc>,
+    ) -> BridgeResult<()> {
         if !self.heartbeat_seen {
             let heartbeat = match &frame.payload {
                 BridgePayload::Heartbeat(value) => value,
