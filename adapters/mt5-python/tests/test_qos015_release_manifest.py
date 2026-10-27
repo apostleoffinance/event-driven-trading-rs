@@ -104,6 +104,21 @@ class Qos015ReleaseManifestTests(unittest.TestCase):
         manifest["venue_execution_enabled"] = True
         self.assertIn("venue_execution_enabled must be explicitly false", MODULE.validate(manifest))
 
+    def test_placeholder_evidence_reference_is_rejected(self):
+        manifest = passing_manifest()
+        manifest["gates"]["qos013_sizing"]["evidence_ref"] = "PROTECTED_EVIDENCE_REFERENCE"
+        self.assertTrue(any("gates.qos013_sizing.evidence_ref must contain a resolved value" in error for error in MODULE.validate(manifest)))
+
+    def test_invalid_independent_review_timestamp_is_rejected(self):
+        manifest = passing_manifest()
+        manifest["gates"]["independent_review"]["reviewed_at_utc"] = "yesterday"
+        self.assertTrue(any("reviewed_at_utc must be a valid timezone-aware ISO-8601 timestamp" in error for error in MODULE.validate(manifest)))
+
+    def test_invalid_repository_commit_is_rejected(self):
+        manifest = passing_manifest()
+        manifest["repository_commit"] = "main"
+        self.assertIn("repository_commit must be a 40- or 64-character commit hash", MODULE.validate(manifest))
+
     def test_cli_blocks_checked_in_template(self):
         result = subprocess.run(
             [sys.executable, str(SCRIPT), str(TEMPLATE)],
