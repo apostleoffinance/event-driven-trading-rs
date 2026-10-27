@@ -275,6 +275,18 @@ pub async fn mark_stream_reconciled(
             "MT5 account ID, terminal ID and non-negative sequence are required".into(),
         ));
     }
+    let snapshot_sequence = sqlx::query_scalar::<_, i64>(
+        "SELECT MAX(reconciled_sequence) FROM mt5_bridge_reconciliation_snapshots WHERE account_id = $1 AND terminal_id = $2",
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .fetch_one(pool)
+    .await?;
+    if snapshot_sequence.is_none_or(|snapshot_sequence| snapshot_sequence < sequence) {
+        return Err(PersistenceError::Other(
+            "MT5 stream cannot become ready without a durable external-state reconciliation snapshot at or beyond the requested sequence".into(),
+        ));
+    }
     sqlx::query(
         r#"
         INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
