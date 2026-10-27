@@ -171,7 +171,7 @@ pub async fn persist_and_confirm_reconciliation(
         || session.terminal_id() != Some(snapshot.terminal_id.as_str())
         || session.server() != Some(snapshot.server.as_str())
         || !session.capabilities().is_some_and(|caps| {
-            caps.order_lookup && caps.idempotent_client_order_id && caps.sequence_numbers
+            caps.order_lookup && caps.sequence_numbers
         })
     {
         degrade_session_and_stream(store, session).await;

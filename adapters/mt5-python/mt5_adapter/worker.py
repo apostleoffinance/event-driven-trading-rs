@@ -316,6 +316,9 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
     try:
         while stop is None or not stop.is_set():
             try:
+                if not terminal.connected():
+                    terminal.shutdown()
+                    terminal.connect(config)
                 context = tls_context(config)
                 with socket.create_connection((config.bridge_host, config.bridge_port), timeout=10) as raw:
                     with context.wrap_socket(raw, server_hostname=config.bridge_server_name) as connection:

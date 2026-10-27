@@ -514,6 +514,37 @@ mod tests {
     }
 
     #[test]
+    fn read_only_capabilities_allow_reconciliation_but_never_order_submission() {
+        let policy = Mt5SessionPolicy::new(["acct-1"]).unwrap();
+        let mut gate = Mt5SessionGate::after_transport_authentication(policy);
+        let mut frame = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
+        if let BridgePayload::Heartbeat(ref mut value) = frame.payload {
+            value.capabilities.market_orders = false;
+            value.capabilities.limit_orders = false;
+            value.capabilities.stop_orders = false;
+            value.capabilities.cancel_requests = false;
+            value.capabilities.idempotent_client_order_id = false;
+        }
+        assert_eq!(
+            gate.observe_heartbeat(
+                &frame,
+                Mt5SequenceObservation::Accepted,
+                Mt5StreamReadiness::Ready,
+            )
+            .unwrap(),
+            Mt5SessionState::ReconciliationRequired
+        );
+        gate.confirm_reconciled(Mt5StreamReadiness::Ready).unwrap();
+        assert_eq!(gate.state(), Mt5SessionState::Ready);
+        assert!(gate.authorize_submit(&submit("acct-1")).is_err());
+    }
+
+    #[test]
     fn non_allowlisted_account_and_missing_safe_capabilities_fail_closed() {
         let policy = Mt5SessionPolicy::new(["acct-1"]).unwrap();
         let mut gate = Mt5SessionGate::after_transport_authentication(policy);
