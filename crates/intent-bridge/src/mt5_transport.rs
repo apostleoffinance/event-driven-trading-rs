@@ -245,15 +245,18 @@ impl AuthenticatedMt5Connection {
                 "MT5 outbound frame exceeds configured size limit".into(),
             ));
         }
-        self.stream.write_all(&encoded).await.map_err(|_| {
-            BridgeError::Invalid("MT5 authenticated transport write failed".into())
-        })?;
-        self.stream.write_all(b"\n").await.map_err(|_| {
-            BridgeError::Invalid("MT5 authenticated transport write failed".into())
-        })?;
-        self.stream.flush().await.map_err(|_| {
-            BridgeError::Invalid("MT5 authenticated transport flush failed".into())
-        })
+        self.stream
+            .write_all(&encoded)
+            .await
+            .map_err(|_| BridgeError::Invalid("MT5 authenticated transport write failed".into()))?;
+        self.stream
+            .write_all(b"\n")
+            .await
+            .map_err(|_| BridgeError::Invalid("MT5 authenticated transport write failed".into()))?;
+        self.stream
+            .flush()
+            .await
+            .map_err(|_| BridgeError::Invalid("MT5 authenticated transport flush failed".into()))
     }
 
     fn validate_frame_identity(&mut self, frame: &BridgeFrame) -> BridgeResult<()> {
