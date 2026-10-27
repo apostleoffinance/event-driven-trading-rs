@@ -29,8 +29,14 @@ impl Mt5SizingSupplementProvider for FixedSupplement {
     }
 }
 
-fn supplement(captured_at: chrono::DateTime<chrono::Utc>) -> Mt5SizingSupplementSnapshot {
+fn supplement(
+    captured_at: chrono::DateTime<chrono::Utc>,
+    account_id: &str,
+    instrument_id: &str,
+) -> Mt5SizingSupplementSnapshot {
     Mt5SizingSupplementSnapshot {
+        account_id: AccountId::new(account_id).unwrap(),
+        instrument_id: InstrumentId::new(instrument_id).unwrap(),
         inputs: Mt5SizingSupplement {
             estimated_cost_per_quantity: Decimal::new(2, 1),
             slippage_gap_buffer_per_quantity: Decimal::new(1, 1),
@@ -117,7 +123,7 @@ async fn provider_uses_ask_for_buys_and_bid_for_sells(pool: PgPool) {
     let store = TradingStore::new(pool);
     let now = Utc::now();
     seed_snapshot(&store, now).await;
-    let provider = provider(store, supplement(now));
+    let provider = provider(store, supplement(now, "sizing-provider-account", "EURUSD"));
     let account = AccountId::new("sizing-provider-account").unwrap();
     let instrument = InstrumentId::new("EURUSD").unwrap();
 
@@ -141,7 +147,14 @@ async fn provider_fails_closed_on_stale_margin_and_exposure_supplement(pool: PgP
     let store = TradingStore::new(pool);
     let now = Utc::now();
     seed_snapshot(&store, now).await;
-    let provider = provider(store, supplement(now - Duration::seconds(60)));
+    let provider = provider(
+        store,
+        supplement(
+            now - Duration::seconds(60),
+            "sizing-provider-account",
+            "EURUSD",
+        ),
+    );
     let account = AccountId::new("sizing-provider-account").unwrap();
     let instrument = InstrumentId::new("EURUSD").unwrap();
 
