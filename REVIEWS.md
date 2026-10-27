@@ -136,3 +136,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Defined SZ-01 through SZ-26 covering stop geometry, tick value, FX conversion, nonlinear models, costs, volume-step rounding, min/max volume, exposure/margin, pending orders, multi-account differences, stale state, decimal invariants, kill switches, and property tests.
 - **Verification result:** Source-backed specification drafted and repository task records updated on branch `spec/qos-012-instrument-aware-sizing`. No executable tests run because the change is documentation-only; PR CI remains pending.
 - **Remaining risk:** Specification must be reviewed before QOS-013 implementation. Existing sizing behavior remains unchanged; no live venue, live execution, or money movement was enabled.
+
+
+## REV-009 — QOS-011 idempotency and cancellation confirmation hardening
+- **Date:** 2026-10-27
+- **Context:** QOS-011 started after QOS-010 adapter contract and QOS-012 sizing specification merged.
+- **Finding/correction:** Both paper connectors previously returned the existing order for any repeated client order ID without checking the new payload; a concurrent duplicate submit could pass the initial lookup before either order was inserted. The cancel bridge also marked an order Cancelled after the cancel method returned success, without querying terminal venue state.
+- **Impact:** Reusing a client ID for different order intent could silently report the wrong order outcome, concurrent requests could create duplicate simulated effects, and a cancel acknowledgement could be mistaken for confirmed cancellation.
+- **Evidence:** Inspected `crates/venue-connectors/src/simulated.rs`, `prop.rs`, `types.rs`, `error.rs`, `bridge.rs`, `crates/domain/src/order.rs`, `crates/execution-engine/src/oms.rs`, and `VENUE_ADAPTER_CONTRACT.md` on main at `a39fd9d9a1bc0bb0b4fb8f7a09737a8b09aa1bf0`.
+- **Rule that failed:** Existing financial-safety rules 7 (same client ID with changed payload is a conflict) and 15 (cancel requests are not success until external confirmation) were not consistently enforced by the connector/bridge implementation.
+- **Rule update made in RULES.md:** None; existing rules are sufficient.
+- **Code/docs/tests changed:** Added `ClientOrderIdConflict` and immutable payload comparison; updated simulated and prop idempotency paths with a lock-protected second check; hardened cancel bridge confirmation; added replay/conflict simulator tests and cancel-ack-but-open regression test; updated task/progress records.
+- **Regression/real-use check added:** Unit/integration tests exercise same-payload replay, changed-payload conflict without extra position exposure, and a cancel acknowledgement where the venue still reports the order open. Existing ambiguous submit test continues to assert Unknown rather than Failed.
+- **Verification result:** Code and tests committed to feature branch; CI pending. No local test execution claimed.
+- **Remaining risk:** CI must verify formatting, compilation, tests, and Clippy. Adapter event-stream deduplication/reconnect remains unimplemented because no event-stream surface currently exists; live venue readiness and provider-specific cancellation semantics remain unverified.
