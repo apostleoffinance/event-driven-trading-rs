@@ -38,7 +38,7 @@ The restart verifier runs the initial smoke pass itself, then performs the worke
 .\adapters\mt5-python\scripts\mt5-demo-restart-verify.ps1 -WorkerServiceName 'QuantOS-MT5-Worker' -DaemonServiceName 'QuantOS-MT5-Bridge' -TimeoutSeconds 240 -PollSeconds 5 -EvidencePath 'C:\QuantOS\evidence\mt5-restart-evidence.json'
 ```
 
-The script requires both services to be running before it starts. It runs the first smoke pass, records the latest persisted market-data sequence, stops and restarts only the worker, confirms the daemon remains running, waits for market-data sequence advancement and fresh post-stop reconciliation, runs the smoke harness again, and writes a JSON evidence record in `finally`, including failure details when possible. It never clears database rows or the worker sequence checkpoint.
+The script requires both services to be running before it starts. It runs the first smoke pass, records the latest persisted market-data sequence, stops and restarts only the worker, confirms the daemon remains running, waits for market-data sequence advancement and fresh post-stop reconciliation, runs the smoke harness again, and writes a JSON evidence record in `finally`, including failure details when possible. Verify that the post-restart market-data sequence is greater than the pre-stop sequence and that reconciliation was persisted after reconnect. It never clears database rows or the worker sequence checkpoint.
 
 Review the evidence record and logs. The record is not a replacement for daemon authentication logs or independent review. If it fails, diagnose and rerun after fixing the cause; a failed/partial record is not a pass.
 
