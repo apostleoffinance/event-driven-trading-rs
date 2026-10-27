@@ -155,17 +155,17 @@ impl Mt5BridgeRuntime {
     ) -> BridgeResult<()> {
         let frame = loop {
             let frame = self.read_next_frame(Utc::now(), allowed_clock_skew).await?;
-            match &frame.payload {
-                BridgePayload::Heartbeat(_) => continue,
-                BridgePayload::ReconciliationSnapshot(_) => break frame,
-                _ => {
-                    let mut session = self.session.lock().await;
-                    session.degrade();
-                    return Err(BridgeError::Invalid(
-                        "expected reconciliation_snapshot frame from read-only MT5 adapter".into(),
-                    ));
-                }
+            if matches!(&frame.payload, BridgePayload::Heartbeat(_)) {
+                continue;
             }
+            if matches!(&frame.payload, BridgePayload::ReconciliationSnapshot(_)) {
+                break frame;
+            }
+            let mut session = self.session.lock().await;
+            session.degrade();
+            return Err(BridgeError::Invalid(
+                "expected reconciliation_snapshot frame from read-only MT5 adapter".into(),
+            ));
         };
         let wire = match frame.payload {
             BridgePayload::ReconciliationSnapshot(snapshot) => snapshot,
