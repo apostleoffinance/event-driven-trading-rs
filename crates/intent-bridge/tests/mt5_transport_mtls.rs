@@ -445,7 +445,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     };
 
     let responder = tokio::spawn(async move {
-        let result: Result<(), Box<dyn Error + Send + Sync>> = async {
+        async {
             let mut bytes = Vec::new();
             loop {
                 let mut byte = [0_u8; 1];
@@ -457,7 +457,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
                     )
                     .into());
                 }
-                if byte[0] == b'\\n' {
+                if byte[0] == b'\n' {
                     break;
                 }
                 bytes.push(byte[0]);
@@ -495,13 +495,12 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
                 }),
             };
             let mut encoded = serde_json::to_vec(&response)?;
-            encoded.push(b'\\n');
+            encoded.push(b'\n');
             client.write_all(&encoded).await?;
             client.flush().await?;
-            Ok(())
+            Ok::<(), Box<dyn Error + Send + Sync>>(())
         }
-        .await;
-        result
+        .await
     });
 
     assert_eq!(
