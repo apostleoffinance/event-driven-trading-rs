@@ -386,7 +386,7 @@ impl AuthenticatedMt5Connection {
             return Err(BridgeError::Invalid(
                 "MT5 frame account is not allowed for authenticated principal".into(),
             ));
-        } else if matches!(frame.payload, BridgePayload::Heartbeat(_)) {
+        } else if matches!(&frame.payload, BridgePayload::Heartbeat(_)) {
             self.last_heartbeat_at = Some(received_at);
         }
         Ok(())
