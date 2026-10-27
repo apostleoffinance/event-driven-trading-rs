@@ -7,9 +7,9 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
 ## Milestone 0 — Baseline
 - [x] **QOS-001 [DONE]** Audit source, branch/commit, workspace, tests, venue status, frontend status.
   - Evidence: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md), audited `main` at `14619a758ac9864edb52958195de57fb5ca4b685`; 13 Cargo workspace members, checked-in test inventory, simulated/prop-paper vs live-not-implemented status, frontend mock/API fallback and synthetic events recorded. Source audit only; executable checks remain QOS-002.
-- [ ] **QOS-002 [IN PROGRESS]** Run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and applicable clippy.
-  - First CI attempt: format check failed on five Rust files; workspace check, tests, and Clippy were skipped. Frontend checks passed. See REV-004 and run 40425100977.
-  - Acceptance: exact commands/results recorded; failures preserved; all Rust checks need a verified result.
+- [x] **QOS-002 [DONE]** Run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and applicable Clippy.
+  - Verified on GitHub Actions run 40425656667 (latest PR head): formatting, workspace check, workspace tests, and `cargo clippy --workspace --all-targets` passed. Frontend `npm ci`, lint, typecheck, and build also passed in the same run.
+  - The initial formatting failure is retained in REV-004; successful rerun is recorded in REV-005. This is CI verification, not proof of production or live trading readiness.
 - [ ] **QOS-003 [READY]** Inspect frontend scripts/dependencies/tokens before UI changes.
 
 ## Milestone 1 — Product B
