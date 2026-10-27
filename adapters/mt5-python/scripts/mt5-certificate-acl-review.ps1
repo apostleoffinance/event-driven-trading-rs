@@ -100,6 +100,19 @@ foreach ($entry in @(@{name="client"; cert=$metadata.client}, @{name="server"; c
     if ($after -le $now) { Write-Error "$($entry.name) certificate is expired."; $expired = $true }
     elseif ($after -le $threshold) { Write-Warning "$($entry.name) certificate expires within $ExpiryWarningDays days." }
 }
+function Test-CertificateChainAndRevocation([string]$Label, [string]$CertificatePath) {
+    $certutil = Get-Command certutil.exe -ErrorAction SilentlyContinue
+    if (-not $certutil) { throw "certutil.exe is required to verify $Label chain and online revocation. Review is BLOCKED." }
+    Write-Host "CHAIN/REVOCATION $Label: running certutil -verify -urlfetch (chain trust and revocation must succeed)."
+    $output = & $certutil.Source -verify -urlfetch $CertificatePath 2>&1
+    $exitCode = $LASTEXITCODE
+    $output | ForEach-Object { Write-Host ("  " + [string]$_) }
+    if ($exitCode -ne 0) { throw "$Label certificate chain/revocation verification failed (certutil exit $exitCode). Do not proceed to venue execution." }
+    Write-Host "PASS: $Label certificate chain and online revocation check returned success."
+}
+Test-CertificateChainAndRevocation "client" $clientCert
+Test-CertificateChainAndRevocation "server" $serverCert
+
 $clientAclOk = Test-PrivateKeyAcl "client private key" $clientKey
 $serverAclOk = Test-PrivateKeyAcl "server private key" $serverKey
 $clientKeyParent = Split-Path -Parent $clientKey
