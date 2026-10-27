@@ -416,7 +416,8 @@ mod tests {
             &first,
             Mt5SequenceObservation::ReconciliationRequired,
             Mt5StreamReadiness::Degraded,
-        ).unwrap();
+        )
+        .unwrap();
         let switched = heartbeat(
             "acct-2",
             "terminal-1",
@@ -450,7 +451,8 @@ mod tests {
                 &connected,
                 Mt5SequenceObservation::Accepted,
                 Mt5StreamReadiness::Ready,
-            ).unwrap(),
+            )
+            .unwrap(),
             Mt5SessionState::ReconciliationRequired
         );
         assert!(gate.authorize_submit(&submit("acct-1")).is_err());
@@ -496,7 +498,8 @@ mod tests {
                 &missing,
                 Mt5SequenceObservation::Accepted,
                 Mt5StreamReadiness::Ready,
-            ).unwrap(),
+            )
+            .unwrap(),
             Mt5SessionState::Degraded
         );
         assert!(gate.authorize_submit(&submit("acct-1")).is_err());
