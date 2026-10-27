@@ -116,3 +116,9 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Exported the sizing API and added `DefaultRiskEvaluator::evaluate_with_instrument_sizing`, which runs the existing kill-switch/instrument/session/drawdown/daily-loss/position gates before sizing. The legacy `evaluate` path remains for compatibility and does not yet require the new context by default.
 - Added seven focused sizing unit tests and one evaluator gate-order regression test. Expected values were checked against the formulas; CI is still required to validate compile/format/test/clippy.
 - No venue I/O, live-mode changes, deployment, or money movement. QOS-013 remains IN PROGRESS because production snapshot wiring and several specification scenarios are not yet implemented.
+
+
+## Work log — QOS-013 CI formatting correction (2026-10-27)
+- Initial CI run 40435500152 failed at `cargo fmt --all -- --check`; the workspace check, tests, and Clippy were skipped.
+- Applied the exact formatting differences reported by the Rust job and logged the failure/correction in REV-017.
+- The latest-head full CI rerun is required before claiming verification.
