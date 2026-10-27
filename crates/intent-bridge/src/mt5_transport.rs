@@ -505,6 +505,17 @@ mod tests {
                 terminal_id: "terminal-01".into(),
                 server: "broker-demo".into(),
                 sequence: 1,
+                terminal_time: Utc::now(),
+                connection: crate::mt5_v1::ConnectionState::Connected,
+                capabilities: crate::mt5_v1::BridgeCapabilities {
+                    market_orders: true,
+                    limit_orders: true,
+                    stop_orders: true,
+                    cancel_requests: true,
+                    order_lookup: true,
+                    idempotent_client_order_id: true,
+                    sequence_numbers: true,
+                },
             }),
         };
         let encoded = encode_frame_line(&frame).unwrap();
