@@ -304,7 +304,8 @@ impl TradingRuntime {
             });
         }
 
-        let client_order_id = client_order_id_for_account_intent(&self.config.account_id, &intent.id)?;
+        let client_order_id =
+            client_order_id_for_account_intent(&self.config.account_id, &intent.id)?;
         let outcome = submit_approved_order(
             &mut self.oms,
             venue,
