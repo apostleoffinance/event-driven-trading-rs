@@ -1,6 +1,6 @@
 # MT5 Bridge v1 Protocol — QOS-014
 
-Status: **protocol + durable idempotency/reconnect checkpoint slice implemented; transport integration pending**. This is a wire contract and Rust validator, not an MT5 terminal connector and not evidence of live execution support.
+Status: **protocol + durable idempotency/checkpoints + transport-independent session gate implemented; authenticated transport integration pending**. This is not an MT5 terminal connector and is not evidence of live execution support.
 
 ## Transport and framing
 
@@ -23,7 +23,7 @@ Status: **protocol + durable idempotency/reconnect checkpoint slice implemented;
 
 ## Identity, precision and units
 
-- `account_id` is the trading account identity; `terminal_id` and `server` identify the terminal connection only. The receiver must bind the authenticated connection to an allow-listed account and reject mismatches.
+- `account_id` is the trading account identity; `terminal_id` and `server` identify the terminal connection only. `Mt5SessionGate` binds one post-authentication session to an allow-listed account/terminal/server tuple and closes on identity changes. The future transport must authenticate its peer before constructing this gate; the gate itself does not authenticate a socket.
 - `instrument_id` is the broker's exact symbol (including suffixes); do not silently normalize `EURUSD`, `EURUSD.a`, and `EURUSDm` as identical.
 - All quantity, price, stop, fill and average-fill values are base-10 decimal **strings**. JSON numeric values and exponent notation are prohibited. The adapter must map broker lot/contract/tick units explicitly; the protocol does not infer pip value or account-currency conversion.
 - Quantity is positive for submit and non-negative for filled quantity. Price/stop values, when supplied, must be positive. Market orders omit price; limit/stop/stop-limit orders require the applicable trigger/limit prices. Instrument tick/volume/minimum constraints must be validated against fresh broker metadata before submission.
@@ -33,6 +33,12 @@ Status: **protocol + durable idempotency/reconnect checkpoint slice implemented;
 Rust persistence now provides an account-scoped `mt5_bridge_order_keys` ledger. `claim_submit_order` commits the client-order ID and canonical JSON payload before transport send. Only a `New` claim authorizes the first send; any existing row, including `prepared`, is ambiguous after restart and must reconcile rather than resend. JSONB structural comparison rejects same-ID/different-payload reuse. `persist_submit_outcome` stores accepted/rejected/unknown outcomes; unknown is not treated as failure, and accepted/rejected states cannot be rewritten by a late conflicting response. Duplicate identical outcomes are idempotent.\n\n`mt5_bridge_streams` stores account/terminal sequence checkpoints. New streams, duplicates, out-of-order messages and gaps require reconciliation; readiness returns to ready only through the explicit reconciliation checkpoint API. The caller must reconcile orders, positions and account state before invoking it. If a terminal restarts or loses its response after sending, it must reconcile by stable ID, broker ticket, order history, open orders and deals. It must not blindly retry an ambiguous submit.
 
 Sequence numbers, when available, must be monotonic within the documented terminal stream. A gap, reconnect, heartbeat timeout, account mismatch or stale terminal time marks the bridge degraded and blocks new exposure until order/position/account reconciliation succeeds. Reconnect does not by itself restore readiness.
+
+## Session readiness and dispatch gate
+
+`crates/intent-bridge/src/mt5_session.rs` provides a transport-independent state gate. The host config supplies the account allow-list; the terminal cannot expand it. Once the first valid heartbeat binds an account, terminal ID and server, any identity change closes that session. Connected state alone is insufficient: the terminal must declare order lookup, stable client-order idempotency, sequence numbers, and at least one order type. Submit/cancel checks require the same bound account and supported capabilities.
+
+A new session or a degraded session remains blocked until the host has reconciled external orders, positions and account state, persisted the stream checkpoint, and explicitly called the session reconciliation transition. Heartbeats and reconnect alone do not clear this latch. These methods are guards only: the caller must still pass through risk authorization, OMS lifecycle validation, and durable order claim/outcome persistence.
 
 ## Security and deployment boundary
 
@@ -54,6 +60,8 @@ Sequence numbers, when available, must be monotonic within the documented termin
 - [x] Bounded incremental NDJSON framing with malformed, blank, non-UTF-8, oversized, split-chunk, multi-frame and incomplete-EOF tests.
 - [ ] Cross-language golden fixtures shared with a terminal-side implementation.
 - [x] Durable account-scoped idempotency ledger, canonical-payload conflict detection, ambiguous prepared/unknown recovery boundary, and persistent sequence checkpoint/readiness API implemented.
+- [x] Transport-independent session gate for account allow-list, immutable session identity, capability checks and explicit reconciliation latch.
+- [ ] Authenticated transport implementation, real send/reconnect orchestration, and cross-language conformance against an MT5-side implementation.
 - [x] DB-backed persistence tests cover prepared-claim replay after store restart, same-ID/different-payload rejection, unknown-to-accepted recovery, conflicting terminal outcome rejection, sequence gap degradation, explicit recovery, and sequence overflow.
 - [ ] End-to-end transport integration around actual send/response paths and concurrent duplicate-claim stress tests.
 - [ ] Full workspace CI on the latest branch head.

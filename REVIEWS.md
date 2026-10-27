@@ -514,3 +514,31 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Rerun all Rust and frontend CI steps after the corrections.
 - **Verification result:** Run `40452429799` passed Rust formatting, workspace check, workspace tests, all-target Clippy, frontend lint, typecheck and production build on the recorded code head. Documentation follow-up requires the current PR-head workflow to complete before this PR is considered verified.
 - **Remaining risk:** Actual authenticated MT5 transport and wiring to real send/reconnect operations remain unimplemented. No live execution, deployment, or money movement enabled.
+
+
+## REV-042 — MT5 session identity and readiness gate before transport
+- **Date:** 2026-10-27
+- **Context:** User confirmed PR #18 merged and requested the next implementation completed before a real MT5 connection.
+- **Finding:** Durable order claims and sequence checkpoints were present, but no per-connection state object enforced a single allow-listed account/terminal/server identity or required explicit reconciliation before dispatch. Protocol-level capabilities alone could be mistaken for session readiness.
+- **Impact:** A future transport could accept account switching or treat a reconnect/heartbeat as permission to resume exposure before reconciliation.
+- **Evidence:** Reviewed RULES.md, TASKS.md, docs/MT5_BRIDGE_V1.md, crates/intent-bridge/src/mt5_v1.rs, and merged PR #18 metadata.
+- **Rule that failed:** No live incident or live execution is claimed; this was a missing pre-transport guard.
+- **Rule update made in RULES.md:** None. Existing rules already require account identity binding, explicit capability checks, and reconciliation after ambiguity or stale/discontinuous state.
+- **Code/docs/tests changed:** Added Mt5SessionPolicy and Mt5SessionGate with allow-list checks, immutable account/terminal/server binding, safe capability checks, submit/cancel gates, and a reconciliation latch; updated TASKS.md, PROGRESS.md, and docs/MT5_BRIDGE_V1.md.
+- **Regression/real-use check added:** Unit tests cover fresh/gapped streams, disconnect/reconnect, account switching, non-allow-listed identities, missing safe capabilities, and supported submit/cancel checks.
+- **Verification result:** Changes are on branch feat/qos-014-mt5-session-gating; CI has not yet run on this branch. No test pass is claimed before workflow evidence.
+- **Remaining risk:** This is not authentication and does not implement sockets, a terminal Expert Advisor, real send/reconnect orchestration, broker mapping, or cross-language conformance. The future transport must authenticate the peer before creating a gate and must still enforce risk/OMS and durable idempotency. No live execution, deployment, or money movement enabled.
+
+
+## REV-043 — Session gate initial CI formatting failure
+- **Date:** 2026-10-27
+- **Context:** PR #19 first CI run `40453162829`.
+- **Finding/correction:** `cargo fmt --all -- --check` failed on import ordering and line wrapping in the new MT5 session gate and bridge module exports on runs `40453162829` and `40453293621`. The second run showed remaining module ordering and three nested `.unwrap()` chain layout differences. Workspace check, tests and Clippy were skipped by the format gate.
+- **Impact:** The implementation was not verified at that head; no behavior failure was established by this run.
+- **Evidence:** GitHub Actions runs `40453162829` (Rust job `122020325341`) and `40453293621` (Rust job `122020734888`), formatting step 6.
+- **Rule that failed:** Rust formatting gate.
+- **Rule update made in RULES.md:** None; the existing testing/release rule already requires formatting checks and reruns after correction.
+- **Code/docs/tests changed:** Applied rustfmt's exact suggested import ordering, module ordering and wrapping changes in `crates/intent-bridge/src/lib.rs` and `crates/intent-bridge/src/mt5_session.rs` after both format failures.
+- **Regression/real-use check added:** Re-run full Rust and frontend CI on the latest PR head.
+- **Verification result:** Corrections for both format failures committed. Full CI run `40453466375` passed on head `36c233fcf3274191dce9bcb15d5b9bd97a078541`: Rust formatting, workspace check, workspace tests, all-target Clippy, frontend lint, TypeScript typecheck, and production build. This establishes CI success only, not production or live readiness.
+- **Remaining risk:** Compilation, tests and Clippy are not verified until a successful latest-head run. No live execution, deployment, or money movement enabled.
