@@ -639,3 +639,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Centralized serialization in `encode_frame_line`, enforces the existing frame size limit, appends exactly one LF byte, and writes the complete encoded line. Added a regression test that asserts one LF terminator, rejects a literal backslash-`n` suffix, and round-trips the JSON payload. Added deterministic heartbeat freshness boundary tests and poisons the connection on incomplete EOF.
 - **Verification:** Follow-up PR CI is pending. The previous green CI is not evidence that this new correction has passed.
 - **Severity / release gate:** Protocol correctness issue; do not connect to an MT5 client until this fix passes CI and the end-to-end transport conformance tests are implemented. No live trading enabled.
+
+
+## REV-052 — QOS-014 conformance PR formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** PR #24 CI run `40457381942`, Rust job `122033762951`.
+- **Finding:** `cargo fmt --all -- --check` rejected the multi-line signature of the short `heartbeat_is_fresh` helper. Workspace compilation, tests and Clippy were skipped by the formatting gate.
+- **Correction:** Applied the exact rustfmt signature layout.
+- **Verification:** A new full CI run is required on the updated PR head; no compilation or test success is claimed from the failed run.
