@@ -107,8 +107,10 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
         "sequence_advanced": False,
         "post_restart_reconciliation_fresh": False,
         "second_smoke": "NOT_RUN",
+        "worker_restored_after_test": False,
         "result": "BLOCKED",
     }
+    worker_unloaded = False
     try:
         run_smoke(args.timeout_seconds)
         record["first_smoke"] = "PASS"
@@ -122,6 +124,7 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
             time.sleep(1)
         if job_loaded(domain, args.worker_label):
             raise RuntimeError("worker LaunchAgent remained loaded after bootout")
+        worker_unloaded = True
         record["worker_stopped_at_utc"] = utc_now()
         if not job_loaded(domain, args.daemon_label):
             raise RuntimeError("daemon LaunchAgent stopped during worker-only restart")
@@ -129,6 +132,13 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
 
         record["worker_restarted_at_utc"] = utc_now()
         run_launchctl("bootstrap", domain, str(worker_plist))
+        deadline = time.monotonic() + min(args.timeout_seconds, 30)
+        while not job_loaded(domain, args.worker_label) and time.monotonic() < deadline:
+            time.sleep(1)
+        if not job_loaded(domain, args.worker_label):
+            raise RuntimeError("worker LaunchAgent did not load after bootstrap")
+        worker_unloaded = False
+        record["worker_restored_after_test"] = True
         deadline = time.monotonic() + args.timeout_seconds
         stop_time = datetime.fromisoformat(record["worker_stopped_at_utc"].replace("Z", "+00:00"))
         latest: dict[str, Any] | None = None
@@ -177,6 +187,16 @@ def verify(args: argparse.Namespace) -> dict[str, Any]:
         record["failure"] = type(exc).__name__
         raise
     finally:
+        if worker_unloaded:
+            try:
+                if not job_loaded(domain, args.worker_label):
+                    run_launchctl("bootstrap", domain, str(worker_plist))
+                deadline = time.monotonic() + 30
+                while not job_loaded(domain, args.worker_label) and time.monotonic() < deadline:
+                    time.sleep(1)
+                record["worker_restored_after_test"] = job_loaded(domain, args.worker_label)
+            except Exception:
+                record["worker_restored_after_test"] = False
         record["finished_at_utc"] = utc_now()
         write_evidence(args.evidence_out, record)
 
