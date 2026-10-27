@@ -250,6 +250,8 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         account_id: account_id.clone(),
         instrument_id: intent.instrument_id.clone(),
         source_id: "test-fixture".to_string(),
+        pnl_conversion_path: "TEST:quote_to_account".to_string(),
+        notional_conversion_path: "TEST:price_to_account".to_string(),
         captured_at: Utc::now(),
         max_age_seconds: 30,
         sizing: InstrumentSizingContext {
