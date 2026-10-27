@@ -64,8 +64,8 @@
   --sidebar-w: 228px;
   --sidebar-collapsed: 68px;
   --topbar-h: 52px;
-  --font-sans: var(--font-ibm-plex-sans), -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-ibm-plex-mono), ui-monospace, "SF Mono", Consolas, monospace;
+  --font-sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
 }
 
 *,
