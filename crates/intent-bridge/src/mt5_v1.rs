@@ -260,6 +260,7 @@ pub enum BridgePayload {
     OrderSnapshot(OrderSnapshot),
     ReconcileRequest(ReconcileRequest),
     ReconciliationSnapshot(ReconciliationSnapshotWire),
+    MarketDataSnapshot(MarketDataSnapshotWire),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -434,6 +435,45 @@ pub struct ReconciliationSnapshotWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct MarketDataSnapshotWire {
+    pub terminal_id: String,
+    pub server: String,
+    pub source: String,
+    pub sequence: u64,
+    pub captured_at: DateTime<Utc>,
+    pub account_currency: String,
+    pub instruments: Vec<InstrumentMarketDataWire>,
+    pub quotes: Vec<QuoteWire>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InstrumentMarketDataWire {
+    pub symbol: String,
+    pub base_currency: String,
+    pub quote_currency: String,
+    pub digits: u32,
+    pub point: String,
+    pub tick_size: String,
+    pub tick_value_account_currency: String,
+    pub contract_size: String,
+    pub volume_min: String,
+    pub volume_max: String,
+    pub volume_step: String,
+    pub trade_mode: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuoteWire {
+    pub symbol: String,
+    pub bid: String,
+    pub ask: String,
+    pub tick_time: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReconciliationAccountStateWire {
     pub currency: String,
     pub balance: String,
@@ -573,6 +613,73 @@ impl BridgeFrame {
             }
             BridgePayload::ReconcileRequest(request) => {
                 require_text(&request.client_order_id, "client_order_id")?
+            }
+            BridgePayload::MarketDataSnapshot(snapshot) => {
+                require_text(&snapshot.terminal_id, "terminal_id")?;
+                require_text(&snapshot.server, "server")?;
+                require_text(&snapshot.source, "source")?;
+                require_text(&snapshot.account_currency, "account currency")?;
+                if snapshot.instruments.is_empty()
+                    || snapshot.instruments.len() != snapshot.quotes.len()
+                    || snapshot.instruments.len() > 128
+                {
+                    return Err(BridgeError::Invalid(
+                        "market-data snapshot must contain 1–128 matched instrument/quote pairs".into(),
+                    ));
+                }
+                let mut symbols = std::collections::BTreeSet::new();
+                for instrument in &snapshot.instruments {
+                    require_text(&instrument.symbol, "instrument symbol")?;
+                    require_text(&instrument.base_currency, "base currency")?;
+                    require_text(&instrument.quote_currency, "quote currency")?;
+                    require_text(&instrument.trade_mode, "trade mode")?;
+                    if !symbols.insert(instrument.symbol.as_str()) {
+                        return Err(BridgeError::Invalid(
+                            "market-data snapshot contains duplicate instrument symbols".into(),
+                        ));
+                    }
+                    for (field, value) in [
+                        ("point", instrument.point.as_str()),
+                        ("tick_size", instrument.tick_size.as_str()),
+                        ("tick_value_account_currency", instrument.tick_value_account_currency.as_str()),
+                        ("contract_size", instrument.contract_size.as_str()),
+                        ("volume_min", instrument.volume_min.as_str()),
+                        ("volume_max", instrument.volume_max.as_str()),
+                        ("volume_step", instrument.volume_step.as_str()),
+                    ] {
+                        if decimal(value, field)? <= Decimal::ZERO {
+                            return Err(BridgeError::Invalid(format!("{field} must be positive")));
+                        }
+                    }
+                    if instrument.digits > 16 {
+                        return Err(BridgeError::Invalid("instrument digits exceed supported precision".into()));
+                    }
+                }
+                let mut quote_symbols = std::collections::BTreeSet::new();
+                for quote in &snapshot.quotes {
+                    require_text(&quote.symbol, "quote symbol")?;
+                    if !quote_symbols.insert(quote.symbol.as_str())
+                        || !symbols.contains(quote.symbol.as_str())
+                    {
+                        return Err(BridgeError::Invalid(
+                            "market-data quote symbols must uniquely match instrument metadata".into(),
+                        ));
+                    }
+                    let bid = decimal(&quote.bid, "bid")?;
+                    let ask = decimal(&quote.ask, "ask")?;
+                    if bid <= Decimal::ZERO || ask < bid {
+                        return Err(BridgeError::Invalid(
+                            "quote bid must be positive and ask must be greater than or equal to bid".into(),
+                        ));
+                    }
+                    if quote.tick_time > now + allowed_clock_skew
+                        || now.signed_duration_since(quote.tick_time) > Duration::seconds(60)
+                    {
+                        return Err(BridgeError::Invalid(
+                            "market-data quote is stale or timestamped in the future".into(),
+                        ));
+                    }
+                }
             }
             BridgePayload::ReconciliationSnapshot(snapshot) => {
                 require_text(&snapshot.terminal_id, "terminal_id")?;
