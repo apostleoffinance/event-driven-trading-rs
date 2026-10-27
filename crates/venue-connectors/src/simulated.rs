@@ -505,7 +505,8 @@ mod tests {
 
         assert!(matches!(result, Err(VenueError::ClientOrderIdConflict(_))));
         assert_eq!(
-            venue.positions(&AccountId::new("sim-idempotency").unwrap())
+            venue
+                .positions(&AccountId::new("sim-idempotency").unwrap())
                 .await
                 .unwrap()[0]
                 .quantity,
