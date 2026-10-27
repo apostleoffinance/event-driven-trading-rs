@@ -556,3 +556,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Unit tests reject account/correlation/client-order mismatches and verify accepted/rejected/unknown state mapping.
 - **Verification result:** GitHub Actions run `40454050187` passed on implementation head `80e74f7acf2786065800b5fa075a0216a8b965c9`: Rust formatting, workspace check/tests, all-target Clippy, frontend lint, TypeScript typecheck and production build. A final rerun is required after these verification-document updates.
 - **Remaining risk:** Actual transport, send/reconnect wiring, authenticated peer identity, broker symbol mapping, cross-language conformance and end-to-end recovery remain open. No live execution, deployment, or money movement enabled.
+
+
+## REV-045 — MT5 transport security contract before concrete transport
+
+- **Date:** 2026-10-27
+- **Context:** QOS-014 follow-up after PR #20 merged the durable dispatch coordinator.
+- **Finding:** The merged session gate explicitly assumes its peer has already been authenticated. Implementing a socket/EA transport without a documented trust boundary could lead to trusting terminal-asserted account identity, accepting replayed handshakes, leaking credentials, or restoring readiness on reconnect alone.
+- **Impact:** An unauthenticated or weakly bound peer could inject venue state or request messages into the bridge; reconnection could be incorrectly treated as readiness.
+- **Evidence:** Inspected `RULES.md`, `crates/intent-bridge/src/mt5_session.rs`, `crates/intent-bridge/src/mt5_dispatch.rs`, and `docs/MT5_BRIDGE_V1.md`. The session gate documents that authentication must precede construction.
+- **Rule:** Existing security rules require least privilege, secret redaction, untrusted-boundary validation, and no implicit live deployment; no rule was weakened.
+- **Artifacts:** Added `docs/MT5_TRANSPORT_SECURITY.md`; reconciled QOS-014 status in `TASKS.md`; appended this work log to `PROGRESS.md`.
+- **Regression/verification:** Documentation consistency review only. No executable tests were run for this docs-only slice. Transport implementation must test certificate/principal binding, unauthenticated-session rejection, replay, credential failure, reconnect latching, bounded input, and secret redaction.
+- **Verification result:** Pending PR review and repository CI checks where configured; no code/test success is claimed.
+- **Remaining risk:** No authenticated transport, terminal EA, broker mapping, or live execution exists.
