@@ -97,6 +97,22 @@ impl TradingStore {
         .await
     }
 
+    /// Persist degraded state without advancing a known-good sequence checkpoint.
+    pub async fn mark_mt5_stream_degraded(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        observed_sequence: u64,
+    ) -> PersistenceResult<()> {
+        mt5_bridge::mark_stream_degraded(
+            &self.pool,
+            account_id,
+            terminal_id,
+            observed_sequence,
+        )
+        .await
+    }
+
     pub async fn mt5_stream_readiness(
         &self,
         account_id: &str,
