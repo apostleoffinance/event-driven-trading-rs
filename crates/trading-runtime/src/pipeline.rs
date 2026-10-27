@@ -5,7 +5,7 @@ use chrono::Utc;
 use domain::{OrderStatus, RiskDecision, RiskRequest, TradeIntent};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
-use risk_engine::RiskEvaluator;
+use risk_engine::{InstrumentSizingContext, RiskEvaluator};
 use venue_connectors::{submit_approved_order, VenueAdapter};
 
 use crate::error::RuntimeResult;
@@ -30,6 +30,32 @@ impl TradingRuntime {
         intent: &TradeIntent,
         venue: &dyn VenueAdapter,
         events_out: &EventPublisher,
+    ) -> RuntimeResult<IntentOutcome> {
+        self.execute_intent_inner(intent, venue, events_out, None)
+            .await
+    }
+
+    /// Evaluate and execute an intent using the explicit instrument-aware sizing
+    /// contract. The caller must supply a context from its trusted snapshot layer;
+    /// stale or invalid inputs reject before OMS/venue submission. This method
+    /// never falls back to legacy price-distance sizing.
+    pub async fn execute_intent_with_instrument_sizing(
+        &mut self,
+        intent: &TradeIntent,
+        venue: &dyn VenueAdapter,
+        events_out: &EventPublisher,
+        sizing_context: &InstrumentSizingContext,
+    ) -> RuntimeResult<IntentOutcome> {
+        self.execute_intent_inner(intent, venue, events_out, Some(sizing_context))
+            .await
+    }
+
+    async fn execute_intent_inner(
+        &mut self,
+        intent: &TradeIntent,
+        venue: &dyn VenueAdapter,
+        events_out: &EventPublisher,
+        sizing_context: Option<&InstrumentSizingContext>,
     ) -> RuntimeResult<IntentOutcome> {
         if let Some(store) = &self.store {
             store.save_trade_intent(intent).await?;
@@ -75,7 +101,12 @@ impl TradingRuntime {
         .with_exposure(self.config.current_exposure)
         .with_session_allowed(self.config.session_allowed);
 
-        let decision = self.risk.evaluate(&risk_req)?;
+        let decision = match sizing_context {
+            Some(context) => self
+                .risk
+                .evaluate_with_instrument_sizing(&risk_req, context)?,
+            None => self.risk.evaluate(&risk_req)?,
+        };
         self.publish_risk_decision(intent, &decision, events_out)
             .await?;
 
