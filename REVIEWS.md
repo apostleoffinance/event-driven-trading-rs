@@ -52,3 +52,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:**
 - **Verification result:**
 - **Remaining risk:**
+
+
+## REV-003 — QOS-001 baseline audit completed after docs merge
+- **Date:** 2026-10-27
+- **Context:** User confirmed documentation PR #1 was merged and requested QOS-001 implementation.
+- **Finding/correction:** REV-002's “PR unmerged and awaiting review” described the earlier state and is superseded. Current `main` is merge commit `14619a758ac9864edb52958195de57fb5ca4b685`. Source inspection confirms paper/simulated execution and a mock-first frontend; it does not establish live venue execution.
+- **Impact:** Without a source-backed baseline, future implementation could confuse mock events/public market data with live execution, or overstate current multi-account and instrument sizing support.
+- **Evidence:** `BASELINE_AUDIT.md`; GitHub tree and metadata; inspected Cargo workspace, venue adapters/implementations, runtime pipeline/config, sizing, account model/service, intent bridge, and frontend source. GitHub Actions API returned zero workflow runs.
+- **Rule that failed:** No engineering safety rule was shown to have been violated. This is a status correction and implementation-gap record.
+- **Rule update made in RULES.md:** None; existing rules already require source-backed claims, explicit mock/paper/live labels, fail-closed risk, and confirmed venue outcomes.
+- **Code/docs/tests changed:** Added `BASELINE_AUDIT.md`; updated `TASKS.md` and `PROGRESS.md`. No trading code changed.
+- **Regression/real-use check added:** QOS-002 retains executable formatting/check/test/clippy commands; QOS-003 retains frontend script/dependency/token checks. Venue/cancel semantics and multi-account failure injection remain explicit future test requirements.
+- **Verification result:** QOS-001 source audit acceptance met. Local clone failed with `Could not resolve host: github.com`; Rust, Python and frontend checks were not run and are not claimed to pass.
+- **Remaining risk:** Compilation, test behavior, frontend build/lint/typecheck, database migrations, and live venue readiness remain unverified. Do not enable live execution based on this audit.
