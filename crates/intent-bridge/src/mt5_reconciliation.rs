@@ -58,6 +58,19 @@ pub struct Mt5ReconciliationSnapshot {
     pub positions: Vec<Mt5PositionSnapshot>,
 }
 
+/// Adapter contract for fetching an authoritative account/order/position snapshot
+/// from the authenticated MT5 EA/client. Production implementations must query the
+/// venue rather than return cached strategy state or a locally inferred position set.
+#[async_trait::async_trait]
+pub trait Mt5ReconciliationSource: Send + Sync {
+    async fn fetch_snapshot(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        server: &str,
+    ) -> BridgeResult<Mt5ReconciliationSnapshot>;
+}
+
 impl Mt5ReconciliationSnapshot {
     pub fn validate(&self, now: DateTime<Utc>, max_age: Duration) -> BridgeResult<()> {
         if self.account_id.trim().is_empty()
