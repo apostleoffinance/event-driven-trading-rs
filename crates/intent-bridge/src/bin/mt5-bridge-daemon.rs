@@ -201,25 +201,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn listener_defaults_are_safe_and_remote_binding_is_explicit() {
-        let loopback: SocketAddr = match "127.0.0.1:9443".parse() {
-            Ok(address) => address,
-            Err(error) => panic!("valid test socket address: {error}"),
-        };
-        let remote: SocketAddr = match "0.0.0.0:9443".parse() {
-            Ok(address) => address,
-            Err(error) => panic!("valid test socket address: {error}"),
-        };
+    fn listener_defaults_are_safe_and_remote_binding_is_explicit(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let loopback: SocketAddr = "127.0.0.1:9443".parse()?;
+        let remote: SocketAddr = "0.0.0.0:9443".parse()?;
         assert!(validate_bind(loopback, false).is_ok());
         assert!(validate_bind(remote, false).is_err());
         assert!(validate_bind(remote, true).is_ok());
+        Ok(())
     }
 
     #[test]
-    fn configured_identity_rejects_empty_or_padded_values() {
+    fn configured_identity_rejects_empty_or_padded_values(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         assert!(required_identity("account-1", "account").is_ok());
         assert!(required_identity("", "account").is_err());
         assert!(required_identity(" account-1", "account").is_err());
         assert!(required_identity("account-1 ", "account").is_err());
+        Ok(())
     }
 }
