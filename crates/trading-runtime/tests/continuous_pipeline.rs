@@ -249,6 +249,9 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
     let context = RuntimeInstrumentSizingContext {
         account_id: account_id.clone(),
         instrument_id: intent.instrument_id.clone(),
+        source_id: "test-fixture".to_string(),
+        captured_at: Utc::now(),
+        max_age_seconds: 30,
         sizing: InstrumentSizingContext {
             loss_model: LossModel::Linear {
                 contract_multiplier: Decimal::ONE,
