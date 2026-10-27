@@ -19,7 +19,8 @@ pub use config::RuntimeConfig;
 pub use error::{RuntimeError, RuntimeResult};
 pub use ids::client_order_id_for_intent;
 pub use pipeline::{
-    InstrumentSizingSnapshotProvider, IntentOutcome, RuntimeInstrumentSizingContext,
+    InstrumentSizingSnapshotCache, InstrumentSizingSnapshotProvider, IntentOutcome,
+    RuntimeInstrumentSizingContext,
 };
 pub use runtime::{TickOutcome, TradingRuntime};
 
