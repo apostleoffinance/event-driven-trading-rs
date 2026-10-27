@@ -244,3 +244,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Tests cover linear sizing and risk-budget resize, tick-value conversion, buy/sell stop geometry, stale-input rejection, off-tick stops, below-minimum quantity, costs/buffer effects, and kill-switch precedence. CI pending at time of entry; no real venue test was run.
 - **Verification result:** Files were written to the feature branch through GitHub. Compilation and test success are not yet claimed; CI must verify the current head.
 - **Remaining risk:** The new context is opt-in. Existing `RiskEvaluator::evaluate` and runtime do not yet source authoritative venue specs/conversion/freshness by default. Pending-order reserves, margin/free-funds caps, account-specific freshness thresholds, structured persisted audit, property tests, and full SZ-01–SZ-26 coverage remain incomplete. No live execution enabled.
+
+## REV-017 — QOS-013 initial CI formatting failure and correction
+- **Date:** 2026-10-27
+- **Context:** First QOS-013 PR CI run 40435500152 on the initial implementation head.
+- **Finding/correction:** `cargo fmt --all -- --check` failed on formatting-only differences in `crates/risk-engine/src/instrument_sizing.rs` and module ordering in `crates/risk-engine/src/lib.rs`. Workspace check, tests, and Clippy were skipped by the sequential workflow.
+- **Impact:** No compile/test evidence was available from that run.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435500152; Rust job 121963077119 reported failure at formatting step 6. Logs showed the exact rustfmt diffs.
+- **Rule that failed:** The code did not yet comply with the repository's required `cargo fmt --all -- --check` command.
+- **Rule update made in RULES.md:** None; existing rules already require formatting and workspace verification.
+- **Code/docs/tests changed:** Applied only the rustfmt-indicated line wrapping and module order corrections. No intended behavior change.
+- **Regression/real-use check added:** Latest-head CI run must rerun formatting, workspace check, workspace tests, and Clippy.
+- **Verification result:** Formatting correction pushed to the feature branch; rerun status pending. No compile/test success claimed from the failed run.
+- **Remaining risk:** Compilation, unit/integration test results, and Clippy remain unverified until the latest-head CI run completes.
