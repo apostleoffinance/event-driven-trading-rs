@@ -13,6 +13,12 @@ class FakeTerminal:
     def __init__(self):
         self.is_connected = True
 
+    def connect(self, config):
+        self.is_connected = True
+
+    def shutdown(self):
+        self.is_connected = False
+
     def connected(self):
         return self.is_connected
 
