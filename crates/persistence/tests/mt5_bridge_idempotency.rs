@@ -436,6 +436,22 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
         Mt5StreamReadiness::Degraded
     );
 
+    let mut stale = snapshot.clone();
+    stale["sequence"] = json!(11);
+    assert!(store
+        .persist_mt5_market_data_snapshot(
+            "account-market-01",
+            "terminal-market-01",
+            "broker-demo",
+            11,
+            "mt5_python_readonly_v1",
+            "USD",
+            captured_at,
+            stale,
+        )
+        .await
+        .is_err());
+
     let invalid = json!({
         "terminal_id": "terminal-market-01",
         "server": "broker-demo",
