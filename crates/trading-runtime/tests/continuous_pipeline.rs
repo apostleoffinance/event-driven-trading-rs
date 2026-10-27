@@ -256,6 +256,7 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         account_position_semantics_known: true,
         captured_at: Utc::now(),
         max_age_seconds: 30,
+        entry_price: None,
         sizing: InstrumentSizingContext {
             loss_model: LossModel::Linear {
                 contract_multiplier: Decimal::ONE,
