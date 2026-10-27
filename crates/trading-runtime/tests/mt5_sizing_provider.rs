@@ -163,3 +163,21 @@ async fn provider_fails_closed_on_stale_margin_and_exposure_supplement(pool: PgP
         .await
         .is_err());
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn provider_rejects_cross_instrument_supplement(pool: PgPool) {
+    let store = TradingStore::new(pool);
+    let now = Utc::now();
+    seed_snapshot(&store, now).await;
+    let provider = provider(
+        store,
+        supplement(now, "sizing-provider-account", "GBPUSD"),
+    );
+    let account = AccountId::new("sizing-provider-account").unwrap();
+    let instrument = InstrumentId::new("EURUSD").unwrap();
+
+    assert!(provider
+        .load_snapshot_for_side(&account, &instrument, OrderSide::Buy)
+        .await
+        .is_err());
+}
