@@ -16,7 +16,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
-use intent_bridge::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
+use intent_bridge::mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
 use intent_bridge::mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
     Mt5PositionSnapshot, Mt5ReconciliationSnapshot,
@@ -336,17 +336,27 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
 ) -> Result<(), Box<dyn Error>> {
     let pki = make_pki()?;
     let config = server_config(&pki, pki.client_fingerprint.clone())?;
-    let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    let (server, mut client, _) = establish(config, pki.client_config.clone()).await?;
     let store = TradingStore::new(pool.clone());
-    let now = Utc::now();
-    let heartbeat = heartbeat_frame("account-001", "terminal-01", "broker-demo");
-    write_frame(&mut client, &heartbeat).await?;
-
     let policy = Mt5SessionPolicy::new(["account-001"])?;
-    let mut session = Mt5SessionGate::after_transport_authentication(policy);
-    server
-        .read_frame_with_session_checkpoint(&store, &mut session, Utc::now(), Duration::seconds(5))
+    let session = Mt5SessionGate::after_transport_authentication(policy);
+    let runtime = Mt5BridgeRuntime::new(
+        store.clone(),
+        server,
+        session,
+        StdDuration::from_secs(1),
+    )?;
+
+    write_frame(
+        &mut client,
+        &heartbeat_frame("account-001", "terminal-01", "broker-demo"),
+    )
+    .await?;
+    runtime
+        .read_next_frame(Utc::now(), Duration::seconds(5))
         .await?;
+
+    let now = Utc::now();
     let snapshot = Mt5ReconciliationSnapshot {
         account_id: "account-001".into(),
         terminal_id: "terminal-01".into(),
@@ -364,15 +374,10 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
         open_orders: Vec::<Mt5OpenOrderSnapshot>::new(),
         positions: Vec::<Mt5PositionSnapshot>::new(),
     };
-    persist_and_confirm_reconciliation(
-        &store,
-        &mut session,
-        &snapshot,
-        Utc::now(),
-        Duration::seconds(30),
-    )
-    .await?;
-    assert_eq!(session.state(), Mt5SessionState::Ready);
+    runtime
+        .reconcile(&snapshot, Utc::now(), Duration::seconds(30))
+        .await?;
+    assert_eq!(runtime.session_state().await, Mt5SessionState::Ready);
 
     let submit = BridgeFrame {
         schema_version: MT5_BRIDGE_SCHEMA_VERSION,
@@ -391,13 +396,6 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
             take_profit: Some("1.09000".into()),
             time_in_force: TimeInForce::Day,
         }),
-    };
-    let permit =
-        match prepare_submit(&store, &session, &submit, Utc::now(), Duration::seconds(5)).await? {
-        Mt5DispatchDecision::SendOnce(permit) => permit,
-        Mt5DispatchDecision::ReconcileRequired { .. } => {
-            return Err("new test order unexpectedly required reconciliation".into());
-        }
     };
 
     let responder = tokio::spawn(async move {
@@ -453,9 +451,12 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
         Ok::<(), Box<dyn Error + Send + Sync>>(())
     });
 
-    permit
-        .execute_over_transport(&mut server, &store, &mut session, Duration::seconds(5))
-        .await?;
+    assert_eq!(
+        runtime
+            .dispatch_submit(&submit, Utc::now(), Duration::seconds(5))
+            .await?,
+        Mt5RuntimeDispatchResult::OutcomePersisted
+    );
     responder.await??;
 
     let replay = store
