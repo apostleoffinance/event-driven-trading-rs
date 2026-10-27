@@ -731,5 +731,6 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Finding:** Without side-aware provider loading, broker ask/bid could be used inconsistently; without propagating the selected broker entry price, sizing could use one price while the order request retained the intent's stale price.
 - **Change:** Added `Mt5PersistedSizingProvider`, exact instrument-to-broker-symbol mapping, server/currency/sequence/capture identity checks, a dynamic trusted supplement provider for margin/cost/exposure inputs, side-aware snapshot loading, and entry-price propagation into both risk evaluation and the order request. Capability and account position semantics must be explicitly validated.
 - **Safety:** No legacy fallback is added to the explicit provider path. No execution feature was added. Windows MT5 demo conformance remains a release gate.
-- **Verification:** Exact-head CI and runtime integration tests are pending; do not mark QOS-013 done until they pass.
+- **Regression coverage:** Added SQLx-backed provider tests for ask-on-buy/bid-on-sell and stale supplement rejection.
+- **Verification:** Exact-head CI is pending; do not mark QOS-013 done until it passes.
 - **Remaining risk:** The caller must configure trusted supplement and capability/position-semantics providers correctly. No live trading readiness is claimed.
