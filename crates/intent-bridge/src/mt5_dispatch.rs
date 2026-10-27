@@ -9,7 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use persistence::{Mt5DurableOrderState, Mt5OrderClaim, TradingStore};
 
 use crate::mt5_session::Mt5SessionGate;
-use crate::mt5_v1::{BridgeFrame, BridgePayload, SubmitState, MT5_BRIDGE_SCHEMA_VERSION};
+use crate::mt5_v1::{BridgeFrame, BridgePayload, SubmitState};
 use crate::{BridgeError, BridgeResult};
 
 #[derive(Debug)]
@@ -227,10 +227,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
-    use crate::mt5_v1::{
-        BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat, OrderSide,
-        OrderType, SubmitOutcome, SubmitState, SubmitOrder, TimeInForce,
-    };
+    use crate::mt5_v1::{BridgeFrame, BridgePayload, SubmitOutcome, MT5_BRIDGE_SCHEMA_VERSION};
 
     fn now() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap()
