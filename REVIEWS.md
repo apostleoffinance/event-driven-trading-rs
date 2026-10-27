@@ -122,3 +122,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Added contract-test scenarios VA-01 through VA-18 for capabilities, identity, duplicate/conflicting client IDs, pre/post-send timeout, reconciliation, cancellation confirmation, partial fills, duplicate/out-of-order events, stale specs, precision/volume validation, pagination, discrepancies, rate limits, and restart recovery.
 - **Verification result:** Source inspection and documentation consistency completed. No executable tests were run because the change is documentation-only; PR CI must verify repository workflow before merge.
 - **Remaining risk:** Contract and acceptance matrix need review before QOS-011 implementation. No provider-specific behavior, paper run, live adapter, live execution, or money movement was tested or enabled.
+
+
+## REV-008 — QOS-012 instrument-aware sizing specification
+- **Date:** 2026-10-27
+- **Context:** PR #5 merged; the next planned task was QOS-012.
+- **Finding/correction:** Existing `size_order` derives trade-risk quantity from equity risk budget divided by absolute price-stop distance, then caps by position/exposure/leverage. `RiskRequest` lacks instrument loss mechanics, account-currency conversion, current-data freshness, margin schedule, and pending-order reservations; `InstrumentSpec` lacks max volume and contract/tick/pip value metadata. This is insufficient to prove correct FX/CFD sizing across accounts.
+- **Impact:** Applying the existing price-distance formula universally can materially mis-size risk when contract units, tick values, quote currency, or account currency differ; rounding up to venue minimum could exceed risk budget.
+- **Evidence:** Inspected `crates/risk-engine/src/sizing.rs`, `crates/domain/src/risk.rs`, `crates/domain/src/instrument.rs`, `crates/risk-engine/src/lib.rs`, and merged `VENUE_ADAPTER_CONTRACT.md` on main at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`.
+- **Rule that failed:** No safety rule violation was proven by writing this specification. The source shows model/input gaps against existing instrument-aware sizing and fail-closed requirements.
+- **Rule update made in RULES.md:** None; existing financial-safety rules already require instrument-aware risk budgets, exact decimals, stale-data blocking, and no unsupported guarantees.
+- **Code/docs/tests changed:** Added `INSTRUMENT_AWARE_SIZING.md`; updated `TASKS.md`, `PROGRESS.md`, and this register. No implementation or tests changed.
+- **Regression/real-use check added:** Defined SZ-01 through SZ-26 covering stop geometry, tick value, FX conversion, nonlinear models, costs, volume-step rounding, min/max volume, exposure/margin, pending orders, multi-account differences, stale state, decimal invariants, kill switches, and property tests.
+- **Verification result:** Source-backed specification drafted and repository task records updated on branch `spec/qos-012-instrument-aware-sizing`. No executable tests run because the change is documentation-only; PR CI remains pending.
+- **Remaining risk:** Specification must be reviewed before QOS-013 implementation. Existing sizing behavior remains unchanged; no live venue, live execution, or money movement was enabled.
