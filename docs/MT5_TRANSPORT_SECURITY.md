@@ -58,6 +58,7 @@ The current Rust implementation in `crates/intent-bridge/src/mt5_transport.rs`:
 - Loads a TLS 1.3 server certificate/key and a trusted client-CA bundle from configured file paths.
 - Requires a valid client certificate, then requires the leaf certificate's SHA-256 fingerprint to match an explicit configured principal.
 - Binds that principal to a terminal ID, server name and explicit allowed-account set.
+- Applies configurable positive handshake and I/O timeouts, limits concurrent authenticated connections (default 64), and exposes a fail-closed heartbeat freshness watchdog (default 30 seconds). The host runtime must call `check_heartbeat_fresh` from its watchdog; a silent peer is not automatically monitored by a background task.
 - Does not expose frames until mutual TLS and principal allow-list checks succeed.
 - Requires the first application frame to be a heartbeat matching the authenticated terminal/server/account binding.
 - Uses the bounded NDJSON decoder and fails closed on protocol identity/order violations.
