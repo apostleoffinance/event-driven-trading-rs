@@ -57,15 +57,19 @@ async fn latest_market_snapshot_is_loaded_for_exact_account_and_terminal(pool: P
     assert_eq!(record.sequence, 9);
     assert_eq!(record.account_currency, "USD");
     assert_eq!(record.snapshot, snapshot);
-    assert!(mt5_market_data::load_latest(&pool, "other-account", "terminal-sizing-01")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        mt5_market_data::load_latest(&pool, "other-account", "terminal-sizing-01")
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn market_snapshot_loader_rejects_blank_identity(pool: PgPool) {
-    assert!(mt5_market_data::load_latest(&pool, " ", "terminal-sizing-01")
-        .await
-        .is_err());
+    assert!(
+        mt5_market_data::load_latest(&pool, " ", "terminal-sizing-01")
+            .await
+            .is_err()
+    );
 }
