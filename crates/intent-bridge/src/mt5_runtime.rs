@@ -169,7 +169,7 @@ impl Mt5BridgeRuntime {
                         snapshot.sequence,
                         &snapshot.source,
                         &snapshot.account_currency,
-                        snapshot.captured_at,
+                        snapshot.captured_at.clone(),
                         serialized,
                     )
                     .await
