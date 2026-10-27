@@ -9,9 +9,9 @@
 
 pub mod error;
 pub mod evaluator;
+pub mod instrument_sizing;
 pub mod rules;
 pub mod sizing;
-pub mod instrument_sizing;
 
 #[cfg(test)]
 mod test_support;
