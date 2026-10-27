@@ -211,3 +211,13 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Unit tests cover fresh/gapped streams, disconnect/reconnect, account switching, non-allow-listed identities, missing capabilities, and allowed submit/cancel frames.
 - CI run `40453466375` passed on head `36c233fcf3274191dce9bcb15d5b9bd97a078541`: Rust format/check/test/Clippy and frontend lint/typecheck/build.
 - This module expects the future transport to authenticate the peer before constructing a session. It does not implement authentication, sockets, an MT5 Expert Advisor, broker mapping, or live execution.
+
+
+## Current implementation slice — durable MT5 dispatch coordinator
+
+- Added `crates/intent-bridge/src/mt5_dispatch.rs` and public exports.
+- `prepare_submit` authorizes against the merged session gate, validates the request, then commits the durable account-scoped idempotency claim before returning any send permit.
+- Only a new durable claim returns `Mt5DispatchPermit`; every existing claim returns `ReconcileRequired` and cannot authorize a blind resend.
+- The permit's outcome method validates account, correlation ID, client-order ID and timestamps before persisting accepted/rejected/unknown state. Ambiguous transport failure is persisted as unknown, consumes the permit, and degrades the session. Failure to persist a possible venue outcome also degrades the session.
+- Added unit tests for outcome identity binding and state mapping. GitHub Actions run `40454050187` passed on implementation head `80e74f7acf2786065800b5fa075a0216a8b965c9`: Rust formatting, workspace check/tests, all-target Clippy, frontend lint, TypeScript typecheck and production build. A final run is required after verification-document updates.
+- This is not an actual MT5 transport, and no socket, EA, broker mapping, live order submission, or deployment is enabled.

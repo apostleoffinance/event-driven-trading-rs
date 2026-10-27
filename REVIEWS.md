@@ -542,3 +542,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Re-run full Rust and frontend CI on the latest PR head.
 - **Verification result:** Corrections for both format failures committed. Full CI run `40453466375` passed on head `36c233fcf3274191dce9bcb15d5b9bd97a078541`: Rust formatting, workspace check, workspace tests, all-target Clippy, frontend lint, TypeScript typecheck, and production build. This establishes CI success only, not production or live readiness.
 - **Remaining risk:** Compilation, tests and Clippy are not verified until a successful latest-head run. No live execution, deployment, or money movement enabled.
+
+
+## REV-044 — MT5 durable dispatch orchestration gap
+- **Date:** 2026-10-27
+- **Context:** User confirmed PR #19 merged and asked to implement the next milestone before a real MT5 connection.
+- **Finding:** The protocol, durable order ledger and session gate existed as separate helpers, but no single coordinator enforced the order of operations or bound a response to the exact authorized submit.
+- **Impact:** Future transport code could accidentally send before claiming, retry an existing prepared/unknown claim, or persist a mismatched response; an unrecorded outcome after possible venue execution must block further exposure.
+- **Evidence:** Inspected merged main `crates/intent-bridge/src/mt5_session.rs`, `mt5_v1.rs`, `crates/persistence/src/repos/mt5_bridge.rs`, `docs/MT5_BRIDGE_V1.md`, and `TASKS.md`.
+- **Rule that failed:** No live incident or live execution is claimed; this was a missing orchestration boundary.
+- **Rule update made in RULES.md:** None; existing rules already require durable idempotency, fail-closed ambiguity handling, and no blind retries.
+- **Code/docs/tests changed:** Added `Mt5DispatchDecision`, private-field `Mt5DispatchPermit`, `prepare_submit`, outcome binding/persistence and ambiguous transport failure handling in `crates/intent-bridge/src/mt5_dispatch.rs`; exported the API; updated MT5 contract, task and progress docs.
+- **Regression/real-use check added:** Unit tests reject account/correlation/client-order mismatches and verify accepted/rejected/unknown state mapping.
+- **Verification result:** GitHub Actions run `40454050187` passed on implementation head `80e74f7acf2786065800b5fa075a0216a8b965c9`: Rust formatting, workspace check/tests, all-target Clippy, frontend lint, TypeScript typecheck and production build. A final rerun is required after these verification-document updates.
+- **Remaining risk:** Actual transport, send/reconnect wiring, authenticated peer identity, broker symbol mapping, cross-language conformance and end-to-end recovery remain open. No live execution, deployment, or money movement enabled.

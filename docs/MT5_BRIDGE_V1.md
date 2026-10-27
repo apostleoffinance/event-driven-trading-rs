@@ -40,6 +40,14 @@ Sequence numbers, when available, must be monotonic within the documented termin
 
 A new session or a degraded session remains blocked until the host has reconciled external orders, positions and account state, persisted the stream checkpoint, and explicitly called the session reconciliation transition. Heartbeats and reconnect alone do not clear this latch. These methods are guards only: the caller must still pass through risk authorization, OMS lifecycle validation, and durable order claim/outcome persistence.
 
+## Durable dispatch coordinator
+
+`crates/intent-bridge/src/mt5_dispatch.rs` adds a transport-independent coordinator for the pre-send and outcome-persistence boundary. `prepare_submit` first checks the session gate and validates the frame, then claims the account-scoped client-order ID in PostgreSQL. Only a newly committed claim yields a private `Mt5DispatchPermit`; an existing `prepared`, `unknown`, `accepted`, or `rejected` claim yields `ReconcileRequired` and never a new send permit.
+
+The permit exposes the exact validated request frame for the future transport's single initial send. Outcome persistence consumes the permit and verifies the response account, correlation ID, client-order ID, schema/timestamp and unknown-reason requirements before writing the durable state. A transport failure after the permit is issued must be recorded as `unknown`, consumes the permit, and degrades the session. A persistence failure while recording an outcome also degrades the session because venue execution may already have happened. Callers must reconcile before any subsequent submit; this API does not retry, does not perform network I/O, and does not replace strategy risk authorization or OMS lifecycle checks.
+
+The coordinator is a safety boundary, not a transport. It does not implement the authenticated handshake, sockets, Expert Advisor, broker symbol mapping, or actual venue send/reconciliation queries. Transport integration must use this coordinator rather than calling raw persistence helpers ad hoc.
+
 ## Security and deployment boundary
 
 - Use an authenticated local IPC channel or mutually authenticated transport; do not expose an unauthenticated order socket to a LAN or public internet.
@@ -61,7 +69,8 @@ A new session or a degraded session remains blocked until the host has reconcile
 - [ ] Cross-language golden fixtures shared with a terminal-side implementation.
 - [x] Durable account-scoped idempotency ledger, canonical-payload conflict detection, ambiguous prepared/unknown recovery boundary, and persistent sequence checkpoint/readiness API implemented.
 - [x] Transport-independent session gate for account allow-list, immutable session identity, capability checks and explicit reconciliation latch.
+- [x] Transport-independent durable dispatch coordinator for session authorization, pre-send claim, no-resend on existing claims, response binding, and ambiguous-outcome persistence.
 - [ ] Authenticated transport implementation, real send/reconnect orchestration, and cross-language conformance against an MT5-side implementation.
 - [x] DB-backed persistence tests cover prepared-claim replay after store restart, same-ID/different-payload rejection, unknown-to-accepted recovery, conflicting terminal outcome rejection, sequence gap degradation, explicit recovery, and sequence overflow.
 - [ ] End-to-end transport integration around actual send/response paths and concurrent duplicate-claim stress tests.
-- [ ] Full workspace CI on the latest branch head.
+- [x] Full workspace CI passed on the dispatch implementation head; rerun after final verification-document updates is pending.
