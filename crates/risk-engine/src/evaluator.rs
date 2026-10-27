@@ -3,6 +3,7 @@
 use domain::{RiskDecision, RiskRequest};
 
 use crate::error::RiskEngineResult;
+use crate::instrument_sizing::{size_order_instrument_aware, InstrumentSizingContext};
 use crate::rules::{
     check_account_halt, check_daily_loss, check_drawdown, check_global_halt, check_instrument,
     check_position_limit, check_session, check_strategy_halt, RuleOutcome,
@@ -43,6 +44,24 @@ impl DefaultRiskEvaluator {
             }
         }
         RuleOutcome::Pass
+    }
+
+    /// Evaluate an intent with explicit instrument loss mechanics and fresh
+    /// venue/account sizing inputs. Risk gates always run before sizing.
+    ///
+    /// This is the preferred entry point when an authoritative instrument
+    /// snapshot is available. The legacy `evaluate` method remains for
+    /// compatibility with existing callers that have not yet wired snapshots.
+    pub fn evaluate_with_instrument_sizing(
+        &self,
+        request: &RiskRequest,
+        context: &InstrumentSizingContext,
+    ) -> RiskEngineResult<RiskDecision> {
+        match Self::run_gates(request) {
+            RuleOutcome::Pass => Ok(size_order_instrument_aware(request, context).risk_decision()),
+            RuleOutcome::Halt { reason } => Ok(RiskDecision::Halted { reason }),
+            RuleOutcome::Reject { reason } => Ok(RiskDecision::Rejected { reason }),
+        }
     }
 }
 
@@ -115,5 +134,31 @@ mod tests {
                 reason: RiskRejectReason::DrawdownBreached
             }
         );
+    }
+
+    #[test]
+    fn instrument_aware_path_runs_risk_gates_before_sizing() {
+        let evaluator = DefaultRiskEvaluator::new();
+        let mut request = sample_request();
+        request.policy.global_kill_switch = true;
+        let context = crate::instrument_sizing::InstrumentSizingContext {
+            loss_model: crate::instrument_sizing::LossModel::Linear {
+                contract_multiplier: Decimal::ONE,
+                pnl_to_account_rate: Decimal::ONE,
+            },
+            inputs_fresh: true,
+            notional_to_account_rate: Decimal::ONE,
+            quantity_step: Decimal::new(1, 1),
+            min_quantity: Decimal::new(1, 1),
+            max_quantity: Some(Decimal::from(100)),
+            min_notional_account_currency: None,
+            estimated_cost_per_quantity: Decimal::ZERO,
+            slippage_gap_buffer_per_quantity: Decimal::ZERO,
+        };
+        let decision = evaluator
+            .evaluate_with_instrument_sizing(&request, &context)
+            .unwrap();
+        assert!(matches!(decision, RiskDecision::Halted { .. }));
+        assert!(!decision.is_executable());
     }
 }

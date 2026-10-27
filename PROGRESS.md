@@ -4,7 +4,7 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
 
-**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 DONE — PR #7 merged on 2026-10-27 at `324d327f035ca5ccb573404cc8e446b816990ada`; it implements client-order-ID payload conflict/replay behavior and confirmed cancellation checks. Event-stream deduplication/reconnect remains unimplemented because the adapter trait has no event-stream surface. QOS-012 DONE — instrument-aware sizing specification merged in `INSTRUMENT_AWARE_SIZING.md`. QOS-013 IN PROGRESS — source audit and acceptance plan documented in `QOS-013_IMPLEMENTATION_PLAN.md`; no QOS-013 runtime code has changed yet. Statuses distinguish verified implementation from specification and planning, not live-readiness claims.
+**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 DONE — PR #7 merged on 2026-10-27 at `324d327f035ca5ccb573404cc8e446b816990ada`; it implements client-order-ID payload conflict/replay behavior and confirmed cancellation checks. Event-stream deduplication/reconnect remains unimplemented because the adapter trait has no event-stream surface. QOS-012 DONE — instrument-aware sizing specification merged in `INSTRUMENT_AWARE_SIZING.md`. QOS-013 IN PROGRESS — first instrument-aware sizing slice implemented on `feat/qos-013-instrument-aware-sizing`: explicit linear and tick-value loss models, account-currency conversion rates, stale-input rejection, stop geometry validation, risk/exposure/position/leverage caps, step-down rounding, min/max and minimum-notional constraints, modeled-loss recheck, and evaluator gate-before-sizing entry point. Eight focused tests are present. First latest-head CI run 40435876274 failed one test fixture: the sell-stop rejection test used stop 101 with entry 100 (valid geometry), despite asserting equality/invalid geometry. Corrected the test to stop 100 and logged the finding in REV-020. Corrected-head CI run 40436418111 passed all Rust and frontend steps. The runtime does not yet source and require these sizing snapshots by default, and pending-order reserves, margin, structured persistent audit, property tests, and full SZ-01–SZ-26 coverage remain open. This is not live-readiness evidence.
 
 Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
@@ -108,3 +108,33 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Re-inspected `crates/risk-engine/src/sizing.rs`, `crates/risk-engine/src/evaluator.rs`, `crates/domain/src/risk.rs`, `crates/domain/src/instrument.rs`, `crates/domain/src/account.rs`, `crates/trading-runtime/src/pipeline.rs`, and `INSTRUMENT_AWARE_SIZING.md`.
 - Added `QOS-013_IMPLEMENTATION_PLAN.md` to record observed source gaps, scope boundaries, and testable acceptance criteria before implementation.
 - No runtime code or tests changed in this kickoff; no executable checks were run for this documentation-only change. No live mode, deployment, or money movement was enabled.
+
+
+## Work log — QOS-013 instrument-aware sizing implementation slice (2026-10-27)
+- Re-read `RULES.md` and the QOS-013 implementation plan before code changes.
+- Added `crates/risk-engine/src/instrument_sizing.rs` with explicit linear and tick-value loss models, caller-supplied account-currency conversion rates, freshness fail-closed behavior, side-aware stop geometry, checked decimal arithmetic, risk/position/exposure/leverage caps, volume-step round-down, min/max and minimum-notional checks, and post-rounding modeled-loss verification.
+- Exported the sizing API and added `DefaultRiskEvaluator::evaluate_with_instrument_sizing`, which runs the existing kill-switch/instrument/session/drawdown/daily-loss/position gates before sizing. The legacy `evaluate` path remains for compatibility and does not yet require the new context by default.
+- Added seven focused sizing unit tests and one evaluator gate-order regression test. Expected values were checked against the formulas; CI is still required to validate compile/format/test/clippy.
+- No venue I/O, live-mode changes, deployment, or money movement. QOS-013 remains IN PROGRESS because production snapshot wiring and several specification scenarios are not yet implemented.
+
+
+## Work log — QOS-013 CI formatting correction (2026-10-27)
+- Initial CI run 40435500152 failed at `cargo fmt --all -- --check`; the workspace check, tests, and Clippy were skipped.
+- Applied the exact formatting differences reported by the Rust job and logged the failure/correction in REV-017.
+- The latest-head full CI rerun is required before claiming verification.
+
+
+## Work log — QOS-013 final formatting correction (2026-10-27)
+- Follow-up CI run 40435630512 still failed `cargo fmt --all -- --check` on one match-arm wrapping difference; compile/tests/Clippy were skipped.
+- Applied the remaining exact rustfmt diff and recorded it in REV-018. Awaiting latest-head CI.
+
+
+## Work log — QOS-013 compile correction (2026-10-27)
+- CI run 40435757549 passed formatting but failed `cargo check --workspace` with E0631 on the `Decimal::trunc` function pointer.
+- Changed the call to a closure and recorded the failure/correction in REV-019. Full CI rerun pending.
+
+
+## Work log — QOS-013 sell-stop test fixture correction (2026-10-27)
+- Reviewed failed Rust job 121964300309 in CI run 40435876274. Formatting/check and 25 of 26 risk-engine unit tests passed; the failing test supplied a valid sell protective stop (entry 100, stop 101) but expected invalid geometry.
+- Corrected the regression fixture to use equality (entry 100, stop 100), consistent with the test name and sizing contract. Production validation remains unchanged and still requires sell stop strictly above entry.
+- Recorded the failure/correction as REV-020. Frontend job 121964300550 passed. Corrected-head CI run 40436418111 passed all Rust and frontend steps. QOS-013 remains in progress because production runtime snapshot wiring and other contract items remain open.

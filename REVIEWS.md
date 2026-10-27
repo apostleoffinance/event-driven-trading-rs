@@ -230,3 +230,69 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** QOS-013 plan defines deterministic unit/integration acceptance criteria, including stop geometry, unsupported/missing instrument inputs, decimal rounding, fail-closed data requirements, and the risk-to-OMS boundary. These tests are planned, not yet implemented or run.
 - **Verification result:** PR #7 merge status verified through GitHub PR metadata; source inspection completed. No tests/checks were run because this PR is documentation-only. This is not a claim that the QOS-013 implementation is complete or safe for live execution.
 - **Remaining risk:** Current sizing implementation still lacks the required typed instrument, conversion, freshness, margin, and venue constraints. QOS-013 implementation must remain paper/simulation-only and must not mark unsupported instrument models executable.
+
+
+## REV-016 — QOS-013 first instrument-aware sizing implementation slice
+- **Date:** 2026-10-27
+- **Context:** User requested implementation of QOS-013 after the QOS-011 merge-status correction and sizing-plan review.
+- **Finding:** Existing sizing relied on absolute entry/stop price distance and did not encode explicit instrument loss mechanics. A new opt-in API is needed until authoritative sizing snapshots are wired into the runtime without unsafe defaults.
+- **Impact:** A price-distance-only calculation is not sufficient for instruments with contract multipliers, tick values, or differing account currency. Missing/stale sizing inputs must not yield an executable size through the new API.
+- **Evidence:** Current source audit in `QOS-013_IMPLEMENTATION_PLAN.md`; implementation in `crates/risk-engine/src/instrument_sizing.rs` and `crates/risk-engine/src/evaluator.rs`.
+- **Rule that failed:** No new rule violation is asserted; this work addresses gaps against Financial Safety rules 4, 5, and 13 and Rust/testing rules.
+- **Rule update made in RULES.md:** None; existing rules are adequate.
+- **Code/docs/tests changed:** Added explicit linear and tick-value loss models, conversion rates, freshness state, conservative step rounding, risk/position/exposure/leverage caps, minimum/maximum/minimum-notional checks, post-rounding modeled-loss verification, and an evaluator entry point that runs risk gates before sizing. Added eight focused tests and updated task/progress/plan docs.
+- **Regression/real-use check added:** Tests cover linear sizing and risk-budget resize, tick-value conversion, buy/sell stop geometry, stale-input rejection, off-tick stops, below-minimum quantity, costs/buffer effects, and kill-switch precedence. CI pending at time of entry; no real venue test was run.
+- **Verification result:** Files were written to the feature branch through GitHub. Compilation and test success are not yet claimed; CI must verify the current head.
+- **Remaining risk:** The new context is opt-in. Existing `RiskEvaluator::evaluate` and runtime do not yet source authoritative venue specs/conversion/freshness by default. Pending-order reserves, margin/free-funds caps, account-specific freshness thresholds, structured persisted audit, property tests, and full SZ-01–SZ-26 coverage remain incomplete. No live execution enabled.
+
+## REV-017 — QOS-013 initial CI formatting failure and correction
+- **Date:** 2026-10-27
+- **Context:** First QOS-013 PR CI run 40435500152 on the initial implementation head.
+- **Finding/correction:** `cargo fmt --all -- --check` failed on formatting-only differences in `crates/risk-engine/src/instrument_sizing.rs` and module ordering in `crates/risk-engine/src/lib.rs`. Workspace check, tests, and Clippy were skipped by the sequential workflow.
+- **Impact:** No compile/test evidence was available from that run.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435500152; Rust job 121963077119 reported failure at formatting step 6. Logs showed the exact rustfmt diffs.
+- **Rule that failed:** The code did not yet comply with the repository's required `cargo fmt --all -- --check` command.
+- **Rule update made in RULES.md:** None; existing rules already require formatting and workspace verification.
+- **Code/docs/tests changed:** Applied only the rustfmt-indicated line wrapping and module order corrections. No intended behavior change.
+- **Regression/real-use check added:** Latest-head CI run must rerun formatting, workspace check, workspace tests, and Clippy.
+- **Verification result:** Formatting correction pushed to the feature branch; rerun status pending. No compile/test success claimed from the failed run.
+- **Remaining risk:** Compilation, unit/integration test results, and Clippy remain unverified until the latest-head CI run completes.
+
+## REV-018 — QOS-013 follow-up CI formatting failure and correction
+- **Date:** 2026-10-27
+- **Context:** Follow-up QOS-013 CI run 40435630512 on commit `90f7af86202a79e34910c78f56c77d519cb62fd6`.
+- **Finding/correction:** The first formatting correction resolved the earlier reported diffs, but rustfmt identified one remaining match-arm wrapping difference in `InstrumentSizingOutcome::risk_decision`. Workspace check, tests, and Clippy were skipped again.
+- **Impact:** Compilation/test evidence remained unavailable from that run.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435630512; Rust job 121963502803 failed at formatting step 6 and showed a single diff at `instrument_sizing.rs:106`.
+- **Rule that failed:** Required rustfmt check was still not satisfied.
+- **Rule update made in RULES.md:** None; current rules are sufficient.
+- **Code/docs/tests changed:** Applied the final rustfmt-indicated match-arm wrapping. No intended behavior change.
+- **Regression/real-use check added:** Run the complete CI matrix on the latest branch head.
+- **Verification result:** Correction committed as `3dcce8660a26982f30b6a2b085574436e9a525ca`; latest-head CI pending.
+- **Remaining risk:** Compilation, tests, and Clippy remain unverified until the current run finishes.
+
+## REV-019 — QOS-013 compile failure in decimal step rounding and correction
+- **Date:** 2026-10-27
+- **Context:** QOS-013 CI run 40435757549 on commit `3b8a59fbf87eeae3fe329beb9835a2c8f11cb266`.
+- **Finding/correction:** Formatting passed, but `cargo check --workspace` failed with E0631 because `Decimal::trunc` takes `&Decimal`, while `Option::map` expected a function taking `Decimal`. Changed the call to a closure `|steps| steps.trunc()`.
+- **Impact:** Workspace tests and Clippy were skipped because compilation failed.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435757549; Rust job 121963920153 reported E0631 at `instrument_sizing.rs:414`.
+- **Rule that failed:** Compile/test verification rule; implementation used an incompatible method function signature.
+- **Rule update made in RULES.md:** None; current rules already require compiling before claiming correctness.
+- **Code/docs/tests changed:** Corrected step rounding to use a closure; no intended behavior change.
+- **Regression/real-use check added:** Full latest-head CI rerun.
+- **Verification result:** Correction committed as `603282cecc1c46e2788de194f3eed17b9b9f7388`; rerun pending. No test success claimed.
+- **Remaining risk:** Additional compiler/test/Clippy findings may remain until the full CI suite passes.
+
+
+## REV-020 — QOS-013 sell-stop geometry regression test failure and correction
+- **Date:** 2026-10-27
+- **Context:** QOS-013 CI run 40435876274 on commit `6180e7a636eae391e1f79d840c22495ffa29bf69`.
+- **Finding:** `cargo fmt`, workspace check, and the majority of workspace tests ran successfully, but `risk_engine::instrument_sizing::tests::sell_stop_at_or_below_entry_rejects` failed. Its fixture used entry 100 and stop 101, which is a valid protective stop for a sell order (sell stop must be strictly above entry), while its name and expected rejection described an invalid stop at or below entry.
+- **Correction:** Changed the fixture stop from 101 to 100 so the test actually exercises equality, which must reject per `RULES.md` and `INSTRUMENT_AWARE_SIZING.md`. The production geometry check already correctly requires sell stop > entry; no production behavior was weakened.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435876274, Rust job 121964300309. Failure reported at `crates/risk-engine/src/instrument_sizing.rs:517`: actual Approved versus expected InvalidStopGeometry. Frontend job 121964300550 passed.
+- **Rule update:** None. The existing stop-geometry rule is clear; the regression fixture was inconsistent with it.
+- **Verification:** Fix pushed to the QOS-013 branch; new CI run must pass before the task can be treated as verified.
+- **Remaining risk:** Full SZ-01–SZ-26 implementation and production runtime snapshot wiring are still open; this correction addresses only the failed test fixture.
+
+- **Verification result update (2026-10-27):** Corrected-head CI run 40436418111 completed with conclusion `success`. Rust format, workspace check, workspace test, and all-target Clippy steps passed; frontend lint, typecheck, and production build also passed. This verifies this implementation slice on the cited commit only, not full QOS-013 completion or production/live readiness.

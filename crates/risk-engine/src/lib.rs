@@ -9,6 +9,7 @@
 
 pub mod error;
 pub mod evaluator;
+pub mod instrument_sizing;
 pub mod rules;
 pub mod sizing;
 
@@ -17,4 +18,8 @@ mod test_support;
 
 pub use error::{RiskEngineError, RiskEngineResult};
 pub use evaluator::{DefaultRiskEvaluator, RiskEvaluator};
+pub use instrument_sizing::{
+    size_order_instrument_aware, InstrumentSizingContext, InstrumentSizingOutcome, LossModel,
+    SizingLimitReason, SizingRejectReason,
+};
 pub use rules::RuleOutcome;
