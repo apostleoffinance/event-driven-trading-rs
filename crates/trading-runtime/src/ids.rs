@@ -31,6 +31,8 @@ pub fn client_order_id_for_account_intent(
 
 #[cfg(test)]
 mod account_scoped_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
     use super::*;
     use domain::AccountId;
 
