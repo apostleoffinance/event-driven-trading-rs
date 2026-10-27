@@ -309,7 +309,8 @@ fn decimal(raw: &str, field: &str) -> BridgeResult<Decimal> {
         || raw.is_empty()
         || raw.starts_with('+')
         || raw.starts_with('.')
-        || raw.contains(['e', 'E'])
+        || raw.contains('e')
+        || raw.contains('E')
         || !valid_integer
     {
         return Err(BridgeError::Invalid(format!(
