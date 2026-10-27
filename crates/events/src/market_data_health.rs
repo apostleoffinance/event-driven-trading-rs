@@ -100,11 +100,7 @@ impl MarketDataHealthTracker {
         }
     }
 
-    pub fn health_of(
-        &self,
-        instrument_id: &InstrumentId,
-        now: DateTime<Utc>,
-    ) -> MarketDataHealth {
+    pub fn health_of(&self, instrument_id: &InstrumentId, now: DateTime<Utc>) -> MarketDataHealth {
         match self.last_by_instrument.get(instrument_id) {
             None => MarketDataHealth {
                 instrument_id: instrument_id.clone(),
