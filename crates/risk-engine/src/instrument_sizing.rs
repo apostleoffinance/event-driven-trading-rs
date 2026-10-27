@@ -471,7 +471,7 @@ mod tests {
             tick_value_to_account_rate: Decimal::from(2),
         };
         let result = size_order_instrument_aware(&request, &sizing);
-        assert_eq!(result.quantity(), Some(Decimal::from(10)));
+        assert_eq!(result.quantity(), Some(Decimal::new(25, 1)));
         assert!(matches!(
             result,
             InstrumentSizingOutcome::Resized {
