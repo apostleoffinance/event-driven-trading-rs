@@ -413,6 +413,8 @@ impl TradingRuntime {
 
 #[cfg(test)]
 mod sizing_snapshot_tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use chrono::Duration;
     use rust_decimal::Decimal;
