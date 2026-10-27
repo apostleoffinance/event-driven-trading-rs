@@ -16,6 +16,7 @@ use crate::{
 };
 
 /// Dynamic account/instrument inputs that are not part of an MT5 market-data frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mt5SizingSupplementSnapshot {
     pub inputs: Mt5SizingSupplement,
     pub captured_at: DateTime<Utc>,
