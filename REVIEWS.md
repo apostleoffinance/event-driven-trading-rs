@@ -472,3 +472,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Check that every `REV-NNN` heading is unique after future history merges.
 - **Verification result:** Programmatic heading scan confirmed the five duplicate IDs before correction; post-update scan and PR CI should confirm uniqueness and document-only diff.
 - **Remaining risk:** This documentation-only correction does not change or verify runtime behavior, venue connectivity, or live readiness.
+
+
+## REV-039 — QOS-017 account-isolated multi-account orchestration
+- **Date:** 2026-10-27
+- **Context:** QOS-016's initial failure-injection suite was merged in PR #15; the next queued task is QOS-017, multi-account orchestration above the single-account runtime path.
+- **Finding:** The runtime currently executes one configured account at a time, and its prior client-order ID helper was based only on the trade-intent ID. Reusing that identifier across accounts could collide at venue boundaries. Falling back to legacy sizing in a multi-account path would also bypass the instrument-aware fail-closed contract.
+- **Impact:** Naive fan-out could couple accounts through duplicate idempotency keys, allow one account's error to abort later account attempts, or execute without account-specific instrument sizing.
+- **Evidence:** Inspected `crates/trading-runtime/src/pipeline.rs`, `runtime.rs`, `config.rs`, `ids.rs`, `crates/venue-connectors/src/adapter.rs`, `bridge.rs`, `crates/domain/src/ids.rs`, and QOS-016's merged failure-injection test file.
+- **Rule that failed:** No production behavior violation is claimed. These are identified design gaps before introducing fan-out.
+- **Rule update made in RULES.md:** None; existing rules 5–8 and 12–15 already require fail-closed risk, stable idempotency, explicit partial outcomes, and no promise of atomic multi-account execution.
+- **Code/docs/tests changed:** Added `crates/trading-runtime/src/multi_account.rs`; exported coordinator types; added length-prefixed account-scoped client order IDs and wired the single-account pipeline to use them; updated `TASKS.md` and `PROGRESS.md`.
+- **Regression/real-use check added:** Tests cover empty-target rejection, duplicate account IDs rejected before execution, venue binding mismatch rejected before execution, continuation after an account-local failure, and stable/distinct account-scoped IDs.
+- **Verification result:** Source changes are committed to the feature branch. Full latest-head Rust format/check/test/Clippy and frontend CI have not yet been observed; no test pass is claimed.
+- **Remaining risk:** Sequential fan-out is non-atomic and does not guarantee simultaneous fills. Real authoritative per-account snapshots, shared-database persistence semantics, durable cross-process idempotency, cancellation/reconciliation integration, and live venue readiness remain separate work. No live execution, deployment, or money movement enabled.
