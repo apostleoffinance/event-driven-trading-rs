@@ -212,7 +212,11 @@ pub async fn observe_heartbeat_sequence(
         ));
     }
     store
-        .observe_mt5_sequence(&frame.account_id, &heartbeat.terminal_id, heartbeat.sequence)
+        .observe_mt5_sequence(
+            &frame.account_id,
+            &heartbeat.terminal_id,
+            heartbeat.sequence,
+        )
         .await
         .map_err(BridgeError::from)
 }
