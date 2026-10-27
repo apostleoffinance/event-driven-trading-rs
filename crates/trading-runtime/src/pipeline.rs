@@ -484,3 +484,105 @@ mod sizing_snapshot_tests {
         assert!(!unknown_source.is_fresh_at(now));
     }
 }
+
+fn optional_decimal(value: Option<Decimal>) -> Option<String> {
+    value.map(|decimal| decimal.to_string())
+}
+
+fn sizing_audit_payload(
+    request: &RiskRequest,
+    snapshot: &RuntimeInstrumentSizingContext,
+    decision: &RiskDecision,
+    outcome: Option<&InstrumentSizingOutcome>,
+    evaluated_at: chrono::DateTime<Utc>,
+) -> Value {
+    let loss_model = match snapshot.sizing.loss_model {
+        LossModel::Linear { contract_multiplier, pnl_to_account_rate } => json!({
+            "type": "linear",
+            "contract_multiplier": contract_multiplier.to_string(),
+            "pnl_to_account_rate": pnl_to_account_rate.to_string()
+        }),
+        LossModel::TickValue { tick_size, tick_value_per_quantity, tick_value_to_account_rate } => json!({
+            "type": "tick_value",
+            "tick_size": tick_size.to_string(),
+            "tick_value_per_quantity": tick_value_per_quantity.to_string(),
+            "tick_value_to_account_rate": tick_value_to_account_rate.to_string()
+        }),
+    };
+    let sizing_result = match outcome {
+        Some(InstrumentSizingOutcome::Approved { quantity, risk_budget, modeled_loss }) => json!({
+            "status": "approved",
+            "quantity": quantity.to_string(),
+            "risk_budget": risk_budget.to_string(),
+            "modeled_loss": modeled_loss.to_string()
+        }),
+        Some(InstrumentSizingOutcome::Resized { quantity, risk_budget, modeled_loss, reason }) => json!({
+            "status": "resized",
+            "quantity": quantity.to_string(),
+            "risk_budget": risk_budget.to_string(),
+            "modeled_loss": modeled_loss.to_string(),
+            "limit_reason": format!("{:?}", reason)
+        }),
+        Some(InstrumentSizingOutcome::Rejected { reason }) => json!({
+            "status": "rejected",
+            "reject_reason": format!("{:?}", reason)
+        }),
+        None => json!({
+            "status": "not_sized",
+            "detail": "risk gate, identity, or freshness rejected before sizing"
+        }),
+    };
+    let decision_kind = match decision {
+        RiskDecision::Approved { .. } => "approved",
+        RiskDecision::Resized { .. } => "resized",
+        RiskDecision::Rejected { .. } => "rejected",
+        RiskDecision::Halted { .. } => "halted",
+    };
+
+    json!({
+        "schema_version": 1,
+        "evaluated_at": evaluated_at.to_rfc3339(),
+        "account_id": request.account_id.as_str(),
+        "instrument_id": request.instrument_id.as_str(),
+        "trade_intent_id": request.trade_intent_id.as_str(),
+        "snapshot": {
+            "source_id": snapshot.source_id,
+            "captured_at": snapshot.captured_at.to_rfc3339(),
+            "max_age_seconds": snapshot.max_age_seconds,
+            "inputs_fresh_flag": snapshot.sizing.inputs_fresh
+        },
+        "request": {
+            "side": format!("{:?}", request.side),
+            "entry_price": optional_decimal(request.entry_price),
+            "stop_loss": optional_decimal(request.stop_loss),
+            "requested_quantity": optional_decimal(request.requested_quantity),
+            "requested_notional": optional_decimal(request.requested_notional),
+            "equity": request.account_state.equity.to_string(),
+            "account_balance": request.account_state.balance.to_string(),
+            "current_exposure": request.current_exposure.to_string(),
+            "risk_per_trade_pct": request.policy.max_risk_per_trade_pct.to_string(),
+            "position_cap_pct": request.policy.max_position_size_pct.to_string(),
+            "exposure_cap_pct": request.policy.max_total_exposure_pct.to_string(),
+            "max_leverage": request.policy.max_leverage.to_string()
+        },
+        "loss_model": loss_model,
+        "constraints": {
+            "notional_to_account_rate": snapshot.sizing.notional_to_account_rate.to_string(),
+            "quantity_step": snapshot.sizing.quantity_step.to_string(),
+            "min_quantity": snapshot.sizing.min_quantity.to_string(),
+            "max_quantity": optional_decimal(snapshot.sizing.max_quantity),
+            "min_notional_account_currency": optional_decimal(snapshot.sizing.min_notional_account_currency),
+            "estimated_cost_per_quantity": snapshot.sizing.estimated_cost_per_quantity.to_string(),
+            "slippage_gap_buffer_per_quantity": snapshot.sizing.slippage_gap_buffer_per_quantity.to_string(),
+            "pending_order_exposure": snapshot.sizing.pending_order_exposure.to_string(),
+            "available_margin": optional_decimal(snapshot.sizing.available_margin),
+            "pending_order_margin": snapshot.sizing.pending_order_margin.to_string(),
+            "margin_per_quantity": optional_decimal(snapshot.sizing.margin_per_quantity)
+        },
+        "decision": {
+            "kind": decision_kind,
+            "detail": format!("{:?}", decision)
+        },
+        "sizing_result": sizing_result
+    })
+}
