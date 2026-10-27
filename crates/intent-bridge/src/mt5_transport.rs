@@ -26,6 +26,7 @@ use tokio::time::{interval_at, timeout, Instant};
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 use crate::mt5_session::Mt5SessionGate;
+use persistence::TradingStore;
 use crate::mt5_v1::{BridgeFrame, BridgePayload, NdjsonFrameDecoder};
 use crate::{BridgeError, BridgeResult};
 
@@ -386,6 +387,54 @@ impl AuthenticatedMt5Connection {
             };
             self.pending_frames.extend(frames);
         }
+    }
+
+    /// Read a frame and atomically connect heartbeat identity/sequence observations
+    /// to durable stream readiness and the in-memory session gate. Any persistence or
+    /// identity failure poisons the connection and degrades the session.
+    pub async fn read_frame_with_session_checkpoint(
+        &mut self,
+        store: &TradingStore,
+        session: &mut Mt5SessionGate,
+        now: DateTime<Utc>,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<BridgeFrame> {
+        let frame = self.read_frame(now, allowed_clock_skew).await?;
+        let heartbeat = match &frame.payload {
+            BridgePayload::Heartbeat(value) => value,
+            _ => return Ok(frame),
+        };
+        let account_id = frame.account_id.clone();
+        let terminal_id = heartbeat.terminal_id.clone();
+        let sequence = heartbeat.sequence;
+        let observation = match store
+            .observe_mt5_sequence(&account_id, &terminal_id, sequence)
+            .await
+        {
+            Ok(observation) => observation,
+            Err(error) => {
+                self.failed = true;
+                session.degrade();
+                return Err(BridgeError::from(error));
+            }
+        };
+        let readiness = match store.mt5_stream_readiness(&account_id, &terminal_id).await {
+            Ok(readiness) => readiness,
+            Err(error) => {
+                self.failed = true;
+                session.degrade();
+                return Err(BridgeError::from(error));
+            }
+        };
+        if let Err(error) = session.observe_heartbeat(&frame, observation, readiness) {
+            self.failed = true;
+            session.degrade();
+            let _ = store
+                .mark_mt5_stream_degraded(&account_id, &terminal_id, sequence)
+                .await;
+            return Err(error);
+        }
+        Ok(frame)
     }
 
     /// Write one validated protocol frame as NDJSON. Transport success means only
