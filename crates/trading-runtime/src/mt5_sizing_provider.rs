@@ -153,7 +153,7 @@ impl Mt5PersistedSizingProvider {
             .load_supplement(account_id, instrument_id)
             .await?;
         let now = Utc::now();
-        if supplement.account_id != *account_id || supplement.instrument_id != *instrument_id {
+        if &supplement.account_id != account_id || &supplement.instrument_id != instrument_id {
             return Err(RuntimeError::Invariant(
                 "trusted sizing supplement account/instrument identity mismatch".into(),
             ));
