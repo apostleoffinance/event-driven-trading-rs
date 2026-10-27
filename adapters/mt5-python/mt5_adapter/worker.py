@@ -88,11 +88,11 @@ class Config:
         symbols = tuple(symbol.strip() for symbol in need("MT5_SYMBOLS").split(","))
         if (
             not symbols
-            or len(symbols) > 128
+            or len(symbols) > 64
             or any(not symbol or symbol.strip() != symbol for symbol in symbols)
             or len(set(symbols)) != len(symbols)
         ):
-            raise AdapterError("MT5_SYMBOLS must contain 1–128 unique, exact broker symbol names")
+            raise AdapterError("MT5_SYMBOLS must contain 1–64 unique, exact broker symbol names")
         return cls(
             terminal_path=need("MT5_TERMINAL_PATH"),
             login=login,
