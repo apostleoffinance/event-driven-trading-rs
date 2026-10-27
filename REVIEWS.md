@@ -108,3 +108,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Future UI work must test explicit mock/API mode, LIVE label disconnected from backend, stale/disconnected/unknown health, and ensure system status is never hardcoded as healthy.
 - **Verification result:** QOS-003 source-inspection acceptance met. CI run 40425954540 completed successfully for Rust and frontend baseline commands.
 - **Remaining risk:** No browser usability test, live API handshake, production deployment, or live venue integration was performed. Do not treat this audit or green CI as proof of live readiness.
+
+
+## REV-007 — QOS-010 venue adapter contract specification
+- **Date:** 2026-10-27
+- **Context:** PR #4 merged; QOS-010 selected as the next scoped task.
+- **Finding/correction:** The current adapter exposes basic submit/cancel and account/order/position queries, but no explicit capability discovery, instrument-spec lookup, health/readiness, async event stream, or complete reconciliation contract. Existing error types already distinguish ambiguous outcomes; the cancel bridge currently marks cancellation terminal after adapter call success, which is not a safe general venue contract.
+- **Impact:** Implementing a real venue adapter before agreeing these semantics risks duplicate submits, false cancellation claims, stale-state trading, and unreconciled state after reconnect.
+- **Evidence:** Inspected `crates/venue-connectors/src/adapter.rs`, `types.rs`, `error.rs`, `simulated.rs`, `crates/domain/src/instrument.rs`, `crates/events/src/lib.rs`, `crates/venue-connectors/src/bridge.rs`, and `ARCHITECTURE.md` on main at merge commit `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`.
+- **Rule that failed:** No rule violation was proven by this specification task. These are gaps between the current API and the required target contract.
+- **Rule update made in RULES.md:** None; current financial-safety, idempotency, stale-data, and confirmation rules already cover the risks.
+- **Code/docs/tests changed:** Added `VENUE_ADAPTER_CONTRACT.md`; updated `TASKS.md`, `PROGRESS.md`, and this register. No code or tests changed.
+- **Regression/real-use check added:** Added contract-test scenarios VA-01 through VA-18 for capabilities, identity, duplicate/conflicting client IDs, pre/post-send timeout, reconciliation, cancellation confirmation, partial fills, duplicate/out-of-order events, stale specs, precision/volume validation, pagination, discrepancies, rate limits, and restart recovery.
+- **Verification result:** Source inspection and documentation consistency completed. No executable tests were run because the change is documentation-only; PR CI must verify repository workflow before merge.
+- **Remaining risk:** Contract and acceptance matrix need review before QOS-011 implementation. No provider-specific behavior, paper run, live adapter, live execution, or money movement was tested or enabled.

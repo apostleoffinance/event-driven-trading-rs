@@ -4,7 +4,7 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
 
-**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend scripts, dependencies, data modes, theme tokens, and status semantics audited in `FRONTEND_AUDIT.md`. PR #3 is merged; `main` was at `26d4a425816e358ca36ec70529e63a3f686f69d8` when QOS-003 began.
+**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract and acceptance-test matrix drafted in `VENUE_ADAPTER_CONTRACT.md`; QOS-011 is blocked pending review. These are documentation/specification statuses, not implementation or live-readiness claims.
 
 Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
@@ -78,5 +78,11 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - Risk enforcement depends on venue permissions and connection state.
 - Hosted strategies and investor-facing vaults require security, operational and legal review.
 
+## Work log — QOS-010 venue adapter contract (2026-10-27)
+- Re-read `RULES.md` and inspected the current `VenueAdapter`, request/ack/error types, `InstrumentSpec`, event crate, simulated adapter, cancel bridge, and architecture docs.
+- Added `VENUE_ADAPTER_CONTRACT.md` with explicit capability, readiness, instrument, event-stream, idempotency, ambiguity, cancel-confirmation, reconnect, and reconciliation requirements plus 18 contract-test scenarios.
+- Updated task status to QOS-010 DONE for specification only; QOS-011 remains blocked pending review of the contract and test matrix.
+- No runtime, trading, frontend, dependency, or live-mode behavior changed. No tests were run because this change is documentation-only.
+
 ## Next
-QOS-003 is complete and documented in `FRONTEND_AUDIT.md`. Key frontend risks: API mode silently falls back to mocks; `NEXT_PUBLIC_ENVIRONMENT=LIVE` is independent of backend connectivity; the top bar hardcodes `SYSTEM HEALTHY`; illustrative mock telemetry includes stale timestamps; current blue/dark tokens conflict with the white-dominant navy/orange direction. No UI or runtime behavior was changed. Next: QOS-010 adapter-contract specification, then QOS-012 instrument-aware sizing specification; implement only after these contracts and acceptance tests are reviewed. CI success is not proof of live-execution readiness.
+QOS-010 contract specification is drafted in `VENUE_ADAPTER_CONTRACT.md`. Next: QOS-012 instrument-aware sizing specification. QOS-011 implementation remains blocked until the venue contract and acceptance-test matrix are reviewed. Do not infer live execution readiness from documentation or green CI.
