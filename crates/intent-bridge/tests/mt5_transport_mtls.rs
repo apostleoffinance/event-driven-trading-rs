@@ -11,19 +11,26 @@ use rcgen::{
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
 use rustls::{ClientConfig, RootCertStore};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
+use intent_bridge::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
+use intent_bridge::mt5_reconciliation::{
+    persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
+    Mt5PositionSnapshot, Mt5ReconciliationSnapshot,
+};
 use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 use intent_bridge::mt5_transport::{
     spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
     Mt5TransportPrincipal,
 };
+use persistence::{Mt5DurableOrderState, Mt5OrderClaim, TradingStore};
+use sqlx::PgPool;
 use intent_bridge::mt5_v1::{
-    BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat,
-    MT5_BRIDGE_SCHEMA_VERSION,
+    BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat, OrderSide,
+    OrderType, SubmitOrder, SubmitOutcome, SubmitState, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
 };
 
 struct TestPki {
@@ -303,5 +310,176 @@ async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry() -> Result
     tokio::time::sleep(StdDuration::from_millis(100)).await;
     assert_eq!(session.lock().await.state(), Mt5SessionState::Degraded);
     watchdog.await?;
+    Ok(())
+}
+
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, pki.client_fingerprint.clone())?;
+    let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    let store = TradingStore::new(pool.clone());
+    let now = Utc::now();
+    let heartbeat = heartbeat_frame("account-001", "terminal-01", "broker-demo");
+    write_frame(&mut client, &heartbeat).await?;
+
+    let policy = Mt5SessionPolicy::new(["account-001"])?;
+    let mut session = Mt5SessionGate::after_transport_authentication(policy);
+    server
+        .read_frame_with_session_checkpoint(
+            &store,
+            &mut session,
+            Utc::now(),
+            Duration::seconds(5),
+        )
+        .await?;
+    let snapshot = Mt5ReconciliationSnapshot {
+        account_id: "account-001".into(),
+        terminal_id: "terminal-01".into(),
+        server: "broker-demo".into(),
+        source: "mt5_authoritative_snapshot_v1".into(),
+        sequence: 1,
+        captured_at: now,
+        account_state: Mt5AccountStateSnapshot {
+            currency: "USD".into(),
+            balance: "10000.00".into(),
+            equity: "10000.00".into(),
+            margin_used: "0.00".into(),
+            free_margin: "10000.00".into(),
+        },
+        open_orders: Vec::<Mt5OpenOrderSnapshot>::new(),
+        positions: Vec::<Mt5PositionSnapshot>::new(),
+    };
+    persist_and_confirm_reconciliation(
+        &store,
+        &mut session,
+        &snapshot,
+        Utc::now(),
+        Duration::seconds(30),
+    )
+    .await?;
+    assert_eq!(session.state(), Mt5SessionState::Ready);
+
+    let submit = BridgeFrame {
+        schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+        message_id: "submit-message-1".into(),
+        correlation_id: "submit-correlation-1".into(),
+        account_id: "account-001".into(),
+        sent_at: Utc::now(),
+        payload: BridgePayload::SubmitOrder(SubmitOrder {
+            client_order_id: "stable-order-001".into(),
+            instrument_id: "EURUSD.a".into(),
+            side: OrderSide::Buy,
+            order_type: OrderType::Market,
+            quantity: "0.01".into(),
+            price: None,
+            stop_loss: Some("1.08000".into()),
+            take_profit: Some("1.09000".into()),
+            time_in_force: TimeInForce::Day,
+        }),
+    };
+    let permit = match prepare_submit(
+        &store,
+        &session,
+        &submit,
+        Utc::now(),
+        Duration::seconds(5),
+    )
+    .await?
+    {
+        Mt5DispatchDecision::SendOnce(permit) => permit,
+        Mt5DispatchDecision::ReconcileRequired { .. } => {
+            return Err("new test order unexpectedly required reconciliation".into());
+        }
+    };
+
+    let responder = tokio::spawn(async move {
+        let mut bytes = Vec::new();
+        loop {
+            let mut byte = [0_u8; 1];
+            let count = client.read(&mut byte).await?;
+            if count == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "transport closed before submit frame",
+                ));
+            }
+            if byte[0] == b'\n' {
+                break;
+            }
+            bytes.push(byte[0]);
+            if bytes.len() > intent_bridge::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "submit frame exceeded test limit",
+                ));
+            }
+        }
+        let received: BridgeFrame = serde_json::from_slice(&bytes)?;
+        let client_order_id = match &received.payload {
+            BridgePayload::SubmitOrder(order) => order.client_order_id.clone(),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "expected submit_order frame",
+                ));
+            }
+        };
+        let response = BridgeFrame {
+            schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+            message_id: "submit-outcome-1".into(),
+            correlation_id: received.correlation_id,
+            account_id: received.account_id,
+            sent_at: Utc::now(),
+            payload: BridgePayload::SubmitOutcome(SubmitOutcome {
+                client_order_id,
+                outcome: SubmitState::Accepted,
+                venue_order_id: Some("broker-ticket-9001".into()),
+                reason_code: None,
+                observed_at: Utc::now(),
+            }),
+        };
+        let mut encoded = serde_json::to_vec(&response)?;
+        encoded.push(b'\n');
+        client.write_all(&encoded).await?;
+        client.flush().await?;
+        Ok::<(), Box<dyn Error + Send + Sync>>(())
+    });
+
+    permit
+        .execute_over_transport(
+            &mut server,
+            &store,
+            &mut session,
+            Duration::seconds(5),
+        )
+        .await?;
+    responder.await??;
+
+    let replay = store
+        .claim_mt5_order(
+            "account-001",
+            "stable-order-001",
+            serde_json::to_value(&submit.payload)?,
+        )
+        .await?;
+    assert_eq!(
+        replay,
+        Mt5OrderClaim::Existing {
+            state: Mt5DurableOrderState::Accepted,
+            venue_order_id: Some("broker-ticket-9001".into()),
+            reason_code: None,
+        }
+    );
+    let restarted = TradingStore::new(pool);
+    assert_eq!(
+        restarted
+            .mt5_stream_readiness("account-001", "terminal-01")
+            .await?,
+        Mt5StreamReadiness::Ready
+    );
     Ok(())
 }
