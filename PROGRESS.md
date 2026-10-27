@@ -145,3 +145,10 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added `instrument_aware_runtime_rejects_stale_sizing_before_oms` integration coverage, checking the decision is rejected and no OMS open order is created for stale context.
 - The existing `execute_intent` path remains backward-compatible and still uses legacy sizing. This slice does not claim runtime-owned authoritative snapshot sourcing; context trust, timestamps/freshness policy, margin, pending-order reserves, and persisted structured sizing audit remain open.
 - Code and integration test pushed to `feat/qos-013-runtime-sizing-boundary`. Initial run 40438016915 failed the formatting gate only; rustfmt corrections were applied and logged in REV-022. Corrected-head CI run 40438207539 passed Rust format, workspace check/test/Clippy and frontend lint/typecheck/build. No live mode, deployment, or money movement enabled.
+
+
+## Work log — frontend Google font build failure correction on QOS-013 branch (2026-10-27)
+- Inspected failed frontend job 121972469846 in run 40438370475. `npm ci`, lint, and typecheck passed; build failed in `next/font/google/loader.js` with `TypeError: Cannot read properties of null (reading '1')` from `frontend/src/app/layout.tsx`.
+- Removed the build-time `next/font/google` dependency and switched global/chart typography to stable system font stacks. Theme switching and PAPER metadata are unchanged.
+- Applied the three frontend changes directly to `feat/qos-013-runtime-sizing-boundary` so PR #10 will rerun against the combined changes. Correction logged in REV-024.
+- CI for the combined latest head is pending. No build/test success is claimed until that run completes. No live mode, deployment, or money movement enabled.
