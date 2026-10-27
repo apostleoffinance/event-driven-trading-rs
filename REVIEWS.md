@@ -619,3 +619,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Applied the exact formatting changes reported by rustfmt in `crates/intent-bridge/src/mt5_transport.rs`.
 - **Verification:** A new full CI run must pass on the updated PR head before merge. No compile/test/Clippy success is claimed from the failed run.
 - **Remaining risk:** This correction is formatting-only; runtime correctness remains unverified until the next full CI run and integration gaps listed in REV-048 remain open.
+
+
+## REV-050 — QOS-014 transport export formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** Second PR #23 CI run `40456746993`, Rust job `122031744793`.
+- **Finding:** The transport module formatting was corrected, but rustfmt still rejected the long public re-export line in `crates/intent-bridge/src/lib.rs`. Workspace check/tests/Clippy remained skipped.
+- **Correction:** Wrapped the public transport exports in rustfmt's expected multi-line form.
+- **Verification:** Third full CI run is required on the new branch head. No Rust compilation or test pass is claimed from this run.
+- **Remaining risk:** The previous run reached only formatting. The next run must pass formatting, workspace check/tests, Clippy and frontend checks before the slice is considered verified.
