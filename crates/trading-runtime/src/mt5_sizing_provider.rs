@@ -31,8 +31,8 @@ pub trait Mt5SizingSupplementProvider: Send + Sync {
     ) -> RuntimeResult<Mt5SizingSupplementSnapshot>;
 }
 
-fn timestamps_match(left: DateTime<Utc>, right: DateTime<Utc>) -> bool {
-    left.signed_duration_since(right)
+fn timestamps_match(left: &DateTime<Utc>, right: &DateTime<Utc>) -> bool {
+    left.signed_duration_since(right.clone())
         .num_microseconds()
         .is_some_and(|delta| delta.unsigned_abs() <= 1)
 }
@@ -132,7 +132,7 @@ impl Mt5PersistedSizingProvider {
                 .is_none_or(|captured| {
                     captured
                         .with_timezone(&Utc)
-                        .signed_duration_since(record.captured_at)
+                        .signed_duration_since(record.captured_at.clone())
                         .num_microseconds()
                         .is_none_or(|delta| delta.unsigned_abs() > 1)
                 })
@@ -171,7 +171,7 @@ impl Mt5PersistedSizingProvider {
         .map_err(|error| RuntimeError::Invariant(format!("MT5 sizing data rejected: {error}")))?;
 
         if prepared.sequence != record.sequence
-            || !timestamps_match(prepared.snapshot_captured_at, record.captured_at)
+            || !timestamps_match(&prepared.snapshot_captured_at, &record.captured_at)
         {
             return Err(RuntimeError::Invariant(
                 "prepared MT5 sizing metadata does not match persisted record".into(),
@@ -179,7 +179,8 @@ impl Mt5PersistedSizingProvider {
         }
         let captured_at = prepared
             .snapshot_captured_at
-            .min(prepared.quote_time)
+            .clone()
+            .min(prepared.quote_time.clone())
             .min(supplement.captured_at);
 
         Ok(RuntimeInstrumentSizingContext {
