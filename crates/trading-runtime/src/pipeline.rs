@@ -712,6 +712,24 @@ fn sizing_audit_payload(
             "exposure_cap_pct": request.policy.max_total_exposure_pct.to_string(),
             "max_leverage": request.policy.max_leverage.to_string()
         },
+        "risk_policy_snapshot": {
+            "version": null,
+            "max_risk_per_trade_pct": request.policy.max_risk_per_trade_pct.to_string(),
+            "max_position_size_pct": request.policy.max_position_size_pct.to_string(),
+            "max_total_exposure_pct": request.policy.max_total_exposure_pct.to_string(),
+            "max_leverage": request.policy.max_leverage.to_string(),
+            "max_daily_loss_pct": request.policy.max_daily_loss_pct.to_string(),
+            "max_drawdown_pct": request.policy.max_drawdown_pct.to_string(),
+            "max_open_positions": request.policy.max_open_positions,
+            "allowed_instruments": request.policy.allowed_instruments.as_ref().map(|items| {
+                items.iter().map(|id| id.as_str().to_string()).collect::<Vec<_>>()
+            }),
+            "restricted_instruments": request.policy.restricted_instruments.iter()
+                .map(|id| id.as_str().to_string()).collect::<Vec<_>>(),
+            "global_kill_switch": request.policy.global_kill_switch,
+            "account_kill_switch": request.policy.account_kill_switch,
+            "strategy_kill_switch": request.policy.strategy_kill_switch
+        },
         "loss_model": loss_model,
         "constraints": {
             "notional_to_account_rate": snapshot.sizing.notional_to_account_rate.to_string(),
