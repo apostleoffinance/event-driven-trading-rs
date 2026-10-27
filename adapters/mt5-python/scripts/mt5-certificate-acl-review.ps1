@@ -102,6 +102,10 @@ foreach ($entry in @(@{name="client"; cert=$metadata.client}, @{name="server"; c
 }
 $clientAclOk = Test-PrivateKeyAcl "client private key" $clientKey
 $serverAclOk = Test-PrivateKeyAcl "server private key" $serverKey
-if ($expired -or -not $clientAclOk -or -not $serverAclOk) { throw "Certificate lifecycle/ACL review FAILED. Do not proceed to venue execution." }
+$clientKeyParent = Split-Path -Parent $clientKey
+$serverKeyParent = Split-Path -Parent $serverKey
+$clientParentAclOk = Test-PrivateKeyAcl "client private-key parent directory" $clientKeyParent
+$serverParentAclOk = Test-PrivateKeyAcl "server private-key parent directory" $serverKeyParent
+if ($expired -or -not $clientAclOk -or -not $serverAclOk -or -not $clientParentAclOk -or -not $serverParentAclOk) { throw "Certificate lifecycle/ACL review FAILED. Do not proceed to venue execution." }
 Write-Host "PASS: certificate/key pairs load, client fingerprint matches pin, validity dates inspected, and no broad-principal key-read ACL was found."
 Write-Host "MANUAL REQUIRED: record CA trust/revocation method, rotation owner, overlap, rollback, and tested rotation evidence. This script cannot prove revocation status or that rotation/rollback has been exercised."
