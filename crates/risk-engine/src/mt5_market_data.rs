@@ -254,7 +254,8 @@ pub fn prepare_mt5_sizing(
     max_age: Duration,
     supplement: &Mt5SizingSupplement,
 ) -> Result<PreparedMt5Sizing, Mt5SizingDataError> {
-    if symbol.trim().is_empty() || account_currency.trim().is_empty() || max_age < Duration::zero() {
+    if symbol.trim().is_empty() || account_currency.trim().is_empty() || max_age < Duration::zero()
+    {
         return Err(Mt5SizingDataError::Malformed);
     }
     if text(snapshot, "account_currency")? != account_currency {
