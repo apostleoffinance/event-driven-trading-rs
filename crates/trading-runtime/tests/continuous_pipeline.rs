@@ -13,7 +13,7 @@ use mean_reversion::{MeanReversionConfig, MeanReversionStrategy};
 use risk_engine::{InstrumentSizingContext, LossModel};
 use rust_decimal::Decimal;
 use strategy_runtime::StrategyContext;
-use trading_runtime::{RuntimeConfig, TradingRuntime};
+use trading_runtime::{RuntimeConfig, RuntimeInstrumentSizingContext, TradingRuntime};
 use venue_connectors::{SimulatedVenue, VenueAdapter};
 
 #[tokio::test]
@@ -250,7 +250,10 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
     .unwrap()
     .build()
     .unwrap();
-    let context = InstrumentSizingContext {
+    let context = RuntimeInstrumentSizingContext {
+        account_id: account_id.clone(),
+        instrument_id: intent.instrument_id.clone(),
+        sizing: InstrumentSizingContext {
         loss_model: LossModel::Linear {
             contract_multiplier: Decimal::ONE,
             pnl_to_account_rate: Decimal::ONE,
@@ -263,6 +266,7 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         min_notional_account_currency: None,
         estimated_cost_per_quantity: Decimal::ZERO,
         slippage_gap_buffer_per_quantity: Decimal::ZERO,
+        },
     };
     let (events_out, _events_in) = event_channel(32);
 
