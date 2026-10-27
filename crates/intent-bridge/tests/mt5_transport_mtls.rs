@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration as StdDuration;
 
 use chrono::{Duration, Utc};
 use rcgen::{
@@ -12,9 +13,14 @@ use rustls::{ClientConfig, RootCertStore};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
-use intent_bridge::mt5_transport::{AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportPrincipal};
+use intent_bridge::mt5_transport::{
+    spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig,
+    Mt5TransportLimits, Mt5TransportPrincipal,
+};
+use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 use intent_bridge::mt5_v1::{
     BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat,
     MT5_BRIDGE_SCHEMA_VERSION,
@@ -265,5 +271,41 @@ async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result
             .await
             .is_err());
     }
+    Ok(())
+}
+
+
+#[tokio::test]
+async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry() -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, pki.client_fingerprint.clone())?.with_limits(
+        Mt5TransportLimits {
+            handshake_timeout: StdDuration::from_secs(1),
+            io_timeout: StdDuration::from_secs(1),
+            heartbeat_timeout: StdDuration::from_millis(40),
+            max_concurrent_connections: 2,
+        },
+    )?;
+    let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    write_frame(
+        &mut client,
+        &heartbeat_frame("account-001", "terminal-01", "broker-demo"),
+    )
+    .await?;
+    server
+        .read_frame(Utc::now(), Duration::seconds(5))
+        .await?;
+
+    let connection = Arc::new(Mutex::new(server));
+    let policy = Mt5SessionPolicy::new(["account-001"])?;
+    let session = Arc::new(Mutex::new(Mt5SessionGate::after_transport_authentication(policy)));
+    let watchdog = spawn_heartbeat_watchdog(
+        connection,
+        session.clone(),
+        StdDuration::from_millis(5),
+    )?;
+    tokio::time::sleep(StdDuration::from_millis(100)).await;
+    assert_eq!(session.lock().await.state(), Mt5SessionState::Degraded);
+    watchdog.await?;
     Ok(())
 }
