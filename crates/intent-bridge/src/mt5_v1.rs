@@ -19,7 +19,9 @@ pub fn parse_frame_json(
     allowed_clock_skew: Duration,
 ) -> BridgeResult<BridgeFrame> {
     if json.len() > MAX_MT5_BRIDGE_FRAME_BYTES {
-        return Err(BridgeError::Invalid("MT5 bridge frame exceeds 64 KiB limit".into()));
+        return Err(BridgeError::Invalid(
+            "MT5 bridge frame exceeds 64 KiB limit".into(),
+        ));
     }
     let frame: BridgeFrame = serde_json::from_str(json)?;
     frame.validate_at(now, allowed_clock_skew)?;
@@ -213,7 +215,11 @@ impl BridgeFrame {
     /// Validate protocol invariants using an injected clock and allowed skew.
     /// This keeps tests deterministic and prevents a wall clock from being
     /// hidden inside protocol validation.
-    pub fn validate_at(&self, now: DateTime<Utc>, allowed_clock_skew: Duration) -> BridgeResult<()> {
+    pub fn validate_at(
+        &self,
+        now: DateTime<Utc>,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<()> {
         if self.schema_version != MT5_BRIDGE_SCHEMA_VERSION {
             return Err(BridgeError::Invalid(format!(
                 "unsupported MT5 bridge schema version {}",
@@ -229,7 +235,9 @@ impl BridgeFrame {
             ));
         }
         if allowed_clock_skew < Duration::zero() || self.sent_at > now + allowed_clock_skew {
-            return Err(BridgeError::Invalid("message timestamp is in the future".into()));
+            return Err(BridgeError::Invalid(
+                "message timestamp is in the future".into(),
+            ));
         }
         match &self.payload {
             BridgePayload::Heartbeat(heartbeat) => {
@@ -256,13 +264,19 @@ impl BridgeFrame {
                 }
                 match order.order_type {
                     OrderType::Market if order.price.is_some() => {
-                        return Err(BridgeError::Invalid("market order must not specify price".into()));
+                        return Err(BridgeError::Invalid(
+                            "market order must not specify price".into(),
+                        ));
                     }
                     OrderType::Limit | OrderType::Stop if order.price.is_none() => {
-                        return Err(BridgeError::Invalid("limit/stop order requires price".into()));
+                        return Err(BridgeError::Invalid(
+                            "limit/stop order requires price".into(),
+                        ));
                     }
                     OrderType::StopLimit if order.price.is_none() => {
-                        return Err(BridgeError::Invalid("stop-limit order requires price".into()));
+                        return Err(BridgeError::Invalid(
+                            "stop-limit order requires price".into(),
+                        ));
                     }
                     _ => {}
                 }
@@ -270,13 +284,19 @@ impl BridgeFrame {
             BridgePayload::SubmitOutcome(outcome) => {
                 require_text(&outcome.client_order_id, "client_order_id")?;
                 if outcome.outcome == SubmitState::Unknown && outcome.reason_code.is_none() {
-                    return Err(BridgeError::Invalid("unknown submit outcome requires reason_code".into()));
+                    return Err(BridgeError::Invalid(
+                        "unknown submit outcome requires reason_code".into(),
+                    ));
                 }
             }
-            BridgePayload::CancelOrder(cancel) => require_text(&cancel.client_order_id, "client_order_id")?,
+            BridgePayload::CancelOrder(cancel) => {
+                require_text(&cancel.client_order_id, "client_order_id")?
+            }
             BridgePayload::CancelOutcome(outcome) => {
                 require_text(&outcome.client_order_id, "client_order_id")?;
-                if outcome.request_state != CancelRequestState::Requested && outcome.terminal_state.is_some() {
+                if outcome.request_state != CancelRequestState::Requested
+                    && outcome.terminal_state.is_some()
+                {
                     return Err(BridgeError::Invalid(
                         "terminal state requires an accepted cancel request or separate order snapshot".into(),
                     ));
@@ -285,15 +305,21 @@ impl BridgeFrame {
             BridgePayload::OrderSnapshot(snapshot) => {
                 require_text(&snapshot.client_order_id, "client_order_id")?;
                 if decimal(&snapshot.filled_quantity, "filled_quantity")? < Decimal::ZERO {
-                    return Err(BridgeError::Invalid("filled_quantity must be non-negative".into()));
+                    return Err(BridgeError::Invalid(
+                        "filled_quantity must be non-negative".into(),
+                    ));
                 }
                 if let Some(price) = snapshot.average_fill_price.as_deref() {
                     if decimal(price, "average_fill_price")? <= Decimal::ZERO {
-                        return Err(BridgeError::Invalid("average_fill_price must be positive".into()));
+                        return Err(BridgeError::Invalid(
+                            "average_fill_price must be positive".into(),
+                        ));
                     }
                 }
             }
-            BridgePayload::ReconcileRequest(request) => require_text(&request.client_order_id, "client_order_id")?,
+            BridgePayload::ReconcileRequest(request) => {
+                require_text(&request.client_order_id, "client_order_id")?
+            }
         }
         Ok(())
     }
@@ -417,7 +443,9 @@ mod tests {
         let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
         let mut order = valid_order();
         order.quantity = "1e-2".into();
-        assert!(frame(BridgePayload::SubmitOrder(order)).validate_at(now, Duration::zero()).is_err());
+        assert!(frame(BridgePayload::SubmitOrder(order))
+            .validate_at(now, Duration::zero())
+            .is_err());
 
         let mut order = valid_order();
         order.quantity = "0".into();
@@ -434,7 +462,9 @@ mod tests {
             reason_code: Some("response_lost".into()),
             observed_at: now,
         };
-        assert!(frame(BridgePayload::SubmitOutcome(outcome)).validate_at(now, Duration::zero()).is_ok());
+        assert!(frame(BridgePayload::SubmitOutcome(outcome))
+            .validate_at(now, Duration::zero())
+            .is_ok());
     }
 
     #[test]
@@ -447,6 +477,8 @@ mod tests {
             observed_at: now,
             reason_code: None,
         };
-        assert!(frame(BridgePayload::CancelOutcome(outcome)).validate_at(now, Duration::zero()).is_ok());
+        assert!(frame(BridgePayload::CancelOutcome(outcome))
+            .validate_at(now, Duration::zero())
+            .is_ok());
     }
 }
