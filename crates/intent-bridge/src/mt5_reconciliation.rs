@@ -166,8 +166,10 @@ pub async fn persist_and_confirm_reconciliation(
         degrade_session_and_stream(store, session).await;
         return Err(error);
     }
-    if session.state() != Mt5SessionState::ReconciliationRequired
-        || session.account_id() != Some(snapshot.account_id.as_str())
+    if !matches!(
+        session.state(),
+        Mt5SessionState::ReconciliationRequired | Mt5SessionState::Ready
+    ) || session.account_id() != Some(snapshot.account_id.as_str())
         || session.terminal_id() != Some(snapshot.terminal_id.as_str())
         || session.server() != Some(snapshot.server.as_str())
         || !session
