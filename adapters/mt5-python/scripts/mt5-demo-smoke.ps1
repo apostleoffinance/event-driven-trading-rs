@@ -54,7 +54,7 @@ if ($fingerprint -notmatch '^[0-9a-f]{64}$') {
 if ($login -notmatch '^[0-9]+$') {
     throw "MT5_LOGIN must be the numeric demo login."
 }
-$symbolList = @($symbols.Split(",") | ForEach-Object { $_.Trim() })
+$symbolList = @($symbols.Split(","))
 if ($symbolList.Count -lt 1 -or $symbolList.Count -gt 64 -or ($symbolList | Select-Object -Unique).Count -ne $symbolList.Count -or ($symbolList | Where-Object { [string]::IsNullOrWhiteSpace($_) -or $_ -ne $_.Trim() }).Count -gt 0) {
     throw "MT5_SYMBOLS must contain 1-64 unique, exact broker symbol names."
 }
@@ -67,6 +67,9 @@ $env:SMOKE_SERVER = $server
 $env:SMOKE_EXPECTED_CURRENCY = $expectedCurrency
 $env:SMOKE_SYMBOLS = ($symbolList -join ",")
 $env:SMOKE_CLIENT_CERT = $clientCert
+$env:SMOKE_CLIENT_KEY = $clientKey
+$env:SMOKE_SERVER_CERT = $serverCert
+$env:SMOKE_SERVER_KEY = $serverKey
 $env:SMOKE_EXPECTED_FINGERPRINT = $fingerprint
 
 $pythonProbe = @'
@@ -85,6 +88,9 @@ try:
     expected = os.environ["SMOKE_EXPECTED_FINGERPRINT"].lower()
     if actual != expected:
         fail("client certificate DER fingerprint does not match MT5_BRIDGE_PRINCIPAL_SHA256")
+    for cert_var, key_var in (("SMOKE_CLIENT_CERT", "SMOKE_CLIENT_KEY"), ("SMOKE_SERVER_CERT", "SMOKE_SERVER_KEY")):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER if cert_var == "SMOKE_SERVER_CERT" else ssl.PROTOCOL_TLS_CLIENT)
+        context.load_cert_chain(os.environ[cert_var], os.environ[key_var])
     import MetaTrader5 as mt5
 except Exception as exc:
     fail("certificate or MetaTrader5 preflight failed: " + type(exc).__name__)
@@ -180,7 +186,7 @@ SELECT json_build_object(
   'quotes_fresh', (SELECT COALESCE(bool_and(
       EXTRACT(EPOCH FROM (NOW() - (value->>'tick_time')::timestamptz)) BETWEEN -5 AND 60
       AND (value->>'bid')::numeric > 0
-      AND (value->>'ask')::numeric >= (q->>'bid')::numeric
+      AND (value->>'ask')::numeric >= (value->>'bid')::numeric
     ), false) FROM jsonb_array_elements(m.snapshot->'quotes') AS quote(value))
   ,
   'reconciliation_age_seconds', EXTRACT(EPOCH FROM (NOW() - r.captured_at)),
