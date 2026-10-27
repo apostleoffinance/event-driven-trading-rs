@@ -216,3 +216,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** None; the full CI matrix reran on the latest PR head.
 - **Verification result:** Latest PR head `8b413f5127e906650f8621b84543b5bb4ee0741d`, run 40434342385, all checks green.
 - **Remaining risk:** PR #7 is open/unmerged. Venue event-stream deduplication/reconnect remains out of scope until the adapter exposes an event stream; no live execution or money movement enabled.
+
+
+## REV-015 — QOS-011 merge status corrected; QOS-013 implementation plan audited
+- **Date:** 2026-10-27
+- **Context:** Follow-up after the user confirmed PR #7 had merged and requested the recommended next steps.
+- **Finding/correction:** `TASKS.md` and `PROGRESS.md` still said PR #7 was open/unmerged despite the actual GitHub PR metadata reporting `merged: true` and merge commit `324d327f035ca5ccb573404cc8e446b816990ada`. Historical work-log entries remain as historical records, but the current summaries were stale. The existing sizing implementation also remains materially narrower than the QOS-012 specification: it uses absolute price-stop distance as a quantity cap and has no instrument tick-value model, currency conversion, freshness snapshots, venue volume-step/min/max validation, margin inputs, or pending-order reserves in `RiskRequest`.
+- **Impact:** Stale task status misleads sequencing, and implementing a universal sizing formula from the current request fields could misstate risk across instrument/account currencies.
+- **Evidence:** GitHub PR #7 metadata reports merged at `2026-10-27T01:48:38Z`, merge commit `324d327f035ca5ccb573404cc8e446b816990ada`. Source audit: `crates/risk-engine/src/sizing.rs`, `crates/risk-engine/src/evaluator.rs`, `crates/domain/src/risk.rs`, `crates/domain/src/instrument.rs`, `crates/domain/src/account.rs`, `crates/trading-runtime/src/pipeline.rs`, and `INSTRUMENT_AWARE_SIZING.md` on `main`.
+- **Rule that failed:** Progress accuracy (RULES.md Workflow 6) was not maintained after merge; the financial model gap is a known implementation limitation against Financial Safety 13 and stale/missing-data fail-closed requirements.
+- **Rule update made in RULES.md:** None; existing rules already cover verified status and instrument-aware sizing.
+- **Code/docs/tests changed:** Corrected current QOS-011/QOS-013 status in `TASKS.md` and `PROGRESS.md`; added `QOS-013_IMPLEMENTATION_PLAN.md`; appended this review entry. No runtime code changed.
+- **Regression/real-use check added:** QOS-013 plan defines deterministic unit/integration acceptance criteria, including stop geometry, unsupported/missing instrument inputs, decimal rounding, fail-closed data requirements, and the risk-to-OMS boundary. These tests are planned, not yet implemented or run.
+- **Verification result:** PR #7 merge status verified through GitHub PR metadata; source inspection completed. No tests/checks were run because this PR is documentation-only. This is not a claim that the QOS-013 implementation is complete or safe for live execution.
+- **Remaining risk:** Current sizing implementation still lacks the required typed instrument, conversion, freshness, margin, and venue constraints. QOS-013 implementation must remain paper/simulation-only and must not mark unsupported instrument models executable.
