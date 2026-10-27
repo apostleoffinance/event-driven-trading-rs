@@ -1,57 +1,92 @@
-# MT5 Demo Smoke Test — QOS-015A / QOS-015B
+# QOS-015A — Windows MT5 Demo Conformance Runbook
 
-**Purpose:** produce real-host evidence that the read-only Windows MT5 worker authenticates to the Rust daemon, reconciles account/orders/positions, and persists fresh instrument metadata and quotes. This is not an execution test and does not authorize live trading.
+**Status:** real-host evidence pending. CI and static tests do not establish conformance of the Windows VPS.
 
-## Preconditions
+## Safety boundary
 
-- Run on the target Windows VPS that hosts the intended MetaTrader 5 terminal.
-- Use a broker demo account only; confirm the terminal is logged into the intended demo server.
-- Apply repository PostgreSQL migrations using the normal deployment process. The daemon does not run migrations.
-- Install Rust, Python 3.12, PostgreSQL client tools (`psql`), and the adapter's terminal extra (`pip install -e ".[terminal]"`).
-- Start `mt5-bridge-daemon` and the read-only worker in separate PowerShell sessions using the environment variables in [the adapter README](../adapters/mt5-python/README.md).
-- Configure `MT5_SYMBOLS` with exact broker symbols; do not normalize suffixes or guess symbols.
-- Set `MT5_EXPECTED_ACCOUNT_CURRENCY` for the preflight check.
+- Use only the designated MT5 demo account.
+- Keep worker and daemon read-only. Do not add order submission/cancel calls or weaken TLS validation.
+- Never clear the sequence checkpoint or database snapshots to force a pass.
+- Never capture/publish broker passwords, private-key material, complete database URLs, or unredacted terminal diagnostics.
+- Venue execution remains disabled.
 
-## Run
+## 1. Capture baseline
 
-In a third PowerShell session on the same host:
+On the Windows VPS, record UTC start time, host identifier, Windows/PowerShell/Python versions, repository commit, terminal build, daemon and worker process/service names, and the demo account's masked login plus exact server/currency. Store sensitive operational details only in the protected operations record.
 
-```powershell
-.\adapters\mt5-python\scripts\mt5-demo-smoke.ps1
-```
+Confirm the terminal is connected to the expected demo server and the daemon and worker use the intended configuration. Do not echo environment dumps.
 
-Optional timeout/poll settings:
+## 2. First smoke pass
 
-```powershell
+In a separate PowerShell session on the same host, with smoke-test environment values configured but not echoed:
+
+\`\`\`powershell
+$PSVersionTable.PSVersion
+python --version
 .\adapters\mt5-python\scripts\mt5-demo-smoke.ps1 -TimeoutSeconds 240 -PollSeconds 10
-```
+\`\`\`
 
-The harness checks:
-1. Required environment values and certificate files exist; the worker leaf-certificate DER SHA-256 fingerprint matches the daemon's configured pin.
-2. The configured MT5 terminal initializes with the expected demo login and server; account currency matches the operator-supplied expected value.
-3. Every configured exact symbol (already selected by the running worker) has fresh bid/ask and valid tick size/value, contract size, and volume constraints. The smoke probe does not call `symbol_select` or modify Market Watch.
-4. The daemon's configured TCP listener is reachable and PostgreSQL has both market-data and reconciliation snapshot tables.
-5. The database contains a fresh market-data snapshot and a fresh reconciliation snapshot for the exact account/terminal; server, account currency, symbols, bid/ask validity, quote freshness, and at least two distinct market-data sequences are checked.
+Save timestamped console output to the protected evidence location. The script must verify account/server/currency, exact symbols, fresh quote/specification data, client certificate fingerprint and certificate/key loading, daemon listener, migrated database tables, persisted market-data/reconciliation snapshots, and two distinct fresh market-data sequences.
 
-A passing run proves only the checks above for that host and time. Preserve the console output and timestamps as release evidence. Never record the MT5 password, private keys, full database connection string, or unredacted broker diagnostics.
+If it fails, preserve the redacted error and timestamped daemon/worker logs, diagnose, fix, and rerun. Partial output is not a pass.
 
-## Required follow-up: reconnect and credential lifecycle
+## 3. Prove reconnect and reconciliation after worker restart
 
-After the first pass:
-1. Stop the Python worker cleanly, leave the daemon running, and verify the daemon logs show the connection was discarded/closed.
-2. Restart the worker with the same sequence checkpoint file. Run the harness again and confirm fresh market data and reconciliation return without manually clearing database state or resetting the sequence file.
-3. Review filesystem ACLs on server/client private keys: only the relevant service identity and approved administrators should be able to read them.
-4. Record certificate subject/issuer, expiry, pinned leaf fingerprint, revocation method, rotation owner, and the tested overlap/roll-forward/rollback procedure in the deployment's protected operations record. Do not put private key material in this repository.
-5. Verify an untrusted or wrong-fingerprint client is rejected using the existing TLS integration tests; do not test credential failure by weakening TLS validation.
+Do this only after the first smoke pass. Keep the daemon running throughout.
 
-## Acceptance / stop conditions
+1. Record UTC time and current worker PID/service status.
+2. Stop the worker only using its normal service manager/documented stop command. Do not stop the daemon or terminal and do not remove the sequence checkpoint.
+3. Verify the worker is stopped. Confirm daemon logs record connection closure/discard without secrets.
+4. Start the worker using the same configuration and same MT5_SEQUENCE_FILE.
+5. Observe the worker reconnect. Do not reset the sequence file or delete database rows.
+6. Rerun the smoke harness. It must pass with fresh market-data and reconciliation snapshots and two distinct market-data sequences.
+7. Confirm from protected logs/database evidence that the post-restart market-data sequence is greater than the pre-stop sequence and reconciliation was persisted after reconnect. Record exact values and UTC timestamps.
+8. If reconnect fails, sequence regresses, reconciliation does not refresh, or snapshots remain stale, mark FAIL/BLOCKED. Do not proceed to execution.
 
-- [ ] Correct demo account/server/currency and terminal identity confirmed.
-- [ ] Exact configured symbols, metadata, and fresh ticks validated.
-- [ ] Market-data and reconciliation snapshots are both fresh and persisted for the same account/terminal.
-- [ ] Market-data sequence advances across repeated polls.
-- [ ] Worker restart recovers through a fresh authenticated connection and reconciliation.
-- [ ] Certificate pin, expiry/revocation and private-key ACL review recorded.
-- [ ] Output and logs are redacted and attached to the change/release review.
+The smoke harness proves repeated sequences advance during its observation window. The operator must explicitly compare before-stop and after-restart values to prove restart continuity.
 
-Any identity mismatch, missing symbol, stale quote, absent snapshot, sequence regression, TLS failure, or inability to verify the certificate/key ACLs blocks the release gate. No order submission/cancellation is part of this test; live execution remains deferred.
+## 4. Certificate lifecycle and private-key ACL review
+
+Run from an authorized PowerShell session, substituting the exact Windows service identity running the worker/daemon. Do not use a broad group as the expected service identity.
+
+\`\`\`powershell
+.\adapters\mt5-python\scripts\mt5-certificate-acl-review.ps1 -ExpectedServiceIdentity 'DOMAIN\QuantOS-MT5'
+\`\`\`
+
+The script verifies configured files exist, loads both certificate/key pairs without exporting or printing key material, prints certificate subject/issuer/validity/fingerprint, confirms the client leaf fingerprint matches MT5_BRIDGE_PRINCIPAL_SHA256, reports key ACL entries, fails on broad-principal read grants, and warns near expiry.
+
+Review ACL output including inherited ACEs and warnings for other identities against actual service-account policy. Script success is necessary but not sufficient; perform a manual effective-access review.
+
+Record and test all of the following in the protected operations record:
+
+- [ ] Issuing CA and trust-chain owner for client/server certificates.
+- [ ] Revocation method and evidence the deployed daemon/worker enforce it. The script does not query OCSP/CRL.
+- [ ] Rotation owner, expiry alert owner, and rotation schedule.
+- [ ] New certificate fingerprint pin-update procedure and safe overlap of old/new certificates.
+- [ ] Tested roll-forward and rollback, including negative test that an old/untrusted identity is rejected when expected.
+- [ ] Private-key ACLs on both key files and parent directories; only service identity and approved administrators should have necessary access.
+- [ ] No private key or secret copied into source, CI artifacts, logs, or evidence attachments.
+
+Do not test rejection by disabling certificate verification or weakening TLS.
+
+## 5. Evidence record
+
+Copy docs/MT5_DEMO_CONFORMANCE_EVIDENCE_TEMPLATE.md into the protected release record. Complete every field and attach redacted console output and timestamped logs. Link the protected evidence record from the PR/release review without committing credentials or sensitive operational details.
+
+## Acceptance gate
+
+All items must be PASS before any venue-execution task:
+
+- [ ] First smoke pass succeeded on the actual Windows VPS.
+- [ ] Correct demo identity, server, currency, exact symbols and fresh quotes/specifications verified.
+- [ ] Fresh market-data and reconciliation snapshots persisted for the same account/terminal.
+- [ ] At least two distinct market-data sequences observed.
+- [ ] Worker-only restart succeeded with daemon left running.
+- [ ] Post-restart market-data sequence advanced beyond pre-stop sequence.
+- [ ] Fresh post-restart reconciliation persisted.
+- [ ] Client/server certificate expiry, fingerprint pin, CA trust and revocation policy reviewed.
+- [ ] Private-key ACL and parent-directory effective access reviewed.
+- [ ] Rotation and rollback procedure tested and recorded.
+- [ ] Redacted evidence attached and independently reviewed.
+
+Any FAIL, UNKNOWN, or unrecorded check means the gate is BLOCKED. Do not enable venue execution.
