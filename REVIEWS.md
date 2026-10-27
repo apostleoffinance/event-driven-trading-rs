@@ -294,3 +294,5 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update:** None. The existing stop-geometry rule is clear; the regression fixture was inconsistent with it.
 - **Verification:** Fix pushed to the QOS-013 branch; new CI run must pass before the task can be treated as verified.
 - **Remaining risk:** Full SZ-01–SZ-26 implementation and production runtime snapshot wiring are still open; this correction addresses only the failed test fixture.
+
+- **Verification result update (2026-10-27):** Corrected-head CI run 40436418111 completed with conclusion `success`. Rust format, workspace check, workspace test, and all-target Clippy steps passed; frontend lint, typecheck, and production build also passed. This verifies this implementation slice on the cited commit only, not full QOS-013 completion or production/live readiness.
