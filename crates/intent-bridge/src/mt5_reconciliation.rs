@@ -101,7 +101,11 @@ impl Mt5ReconciliationSnapshot {
                     "MT5 reconciliation contains an invalid or duplicate external order".into(),
                 ));
             }
-            if order.client_order_id.as_deref().is_some_and(|id| id.trim().is_empty()) {
+            if order
+                .client_order_id
+                .as_deref()
+                .is_some_and(|id| id.trim().is_empty())
+            {
                 return Err(BridgeError::Invalid(
                     "MT5 reconciliation contains an empty client order ID".into(),
                 ));
@@ -157,7 +161,8 @@ pub async fn persist_and_confirm_reconciliation(
     {
         session.degrade();
         return Err(BridgeError::Invalid(
-            "MT5 external snapshot does not match a connected session awaiting reconciliation".into(),
+            "MT5 external snapshot does not match a connected session awaiting reconciliation"
+                .into(),
         ));
     }
 
@@ -262,11 +267,19 @@ mod tests {
     fn reconciliation_rejects_duplicate_external_order_and_position_ids() {
         let now = Utc::now();
         let mut duplicate_order = snapshot(now);
-        duplicate_order.open_orders.push(duplicate_order.open_orders[0].clone());
-        assert!(duplicate_order.validate(now, Duration::seconds(30)).is_err());
+        duplicate_order
+            .open_orders
+            .push(duplicate_order.open_orders[0].clone());
+        assert!(duplicate_order
+            .validate(now, Duration::seconds(30))
+            .is_err());
 
         let mut duplicate_position = snapshot(now);
-        duplicate_position.positions.push(duplicate_position.positions[0].clone());
-        assert!(duplicate_position.validate(now, Duration::seconds(30)).is_err());
+        duplicate_position
+            .positions
+            .push(duplicate_position.positions[0].clone());
+        assert!(duplicate_position
+            .validate(now, Duration::seconds(30))
+            .is_err());
     }
 }
