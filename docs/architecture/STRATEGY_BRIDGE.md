@@ -49,6 +49,10 @@ python -m trading_strategies.mean_reversion --prices 100,100,100,90 \
   | cargo run -p intent-bridge -- --venue prop
 ```
 
+## MT5 terminal bridge
+
+The separate terminal-facing protocol boundary is specified in [`docs/MT5_BRIDGE_V1.md`](../MT5_BRIDGE_V1.md), with JSON Schema at [`docs/contracts/mt5_bridge_v1.schema.json`](../contracts/mt5_bridge_v1.schema.json) and Rust validation types in `crates/intent-bridge/src/mt5_v1.rs`. This is a versioned message contract only; it does not imply an MT5 transport, Expert Advisor, or live connector exists.
+
 ## Legacy
 
 `strategies/mean-reversion` (Rust) remains as a reference / Phase 3 artifact.

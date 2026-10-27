@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://event-trading.local/contracts/mt5_bridge_v1.schema.json",
+  "title": "MT5 Bridge v1 Frame",
+  "description": "Versioned terminal bridge protocol. Financial decimals are JSON strings, never JSON numbers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "message_id", "correlation_id", "account_id", "sent_at", "payload"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "message_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "account_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sent_at": { "type": "string", "format": "date-time" },
+    "payload": {
+      "oneOf": [
+        { "$ref": "#/$defs/heartbeat" },
+        { "$ref": "#/$defs/submit_order" },
+        { "$ref": "#/$defs/submit_outcome" },
+        { "$ref": "#/$defs/cancel_order" },
+        { "$ref": "#/$defs/cancel_outcome" },
+        { "$ref": "#/$defs/order_snapshot" },
+        { "$ref": "#/$defs/reconcile_request" }
+      ]
+    }
+  },
+  "$defs": {
+    "decimal": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$", "description": "Exact base-10 decimal string; no exponent, whitespace, or JSON number." },
+    "heartbeat": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "sequence", "terminal_id", "server", "terminal_time", "connection", "capabilities"],
+      "properties": {
+        "type": { "const": "heartbeat" }, "sequence": { "type": "integer", "minimum": 0 },
+        "terminal_id": { "type": "string", "minLength": 1 }, "server": { "type": "string", "minLength": 1 },
+        "terminal_time": { "type": "string", "format": "date-time" },
+        "connection": { "enum": ["connected", "degraded", "disconnected", "unknown"] },
+        "capabilities": { "type": "object", "additionalProperties": false,
+          "required": ["market_orders", "limit_orders", "stop_orders", "cancel_requests", "order_lookup", "idempotent_client_order_id", "sequence_numbers"],
+          "properties": {
+            "market_orders": { "type": "boolean" }, "limit_orders": { "type": "boolean" },
+            "stop_orders": { "type": "boolean" }, "cancel_requests": { "type": "boolean" },
+            "order_lookup": { "type": "boolean" }, "idempotent_client_order_id": { "type": "boolean" },
+            "sequence_numbers": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "submit_order": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "client_order_id", "instrument_id", "side", "order_type", "quantity", "time_in_force"],
+      "properties": {
+        "type": { "const": "submit_order" }, "client_order_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "instrument_id": { "type": "string", "minLength": 1 }, "side": { "enum": ["buy", "sell"] },
+        "order_type": { "enum": ["market", "limit", "stop", "stop_limit"] },
+        "quantity": { "$ref": "#/$defs/decimal" }, "price": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "stop_loss": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] }, "take_profit": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "time_in_force": { "enum": ["day", "gtc", "ioc", "fok"] }
+      }
+    },
+    "submit_outcome": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "client_order_id", "outcome", "observed_at"],
+      "properties": {
+        "type": { "const": "submit_outcome" }, "client_order_id": { "type": "string", "minLength": 1 },
+        "outcome": { "enum": ["accepted", "rejected", "unknown"] }, "venue_order_id": { "type": ["string", "null"] },
+        "reason_code": { "type": ["string", "null"] }, "observed_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "cancel_order": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "client_order_id"],
+      "properties": { "type": { "const": "cancel_order" }, "client_order_id": { "type": "string", "minLength": 1 }, "venue_order_id": { "type": ["string", "null"] } }
+    },
+    "cancel_outcome": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "client_order_id", "request_state", "terminal_state", "observed_at", "reason_code"],
+      "properties": {
+        "type": { "const": "cancel_outcome" }, "client_order_id": { "type": "string", "minLength": 1 },
+        "request_state": { "enum": ["requested", "rejected", "unknown"] },
+        "terminal_state": { "enum": ["filled", "cancelled", "expired", "rejected", null] },
+        "observed_at": { "type": "string", "format": "date-time" }, "reason_code": { "type": ["string", "null"] }
+      }
+    },
+    "order_snapshot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "client_order_id", "sequence", "status", "filled_quantity", "average_fill_price", "source_time"],
+      "properties": {
+        "type": { "const": "order_snapshot" }, "client_order_id": { "type": "string", "minLength": 1 },
+        "venue_order_id": { "type": ["string", "null"] }, "sequence": { "type": ["integer", "null"], "minimum": 0 },
+        "status": { "enum": ["pending", "accepted", "partially_filled", "filled", "cancel_pending", "cancelled", "rejected", "expired", "unknown"] },
+        "filled_quantity": { "$ref": "#/$defs/decimal" }, "average_fill_price": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "source_time": { "type": "string", "format": "date-time" }
+      }
+    },
+    "reconcile_request": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "client_order_id"],
+      "properties": { "type": { "const": "reconcile_request" }, "client_order_id": { "type": "string", "minLength": 1 } }
+    }
+  }
+}

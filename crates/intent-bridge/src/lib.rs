@@ -8,6 +8,7 @@
 
 pub mod error;
 pub mod ingest;
+pub mod mt5_v1;
 pub mod wire;
 
 pub use error::{BridgeError, BridgeResult};
