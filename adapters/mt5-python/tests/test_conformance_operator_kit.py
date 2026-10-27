@@ -17,6 +17,8 @@ class ConformanceOperatorKitTests(unittest.TestCase):
             "MT5_BRIDGE_PRINCIPAL_SHA256", "load_cert_chain",
             "not_after_utc", "Everyone", "NT AUTHORITY\\Authenticated Users",
             "BUILTIN\\Users", "ExpectedServiceIdentity",
+            "client private-key parent directory", "server private-key parent directory",
+            "clientParentAclOk", "serverParentAclOk",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, source)
