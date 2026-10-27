@@ -403,7 +403,7 @@ pub async fn persist_reconciliation_snapshot(
             .and_then(Value::as_str)
             .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
             .map(|value| value.with_timezone(&Utc))
-            != Some(captured_at)
+            != Some(captured_at.clone())
         || !snapshot.get("account_state").is_some_and(Value::is_object)
         || !snapshot.get("open_orders").is_some_and(Value::is_array)
         || !snapshot.get("positions").is_some_and(Value::is_array)
