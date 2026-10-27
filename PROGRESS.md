@@ -127,3 +127,8 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 ## Work log — QOS-013 final formatting correction (2026-10-27)
 - Follow-up CI run 40435630512 still failed `cargo fmt --all -- --check` on one match-arm wrapping difference; compile/tests/Clippy were skipped.
 - Applied the remaining exact rustfmt diff and recorded it in REV-018. Awaiting latest-head CI.
+
+
+## Work log — QOS-013 compile correction (2026-10-27)
+- CI run 40435757549 passed formatting but failed `cargo check --workspace` with E0631 on the `Decimal::trunc` function pointer.
+- Changed the call to a closure and recorded the failure/correction in REV-019. Full CI rerun pending.
