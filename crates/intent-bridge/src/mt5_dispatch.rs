@@ -59,6 +59,10 @@ impl Mt5DispatchPermit {
         session: &mut Mt5SessionGate,
         allowed_clock_skew: Duration,
     ) -> BridgeResult<()> {
+        // Re-check the session immediately before the first byte is sent. A watchdog
+        // may have degraded the session after this permit was prepared.
+        session.authorize_submit(self.frame())?;
+        self.frame().validate_at(Utc::now(), allowed_clock_skew)?;
         if let Err(send_error) = connection.write_frame(self.frame()).await {
             self.record_ambiguous_transport_failure(store, session, "transport_write_failed")
                 .await?;
@@ -66,7 +70,7 @@ impl Mt5DispatchPermit {
         }
 
         let response = match connection
-            .read_frame_with_session_checkpoint(store, session, Utc::now(), allowed_clock_skew)
+            .read_submit_outcome_with_session_checkpoint(store, session, allowed_clock_skew)
             .await
         {
             Ok(response) => response,
