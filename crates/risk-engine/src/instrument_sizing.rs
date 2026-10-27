@@ -165,8 +165,12 @@ pub fn size_order_instrument_aware(
     {
         return reject(SizingRejectReason::InvalidInput);
     }
-    if context.max_quantity.is_some_and(|maximum| maximum < context.min_quantity || maximum <= Decimal::ZERO)
-        || context.min_notional_account_currency.is_some_and(|minimum| minimum < Decimal::ZERO)
+    if context
+        .max_quantity
+        .is_some_and(|maximum| maximum < context.min_quantity || maximum <= Decimal::ZERO)
+        || context
+            .min_notional_account_currency
+            .is_some_and(|minimum| minimum < Decimal::ZERO)
     {
         return reject(SizingRejectReason::InvalidInput);
     }
@@ -238,7 +242,8 @@ pub fn size_order_instrument_aware(
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
 
-    let explicit_request = request.requested_quantity.is_some() || request.requested_notional.is_some();
+    let explicit_request =
+        request.requested_quantity.is_some() || request.requested_notional.is_some();
     let desired = if let Some(quantity) = request.requested_quantity {
         if quantity <= Decimal::ZERO {
             return reject(SizingRejectReason::InvalidInput);
@@ -306,14 +311,19 @@ pub fn size_order_instrument_aware(
         let reason = if risk_cap <= max_by_position
             && risk_cap <= max_by_exposure
             && risk_cap <= max_by_leverage
-            && context.max_quantity.is_none_or(|maximum| risk_cap <= maximum)
+            && context
+                .max_quantity
+                .is_none_or(|maximum| risk_cap <= maximum)
         {
             SizingLimitReason::RiskBudget
         } else if max_by_exposure <= max_by_position && max_by_exposure <= max_by_leverage {
             SizingLimitReason::ExposureLimit
         } else if max_by_leverage <= max_by_position {
             SizingLimitReason::LeverageLimit
-        } else if context.max_quantity.is_some_and(|maximum| maximum <= allowed) {
+        } else if context
+            .max_quantity
+            .is_some_and(|maximum| maximum <= allowed)
+        {
             SizingLimitReason::VenueMaximum
         } else if max_by_position < desired {
             SizingLimitReason::PositionLimit
@@ -389,7 +399,9 @@ fn is_multiple_of(value: Decimal, step: Decimal) -> bool {
     if step <= Decimal::ZERO {
         return false;
     }
-    value.checked_div(step).is_some_and(|ratio| ratio == ratio.trunc())
+    value
+        .checked_div(step)
+        .is_some_and(|ratio| ratio == ratio.trunc())
 }
 
 fn round_down_to_step(value: Decimal, step: Decimal) -> Option<Decimal> {
