@@ -439,6 +439,35 @@ mod tests {
     }
 
     #[test]
+    fn transport_limits_reject_zero_timeouts_and_capacity() {
+        assert!(Mt5TransportLimits {
+            handshake_timeout: StdDuration::ZERO,
+            ..Mt5TransportLimits::default()
+        }
+        .validate()
+        .is_err());
+        assert!(Mt5TransportLimits {
+            io_timeout: StdDuration::ZERO,
+            ..Mt5TransportLimits::default()
+        }
+        .validate()
+        .is_err());
+        assert!(Mt5TransportLimits {
+            heartbeat_timeout: StdDuration::ZERO,
+            ..Mt5TransportLimits::default()
+        }
+        .validate()
+        .is_err());
+        assert!(Mt5TransportLimits {
+            max_concurrent_connections: 0,
+            ..Mt5TransportLimits::default()
+        }
+        .validate()
+        .is_err());
+        assert!(Mt5TransportLimits::default().validate().is_ok());
+    }
+
+    #[test]
     fn certificate_fingerprint_is_lowercase_sha256_hex() {
         let certificate = CertificateDer::from(vec![1_u8, 2, 3, 4]);
         assert_eq!(
