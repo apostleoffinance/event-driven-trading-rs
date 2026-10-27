@@ -262,6 +262,9 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
             min_notional_account_currency: None,
             estimated_cost_per_quantity: Decimal::ZERO,
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
+        pending_order_exposure: Decimal::ZERO,
+        available_margin: None,
+        margin_per_quantity: None,
         },
     };
     let (events_out, _events_in) = event_channel(32);
