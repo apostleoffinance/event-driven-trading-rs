@@ -8,7 +8,7 @@ use domain::{OrderSide, RiskDecision, RiskRejectReason, RiskRequest};
 use rust_decimal::Decimal;
 
 /// Explicit loss mechanics supplied by a trusted instrument/market-data layer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LossModel {
     /// Linear P&L: price distance × contract multiplier × P&L-to-account conversion.
     Linear {
@@ -151,7 +151,7 @@ pub fn size_order_instrument_aware(
     if equity <= Decimal::ZERO
         || request.current_exposure < Decimal::ZERO
         || request.policy.max_risk_per_trade_pct <= Decimal::ZERO
-        || request.policy.max_risk_per_trade_pct > Decimal::ONE_HUNDRED
+        || request.policy.max_risk_per_trade_pct > Decimal::from(100)
         || request.policy.max_position_size_pct <= Decimal::ZERO
         || request.policy.max_position_size_pct > Decimal::ONE_HUNDRED
         || request.policy.max_total_exposure_pct <= Decimal::ZERO
@@ -299,7 +299,7 @@ pub fn size_order_instrument_aware(
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
     if modeled_loss > risk_budget {
-        return reject(SizingRejectReason::ArithmeticOverflow);
+        return reject(SizingRejectReason::RiskBudgetExhausted);
     }
 
     if explicit_request && rounded < desired {
