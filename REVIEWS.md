@@ -388,3 +388,14 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Rerun full CI on the corrected latest branch head.
 - **Verification result:** Formatting corrections committed as `59dbf9dea5ebbf61b160230703e4e6dfd7f2a44d` and `a400cbe7bbcfef3391e54e678438fb306124dee4`; latest-head rerun pending.
 - **Remaining risk:** Rust compilation, protocol tests, Clippy and latest-head frontend CI still need successful evidence. No live execution enabled.
+
+
+## REV-029 — QOS-014 bounded incremental NDJSON framing
+- **Date:** 2026-10-27
+- **Context:** Continued QOS-014 on `feat/qos-014-mt5-bridge-v1` after the initial protocol types and schema were present.
+- **Finding:** The original helper validated a single JSON string and relied on an external caller to frame the byte stream. A future transport could otherwise buffer an unbounded partial line or accidentally act on an incomplete frame.
+- **Change:** Added `NdjsonFrameDecoder` with a 64 KiB line limit enforced while receiving chunks, newline-delimited validation, CRLF handling, multiple frames per chunk, and fail-closed poisoning after malformed/oversized/blank/non-UTF-8 input. EOF with a partial frame rejects. Added deterministic tests and a canonical JSON submit fixture.
+- **Evidence:** `crates/intent-bridge/src/mt5_v1.rs`, `docs/contracts/fixtures/mt5_v1_submit_order.json`, and `docs/MT5_BRIDGE_V1.md` on the feature branch.
+- **Rule update:** None; this implements existing API/bridge and security rules. It does not add transport/authentication or claim venue connectivity.
+- **Verification:** Code and documentation updates were committed to the feature branch. Full latest-head CI has not yet been verified; no tests are claimed as passing until CI completes.
+- **Remaining risk:** Authenticated connection binding, durable client-order idempotency, reconnect/sequence-gap reconciliation, and cross-language conformance against an MT5-side implementation remain open. No live execution, deployment, or money movement enabled.
