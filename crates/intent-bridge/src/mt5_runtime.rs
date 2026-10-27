@@ -15,7 +15,9 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
-use crate::mt5_reconciliation::{persist_and_confirm_reconciliation, Mt5ReconciliationSnapshot};
+use crate::mt5_reconciliation::{
+    persist_and_confirm_reconciliation, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
+};
 use crate::mt5_session::{Mt5SessionGate, Mt5SessionState};
 use crate::mt5_transport::{spawn_heartbeat_watchdog, AuthenticatedMt5Connection};
 use crate::mt5_v1::BridgeFrame;
@@ -106,6 +108,59 @@ impl Mt5BridgeRuntime {
     ) -> BridgeResult<()> {
         let mut session = self.session.lock().await;
         persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
+    }
+
+    /// Fetch and persist an authoritative external snapshot after reconnect or
+    /// watchdog degradation. A source failure leaves the session and durable stream
+    /// degraded; it never restores readiness from a local/cache-only inference.
+    pub async fn reconcile_from_source<S: Mt5ReconciliationSource + ?Sized>(
+        &self,
+        source: &S,
+        now: DateTime<Utc>,
+        max_age: Duration,
+    ) -> BridgeResult<()> {
+        let (account_id, terminal_id, server) = {
+            let session = self.session.lock().await;
+            if session.state() != Mt5SessionState::ReconciliationRequired {
+                return Err(BridgeError::Invalid(
+                    "MT5 source reconciliation requires a session awaiting reconciliation".into(),
+                ));
+            }
+            let identity = match (
+                session.account_id(),
+                session.terminal_id(),
+                session.server(),
+            ) {
+                (Some(account_id), Some(terminal_id), Some(server)) => (
+                    account_id.to_owned(),
+                    terminal_id.to_owned(),
+                    server.to_owned(),
+                ),
+                _ => {
+                    return Err(BridgeError::Invalid(
+                        "MT5 source reconciliation requires a bound authenticated identity".into(),
+                    ));
+                }
+            };
+            identity
+        };
+
+        let snapshot = match source
+            .fetch_snapshot(&account_id, &terminal_id, &server)
+            .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                let mut session = self.session.lock().await;
+                session.degrade();
+                let _ = self
+                    .store
+                    .mark_mt5_stream_degraded(&account_id, &terminal_id, 0)
+                    .await;
+                return Err(error);
+            }
+        };
+        self.reconcile(&snapshot, now, max_age).await
     }
 
     /// Claim a client-order key durably and execute at most one send through the
