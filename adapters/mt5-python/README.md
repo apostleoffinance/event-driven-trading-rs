@@ -69,7 +69,6 @@ Example PowerShell environment setup (use real values; never commit secrets):
     $env:MT5_TERMINAL_ID = "terminal-demo-01"
     $env:MT5_SERVER = "<exact broker demo server>"
     $env:MT5_ACCOUNT_ID = "<same account ID configured for the worker>"
-    $env:MT5_SYMBOLS = "EURUSD.a,GBPUSD.a"
     cargo run -p intent-bridge --bin mt5-bridge-daemon
 
 Configure the Python worker to connect to 127.0.0.1:9443 and use a server certificate valid for that name (or configure a matching MT5_BRIDGE_SERVER_NAME). The daemon rejects non-loopback binds unless MT5_BRIDGE_ALLOW_REMOTE_BIND=true is explicit. If remote binding is needed, also apply host firewall rules and private-network controls; mTLS is not a substitute for network restriction.
