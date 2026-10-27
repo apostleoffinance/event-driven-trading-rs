@@ -629,3 +629,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Wrapped the public transport exports in rustfmt's expected multi-line form.
 - **Verification:** Third full CI run is required on the new branch head. No Rust compilation or test pass is claimed from this run.
 - **Remaining risk:** The previous run reached only formatting. The next run must pass formatting, workspace check/tests, Clippy and frontend checks before the slice is considered verified.
+
+
+## REV-051 — Correct MT5 outbound NDJSON line framing
+
+- **Date:** 2026-10-27
+- **Context:** Post-merge code review following PR #23 (merge commit `7b47069623bb55d2994298d1e8eb9573f964bdb4`). The PR's CI passed on its final head and the merge-commit CI run `40457087734` passed, but those checks did not detect a protocol framing defect.
+- **Finding:** The outbound transport writer was writing the two literal bytes backslash and `n` rather than a single LF delimiter. This could prevent a peer's NDJSON decoder from recognizing the frame boundary.
+- **Correction:** Centralized serialization in `encode_frame_line`, enforces the existing frame size limit, appends exactly one LF byte, and writes the complete encoded line. Added a regression test that asserts one LF terminator, rejects a literal backslash-`n` suffix, and round-trips the JSON payload. Added deterministic heartbeat freshness boundary tests and poisons the connection on incomplete EOF.
+- **Verification:** Follow-up PR CI is pending. The previous green CI is not evidence that this new correction has passed.
+- **Severity / release gate:** Protocol correctness issue; do not connect to an MT5 client until this fix passes CI and the end-to-end transport conformance tests are implemented. No live trading enabled.
