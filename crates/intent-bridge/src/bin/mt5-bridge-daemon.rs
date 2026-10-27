@@ -11,8 +11,7 @@ use std::time::Duration as StdDuration;
 use chrono::Duration;
 use clap::Parser;
 use intent_bridge::{
-    Mt5BridgeRuntime, Mt5SessionGate, Mt5SessionPolicy, Mt5TransportConfig,
-    Mt5TransportPrincipal,
+    Mt5BridgeRuntime, Mt5SessionGate, Mt5SessionPolicy, Mt5TransportConfig, Mt5TransportPrincipal,
 };
 use persistence::{connect, TradingStore};
 use tracing::{info, warn};
@@ -84,8 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args = Args::parse();
-    validate_bind(args.bind, args.allow_remote_bind)
-        .map_err(std::io::Error::other)?;
+    validate_bind(args.bind, args.allow_remote_bind).map_err(std::io::Error::other)?;
 
     let account_id = required_identity(&args.account_id, "MT5_ACCOUNT_ID")?;
     let terminal_id = required_identity(&args.terminal_id, "MT5_TERMINAL_ID")?;
