@@ -66,7 +66,12 @@ impl Mt5DispatchPermit {
         }
 
         let response = match connection
-            .read_frame(Utc::now(), allowed_clock_skew)
+            .read_frame_with_session_checkpoint(
+                store,
+                session,
+                Utc::now(),
+                allowed_clock_skew,
+            )
             .await
         {
             Ok(response) => response,
