@@ -10,6 +10,7 @@ name = "intent-bridge"
 path = "src/main.rs"
 
 [dependencies]
+async-trait = { workspace = true }
 account-engine = { path = "../account-engine" }
 chrono = { workspace = true }
 clap = { version = "4", features = ["derive"] }
