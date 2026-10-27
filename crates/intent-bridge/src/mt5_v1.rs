@@ -12,6 +12,98 @@ use crate::{BridgeError, BridgeResult};
 pub const MT5_BRIDGE_SCHEMA_VERSION: u16 = 1;
 pub const MAX_MT5_BRIDGE_FRAME_BYTES: usize = 64 * 1024;
 
+/// Incremental NDJSON decoder for arbitrarily chunked byte streams.
+///
+/// The decoder bounds memory before a newline arrives and validates each complete
+/// frame before returning it. A malformed/oversized line poisons the decoder:
+/// callers must close and recreate the session instead of attempting unsafe resync.
+#[derive(Debug, Default)]
+pub struct NdjsonFrameDecoder {
+    buffer: Vec<u8>,
+    poisoned: bool,
+}
+
+impl NdjsonFrameDecoder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(
+        &mut self,
+        chunk: &[u8],
+        now: DateTime<Utc>,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<Vec<BridgeFrame>> {
+        if self.poisoned {
+            return Err(BridgeError::Invalid(
+                "MT5 NDJSON decoder is poisoned; reset the connection".into(),
+            ));
+        }
+
+        let mut frames = Vec::new();
+        for byte in chunk {
+            if *byte == b'\n' {
+                if self.buffer.last() == Some(&b'\r') {
+                    self.buffer.pop();
+                }
+                if self.buffer.is_empty() {
+                    self.poisoned = true;
+                    return Err(BridgeError::Invalid(
+                        "blank MT5 NDJSON frames are not allowed".into(),
+                    ));
+                }
+                let line = match std::str::from_utf8(&self.buffer) {
+                    Ok(line) => line,
+                    Err(error) => {
+                        self.poisoned = true;
+                        return Err(BridgeError::Invalid(format!(
+                            "MT5 NDJSON frame is not UTF-8: {error}"
+                        )));
+                    }
+                };
+                match parse_frame_json(line, now, allowed_clock_skew) {
+                    Ok(frame) => frames.push(frame),
+                    Err(error) => {
+                        self.poisoned = true;
+                        return Err(error);
+                    }
+                }
+                self.buffer.clear();
+            } else {
+                self.buffer.push(*byte);
+                if self.buffer.len() > MAX_MT5_BRIDGE_FRAME_BYTES {
+                    self.poisoned = true;
+                    return Err(BridgeError::Invalid(
+                        "MT5 NDJSON frame exceeds 64 KiB limit".into(),
+                    ));
+                }
+            }
+        }
+        Ok(frames)
+    }
+
+    /// Require a clean line boundary at EOF; partial frames are never executed.
+    pub fn finish(&mut self) -> BridgeResult<()> {
+        if self.poisoned {
+            return Err(BridgeError::Invalid(
+                "MT5 NDJSON decoder is poisoned; reset the connection".into(),
+            ));
+        }
+        if !self.buffer.is_empty() {
+            self.poisoned = true;
+            return Err(BridgeError::Invalid(
+                "connection ended with an incomplete MT5 NDJSON frame".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.buffer.clear();
+        self.poisoned = false;
+    }
+}
+
 /// Decode and validate one UTF-8 JSON frame. Callers must frame NDJSON before invoking this.
 pub fn parse_frame_json(
     json: &str,
@@ -392,6 +484,59 @@ mod tests {
             take_profit: Some("1.09000".into()),
             time_in_force: TimeInForce::Day,
         }
+    }
+
+
+    #[test]
+    fn ndjson_decoder_handles_split_and_multiple_frames() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 1).unwrap();
+        let one = serde_json::to_string(&frame(BridgePayload::SubmitOrder(valid_order()))).unwrap();
+        let two = serde_json::to_string(&frame(BridgePayload::Heartbeat(Heartbeat {
+            sequence: 1,
+            terminal_id: "terminal-01".into(),
+            server: "broker-demo".into(),
+            terminal_time: now,
+            connection: ConnectionState::Connected,
+            capabilities: BridgeCapabilities {
+                market_orders: true,
+                limit_orders: true,
+                stop_orders: true,
+                cancel_requests: true,
+                order_lookup: true,
+                idempotent_client_order_id: true,
+                sequence_numbers: true,
+            },
+        }))).unwrap();
+        let mut decoder = NdjsonFrameDecoder::new();
+        assert!(decoder.push(&one.as_bytes()[..10], now, Duration::zero()).unwrap().is_empty());
+        let chunk = format!("{}\n{}\r\n", &one[10..], two);
+        let decoded = decoder.push(chunk.as_bytes(), now, Duration::seconds(2)).unwrap();
+        assert_eq!(decoded.len(), 2);
+        assert!(decoder.finish().is_ok());
+    }
+
+    #[test]
+    fn ndjson_decoder_rejects_oversized_partial_and_poisoned_streams() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        let mut oversized = NdjsonFrameDecoder::new();
+        assert!(oversized.push(&vec![b'x'; MAX_MT5_BRIDGE_FRAME_BYTES + 1], now, Duration::zero()).is_err());
+        assert!(oversized.push(b"{}\n", now, Duration::zero()).is_err());
+
+        let mut partial = NdjsonFrameDecoder::new();
+        assert!(partial.push(b"{", now, Duration::zero()).unwrap().is_empty());
+        assert!(partial.finish().is_err());
+        assert!(partial.push(b"}\n", now, Duration::zero()).is_err());
+        partial.reset();
+        assert!(partial.push(b"{}\n", now, Duration::zero()).is_err());
+    }
+
+    #[test]
+    fn ndjson_decoder_rejects_blank_and_non_utf8_lines() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        let mut blank = NdjsonFrameDecoder::new();
+        assert!(blank.push(b"\n", now, Duration::zero()).is_err());
+        let mut invalid_utf8 = NdjsonFrameDecoder::new();
+        assert!(invalid_utf8.push(&[0xff, b'\n'], now, Duration::zero()).is_err());
     }
 
     #[test]
