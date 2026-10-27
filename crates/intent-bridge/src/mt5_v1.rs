@@ -624,7 +624,8 @@ impl BridgeFrame {
                     || snapshot.instruments.len() > 64
                 {
                     return Err(BridgeError::Invalid(
-                        "market-data snapshot must contain 1–64 matched instrument/quote pairs".into(),
+                        "market-data snapshot must contain 1–64 matched instrument/quote pairs"
+                            .into(),
                     ));
                 }
                 let mut symbols = std::collections::BTreeSet::new();
@@ -641,7 +642,10 @@ impl BridgeFrame {
                     for (field, value) in [
                         ("point", instrument.point.as_str()),
                         ("tick_size", instrument.tick_size.as_str()),
-                        ("tick_value_account_currency", instrument.tick_value_account_currency.as_str()),
+                        (
+                            "tick_value_account_currency",
+                            instrument.tick_value_account_currency.as_str(),
+                        ),
                         ("contract_size", instrument.contract_size.as_str()),
                         ("volume_min", instrument.volume_min.as_str()),
                         ("volume_max", instrument.volume_max.as_str()),
@@ -652,7 +656,9 @@ impl BridgeFrame {
                         }
                     }
                     if instrument.digits > 16 {
-                        return Err(BridgeError::Invalid("instrument digits exceed supported precision".into()));
+                        return Err(BridgeError::Invalid(
+                            "instrument digits exceed supported precision".into(),
+                        ));
                     }
                     let volume_min = decimal(&instrument.volume_min, "volume_min")?;
                     let volume_max = decimal(&instrument.volume_max, "volume_max")?;
@@ -670,7 +676,8 @@ impl BridgeFrame {
                         || !symbols.contains(quote.symbol.as_str())
                     {
                         return Err(BridgeError::Invalid(
-                            "market-data quote symbols must uniquely match instrument metadata".into(),
+                            "market-data quote symbols must uniquely match instrument metadata"
+                                .into(),
                         ));
                     }
                     let bid = decimal(&quote.bid, "bid")?;
@@ -837,12 +844,14 @@ mod tests {
             quotes: vec![quote.clone()],
         };
         assert!(frame(BridgePayload::MarketDataSnapshot(payload.clone()))
-            .validate_at(now.clone(), Duration::zero()).is_ok());
+            .validate_at(now.clone(), Duration::zero())
+            .is_ok());
 
         let mut stale = payload.clone();
         stale.quotes[0].tick_time = now - Duration::seconds(61);
         assert!(frame(BridgePayload::MarketDataSnapshot(stale))
-            .validate_at(now.clone(), Duration::zero()).is_err());
+            .validate_at(now.clone(), Duration::zero())
+            .is_err());
 
         let mut crossed = payload.clone();
         crossed.quotes[0].ask = "1.0844".into();
@@ -852,7 +861,8 @@ mod tests {
         let mut unmatched = payload;
         unmatched.quotes[0].symbol = "EURUSD".into();
         assert!(frame(BridgePayload::MarketDataSnapshot(unmatched))
-            .validate_at(now, Duration::zero()).is_err());
+            .validate_at(now, Duration::zero())
+            .is_err());
     }
 
     fn valid_order() -> SubmitOrder {
