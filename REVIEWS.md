@@ -360,3 +360,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Applied the rustfmt changes reported by CI and corrected the margin-limit conditional syntax during follow-up edits. Subsequent latest-head CI remains required; no compile/test/Clippy success is claimed from the failed run.
 - **Rule update:** None; existing `RULES.md` already requires formatting and accurate verification claims.
 - **Remaining risk:** QOS-013 is not complete until latest-head Rust format/check/test/Clippy and frontend checks pass, and a concrete authoritative snapshot provider plus remaining acceptance coverage are implemented or explicitly scoped by review. No live execution enabled.
+
+
+## REV-027 — QOS-014 initial file was written to main and immediately reverted
+- **Date:** 2026-10-27
+- **Context:** Starting QOS-014 MT5 bridge v1 protocol work.
+- **Finding/correction:** The initial `create_file` call omitted the optional `branch` argument, so the protocol source file was committed directly to `main`. This violated the feature-branch workflow.
+- **Impact:** Unreviewed protocol code briefly appeared on the default branch.
+- **Evidence:** GitHub contents API showed the file commit on `main`; the file was then deleted in revert commit `3c995c10a75cc0e76672decf803489d04bbd9b76`. The file was recreated on `feat/qos-014-mt5-bridge-v1` at `de94075db38348db88cd299d0c758749f8b73c2b`.
+- **Rule that failed:** Workflow rule 8 (prefer feature branches and reviewable PRs; do not bypass protections).
+- **Rule update made in RULES.md:** None; rule is already explicit. Correction was immediate and no financial execution was involved.
+- **Code/docs/tests changed:** Removed the direct-to-main file; recreated it on the feature branch; continued schema, protocol and tests only on the feature branch.
+- **Regression/real-use check added:** Verify every subsequent file write explicitly supplies `branch: feat/qos-014-mt5-bridge-v1`; verify branch refs before PR creation.
+- **Verification result:** Revert commit and feature-branch file commit are confirmed by GitHub responses. CI has not yet verified the protocol code.
+- **Remaining risk:** Full Rust/frontend CI, schema conformance and actual terminal transport remain pending. No live execution enabled.
