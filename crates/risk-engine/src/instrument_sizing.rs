@@ -106,8 +106,9 @@ impl InstrumentSizingOutcome {
             },
             Self::Rejected { reason } => RiskDecision::Rejected {
                 reason: match reason {
-                    SizingRejectReason::InvalidInput
-                    | SizingRejectReason::InvalidStopGeometry => RiskRejectReason::InvalidRequest,
+                    SizingRejectReason::InvalidInput | SizingRejectReason::InvalidStopGeometry => {
+                        RiskRejectReason::InvalidRequest
+                    }
                     SizingRejectReason::StaleInputs
                     | SizingRejectReason::UnsupportedOrInvalidLossModel
                     | SizingRejectReason::StopDistanceNotOnTick
