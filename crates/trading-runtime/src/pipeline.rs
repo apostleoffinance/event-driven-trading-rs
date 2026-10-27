@@ -1,8 +1,8 @@
 //! Single-intent pipeline: TradeIntent → Risk → OMS → Venue → Position.
 
 use account_engine::AccountEngine;
-use chrono::{DateTime, Utc};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use domain::{AccountId, InstrumentId, OrderStatus, RiskDecision, RiskRequest, TradeIntent};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
@@ -429,15 +429,14 @@ impl TradingRuntime {
     }
 }
 
-
 #[cfg(test)]
 mod sizing_snapshot_tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
     use chrono::Duration;
-    use rust_decimal::Decimal;
     use risk_engine::LossModel;
+    use rust_decimal::Decimal;
 
     fn snapshot(now: DateTime<Utc>) -> RuntimeInstrumentSizingContext {
         RuntimeInstrumentSizingContext {
