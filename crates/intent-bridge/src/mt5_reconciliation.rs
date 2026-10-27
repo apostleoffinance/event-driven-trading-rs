@@ -168,7 +168,13 @@ pub async fn persist_and_confirm_reconciliation(
         ));
     }
 
-    let value = serde_json::to_value(snapshot)?;
+    let value = match serde_json::to_value(snapshot) {
+        Ok(value) => value,
+        Err(error) => {
+            degrade_session_and_stream(store, session).await;
+            return Err(BridgeError::from(error));
+        }
+    };
     if let Err(error) = store
         .persist_mt5_reconciliation_snapshot(
             &snapshot.account_id,
