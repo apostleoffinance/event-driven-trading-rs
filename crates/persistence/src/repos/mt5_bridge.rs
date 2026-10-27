@@ -543,11 +543,21 @@ pub async fn persist_market_data_snapshot(
         ));
     }
 
-    sqlx::query(
+    let persisted = sqlx::query_scalar::<_, i64>(
         r#"
         INSERT INTO mt5_bridge_market_data_snapshots
             (account_id, terminal_id, server, sequence, source, account_currency, captured_at, snapshot)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (account_id, terminal_id) DO UPDATE SET
+            server = EXCLUDED.server,
+            sequence = EXCLUDED.sequence,
+            source = EXCLUDED.source,
+            account_currency = EXCLUDED.account_currency,
+            captured_at = EXCLUDED.captured_at,
+            snapshot = EXCLUDED.snapshot,
+            created_at = NOW()
+        WHERE EXCLUDED.sequence >= mt5_bridge_market_data_snapshots.sequence
+        RETURNING id
         "#,
     )
     .bind(account_id)
@@ -558,7 +568,12 @@ pub async fn persist_market_data_snapshot(
     .bind(account_currency)
     .bind(captured_at)
     .bind(Json(snapshot))
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
+    if persisted.is_none() {
+        return Err(PersistenceError::Other(
+            "stale MT5 market-data sequence cannot overwrite the latest snapshot".into(),
+        ));
+    }
     Ok(())
 }
