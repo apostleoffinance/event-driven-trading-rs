@@ -566,6 +566,7 @@ mod sizing_snapshot_tests {
             account_position_semantics_known: true,
             captured_at: now,
             max_age_seconds: 10,
+            entry_price: None,
             sizing: InstrumentSizingContext {
                 loss_model: LossModel::Linear {
                     contract_multiplier: Decimal::ONE,
