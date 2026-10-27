@@ -1,0 +1,539 @@
+use std::collections::BTreeSet;
+use std::error::Error;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration as StdDuration;
+
+use chrono::{Duration, Utc};
+use rcgen::{
+    BasicConstraints, Certificate, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair,
+};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
+use rustls::{ClientConfig, RootCertStore};
+use sha2::{Digest, Sha256};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
+use tokio_rustls::{client::TlsStream, TlsConnector};
+
+use intent_bridge::mt5_reconciliation::{
+    persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
+    Mt5PositionSnapshot, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
+};
+use intent_bridge::mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
+use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
+use intent_bridge::mt5_transport::{
+    spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
+    Mt5TransportPrincipal,
+};
+use intent_bridge::mt5_v1::{
+    BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat, OrderSide,
+    OrderType, SubmitOrder, SubmitOutcome, SubmitState, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
+};
+use persistence::{Mt5DurableOrderState, Mt5OrderClaim, Mt5StreamReadiness, TradingStore};
+use sqlx::PgPool;
+
+struct FixedSnapshotSource(Mt5ReconciliationSnapshot);
+
+#[async_trait::async_trait]
+impl Mt5ReconciliationSource for FixedSnapshotSource {
+    async fn fetch_snapshot(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        server: &str,
+    ) -> intent_bridge::BridgeResult<Mt5ReconciliationSnapshot> {
+        if self.0.account_id != account_id
+            || self.0.terminal_id != terminal_id
+            || self.0.server != server
+        {
+            return Err(intent_bridge::BridgeError::Invalid(
+                "test snapshot source identity mismatch".into(),
+            ));
+        }
+        Ok(self.0.clone())
+    }
+}
+
+struct TestPki {
+    _directory: tempfile::TempDir,
+    trusted_ca_path: std::path::PathBuf,
+    server_cert_path: std::path::PathBuf,
+    server_key_path: std::path::PathBuf,
+    client_config: Arc<ClientConfig>,
+    untrusted_client_config: Arc<ClientConfig>,
+    client_fingerprint: String,
+    untrusted_client_fingerprint: String,
+}
+
+fn fingerprint(cert: &Certificate) -> String {
+    Sha256::digest(cert.der().as_ref())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn make_pki() -> Result<TestPki, Box<dyn Error>> {
+    let directory = tempfile::tempdir()?;
+    let trusted_ca_path = directory.path().join("trusted-ca.pem");
+    let server_cert_path = directory.path().join("server.pem");
+    let server_key_path = directory.path().join("server-key.pem");
+    let client_cert_path = directory.path().join("client.pem");
+    let client_key_path = directory.path().join("client-key.pem");
+    let untrusted_ca_path = directory.path().join("untrusted-ca.pem");
+    let untrusted_client_cert_path = directory.path().join("untrusted-client.pem");
+    let untrusted_client_key_path = directory.path().join("untrusted-client-key.pem");
+
+    let trusted_ca_key = KeyPair::generate()?;
+    let mut trusted_ca_params = CertificateParams::default();
+    trusted_ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    let trusted_ca = trusted_ca_params.self_signed(&trusted_ca_key)?;
+    std::fs::write(&trusted_ca_path, trusted_ca.pem())?;
+
+    let server_key = KeyPair::generate()?;
+    let mut server_params = CertificateParams::new(vec!["localhost".to_owned()])?;
+    server_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+    let server_cert = server_params.signed_by(&server_key, &trusted_ca, &trusted_ca_key)?;
+    std::fs::write(&server_cert_path, server_cert.pem())?;
+    std::fs::write(&server_key_path, server_key.serialize_pem())?;
+
+    let client_key = KeyPair::generate()?;
+    let mut client_params = CertificateParams::default();
+    client_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+    let client_cert = client_params.signed_by(&client_key, &trusted_ca, &trusted_ca_key)?;
+    std::fs::write(&client_cert_path, client_cert.pem())?;
+    std::fs::write(&client_key_path, client_key.serialize_pem())?;
+
+    let untrusted_ca_key = KeyPair::generate()?;
+    let mut untrusted_ca_params = CertificateParams::default();
+    untrusted_ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    let untrusted_ca = untrusted_ca_params.self_signed(&untrusted_ca_key)?;
+    std::fs::write(&untrusted_ca_path, untrusted_ca.pem())?;
+
+    let untrusted_client_key = KeyPair::generate()?;
+    let mut untrusted_client_params = CertificateParams::default();
+    untrusted_client_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+    let untrusted_client_cert = untrusted_client_params.signed_by(
+        &untrusted_client_key,
+        &untrusted_ca,
+        &untrusted_ca_key,
+    )?;
+    std::fs::write(&untrusted_client_cert_path, untrusted_client_cert.pem())?;
+    std::fs::write(
+        &untrusted_client_key_path,
+        untrusted_client_key.serialize_pem(),
+    )?;
+
+    let mut roots = RootCertStore::empty();
+    roots.add(CertificateDer::from(trusted_ca.der().to_vec()))?;
+    let client_config = Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots.clone())
+            .with_client_auth_cert(
+                vec![CertificateDer::from(client_cert.der().to_vec())],
+                PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(client_key.serialize_der())),
+            )?,
+    );
+    let untrusted_client_config = Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_client_auth_cert(
+                vec![CertificateDer::from(untrusted_client_cert.der().to_vec())],
+                PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
+                    untrusted_client_key.serialize_der(),
+                )),
+            )?,
+    );
+
+    Ok(TestPki {
+        _directory: directory,
+        trusted_ca_path,
+        server_cert_path,
+        server_key_path,
+        client_config,
+        untrusted_client_config,
+        client_fingerprint: fingerprint(&client_cert),
+        untrusted_client_fingerprint: fingerprint(&untrusted_client_cert),
+    })
+}
+
+fn server_config(pki: &TestPki, fingerprint: String) -> Result<Mt5TransportConfig, Box<dyn Error>> {
+    let principal = Mt5TransportPrincipal {
+        certificate_sha256: fingerprint,
+        terminal_id: "terminal-01".to_owned(),
+        server: "broker-demo".to_owned(),
+        allowed_accounts: BTreeSet::from(["account-001".to_owned()]),
+    };
+    Ok(Mt5TransportConfig::from_pem_files(
+        &pki.server_cert_path,
+        &pki.server_key_path,
+        &pki.trusted_ca_path,
+        [principal],
+    )?)
+}
+
+async fn establish(
+    config: Mt5TransportConfig,
+    client_config: Arc<ClientConfig>,
+) -> Result<(AuthenticatedMt5Connection, TlsStream<TcpStream>, SocketAddr), Box<dyn Error>> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server_task = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await?;
+        config.authenticate(stream).await
+    });
+    let stream = TcpStream::connect(address).await?;
+    let connector = TlsConnector::from(client_config);
+    let name = ServerName::try_from("localhost")?;
+    let client_stream = connector.connect(name, stream).await?;
+    let server_connection = server_task.await??;
+    Ok((server_connection, client_stream, address))
+}
+
+fn heartbeat_frame(account: &str, terminal: &str, server: &str) -> BridgeFrame {
+    let now = Utc::now();
+    BridgeFrame {
+        schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+        message_id: "mtls-test-heartbeat".to_owned(),
+        correlation_id: "mtls-test-correlation".to_owned(),
+        account_id: account.to_owned(),
+        sent_at: now,
+        payload: BridgePayload::Heartbeat(Heartbeat {
+            terminal_id: terminal.to_owned(),
+            server: server.to_owned(),
+            sequence: 1,
+            terminal_time: now,
+            connection: ConnectionState::Connected,
+            capabilities: BridgeCapabilities {
+                market_orders: true,
+                limit_orders: true,
+                stop_orders: true,
+                cancel_requests: true,
+                order_lookup: true,
+                idempotent_client_order_id: true,
+                sequence_numbers: true,
+            },
+        }),
+    }
+}
+
+async fn write_frame(
+    stream: &mut TlsStream<TcpStream>,
+    frame: &BridgeFrame,
+) -> Result<(), Box<dyn Error>> {
+    let mut encoded = serde_json::to_vec(frame)?;
+    encoded.push(b'\n');
+    stream.write_all(&encoded).await?;
+    stream.flush().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn trusted_mtls_peer_and_matching_identity_are_accepted() -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, pki.client_fingerprint.clone())?;
+    let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    let frame = heartbeat_frame("account-001", "terminal-01", "broker-demo");
+    write_frame(&mut client, &frame).await?;
+    let decoded = server.read_frame(Utc::now(), Duration::seconds(5)).await?;
+    assert_eq!(decoded.account_id, "account-001");
+    assert_eq!(server.principal().terminal_id, "terminal-01");
+    Ok(())
+}
+
+#[tokio::test]
+async fn untrusted_client_certificate_is_rejected_during_tls_handshake(
+) -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, pki.untrusted_client_fingerprint.clone())?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server_task = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await?;
+        config.authenticate(stream).await
+    });
+    let stream = TcpStream::connect(address).await?;
+    let connector = TlsConnector::from(pki.untrusted_client_config.clone());
+    let name = ServerName::try_from("localhost")?;
+    let client_result = connector.connect(name, stream).await;
+    let server_result = server_task.await?;
+    assert!(client_result.is_err() || server_result.is_err());
+    assert!(server_result.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn trusted_certificate_with_wrong_fingerprint_is_rejected() -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, "00".repeat(32))?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server_task = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await?;
+        config.authenticate(stream).await
+    });
+    let stream = TcpStream::connect(address).await?;
+    let connector = TlsConnector::from(pki.client_config.clone());
+    let name = ServerName::try_from("localhost")?;
+    let client_result = connector.connect(name, stream).await;
+    let server_result = server_task.await?;
+    assert!(client_result.is_ok());
+    assert!(server_result.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>>
+{
+    let pki = make_pki()?;
+    for frame in [
+        heartbeat_frame("account-001", "other-terminal", "broker-demo"),
+        heartbeat_frame("account-001", "terminal-01", "other-server"),
+        heartbeat_frame("other-account", "terminal-01", "broker-demo"),
+    ] {
+        let config = server_config(&pki, pki.client_fingerprint.clone())?;
+        let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+        write_frame(&mut client, &frame).await?;
+        assert!(server
+            .read_frame(Utc::now(), Duration::seconds(5))
+            .await
+            .is_err());
+    }
+    Ok(())
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config =
+        server_config(&pki, pki.client_fingerprint.clone())?.with_limits(Mt5TransportLimits {
+            handshake_timeout: StdDuration::from_secs(1),
+            io_timeout: StdDuration::from_secs(1),
+            heartbeat_timeout: StdDuration::from_millis(40),
+            max_concurrent_connections: 2,
+        })?;
+    let (mut server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    write_frame(
+        &mut client,
+        &heartbeat_frame("account-001", "terminal-01", "broker-demo"),
+    )
+    .await?;
+
+    let store = TradingStore::new(pool);
+    let policy = Mt5SessionPolicy::new(["account-001"])?;
+    let mut session_gate = Mt5SessionGate::after_transport_authentication(policy);
+    server
+        .read_frame_with_session_checkpoint(
+            &store,
+            &mut session_gate,
+            Utc::now(),
+            Duration::seconds(5),
+        )
+        .await?;
+    let reconciled_at = Utc::now();
+    let snapshot = Mt5ReconciliationSnapshot {
+        account_id: "account-001".into(),
+        terminal_id: "terminal-01".into(),
+        server: "broker-demo".into(),
+        source: "mt5_authoritative_snapshot_v1".into(),
+        sequence: 1,
+        captured_at: reconciled_at,
+        account_state: Mt5AccountStateSnapshot {
+            currency: "USD".into(),
+            balance: "10000.00".into(),
+            equity: "10000.00".into(),
+            margin_used: "0.00".into(),
+            free_margin: "10000.00".into(),
+        },
+        open_orders: Vec::<Mt5OpenOrderSnapshot>::new(),
+        positions: Vec::<Mt5PositionSnapshot>::new(),
+    };
+    persist_and_confirm_reconciliation(
+        &store,
+        &mut session_gate,
+        &snapshot,
+        Utc::now(),
+        Duration::seconds(30),
+    )
+    .await?;
+    assert_eq!(session_gate.state(), Mt5SessionState::Ready);
+
+    let connection = Arc::new(Mutex::new(server));
+    let session = Arc::new(Mutex::new(session_gate));
+    let watchdog = spawn_heartbeat_watchdog(
+        connection,
+        session.clone(),
+        store.clone(),
+        StdDuration::from_millis(5),
+    )?;
+    tokio::time::sleep(StdDuration::from_millis(100)).await;
+    assert_eq!(session.lock().await.state(), Mt5SessionState::Degraded);
+    assert_eq!(
+        store
+            .mt5_stream_readiness("account-001", "terminal-01")
+            .await?,
+        Mt5StreamReadiness::Degraded
+    );
+    watchdog.await?;
+    Ok(())
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, pki.client_fingerprint.clone())?;
+    let (server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    let store = TradingStore::new(pool.clone());
+    let policy = Mt5SessionPolicy::new(["account-001"])?;
+    let session = Mt5SessionGate::after_transport_authentication(policy);
+    let runtime = Mt5BridgeRuntime::new(store.clone(), server, session, StdDuration::from_secs(1))?;
+
+    write_frame(
+        &mut client,
+        &heartbeat_frame("account-001", "terminal-01", "broker-demo"),
+    )
+    .await?;
+    runtime
+        .read_next_frame(Utc::now(), Duration::seconds(5))
+        .await?;
+
+    let now = Utc::now();
+    let snapshot = Mt5ReconciliationSnapshot {
+        account_id: "account-001".into(),
+        terminal_id: "terminal-01".into(),
+        server: "broker-demo".into(),
+        source: "mt5_authoritative_snapshot_v1".into(),
+        sequence: 1,
+        captured_at: now,
+        account_state: Mt5AccountStateSnapshot {
+            currency: "USD".into(),
+            balance: "10000.00".into(),
+            equity: "10000.00".into(),
+            margin_used: "0.00".into(),
+            free_margin: "10000.00".into(),
+        },
+        open_orders: Vec::<Mt5OpenOrderSnapshot>::new(),
+        positions: Vec::<Mt5PositionSnapshot>::new(),
+    };
+    let source = FixedSnapshotSource(snapshot);
+    runtime
+        .reconcile_from_source(&source, Utc::now(), Duration::seconds(30))
+        .await?;
+    assert_eq!(runtime.session_state().await, Mt5SessionState::Ready);
+
+    let submit = BridgeFrame {
+        schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+        message_id: "submit-message-1".into(),
+        correlation_id: "submit-correlation-1".into(),
+        account_id: "account-001".into(),
+        sent_at: Utc::now(),
+        payload: BridgePayload::SubmitOrder(SubmitOrder {
+            client_order_id: "stable-order-001".into(),
+            instrument_id: "EURUSD.a".into(),
+            side: OrderSide::Buy,
+            order_type: OrderType::Market,
+            quantity: "0.01".into(),
+            price: None,
+            stop_loss: Some("1.08000".into()),
+            take_profit: Some("1.09000".into()),
+            time_in_force: TimeInForce::Day,
+        }),
+    };
+
+    let responder = tokio::spawn(async move {
+        async {
+            let mut bytes = Vec::new();
+            loop {
+                let mut byte = [0_u8; 1];
+                let count = client.read(&mut byte).await?;
+                if count == 0 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "transport closed before submit frame",
+                    )
+                    .into());
+                }
+                if byte[0] == b'\n' {
+                    break;
+                }
+                bytes.push(byte[0]);
+                if bytes.len() > intent_bridge::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "submit frame exceeded test limit",
+                    )
+                    .into());
+                }
+            }
+            let received: BridgeFrame = serde_json::from_slice(&bytes)?;
+            let client_order_id = match &received.payload {
+                BridgePayload::SubmitOrder(order) => order.client_order_id.clone(),
+                _ => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "expected submit_order frame",
+                    )
+                    .into());
+                }
+            };
+            let response = BridgeFrame {
+                schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+                message_id: "submit-outcome-1".into(),
+                correlation_id: received.correlation_id,
+                account_id: received.account_id,
+                sent_at: Utc::now(),
+                payload: BridgePayload::SubmitOutcome(SubmitOutcome {
+                    client_order_id,
+                    outcome: SubmitState::Accepted,
+                    venue_order_id: Some("broker-ticket-9001".into()),
+                    reason_code: None,
+                    observed_at: Utc::now(),
+                }),
+            };
+            let mut encoded = serde_json::to_vec(&response)?;
+            encoded.push(b'\n');
+            client.write_all(&encoded).await?;
+            client.flush().await?;
+            Ok::<(), Box<dyn Error + Send + Sync>>(())
+        }
+        .await
+    });
+
+    assert_eq!(
+        runtime
+            .dispatch_submit(&submit, Utc::now(), Duration::seconds(5))
+            .await?,
+        Mt5RuntimeDispatchResult::OutcomePersisted
+    );
+    responder
+        .await?
+        .map_err(|error| -> Box<dyn Error> { error })?;
+
+    let replay = store
+        .claim_mt5_order(
+            "account-001",
+            "stable-order-001",
+            serde_json::to_value(&submit.payload)?,
+        )
+        .await?;
+    assert_eq!(
+        replay,
+        Mt5OrderClaim::Existing {
+            state: Mt5DurableOrderState::Accepted,
+            venue_order_id: Some("broker-ticket-9001".into()),
+            reason_code: None,
+        }
+    );
+    let restarted = TradingStore::new(pool);
+    assert_eq!(
+        restarted
+            .mt5_stream_readiness("account-001", "terminal-01")
+            .await?,
+        Mt5StreamReadiness::Ready
+    );
+    Ok(())
+}

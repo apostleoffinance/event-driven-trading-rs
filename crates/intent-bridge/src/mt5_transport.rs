@@ -20,13 +20,15 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tokio::time::timeout;
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
+use tokio::task::JoinHandle;
+use tokio::time::{interval_at, timeout, Instant};
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 use crate::mt5_session::Mt5SessionGate;
 use crate::mt5_v1::{BridgeFrame, BridgePayload, NdjsonFrameDecoder};
 use crate::{BridgeError, BridgeResult};
+use persistence::TradingStore;
 
 /// Host-managed identity mapping. The fingerprint is lowercase hex SHA-256 of
 /// the exact leaf certificate DER, with no separators.
@@ -236,6 +238,46 @@ impl Mt5TransportConfig {
     }
 }
 
+/// Start an autonomous heartbeat watchdog for a shared authenticated connection.
+///
+/// The host must share the same connection/session mutexes with its transport loop.
+/// On the first missing/expired/future heartbeat, the watchdog poisons the connection,
+/// degrades the session and exits; callers must close/reconnect and reconcile before reuse.
+pub fn spawn_heartbeat_watchdog(
+    connection: Arc<Mutex<AuthenticatedMt5Connection>>,
+    session: Arc<Mutex<Mt5SessionGate>>,
+    store: TradingStore,
+    poll_interval: StdDuration,
+) -> BridgeResult<JoinHandle<()>> {
+    if poll_interval.is_zero() {
+        return Err(BridgeError::Invalid(
+            "MT5 heartbeat watchdog poll interval must be positive".into(),
+        ));
+    }
+    let first_tick = Instant::now() + poll_interval;
+    Ok(tokio::spawn(async move {
+        let mut ticks = interval_at(first_tick, poll_interval);
+        loop {
+            ticks.tick().await;
+            let mut connection = connection.lock().await;
+            let mut session = session.lock().await;
+            if connection
+                .check_heartbeat_fresh_with_session(&mut session, Utc::now())
+                .is_err()
+            {
+                if let (Some(account_id), Some(terminal_id)) =
+                    (session.account_id(), session.terminal_id())
+                {
+                    let _ = store
+                        .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                        .await;
+                }
+                break;
+            }
+        }
+    }))
+}
+
 pub struct AuthenticatedMt5Connection {
     stream: TlsStream<TcpStream>,
     principal: Mt5TransportPrincipal,
@@ -352,6 +394,145 @@ impl AuthenticatedMt5Connection {
                 }
             };
             self.pending_frames.extend(frames);
+        }
+    }
+
+    /// Read a frame and atomically connect heartbeat identity/sequence observations
+    /// to durable stream readiness and the in-memory session gate. Any persistence or
+    /// identity failure poisons the connection and degrades the session.
+    pub async fn read_frame_with_session_checkpoint(
+        &mut self,
+        store: &TradingStore,
+        session: &mut Mt5SessionGate,
+        now: DateTime<Utc>,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<BridgeFrame> {
+        let frame = self.read_frame(now, allowed_clock_skew).await?;
+        let heartbeat = match &frame.payload {
+            BridgePayload::Heartbeat(value) => value,
+            _ => return Ok(frame),
+        };
+        if let Err(error) = session.validate_heartbeat_identity(&frame) {
+            self.failed = true;
+            session.close();
+            return Err(error);
+        }
+        let account_id = frame.account_id.clone();
+        let terminal_id = heartbeat.terminal_id.clone();
+        let sequence = heartbeat.sequence;
+        let observation = match store
+            .observe_mt5_sequence(&account_id, &terminal_id, sequence)
+            .await
+        {
+            Ok(observation) => observation,
+            Err(error) => {
+                self.failed = true;
+                session.degrade();
+                return Err(BridgeError::from(error));
+            }
+        };
+        let readiness = match store.mt5_stream_readiness(&account_id, &terminal_id).await {
+            Ok(readiness) => readiness,
+            Err(error) => {
+                self.failed = true;
+                session.degrade();
+                return Err(BridgeError::from(error));
+            }
+        };
+        if let Err(error) = session.observe_heartbeat(&frame, observation, readiness) {
+            self.failed = true;
+            session.degrade();
+            let _ = store
+                .mark_mt5_stream_degraded(&account_id, &terminal_id, sequence)
+                .await;
+            return Err(error);
+        }
+        Ok(frame)
+    }
+
+    /// Wait for the submit outcome while still checkpointing interleaved heartbeats.
+    /// The entire response wait is bounded by one I/O deadline, not reset by each
+    /// heartbeat. Unexpected application frames and timeout fail closed.
+    pub async fn read_submit_outcome_with_session_checkpoint(
+        &mut self,
+        store: &TradingStore,
+        session: &mut Mt5SessionGate,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<BridgeFrame> {
+        let deadline = Instant::now() + self.limits.io_timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                self.failed = true;
+                session.degrade();
+                if let (Some(account_id), Some(terminal_id)) =
+                    (session.account_id(), session.terminal_id())
+                {
+                    let _ = store
+                        .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                        .await;
+                }
+                return Err(BridgeError::Invalid(
+                    "MT5 submit outcome deadline expired; reconciliation is required".into(),
+                ));
+            }
+            let result = timeout(
+                remaining,
+                self.read_frame_with_session_checkpoint(
+                    store,
+                    session,
+                    Utc::now(),
+                    allowed_clock_skew,
+                ),
+            )
+            .await;
+            let frame = match result {
+                Err(_) => {
+                    self.failed = true;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (session.account_id(), session.terminal_id())
+                    {
+                        let _ = store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                            .await;
+                    }
+                    return Err(BridgeError::Invalid(
+                        "MT5 submit outcome timed out; reconciliation is required".into(),
+                    ));
+                }
+                Ok(Err(error)) => {
+                    self.failed = true;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (session.account_id(), session.terminal_id())
+                    {
+                        let _ = store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                            .await;
+                    }
+                    return Err(error);
+                }
+                Ok(Ok(frame)) => frame,
+            };
+            match &frame.payload {
+                BridgePayload::Heartbeat(_) => continue,
+                BridgePayload::SubmitOutcome(_) => return Ok(frame),
+                _ => {
+                    self.failed = true;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (session.account_id(), session.terminal_id())
+                    {
+                        let _ = store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                            .await;
+                    }
+                    return Err(BridgeError::Invalid(
+                        "unexpected MT5 frame while awaiting submit outcome".into(),
+                    ));
+                }
+            }
         }
     }
 

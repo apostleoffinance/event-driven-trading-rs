@@ -1,0 +1,300 @@
+//! Host-side orchestration for one authenticated MT5 terminal session.
+//!
+//! This coordinator owns the shared connection/session locks, starts the heartbeat
+//! watchdog, checkpoints incoming heartbeats, persists external reconciliation state,
+//! and consumes durable dispatch permits through the authenticated transport. It is
+//! not wired to a production daemon or MT5 EA by this crate alone; the host must create
+//! it only after TLS authentication and must provide authoritative venue snapshots.
+
+use std::sync::Arc;
+use std::time::Duration as StdDuration;
+
+use chrono::{DateTime, Duration, Utc};
+use persistence::{Mt5DurableOrderState, TradingStore};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+
+use crate::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
+use crate::mt5_reconciliation::{
+    persist_and_confirm_reconciliation, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
+};
+use crate::mt5_session::{Mt5SessionGate, Mt5SessionState};
+use crate::mt5_transport::{spawn_heartbeat_watchdog, AuthenticatedMt5Connection};
+use crate::mt5_v1::BridgeFrame;
+use crate::{BridgeError, BridgeResult};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Mt5RuntimeDispatchResult {
+    /// A correlated venue outcome was durably persisted. Inspect the durable order
+    /// state to distinguish accepted/rejected/unknown; this is not a fill guarantee.
+    OutcomePersisted,
+    /// The durable key already existed; never resend it. Reconcile the venue state.
+    ReconciliationRequired {
+        client_order_id: String,
+        prior_state: Mt5DurableOrderState,
+        venue_order_id: Option<String>,
+        reason_code: Option<String>,
+    },
+}
+
+pub struct Mt5BridgeRuntime {
+    store: TradingStore,
+    connection: Arc<Mutex<AuthenticatedMt5Connection>>,
+    session: Arc<Mutex<Mt5SessionGate>>,
+    watchdog: JoinHandle<()>,
+}
+
+impl Mt5BridgeRuntime {
+    /// Construct only after the TLS transport has authenticated the client certificate
+    /// and the session policy is bound to the intended account allow-list.
+    pub fn new(
+        store: TradingStore,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<Self> {
+        validate_initial_session(&connection, &session)?;
+        let connection = Arc::new(Mutex::new(connection));
+        let session = Arc::new(Mutex::new(session));
+        let watchdog = spawn_heartbeat_watchdog(
+            connection.clone(),
+            session.clone(),
+            store.clone(),
+            watchdog_poll_interval,
+        )?;
+        Ok(Self {
+            store,
+            connection,
+            session,
+            watchdog,
+        })
+    }
+
+    /// Replace a failed connection with a newly authenticated transport/session.
+    /// The caller must construct the new session after TLS identity validation; the
+    /// first heartbeat on this connection will still require durable external-state
+    /// reconciliation before any submit can be authorized.
+    pub async fn reconnect_authenticated(
+        &mut self,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<()> {
+        if watchdog_poll_interval.is_zero() {
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat watchdog poll interval must be positive".into(),
+            ));
+        }
+        validate_initial_session(&connection, &session)?;
+        self.watchdog.abort();
+        {
+            let mut current_connection = self.connection.lock().await;
+            *current_connection = connection;
+        }
+        {
+            let mut current_session = self.session.lock().await;
+            *current_session = session;
+        }
+        self.watchdog = spawn_heartbeat_watchdog(
+            self.connection.clone(),
+            self.session.clone(),
+            self.store.clone(),
+            watchdog_poll_interval,
+        )?;
+        Ok(())
+    }
+
+    /// Read a validated frame and durably checkpoint heartbeat sequence state. A read,
+    /// protocol or persistence error degrades both in-memory and durable readiness.
+    pub async fn read_next_frame(
+        &self,
+        now: DateTime<Utc>,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<BridgeFrame> {
+        let mut connection = self.connection.lock().await;
+        let mut session = self.session.lock().await;
+        match connection
+            .read_frame_with_session_checkpoint(&self.store, &mut session, now, allowed_clock_skew)
+            .await
+        {
+            Ok(frame) => Ok(frame),
+            Err(error) => {
+                session.degrade();
+                if let (Some(account_id), Some(terminal_id)) =
+                    (session.account_id(), session.terminal_id())
+                {
+                    let _ = self
+                        .store
+                        .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                        .await;
+                }
+                Err(error)
+            }
+        }
+    }
+
+    /// Reconcile a fresh authoritative snapshot of account state, all open orders,
+    /// and all positions before releasing the session readiness latch.
+    pub async fn reconcile(
+        &self,
+        snapshot: &Mt5ReconciliationSnapshot,
+        now: DateTime<Utc>,
+        max_age: Duration,
+    ) -> BridgeResult<()> {
+        let mut session = self.session.lock().await;
+        persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
+    }
+
+    /// Fetch and persist an authoritative external snapshot after reconnect or
+    /// watchdog degradation. A source failure leaves the session and durable stream
+    /// degraded; it never restores readiness from a local/cache-only inference.
+    pub async fn reconcile_from_source<S: Mt5ReconciliationSource + ?Sized>(
+        &self,
+        source: &S,
+        now: DateTime<Utc>,
+        max_age: Duration,
+    ) -> BridgeResult<()> {
+        let (account_id, terminal_id, server) = {
+            let session = self.session.lock().await;
+            if session.state() != Mt5SessionState::ReconciliationRequired {
+                return Err(BridgeError::Invalid(
+                    "MT5 source reconciliation requires a session awaiting reconciliation".into(),
+                ));
+            }
+            let identity = match (
+                session.account_id(),
+                session.terminal_id(),
+                session.server(),
+            ) {
+                (Some(account_id), Some(terminal_id), Some(server)) => (
+                    account_id.to_owned(),
+                    terminal_id.to_owned(),
+                    server.to_owned(),
+                ),
+                _ => {
+                    return Err(BridgeError::Invalid(
+                        "MT5 source reconciliation requires a bound authenticated identity".into(),
+                    ));
+                }
+            };
+            identity
+        };
+
+        let snapshot = match source
+            .fetch_snapshot(&account_id, &terminal_id, &server)
+            .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                let mut session = self.session.lock().await;
+                session.degrade();
+                let _ = self
+                    .store
+                    .mark_mt5_stream_degraded(&account_id, &terminal_id, 0)
+                    .await;
+                return Err(error);
+            }
+        };
+        self.reconcile(&snapshot, now, max_age).await
+    }
+
+    /// Claim a client-order key durably and execute at most one send through the
+    /// authenticated connection. Existing keys are returned for reconciliation only.
+    pub async fn dispatch_submit(
+        &self,
+        frame: &BridgeFrame,
+        now: DateTime<Utc>,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<Mt5RuntimeDispatchResult> {
+        let decision = {
+            let session = self.session.lock().await;
+            prepare_submit(&self.store, &session, frame, now, allowed_clock_skew).await?
+        };
+        match decision {
+            Mt5DispatchDecision::SendOnce(permit) => {
+                let mut connection = self.connection.lock().await;
+                let mut session = self.session.lock().await;
+                permit
+                    .execute_over_transport(
+                        &mut connection,
+                        &self.store,
+                        &mut session,
+                        allowed_clock_skew,
+                    )
+                    .await?;
+                Ok(Mt5RuntimeDispatchResult::OutcomePersisted)
+            }
+            Mt5DispatchDecision::ReconcileRequired {
+                client_order_id,
+                prior_state,
+                venue_order_id,
+                reason_code,
+            } => Ok(Mt5RuntimeDispatchResult::ReconciliationRequired {
+                client_order_id,
+                prior_state,
+                venue_order_id,
+                reason_code,
+            }),
+        }
+    }
+
+    pub async fn session_state(&self) -> Mt5SessionState {
+        self.session.lock().await.state()
+    }
+}
+
+fn validate_initial_session(
+    connection: &AuthenticatedMt5Connection,
+    session: &Mt5SessionGate,
+) -> BridgeResult<()> {
+    let principal = connection.principal();
+    if session.state() != Mt5SessionState::AwaitingHeartbeat
+        || session.account_id().is_some()
+        || session.terminal_id().is_some()
+        || session.server().is_some()
+        || !principal
+            .allowed_accounts
+            .iter()
+            .any(|account_id| session.allows_account(account_id))
+    {
+        return Err(BridgeError::Invalid(
+            "MT5 runtime requires a fresh heartbeat-waiting session whose account policy intersects the authenticated principal".into(),
+        ));
+    }
+    Ok(())
+}
+
+impl Drop for Mt5BridgeRuntime {
+    fn drop(&mut self) {
+        self.watchdog.abort();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtime_dispatch_result_never_claims_a_fill() {
+        let result = Mt5RuntimeDispatchResult::OutcomePersisted;
+        assert_eq!(result, Mt5RuntimeDispatchResult::OutcomePersisted);
+        assert!(format!("{result:?}").contains("OutcomePersisted"));
+    }
+
+    #[test]
+    fn reconciliation_required_result_preserves_durable_state() {
+        let result = Mt5RuntimeDispatchResult::ReconciliationRequired {
+            client_order_id: "clid-1".into(),
+            prior_state: Mt5DurableOrderState::Unknown,
+            venue_order_id: None,
+            reason_code: Some("response_lost".into()),
+        };
+        assert!(matches!(
+            result,
+            Mt5RuntimeDispatchResult::ReconciliationRequired {
+                prior_state: Mt5DurableOrderState::Unknown,
+                ..
+            }
+        ));
+    }
+}

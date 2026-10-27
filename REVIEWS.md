@@ -687,3 +687,25 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Applied the exact rustfmt layout to the helper expression and test assertions.
 - **Verification:** A fresh full CI run is required on the updated PR head; no Rust test or Clippy success is claimed from the formatting-failed run.
 - **Remaining risk:** Automatic watchdog scheduling, end-to-end TLS tests, durable dispatch/reconciliation wiring, restart recovery and MT5 EA conformance remain open. No live trading enabled.
+
+
+## REV-057 — QOS-014 authenticated transport/runtime/reconciliation integration
+
+- **Date:** 2026-10-27
+- **Context:** PR #26 extends the merged mTLS boundary after PR #25 added heartbeat-to-session degradation.
+- **Findings addressed:** The prior transport helpers were not orchestrated into a runtime, incoming heartbeat sequences were not checkpointed at the frame/session boundary, durable dispatch permits were not consumed by the authenticated transport path, and restart reconciliation did not persist a complete external-state snapshot.
+- **Changes:** Added generated-certificate TLS handshake tests; a Tokio heartbeat watchdog that poisons the connection, degrades the session and durable stream; `read_frame_with_session_checkpoint`; `Mt5BridgeRuntime`; a one-shot dispatch method that persists ambiguous results as `Unknown`; typed account/open-order/position reconciliation snapshots; PostgreSQL snapshot persistence with atomic checkpoint readiness; restart and end-to-end local TLS/DB tests.
+- **Security detail:** Heartbeat identity is validated against the session allow-list/binding before creating/updating durable stream state. Existing order keys do not produce a send permit. Reconciliation rejects stale/future snapshots, duplicate external IDs, invalid decimal values, and identity mismatch. Snapshot persistence is append-only and serializes concurrent reconciliation attempts per account/terminal.
+- **Verification:** Intermediate CI runs have failed at the Rust formatting gate while files were still being assembled; exact rustfmt corrections are being applied. The latest final-head Rust format/check/test/Clippy and frontend lint/typecheck/build run must pass before the PR is considered verified. No success is claimed from an earlier head.
+- **Remaining release gates:** This PR does not supply a real MT5 EA/client, production daemon deployment, protected certificate provisioning/rotation, broker-specific symbol/volume/price mapping, or a live authoritative snapshot query. Integration tests use local generated certificates and controlled test snapshots. No live trading enabled.
+
+
+## REV-058 — Prevent readiness restoration without durable external-state evidence
+
+- **Date:** 2026-10-27
+- **Context:** Follow-up review while wiring reconciliation snapshots into the runtime.
+- **Finding:** The older `mark_stream_reconciled` persistence API could restore `ready` based only on a sequence number, bypassing the newly added external account/order/position snapshot. Concurrent reconciliation/degradation operations could also race with checkpoint updates.
+- **Correction:** The legacy readiness API now requires a persisted snapshot at or beyond the requested sequence, uses an account/terminal transaction advisory lock, and rejects checkpoint rollback. Snapshot persistence and stream degradation use the same lock, and snapshot persistence updates the snapshot record plus ready checkpoint atomically.
+- **Regression coverage:** The persistence test asserts that readiness restoration fails without a snapshot, then persists account state/open orders/positions and verifies restart recovery, stale sequence rejection, and subsequent sequence continuity.
+- **Verification:** Final-head Rust formatting, workspace check/tests, all-target Clippy, and frontend CI are still required. Intermediate failures to date have been formatting-gate failures; do not claim final verification until a latest-head run passes.
+- **Remaining risk:** Snapshot records are only as authoritative as the source supplied by the host. The real MT5 EA/client and its broker-specific external-state query adapter remain unimplemented; no live trading enabled.

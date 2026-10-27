@@ -105,6 +105,29 @@ impl TradingStore {
         mt5_bridge::stream_readiness(&self.pool, account_id, terminal_id).await
     }
 
+    /// Persist a complete external MT5 state snapshot and atomically restore the
+    /// durable stream checkpoint only when the snapshot sequence is not stale.
+    pub async fn persist_mt5_reconciliation_snapshot(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        sequence: u64,
+        source: &str,
+        captured_at: chrono::DateTime<chrono::Utc>,
+        snapshot: serde_json::Value,
+    ) -> PersistenceResult<()> {
+        mt5_bridge::persist_reconciliation_snapshot(
+            &self.pool,
+            account_id,
+            terminal_id,
+            sequence,
+            source,
+            captured_at,
+            snapshot,
+        )
+        .await
+    }
+
     pub async fn upsert_venue(&self, venue: &domain::Venue) -> PersistenceResult<()> {
         venues::upsert(&self.pool, venue).await
     }

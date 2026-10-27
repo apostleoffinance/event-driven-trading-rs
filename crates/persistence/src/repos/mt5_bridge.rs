@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{types::Json, PgPool};
 
@@ -274,6 +275,40 @@ pub async fn mark_stream_reconciled(
             "MT5 account ID, terminal ID and non-negative sequence are required".into(),
         ));
     }
+
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+        .bind(account_id)
+        .bind(terminal_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let snapshot_sequence = sqlx::query_scalar::<_, Option<i64>>(
+        "SELECT MAX(reconciled_sequence) FROM mt5_bridge_reconciliation_snapshots WHERE account_id = $1 AND terminal_id = $2",
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if snapshot_sequence.is_none_or(|snapshot_sequence| snapshot_sequence < sequence) {
+        return Err(PersistenceError::Other(
+            "MT5 stream cannot become ready without a durable external-state reconciliation snapshot at or beyond the requested sequence".into(),
+        ));
+    }
+
+    let current_sequence = sqlx::query_scalar::<_, i64>(
+        "SELECT last_sequence FROM mt5_bridge_streams WHERE account_id = $1 AND terminal_id = $2 FOR UPDATE",
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if current_sequence.is_some_and(|current_sequence| sequence < current_sequence) {
+        return Err(PersistenceError::Other(
+            "MT5 reconciliation cannot move the durable sequence checkpoint backwards".into(),
+        ));
+    }
+
     sqlx::query(
         r#"
         INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
@@ -287,8 +322,9 @@ pub async fn mark_stream_reconciled(
     .bind(account_id)
     .bind(terminal_id)
     .bind(sequence)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -309,6 +345,12 @@ pub async fn mark_stream_degraded(
             "MT5 account ID, terminal ID and non-negative sequence are required".into(),
         ));
     }
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+        .bind(account_id)
+        .bind(terminal_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         r#"
         INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
@@ -321,8 +363,9 @@ pub async fn mark_stream_degraded(
     .bind(account_id)
     .bind(terminal_id)
     .bind(sequence)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -345,4 +388,103 @@ pub async fn stream_readiness(
             "unknown MT5 stream readiness: {other}"
         ))),
     }
+}
+
+/// Persist a complete authoritative external-state snapshot and advance the stream
+/// checkpoint in one transaction. A snapshot must contain account state, open orders,
+/// and positions; a lower sequence than the durable checkpoint is rejected.
+pub async fn persist_reconciliation_snapshot(
+    pool: &PgPool,
+    account_id: &str,
+    terminal_id: &str,
+    sequence: u64,
+    source: &str,
+    captured_at: DateTime<Utc>,
+    snapshot: Value,
+) -> PersistenceResult<()> {
+    let sequence = i64::try_from(sequence).map_err(|_| {
+        PersistenceError::Other(
+            "MT5 reconciliation sequence exceeds PostgreSQL BIGINT range".into(),
+        )
+    })?;
+    if account_id.trim().is_empty()
+        || terminal_id.trim().is_empty()
+        || source.trim().is_empty()
+        || sequence < 0
+        || snapshot.get("account_id").and_then(Value::as_str) != Some(account_id)
+        || snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
+        || snapshot.get("source").and_then(Value::as_str) != Some(source)
+        || snapshot.get("sequence").and_then(Value::as_i64) != Some(sequence)
+        || snapshot
+            .get("server")
+            .and_then(Value::as_str)
+            .is_none_or(|server| server.trim().is_empty() || server.trim() != server)
+        || snapshot
+            .get("captured_at")
+            .and_then(Value::as_str)
+            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&Utc))
+            != Some(captured_at.clone())
+        || !snapshot.get("account_state").is_some_and(Value::is_object)
+        || !snapshot.get("open_orders").is_some_and(Value::is_array)
+        || !snapshot.get("positions").is_some_and(Value::is_array)
+    {
+        return Err(PersistenceError::Other(
+            "MT5 reconciliation requires matching identities and complete account/order/position state".into(),
+        ));
+    }
+
+    let mut tx = pool.begin().await?;
+    // Serialize even the first reconciliation, when no stream row exists to lock.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+        .bind(account_id)
+        .bind(terminal_id)
+        .execute(&mut *tx)
+        .await?;
+    let current = sqlx::query_scalar::<_, i64>(
+        "SELECT last_sequence FROM mt5_bridge_streams WHERE account_id = $1 AND terminal_id = $2 FOR UPDATE",
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if current.is_some_and(|last| sequence < last) {
+        return Err(PersistenceError::Other(
+            "MT5 reconciliation sequence cannot move behind the durable checkpoint".into(),
+        ));
+    }
+
+    sqlx::query(
+        r#"
+        INSERT INTO mt5_bridge_reconciliation_snapshots
+            (account_id, terminal_id, reconciled_sequence, source, captured_at, snapshot)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .bind(sequence)
+    .bind(source)
+    .bind(captured_at)
+    .bind(Json(snapshot))
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
+        VALUES ($1, $2, $3, 'ready')
+        ON CONFLICT (account_id, terminal_id) DO UPDATE SET
+            last_sequence = EXCLUDED.last_sequence,
+            readiness = 'ready',
+            updated_at = NOW()
+        "#,
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .bind(sequence)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(())
 }
