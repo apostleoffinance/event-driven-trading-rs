@@ -97,11 +97,6 @@ impl NdjsonFrameDecoder {
         }
         Ok(())
     }
-
-    pub fn reset(&mut self) {
-        self.buffer.clear();
-        self.poisoned = false;
-    }
 }
 
 /// Decode and validate one UTF-8 JSON frame. Callers must frame NDJSON before invoking this.
