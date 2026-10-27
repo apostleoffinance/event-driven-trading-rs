@@ -267,6 +267,7 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
         pending_order_exposure: Decimal::ZERO,
         available_margin: None,
+        pending_order_margin: Decimal::ZERO,
         margin_per_quantity: None,
         },
     };
