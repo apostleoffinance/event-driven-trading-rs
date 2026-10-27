@@ -296,3 +296,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Full SZ-01–SZ-26 implementation and production runtime snapshot wiring are still open; this correction addresses only the failed test fixture.
 
 - **Verification result update (2026-10-27):** Corrected-head CI run 40436418111 completed with conclusion `success`. Rust format, workspace check, workspace test, and all-target Clippy steps passed; frontend lint, typecheck, and production build also passed. This verifies this implementation slice on the cited commit only, not full QOS-013 completion or production/live readiness.
+
+
+## REV-021 — Explicit instrument-aware runtime entry point (CI pending)
+- **Date:** 2026-10-27
+- **Context:** Follow-up implementation after PR #9 merged the first instrument-aware sizing slice.
+- **Finding:** The sizing API existed behind `DefaultRiskEvaluator`, but the production runtime had no explicit entry point to use it. The only runtime path invoked `RiskEvaluator::evaluate`, which retained legacy price-distance sizing.
+- **Change:** Added `TradingRuntime::execute_intent_with_instrument_sizing`, which accepts a caller-supplied `InstrumentSizingContext` and invokes `evaluate_with_instrument_sizing`. The method routes through the same risk → decision persistence/events → OMS pipeline and does not fall back to legacy sizing when the explicit entry point is selected. The original `execute_intent` remains unchanged at its public interface for compatibility.
+- **Regression test:** Added `instrument_aware_runtime_rejects_stale_sizing_before_oms` in `crates/trading-runtime/tests/continuous_pipeline.rs`; it expects `DependencyUnavailable`, no order status, and no OMS open orders when context freshness is false.
+- **Verification:** Changes pushed to `feat/qos-013-runtime-sizing-boundary`; CI has not yet completed. No tests are claimed as passing for this branch until CI evidence is available.
+- **Remaining risk:** Runtime-owned authoritative timestamped snapshot retrieval and freshness calculation are not implemented. The context is caller-supplied; margin, pending-order reserves, structured persistent sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. No live execution, deployment, or money movement enabled.
