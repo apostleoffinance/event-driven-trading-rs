@@ -609,3 +609,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Documentation:** Updated `docs/MT5_TRANSPORT_SECURITY.md`, `TASKS.md` and `PROGRESS.md` to describe implemented bounds and remaining integration gates.
 - **Verification:** Current branch CI has not yet completed. No successful test/Clippy claim is made until CI reports a green result on the final PR head.
 - **Remaining risk:** Heartbeat expiry is a callable watchdog API, not an autonomous background task. The host runtime must invoke it and connect failure to session degradation/reconciliation. Certificate fixture integration tests, dispatch/reconciliation wiring, MT5-side EA/client conformance, protected credential lifecycle, and end-to-end restart tests remain outstanding. No live trading, deployment or money movement enabled.
+
+
+## REV-049 — QOS-014 transport-hardening formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** PR #23 first CI run `40456634638`, Rust job `122031382040`.
+- **Finding:** `cargo fmt --all -- --check` failed on line wrapping in connection semaphore acquisition, transport read errors and the frame identity validator signature. Workspace check/tests/Clippy were skipped by the format gate.
+- **Correction:** Applied the exact formatting changes reported by rustfmt in `crates/intent-bridge/src/mt5_transport.rs`.
+- **Verification:** A new full CI run must pass on the updated PR head before merge. No compile/test/Clippy success is claimed from the failed run.
+- **Remaining risk:** This correction is formatting-only; runtime correctness remains unverified until the next full CI run and integration gaps listed in REV-048 remain open.
