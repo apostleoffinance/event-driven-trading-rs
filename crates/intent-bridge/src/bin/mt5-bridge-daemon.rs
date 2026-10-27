@@ -5,7 +5,6 @@
 //! failures. It intentionally exposes no order-submit or cancel command.
 
 use std::collections::BTreeSet;
-use std::env;
 use std::net::SocketAddr;
 use std::time::Duration as StdDuration;
 
@@ -16,7 +15,7 @@ use intent_bridge::{
     Mt5TransportPrincipal,
 };
 use persistence::{connect, TradingStore};
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -65,9 +64,8 @@ struct Args {
 }
 
 fn required_identity(value: &str, label: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let value = value.trim();
-    if value.is_empty() || value != value.trim() {
-        return Err(format!("{label} must be a non-empty value without surrounding whitespace").into());
+    if value.trim().is_empty() || value.trim() != value {
+        return Err(format!("{label} must be non-empty and have no surrounding whitespace").into());
     }
     Ok(value.to_owned())
 }
@@ -128,8 +126,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         continue;
                     }
                 };
-                let principal = connection.principal().clone();
-                let policy = match Mt5SessionPolicy::new(principal.allowed_accounts.iter().cloned()) {
+                let authenticated_principal = connection.principal().clone();
+                let policy = match Mt5SessionPolicy::new(
+                    authenticated_principal.allowed_accounts.iter().cloned(),
+                ) {
                     Ok(policy) => policy,
                     Err(error) => {
                         warn!(error = %error, "could not create MT5 session policy");
@@ -151,24 +151,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 info!(
-                    terminal_id = %principal.terminal_id,
-                    server = %principal.server,
+                    terminal_id = %authenticated_principal.terminal_id,
+                    server = %authenticated_principal.server,
                     "authenticated MT5 worker connected"
                 );
                 loop {
-                    match runtime
-                        .reconcile_from_next_frame(Duration::seconds(30), Duration::seconds(30))
-                        .await
-                    {
-                        Ok(()) => {
-                            info!(
-                                state = ?runtime.session_state().await,
-                                "persisted MT5 account/order/position snapshot"
-                            );
+                    tokio::select! {
+                        signal = tokio::signal::ctrl_c() => {
+                            signal?;
+                            info!("shutdown requested while MT5 worker was connected");
+                            return Ok(());
                         }
-                        Err(error) => {
-                            warn!(error = %error, "MT5 stream failed; connection will be discarded and must reconnect/reconcile");
-                            break;
+                        result = runtime.reconcile_from_next_frame(
+                            Duration::seconds(30),
+                            Duration::seconds(30),
+                        ) => {
+                            match result {
+                                Ok(()) => {
+                                    info!(
+                                        state = ?runtime.session_state().await,
+                                        "persisted MT5 account/order/position snapshot"
+                                    );
+                                }
+                                Err(error) => {
+                                    warn!(error = %error, "MT5 stream failed; connection will be discarded and must reconnect/reconcile");
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
