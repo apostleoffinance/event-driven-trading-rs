@@ -164,6 +164,7 @@ impl Mt5TransportConfig {
             decoder: NdjsonFrameDecoder::new(),
             pending_frames: VecDeque::new(),
             heartbeat_seen: false,
+            failed: false,
         })
     }
 }
@@ -174,6 +175,7 @@ pub struct AuthenticatedMt5Connection {
     decoder: NdjsonFrameDecoder,
     pending_frames: VecDeque<BridgeFrame>,
     heartbeat_seen: bool,
+    failed: bool,
 }
 
 impl AuthenticatedMt5Connection {
@@ -189,9 +191,15 @@ impl AuthenticatedMt5Connection {
         now: DateTime<Utc>,
         allowed_clock_skew: Duration,
     ) -> BridgeResult<BridgeFrame> {
+        if self.failed {
+            return Err(BridgeError::Invalid("MT5 authenticated connection is closed after a protocol violation".into()));
+        }
         loop {
             if let Some(frame) = self.pending_frames.pop_front() {
-                self.validate_frame_identity(&frame)?;
+                if let Err(error) = self.validate_frame_identity(&frame) {
+                    self.failed = true;
+                    return Err(error);
+                }
                 return Ok(frame);
             }
 
