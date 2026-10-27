@@ -882,5 +882,4 @@ mod tests {
         assert_eq!(first, Decimal::from(100));
         assert_eq!(second, Decimal::from(200));
     }
-
 }
