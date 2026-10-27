@@ -513,7 +513,7 @@ mod tests {
         let mut request = sample_request();
         request.side = OrderSide::Sell;
         request.entry_price = Some(Decimal::from(100));
-        request.stop_loss = Some(Decimal::from(101));
+        request.stop_loss = Some(Decimal::from(100));
         assert_eq!(
             size_order_instrument_aware(&request, &context()),
             InstrumentSizingOutcome::Rejected {
