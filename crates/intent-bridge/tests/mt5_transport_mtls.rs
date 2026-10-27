@@ -445,7 +445,8 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     };
 
     let responder = tokio::spawn(async move {
-        let mut bytes = Vec::new();
+        async {
+            let mut bytes = Vec::new();
         loop {
             let mut byte = [0_u8; 1];
             let count = client.read(&mut byte).await?;
@@ -453,7 +454,8 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::UnexpectedEof,
                     "transport closed before submit frame",
-                ));
+                )
+                .into());
             }
             if byte[0] == b'\n' {
                 break;
@@ -463,7 +465,8 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "submit frame exceeded test limit",
-                ));
+                )
+                .into());
             }
         }
         let received: BridgeFrame = serde_json::from_slice(&bytes)?;
@@ -473,7 +476,8 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "expected submit_order frame",
-                ));
+                )
+                .into());
             }
         };
         let response = BridgeFrame {
@@ -494,7 +498,9 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
         encoded.push(b'\n');
         client.write_all(&encoded).await?;
         client.flush().await?;
-        Ok::<(), Box<dyn Error + Send + Sync>>(())
+            Ok::<(), Box<dyn Error + Send + Sync>>(())
+        }
+        .await
     });
 
     assert_eq!(
