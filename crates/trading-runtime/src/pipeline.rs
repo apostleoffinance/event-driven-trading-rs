@@ -240,7 +240,10 @@ impl TradingRuntime {
             Some(snapshot)
                 if snapshot.account_id != self.config.account_id
                     || snapshot.instrument_id != intent.instrument_id
-                    || !snapshot.is_fresh_at(evaluated_at) =>
+                    || !snapshot.is_fresh_at(evaluated_at)
+                    || risk_req.account_state.updated_at > evaluated_at
+                    || evaluated_at.signed_duration_since(risk_req.account_state.updated_at)
+                        > chrono::Duration::seconds(snapshot.max_age_seconds) =>
             {
                 (
                     RiskDecision::Rejected {
@@ -697,6 +700,7 @@ fn sizing_audit_payload(
             "requested_notional": optional_decimal(request.requested_notional),
             "equity": request.account_state.equity.to_string(),
             "account_balance": request.account_state.balance.to_string(),
+            "account_state_updated_at": request.account_state.updated_at.to_rfc3339(),
             "used_margin": request.account_state.used_margin.to_string(),
             "daily_realized_pnl": request.account_state.daily_realized_pnl.to_string(),
             "peak_equity": request.account_state.peak_equity.to_string(),
