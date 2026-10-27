@@ -508,9 +508,9 @@ mod tests {
             }),
         };
         let encoded = encode_frame_line(&frame).unwrap();
-        assert_eq!(encoded.last(), Some(&b'\\n'));
+        assert_eq!(encoded.last(), Some(&b'\n'));
         assert!(!encoded.ends_with(b"\\\\n"));
-        assert_eq!(encoded.iter().filter(|byte| **byte == b'\\n').count(), 1);
+        assert_eq!(encoded.iter().filter(|byte| **byte == b'\n').count(), 1);
         let json = &encoded[..encoded.len() - 1];
         assert_eq!(serde_json::from_slice::<BridgeFrame>(json).unwrap(), frame);
     }
@@ -534,37 +534,6 @@ mod tests {
             last - Duration::seconds(1),
             timeout
         ));
-    }
-
-    #[test]
-    fn outbound_frame_encoding_uses_exactly_one_lf_delimiter() {
-        let frame = BridgeFrame {
-            schema_version: crate::mt5_v1::MT5_BRIDGE_SCHEMA_VERSION,
-            message_id: "message-1".into(),
-            correlation_id: "correlation-1".into(),
-            account_id: "account-001".into(),
-            sent_at: Utc::now(),
-            payload: BridgePayload::Heartbeat(crate::mt5_v1::Heartbeat {
-                terminal_id: "terminal-01".into(),
-                server: "broker-demo".into(),
-                sequence: 1,
-            }),
-        };
-        let encoded = encode_frame_line(&frame).unwrap();
-        assert_eq!(encoded.last(), Some(&b'\n'));
-        assert!(!encoded.ends_with(b"\\n"));
-        assert_eq!(encoded.iter().filter(|byte| **byte == b'\n').count(), 1);
-        let json = &encoded[..encoded.len() - 1];
-        assert_eq!(serde_json::from_slice::<BridgeFrame>(json).unwrap(), frame);
-    }
-
-    #[test]
-    fn heartbeat_freshness_rejects_expiry_and_future_timestamps() {
-        let last = Utc::now();
-        let timeout = StdDuration::from_secs(30);
-        assert!(heartbeat_is_fresh(last, last + Duration::seconds(30), timeout));
-        assert!(!heartbeat_is_fresh(last, last + Duration::seconds(31), timeout));
-        assert!(!heartbeat_is_fresh(last, last - Duration::seconds(1), timeout));
     }
 
     #[test]
