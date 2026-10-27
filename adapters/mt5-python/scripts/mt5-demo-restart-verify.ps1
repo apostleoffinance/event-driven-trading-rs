@@ -89,9 +89,10 @@ try {
     $record.pre_stop_market_sequence = [long]$before.market_sequence
     Write-Host ("Baseline market sequence: {0}; captured at {1}" -f $before.market_sequence, $before.market_captured_at)
 
-    $record.worker_stopped_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     Stop-Service -Name $WorkerServiceName -ErrorAction Stop
     $worker.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(30))
+    # Record the stop time only after Windows confirms the worker is stopped.
+    $record.worker_stopped_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     $daemon.Refresh()
     if ($daemon.Status -ne "Running") { throw "Daemon did not remain running after worker stop. This script will not restart the daemon." }
     $record.daemon_remained_running = $true
