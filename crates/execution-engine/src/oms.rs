@@ -262,7 +262,12 @@ impl ExecutionEngine {
         }
         order.transition_to(next, at)?;
         let order = order.clone();
-        self.push_audit(at, &order, AuditKind::Unknown, format!("resolved: {detail}"));
+        self.push_audit(
+            at,
+            &order,
+            AuditKind::Unknown,
+            format!("resolved: {detail}"),
+        );
         Ok(order)
     }
 

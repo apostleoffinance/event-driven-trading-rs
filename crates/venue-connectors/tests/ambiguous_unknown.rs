@@ -4,7 +4,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use domain::{
     AccountId, AccountState, ClientOrderId, DeploymentId, InstrumentId, Order, OrderId, OrderSide,
-    OrderStatus, OrderType, Position, RiskDecision, StrategyId, TimeInForce, TradeIntentId, VenueId,
+    OrderStatus, OrderType, Position, RiskDecision, StrategyId, TimeInForce, TradeIntentId,
+    VenueId,
 };
 use execution_engine::{ExecutionEngine, NewOrderRequest};
 use rust_decimal::Decimal;

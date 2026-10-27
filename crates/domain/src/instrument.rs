@@ -66,9 +66,9 @@ impl InstrumentSpec {
     /// Sensible defaults for crypto spot paper trading (fine granularity).
     pub fn crypto_spot_default() -> DomainResult<Self> {
         Self::try_new(
-            Decimal::new(1, 2),   // 0.01 tick
-            Decimal::new(1, 8),   // 1e-8 lot
-            Decimal::new(1, 8),   // min qty
+            Decimal::new(1, 2), // 0.01 tick
+            Decimal::new(1, 8), // 1e-8 lot
+            Decimal::new(1, 8), // min qty
             Some(Decimal::from(5)),
             8,
             8,
@@ -160,7 +160,13 @@ impl Instrument {
         base: impl Into<String>,
         quote: impl Into<String>,
     ) -> DomainResult<Self> {
-        Self::crypto_spot_with_spec(id, symbol, base, quote, InstrumentSpec::crypto_spot_default()?)
+        Self::crypto_spot_with_spec(
+            id,
+            symbol,
+            base,
+            quote,
+            InstrumentSpec::crypto_spot_default()?,
+        )
     }
 
     pub fn crypto_spot_with_spec(
