@@ -73,4 +73,4 @@ The coordinator is a safety boundary, not a transport. It does not implement the
 - [ ] Authenticated transport implementation, real send/reconnect orchestration, and cross-language conformance against an MT5-side implementation.
 - [x] DB-backed persistence tests cover prepared-claim replay after store restart, same-ID/different-payload rejection, unknown-to-accepted recovery, conflicting terminal outcome rejection, sequence gap degradation, explicit recovery, and sequence overflow.
 - [ ] End-to-end transport integration around actual send/response paths and concurrent duplicate-claim stress tests.
-- [ ] Full workspace CI on the latest branch head.
+- [x] Full workspace CI passed on the dispatch implementation head; rerun after final verification-document updates is pending.
