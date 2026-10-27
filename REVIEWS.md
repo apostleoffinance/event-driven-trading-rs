@@ -533,12 +533,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 ## REV-043 — Session gate initial CI formatting failure
 - **Date:** 2026-10-27
 - **Context:** PR #19 first CI run `40453162829`.
-- **Finding/correction:** `cargo fmt --all -- --check` failed on import ordering and line wrapping in the new MT5 session gate and bridge module exports. Workspace check, tests and Clippy were skipped by the format gate.
+- **Finding/correction:** `cargo fmt --all -- --check` failed on import ordering and line wrapping in the new MT5 session gate and bridge module exports on runs `40453162829` and `40453293621`. The second run showed remaining module ordering and three nested `.unwrap()` chain layout differences. Workspace check, tests and Clippy were skipped by the format gate.
 - **Impact:** The implementation was not verified at that head; no behavior failure was established by this run.
-- **Evidence:** GitHub Actions run `40453162829`, Rust job `122020325341`, formatting step 6.
+- **Evidence:** GitHub Actions runs `40453162829` (Rust job `122020325341`) and `40453293621` (Rust job `122020734888`), formatting step 6.
 - **Rule that failed:** Rust formatting gate.
 - **Rule update made in RULES.md:** None; the existing testing/release rule already requires formatting checks and reruns after correction.
-- **Code/docs/tests changed:** Applied rustfmt's exact suggested import ordering and wrapping changes in `crates/intent-bridge/src/lib.rs` and `crates/intent-bridge/src/mt5_session.rs`.
+- **Code/docs/tests changed:** Applied rustfmt's exact suggested import ordering, module ordering and wrapping changes in `crates/intent-bridge/src/lib.rs` and `crates/intent-bridge/src/mt5_session.rs` after both format failures.
 - **Regression/real-use check added:** Re-run full Rust and frontend CI on the latest PR head.
-- **Verification result:** Formatting correction committed; latest-head CI pending at time of entry.
+- **Verification result:** Corrections for both format failures committed. A fresh full CI run is required on the final branch head; no pass is claimed yet.
 - **Remaining risk:** Compilation, tests and Clippy are not verified until a successful latest-head run. No live execution, deployment, or money movement enabled.
