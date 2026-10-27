@@ -123,9 +123,11 @@ impl InstrumentSizingSnapshotProvider for InstrumentSizingSnapshotCache {
             .await
             .get(&key)
             .cloned()
-            .ok_or_else(|| crate::RuntimeError::Invariant(
-                "no instrument sizing snapshot available for account/instrument".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                crate::RuntimeError::Invariant(
+                    "no instrument sizing snapshot available for account/instrument".to_string(),
+                )
+            })?;
         if !snapshot.is_fresh_at(Utc::now()) {
             return Err(crate::RuntimeError::Invariant(
                 "cached instrument sizing snapshot is stale".to_string(),
