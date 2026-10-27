@@ -9,8 +9,10 @@
 pub mod error;
 pub mod ingest;
 pub mod mt5_v1;
+pub mod mt5_session;
 pub mod wire;
 
 pub use error::{BridgeError, BridgeResult};
 pub use ingest::{BridgeVenueKind, IntentIngestSession};
+pub use mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 pub use wire::{parse_intent_json, TradeIntentWire};
