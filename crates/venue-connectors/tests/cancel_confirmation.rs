@@ -5,9 +5,9 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use domain::{
-    AccountId, AccountState, ClientOrderId, DeploymentId, InstrumentId, Order, OrderId,
-    OrderSide, OrderStatus, OrderType, Position, RiskDecision, StrategyId, TimeInForce,
-    TradeIntentId, VenueId,
+    AccountId, AccountState, ClientOrderId, DeploymentId, InstrumentId, Order, OrderId, OrderSide,
+    OrderStatus, OrderType, Position, RiskDecision, StrategyId, TimeInForce, TradeIntentId,
+    VenueId,
 };
 use execution_engine::{ExecutionEngine, NewOrderRequest};
 use rust_decimal::Decimal;
@@ -84,5 +84,8 @@ async fn cancel_ack_does_not_mark_order_cancelled_without_confirmation() {
     let result = cancel_order(&mut oms, &venue, &order_id).await;
 
     assert!(matches!(result, Err(VenueError::Ambiguous(_))));
-    assert_eq!(oms.get(&order_id).unwrap().status, OrderStatus::CancelPending);
+    assert_eq!(
+        oms.get(&order_id).unwrap().status,
+        OrderStatus::CancelPending
+    );
 }
