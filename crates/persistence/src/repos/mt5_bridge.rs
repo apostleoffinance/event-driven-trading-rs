@@ -382,6 +382,12 @@ pub async fn persist_reconciliation_snapshot(
     }
 
     let mut tx = pool.begin().await?;
+    // Serialize even the first reconciliation, when no stream row exists to lock.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+        .bind(account_id)
+        .bind(terminal_id)
+        .execute(&mut *tx)
+        .await?;
     let current = sqlx::query_scalar::<_, i64>(
         "SELECT last_sequence FROM mt5_bridge_streams WHERE account_id = $1 AND terminal_id = $2 FOR UPDATE",
     )
