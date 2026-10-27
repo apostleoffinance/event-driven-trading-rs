@@ -598,11 +598,18 @@ impl BridgeFrame {
                         || decimal(&order.quantity, "order quantity")? <= Decimal::ZERO
                     {
                         return Err(BridgeError::Invalid(
-                            "snapshot contains duplicate order IDs or invalid order quantity".into(),
+                            "snapshot contains duplicate order IDs or invalid order quantity"
+                                .into(),
                         ));
                     }
-                    if order.client_order_id.as_deref().is_some_and(|id| id.trim().is_empty()) {
-                        return Err(BridgeError::Invalid("snapshot contains empty client order ID".into()));
+                    if order
+                        .client_order_id
+                        .as_deref()
+                        .is_some_and(|id| id.trim().is_empty())
+                    {
+                        return Err(BridgeError::Invalid(
+                            "snapshot contains empty client order ID".into(),
+                        ));
                     }
                 }
                 let mut position_ids = std::collections::BTreeSet::new();

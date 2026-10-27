@@ -170,9 +170,9 @@ pub async fn persist_and_confirm_reconciliation(
         || session.account_id() != Some(snapshot.account_id.as_str())
         || session.terminal_id() != Some(snapshot.terminal_id.as_str())
         || session.server() != Some(snapshot.server.as_str())
-        || !session.capabilities().is_some_and(|caps| {
-            caps.order_lookup && caps.sequence_numbers
-        })
+        || !session
+            .capabilities()
+            .is_some_and(|caps| caps.order_lookup && caps.sequence_numbers)
     {
         degrade_session_and_stream(store, session).await;
         return Err(BridgeError::Invalid(

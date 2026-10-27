@@ -180,7 +180,9 @@ impl Mt5BridgeRuntime {
         if frame.account_id.trim().is_empty() || frame.account_id.trim() != frame.account_id {
             let mut session = self.session.lock().await;
             session.degrade();
-            return Err(BridgeError::Invalid("invalid account ID on MT5 snapshot frame".into()));
+            return Err(BridgeError::Invalid(
+                "invalid account ID on MT5 snapshot frame".into(),
+            ));
         }
         let snapshot = Mt5ReconciliationSnapshot {
             account_id: frame.account_id,
@@ -196,8 +198,10 @@ impl Mt5BridgeRuntime {
                 margin_used: wire.account_state.margin_used,
                 free_margin: wire.account_state.free_margin,
             },
-            open_orders: wire.open_orders.into_iter().map(|order| {
-                crate::mt5_reconciliation::Mt5OpenOrderSnapshot {
+            open_orders: wire
+                .open_orders
+                .into_iter()
+                .map(|order| crate::mt5_reconciliation::Mt5OpenOrderSnapshot {
                     venue_order_id: order.venue_order_id,
                     client_order_id: order.client_order_id,
                     instrument_id: order.instrument_id,
@@ -205,18 +209,20 @@ impl Mt5BridgeRuntime {
                     order_type: order.order_type,
                     quantity: order.quantity,
                     status: order.status,
-                }
-            }).collect(),
-            positions: wire.positions.into_iter().map(|position| {
-                crate::mt5_reconciliation::Mt5PositionSnapshot {
+                })
+                .collect(),
+            positions: wire
+                .positions
+                .into_iter()
+                .map(|position| crate::mt5_reconciliation::Mt5PositionSnapshot {
                     venue_position_id: position.venue_position_id,
                     instrument_id: position.instrument_id,
                     side: position.side,
                     quantity: position.quantity,
                     average_price: position.average_price,
                     unrealized_pnl: position.unrealized_pnl,
-                }
-            }).collect(),
+                })
+                .collect(),
         };
         self.reconcile(&snapshot, Utc::now(), max_age).await
     }
