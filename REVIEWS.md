@@ -283,3 +283,14 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Full latest-head CI rerun.
 - **Verification result:** Correction committed as `603282cecc1c46e2788de194f3eed17b9b9f7388`; rerun pending. No test success claimed.
 - **Remaining risk:** Additional compiler/test/Clippy findings may remain until the full CI suite passes.
+
+
+## REV-020 — QOS-013 sell-stop geometry regression test failure and correction
+- **Date:** 2026-10-27
+- **Context:** QOS-013 CI run 40435876274 on commit `6180e7a636eae391e1f79d840c22495ffa29bf69`.
+- **Finding:** `cargo fmt`, workspace check, and the majority of workspace tests ran successfully, but `risk_engine::instrument_sizing::tests::sell_stop_at_or_below_entry_rejects` failed. Its fixture used entry 100 and stop 101, which is a valid protective stop for a sell order (sell stop must be strictly above entry), while its name and expected rejection described an invalid stop at or below entry.
+- **Correction:** Changed the fixture stop from 101 to 100 so the test actually exercises equality, which must reject per `RULES.md` and `INSTRUMENT_AWARE_SIZING.md`. The production geometry check already correctly requires sell stop > entry; no production behavior was weakened.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435876274, Rust job 121964300309. Failure reported at `crates/risk-engine/src/instrument_sizing.rs:517`: actual Approved versus expected InvalidStopGeometry. Frontend job 121964300550 passed.
+- **Rule update:** None. The existing stop-geometry rule is clear; the regression fixture was inconsistent with it.
+- **Verification:** Fix pushed to the QOS-013 branch; new CI run must pass before the task can be treated as verified.
+- **Remaining risk:** Full SZ-01–SZ-26 implementation and production runtime snapshot wiring are still open; this correction addresses only the failed test fixture.
