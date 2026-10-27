@@ -8,7 +8,6 @@ use persistence::{
 use serde_json::json;
 use sqlx::PgPool;
 
-
 async fn persist_reconciliation_snapshot(
     store: &TradingStore,
     account_id: &str,
