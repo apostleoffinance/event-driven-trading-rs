@@ -45,7 +45,8 @@ impl MarketDataFetcher for BinanceFetcher {
             .json::<BinanceTickerResponse>()
             .await?;
 
-        let price = Decimal::from_str_exact(&response.last_price).map_err(TradingError::Decimal)?;
+        let price =
+            Decimal::from_str_exact(&response.last_price).map_err(TradingError::Decimal)?;
 
         let volume = Decimal::from_str_exact(&response.volume).map_err(TradingError::Decimal)?;
 
