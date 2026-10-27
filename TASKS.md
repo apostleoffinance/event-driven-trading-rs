@@ -14,11 +14,11 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
   - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
 
 ## Next recommended task
-- **QOS-010 [READY]** Specify the `VenueAdapter` contract before implementation. Define async venue events, capabilities, instrument specs, health/readiness, idempotency, ambiguous outcomes, and reconciliation. Do not implement an adapter until the contract and acceptance tests are reviewed.
+- **QOS-010 [DONE]** Contract specification drafted in `VENUE_ADAPTER_CONTRACT.md`, including explicit semantics and 18 contract-test scenarios. Implementation remains blocked until this contract/test matrix is reviewed.
 
 ## Milestone 1 — Product B
-- [ ] **QOS-010 [READY]** Extend the existing `VenueAdapter` contract specification. Current trait has account state, submit/cancel, open orders, positions, and get-order; specify gaps for async events, explicit capabilities, instrument specs, health/readiness, ambiguous outcomes, and reconciliation.
-- [ ] **QOS-011 [READY]** Implement/refine adapter contract with simulator tests; duplicate submits and unknown outcomes covered; no risk bypass.
+- [x] **QOS-010 [DONE]** Specify the existing `VenueAdapter` contract and gaps. Evidence: `VENUE_ADAPTER_CONTRACT.md` documents capabilities, health/readiness, instrument constraints, async events, idempotency, ambiguity, cancel confirmation, reconnect/reconciliation, and 18 test scenarios. Spec-only; no runtime behavior changed.
+- [ ] **QOS-011 [BLOCKED by QOS-010 review]** Implement/refine adapter contract with simulator tests after the contract/test matrix is reviewed; cover duplicate submits, changed-payload conflicts, unknown outcomes, event deduplication, and confirmed cancellation. No risk bypass.
 - [ ] **QOS-012 [READY]** Specify per-account sizing inputs/outputs: risk budget, stop distance, contract/tick value, pip/tick value, quote-currency conversions, exposure, limits, lot step/min/max, and venue constraints. Existing sizing has stop-distance caps but is not proven instrument-complete.
 - [ ] **QOS-013 [BLOCKED by QOS-012]** Implement allocator behind risk authorization. Test boundary values, rounding, min/max volume, stale state, drawdown, and independent account decisions.
 - [ ] **QOS-014 [READY]** Specify MT5 bridge v1: schema version, IDs, decimal strings, units, heartbeat, reconnect, idempotency, ambiguous submit.
