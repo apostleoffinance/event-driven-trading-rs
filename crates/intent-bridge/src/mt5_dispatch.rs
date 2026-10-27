@@ -49,6 +49,47 @@ impl Mt5DispatchPermit {
         &self.client_order_id
     }
 
+    /// Execute exactly one send through an authenticated MT5 connection, then persist
+    /// its correlated outcome. Any transport ambiguity is durably recorded as Unknown,
+    /// degrades the session, and consumes this permit; this method never retries.
+    pub async fn execute_over_transport(
+        self,
+        connection: &mut crate::mt5_transport::AuthenticatedMt5Connection,
+        store: &TradingStore,
+        session: &mut Mt5SessionGate,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<()> {
+        if let Err(send_error) = connection.write_frame(self.frame()).await {
+            self.record_ambiguous_transport_failure(store, session, "transport_write_failed")
+                .await?;
+            return Err(send_error);
+        }
+
+        let response = match connection
+            .read_frame(Utc::now(), allowed_clock_skew)
+            .await
+        {
+            Ok(response) => response,
+            Err(read_error) => {
+                self.record_ambiguous_transport_failure(
+                    store,
+                    session,
+                    "transport_response_ambiguous",
+                )
+                .await?;
+                return Err(read_error);
+            }
+        };
+        self.record_outcome(
+            store,
+            session,
+            &response,
+            Utc::now(),
+            allowed_clock_skew,
+        )
+        .await
+    }
+
     /// Persist a response only if it is for this permit's account, correlation
     /// and stable client-order key. Any mismatch degrades the session.
     pub async fn record_outcome(
