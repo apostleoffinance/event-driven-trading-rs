@@ -139,7 +139,10 @@ async fn provider_uses_ask_for_buys_and_bid_for_sells(pool: PgPool) {
     assert_eq!(buy.entry_price, Some(Decimal::new(11001, 4)));
     assert_eq!(sell.entry_price, Some(Decimal::new(11000, 4)));
     assert_eq!(buy.sizing.quantity_step, Decimal::new(1, 2));
-    assert_eq!(buy.source_id, "terminal-provider-01:mt5_python_readonly_v1:12");
+    assert_eq!(
+        buy.source_id,
+        "terminal-provider-01:mt5_python_readonly_v1:12"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -169,10 +172,7 @@ async fn provider_rejects_cross_instrument_supplement(pool: PgPool) {
     let store = TradingStore::new(pool);
     let now = Utc::now();
     seed_snapshot(&store, now).await;
-    let provider = provider(
-        store,
-        supplement(now, "sizing-provider-account", "GBPUSD"),
-    );
+    let provider = provider(store, supplement(now, "sizing-provider-account", "GBPUSD"));
     let account = AccountId::new("sizing-provider-account").unwrap();
     let instrument = InstrumentId::new("EURUSD").unwrap();
 
