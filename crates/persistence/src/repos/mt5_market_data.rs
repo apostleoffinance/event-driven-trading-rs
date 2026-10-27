@@ -66,7 +66,7 @@ pub async fn load_latest(
             let sequence = u64::try_from(sequence).map_err(|_| {
                 PersistenceError::Other("persisted MT5 sequence is negative".into())
             })?;
-            if snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
+            if snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id.as_str())
                 || snapshot.get("server").and_then(Value::as_str) != Some(server.as_str())
                 || snapshot.get("source").and_then(Value::as_str) != Some(source.as_str())
                 || snapshot.get("account_currency").and_then(Value::as_str)
