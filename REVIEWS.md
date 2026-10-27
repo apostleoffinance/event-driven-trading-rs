@@ -554,5 +554,5 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update made in RULES.md:** None; existing rules already require durable idempotency, fail-closed ambiguity handling, and no blind retries.
 - **Code/docs/tests changed:** Added `Mt5DispatchDecision`, private-field `Mt5DispatchPermit`, `prepare_submit`, outcome binding/persistence and ambiguous transport failure handling in `crates/intent-bridge/src/mt5_dispatch.rs`; exported the API; updated MT5 contract, task and progress docs.
 - **Regression/real-use check added:** Unit tests reject account/correlation/client-order mismatches and verify accepted/rejected/unknown state mapping.
-- **Verification result:** CI pending on branch `feat/qos-014-mt5-dispatch-coordinator`; no pass is claimed until latest-head CI succeeds.
+- **Verification result:** GitHub Actions run `40454050187` passed on implementation head `80e74f7acf2786065800b5fa075a0216a8b965c9`: Rust formatting, workspace check/tests, all-target Clippy, frontend lint, TypeScript typecheck and production build. A final rerun is required after these verification-document updates.
 - **Remaining risk:** Actual transport, send/reconnect wiring, authenticated peer identity, broker symbol mapping, cross-language conformance and end-to-end recovery remain open. No live execution, deployment, or money movement enabled.
