@@ -10,6 +10,21 @@ use serde::{Deserialize, Serialize};
 use crate::{BridgeError, BridgeResult};
 
 pub const MT5_BRIDGE_SCHEMA_VERSION: u16 = 1;
+pub const MAX_MT5_BRIDGE_FRAME_BYTES: usize = 64 * 1024;
+
+/// Decode and validate one UTF-8 JSON frame. Callers must frame NDJSON before invoking this.
+pub fn parse_frame_json(
+    json: &str,
+    now: DateTime<Utc>,
+    allowed_clock_skew: Duration,
+) -> BridgeResult<BridgeFrame> {
+    if json.len() > MAX_MT5_BRIDGE_FRAME_BYTES {
+        return Err(BridgeError::Invalid("MT5 bridge frame exceeds 64 KiB limit".into()));
+    }
+    let frame: BridgeFrame = serde_json::from_str(json)?;
+    frame.validate_at(now, allowed_clock_skew)?;
+    Ok(frame)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -373,6 +388,28 @@ mod tests {
         let mut future = frame(BridgePayload::SubmitOrder(valid_order()));
         future.sent_at = now + Duration::seconds(3);
         assert!(future.validate_at(now, Duration::seconds(2)).is_err());
+    }
+
+    #[test]
+    fn rejects_noncanonical_decimal_lexemes() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        for quantity in ["1e-2", "01.0", ".1", "-.1", " 0.1", "0."] {
+            let mut order = valid_order();
+            order.quantity = quantity.to_string();
+            assert!(
+                frame(BridgePayload::SubmitOrder(order))
+                    .validate_at(now, Duration::zero())
+                    .is_err(),
+                "accepted invalid decimal {quantity}"
+            );
+        }
+    }
+
+    #[test]
+    fn parser_rejects_oversized_frames_before_deserialization() {
+        let oversized = " ".repeat(MAX_MT5_BRIDGE_FRAME_BYTES + 1);
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        assert!(parse_frame_json(&oversized, now, Duration::zero()).is_err());
     }
 
     #[test]
