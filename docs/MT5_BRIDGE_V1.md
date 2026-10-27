@@ -74,3 +74,10 @@ The coordinator is a safety boundary, not a transport. It does not implement the
 - [x] DB-backed persistence tests cover prepared-claim replay after store restart, same-ID/different-payload rejection, unknown-to-accepted recovery, conflicting terminal outcome rejection, sequence gap degradation, explicit recovery, and sequence overflow.
 - [ ] End-to-end transport integration around actual send/response paths and concurrent duplicate-claim stress tests.
 - [x] Full workspace CI passed on the dispatch implementation head; rerun after final verification-document updates is pending.
+
+
+## Read-only reconciliation snapshot extension (QOS-015A)
+
+The additive `reconciliation_snapshot` payload carries a complete point-in-time account state, open orders and positions from the Python terminal worker. It is identity-bound to the enclosing frame's account ID and to the terminal/server pair learned from the authenticated heartbeat. The Rust host validates freshness, decimal lexemes, duplicate IDs, identity and sequence before persisting the snapshot.
+
+This is a coordinated v1 extension: older clients that strictly reject unknown payload variants must not be used with this worker. The worker advertises order submission and cancellation capabilities as false. A reconciled read-only session is not permission to trade; Rust submit authorization independently requires stable client-order idempotency and the relevant order capability. No order-send/cancel operation is implemented in QOS-015A.

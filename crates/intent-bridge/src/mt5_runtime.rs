@@ -20,7 +20,7 @@ use crate::mt5_reconciliation::{
 };
 use crate::mt5_session::{Mt5SessionGate, Mt5SessionState};
 use crate::mt5_transport::{spawn_heartbeat_watchdog, AuthenticatedMt5Connection};
-use crate::mt5_v1::BridgeFrame;
+use crate::mt5_v1::{BridgeFrame, BridgePayload};
 use crate::{BridgeError, BridgeResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,6 +143,88 @@ impl Mt5BridgeRuntime {
     ) -> BridgeResult<()> {
         let mut session = self.session.lock().await;
         persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
+    }
+
+    /// Consume a complete snapshot frame from the authenticated terminal client,
+    /// validate its identity against the bound account/session, and persist it before
+    /// restoring reconciliation readiness. No order submission is performed here.
+    pub async fn reconcile_from_next_frame(
+        &self,
+        allowed_clock_skew: Duration,
+        max_age: Duration,
+    ) -> BridgeResult<()> {
+        let frame = loop {
+            let frame = self.read_next_frame(Utc::now(), allowed_clock_skew).await?;
+            if matches!(&frame.payload, BridgePayload::Heartbeat(_)) {
+                continue;
+            }
+            if matches!(&frame.payload, BridgePayload::ReconciliationSnapshot(_)) {
+                break frame;
+            }
+            let mut session = self.session.lock().await;
+            session.degrade();
+            return Err(BridgeError::Invalid(
+                "expected reconciliation_snapshot frame from read-only MT5 adapter".into(),
+            ));
+        };
+        let wire = match frame.payload {
+            BridgePayload::ReconciliationSnapshot(snapshot) => snapshot,
+            _ => {
+                let mut session = self.session.lock().await;
+                session.degrade();
+                return Err(BridgeError::Invalid(
+                    "expected reconciliation_snapshot frame from read-only MT5 adapter".into(),
+                ));
+            }
+        };
+        if frame.account_id.trim().is_empty() || frame.account_id.trim() != frame.account_id {
+            let mut session = self.session.lock().await;
+            session.degrade();
+            return Err(BridgeError::Invalid(
+                "invalid account ID on MT5 snapshot frame".into(),
+            ));
+        }
+        let snapshot = Mt5ReconciliationSnapshot {
+            account_id: frame.account_id,
+            terminal_id: wire.terminal_id,
+            server: wire.server,
+            source: wire.source,
+            sequence: wire.sequence,
+            captured_at: wire.captured_at,
+            account_state: crate::mt5_reconciliation::Mt5AccountStateSnapshot {
+                currency: wire.account_state.currency,
+                balance: wire.account_state.balance,
+                equity: wire.account_state.equity,
+                margin_used: wire.account_state.margin_used,
+                free_margin: wire.account_state.free_margin,
+            },
+            open_orders: wire
+                .open_orders
+                .into_iter()
+                .map(|order| crate::mt5_reconciliation::Mt5OpenOrderSnapshot {
+                    venue_order_id: order.venue_order_id,
+                    client_order_id: order.client_order_id,
+                    instrument_id: order.instrument_id,
+                    side: order.side,
+                    order_type: order.order_type,
+                    quantity: order.quantity,
+                    status: order.status,
+                })
+                .collect(),
+            positions: wire
+                .positions
+                .into_iter()
+                .map(|position| crate::mt5_reconciliation::Mt5PositionSnapshot {
+                    venue_position_id: position.venue_position_id,
+                    instrument_id: position.instrument_id,
+                    side: position.side,
+                    quantity: position.quantity,
+                    average_price: position.average_price,
+                    unrealized_pnl: position.unrealized_pnl,
+                })
+                .collect(),
+        };
+        self.reconcile(&snapshot, Utc::now(), max_age).await
     }
 
     /// Fetch and persist an authoritative external snapshot after reconnect or

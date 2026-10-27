@@ -20,7 +20,8 @@
         { "$ref": "#/$defs/cancel_order" },
         { "$ref": "#/$defs/cancel_outcome" },
         { "$ref": "#/$defs/order_snapshot" },
-        { "$ref": "#/$defs/reconcile_request" }
+        { "$ref": "#/$defs/reconcile_request" },
+        { "$ref": "#/$defs/reconciliation_snapshot" }
       ]
     }
   },
@@ -96,6 +97,60 @@
       "type": "object", "additionalProperties": false,
       "required": ["type", "client_order_id"],
       "properties": { "type": { "const": "reconcile_request" }, "client_order_id": { "type": "string", "minLength": 1 } }
+    },
+    "reconciliation_snapshot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "terminal_id", "server", "source", "sequence", "captured_at", "account_state", "open_orders", "positions"],
+      "properties": {
+        "type": { "const": "reconciliation_snapshot" },
+        "terminal_id": { "type": "string", "minLength": 1 },
+        "server": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "account_state": {
+          "type": "object", "additionalProperties": false,
+          "required": ["currency", "balance", "equity", "margin_used", "free_margin"],
+          "properties": {
+            "currency": { "type": "string", "minLength": 1 },
+            "balance": { "$ref": "#/$defs/decimal" },
+            "equity": { "$ref": "#/$defs/decimal" },
+            "margin_used": { "$ref": "#/$defs/decimal" },
+            "free_margin": { "$ref": "#/$defs/decimal" }
+          }
+        },
+        "open_orders": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["venue_order_id", "client_order_id", "instrument_id", "side", "order_type", "quantity", "status"],
+            "properties": {
+              "venue_order_id": { "type": "string", "minLength": 1 },
+              "client_order_id": { "type": ["string", "null"] },
+              "instrument_id": { "type": "string", "minLength": 1 },
+              "side": { "type": "string", "minLength": 1 },
+              "order_type": { "type": "string", "minLength": 1 },
+              "quantity": { "$ref": "#/$defs/decimal" },
+              "status": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["venue_position_id", "instrument_id", "side", "quantity", "average_price", "unrealized_pnl"],
+            "properties": {
+              "venue_position_id": { "type": "string", "minLength": 1 },
+              "instrument_id": { "type": "string", "minLength": 1 },
+              "side": { "type": "string", "minLength": 1 },
+              "quantity": { "$ref": "#/$defs/decimal" },
+              "average_price": { "$ref": "#/$defs/decimal" },
+              "unrealized_pnl": { "$ref": "#/$defs/decimal" }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -259,6 +259,7 @@ pub enum BridgePayload {
     CancelOutcome(CancelOutcome),
     OrderSnapshot(OrderSnapshot),
     ReconcileRequest(ReconcileRequest),
+    ReconciliationSnapshot(ReconciliationSnapshotWire),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -418,6 +419,52 @@ pub struct ReconcileRequest {
     pub client_order_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReconciliationSnapshotWire {
+    pub terminal_id: String,
+    pub server: String,
+    pub source: String,
+    pub sequence: u64,
+    pub captured_at: DateTime<Utc>,
+    pub account_state: ReconciliationAccountStateWire,
+    pub open_orders: Vec<ReconciliationOpenOrderWire>,
+    pub positions: Vec<ReconciliationPositionWire>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReconciliationAccountStateWire {
+    pub currency: String,
+    pub balance: String,
+    pub equity: String,
+    pub margin_used: String,
+    pub free_margin: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReconciliationOpenOrderWire {
+    pub venue_order_id: String,
+    pub client_order_id: Option<String>,
+    pub instrument_id: String,
+    pub side: String,
+    pub order_type: String,
+    pub quantity: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReconciliationPositionWire {
+    pub venue_position_id: String,
+    pub instrument_id: String,
+    pub side: String,
+    pub quantity: String,
+    pub average_price: String,
+    pub unrealized_pnl: String,
+}
+
 impl BridgeFrame {
     /// Validate protocol invariants using an injected clock and allowed skew.
     /// This keeps tests deterministic and prevents a wall clock from being
@@ -526,6 +573,60 @@ impl BridgeFrame {
             }
             BridgePayload::ReconcileRequest(request) => {
                 require_text(&request.client_order_id, "client_order_id")?
+            }
+            BridgePayload::ReconciliationSnapshot(snapshot) => {
+                require_text(&snapshot.terminal_id, "terminal_id")?;
+                require_text(&snapshot.server, "server")?;
+                require_text(&snapshot.source, "source")?;
+                require_text(&snapshot.account_state.currency, "account currency")?;
+                for (field, value) in [
+                    ("balance", snapshot.account_state.balance.as_str()),
+                    ("equity", snapshot.account_state.equity.as_str()),
+                    ("margin_used", snapshot.account_state.margin_used.as_str()),
+                    ("free_margin", snapshot.account_state.free_margin.as_str()),
+                ] {
+                    decimal(value, field)?;
+                }
+                let mut order_ids = std::collections::BTreeSet::new();
+                for order in &snapshot.open_orders {
+                    require_text(&order.venue_order_id, "venue_order_id")?;
+                    require_text(&order.instrument_id, "instrument_id")?;
+                    require_text(&order.side, "order side")?;
+                    require_text(&order.order_type, "order type")?;
+                    require_text(&order.status, "order status")?;
+                    if !order_ids.insert(order.venue_order_id.as_str())
+                        || decimal(&order.quantity, "order quantity")? <= Decimal::ZERO
+                    {
+                        return Err(BridgeError::Invalid(
+                            "snapshot contains duplicate order IDs or invalid order quantity"
+                                .into(),
+                        ));
+                    }
+                    if order
+                        .client_order_id
+                        .as_deref()
+                        .is_some_and(|id| id.trim().is_empty())
+                    {
+                        return Err(BridgeError::Invalid(
+                            "snapshot contains empty client order ID".into(),
+                        ));
+                    }
+                }
+                let mut position_ids = std::collections::BTreeSet::new();
+                for position in &snapshot.positions {
+                    require_text(&position.venue_position_id, "venue_position_id")?;
+                    require_text(&position.instrument_id, "instrument_id")?;
+                    require_text(&position.side, "position side")?;
+                    if !position_ids.insert(position.venue_position_id.as_str())
+                        || decimal(&position.quantity, "position quantity")? <= Decimal::ZERO
+                    {
+                        return Err(BridgeError::Invalid(
+                            "snapshot contains duplicate position IDs or invalid quantity".into(),
+                        ));
+                    }
+                    decimal(&position.average_price, "average_price")?;
+                    decimal(&position.unrealized_pnl, "unrealized_pnl")?;
+                }
             }
         }
         Ok(())
@@ -667,6 +768,47 @@ mod tests {
         assert!(invalid_utf8
             .push(&[0xff, b'\n'], now, Duration::zero())
             .is_err());
+    }
+
+    #[test]
+    fn reconciliation_snapshot_round_trips_with_decimal_strings() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        let snapshot = ReconciliationSnapshotWire {
+            terminal_id: "terminal-demo-1".into(),
+            server: "Broker-Demo".into(),
+            source: "mt5_python_readonly_v1".into(),
+            sequence: 8,
+            captured_at: now,
+            account_state: ReconciliationAccountStateWire {
+                currency: "USD".into(),
+                balance: "10000.00".into(),
+                equity: "9990.50".into(),
+                margin_used: "100.00".into(),
+                free_margin: "9890.50".into(),
+            },
+            open_orders: vec![ReconciliationOpenOrderWire {
+                venue_order_id: "77".into(),
+                client_order_id: None,
+                instrument_id: "EURUSD.a".into(),
+                side: "buy".into(),
+                order_type: "buy_limit".into(),
+                quantity: "0.10".into(),
+                status: "1".into(),
+            }],
+            positions: vec![ReconciliationPositionWire {
+                venue_position_id: "88".into(),
+                instrument_id: "EURUSD.a".into(),
+                side: "buy".into(),
+                quantity: "0.10".into(),
+                average_price: "1.08000".into(),
+                unrealized_pnl: "-9.50".into(),
+            }],
+        };
+        let frame = frame(BridgePayload::ReconciliationSnapshot(snapshot));
+        frame.validate_at(now, Duration::zero()).unwrap();
+        let json = serde_json::to_string(&frame).unwrap();
+        let decoded: BridgeFrame = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, frame);
     }
 
     #[test]
