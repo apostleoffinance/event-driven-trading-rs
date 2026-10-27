@@ -545,7 +545,9 @@ mod tests {
         let mut blank = NdjsonFrameDecoder::new();
         assert!(blank.push(b"\n", now, Duration::zero()).is_err());
         let mut invalid_utf8 = NdjsonFrameDecoder::new();
-        assert!(invalid_utf8.push(&[0xff, b'\n'], now, Duration::zero()).is_err());
+        assert!(invalid_utf8
+            .push(&[0xff, b'\n'], now, Duration::zero())
+            .is_err());
     }
 
     #[test]
