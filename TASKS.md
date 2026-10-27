@@ -10,7 +10,11 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
 - [x] **QOS-002 [DONE]** Run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and applicable Clippy.
   - Verified on GitHub Actions run 40425656667 (latest PR head): formatting, workspace check, workspace tests, and `cargo clippy --workspace --all-targets` passed. Frontend `npm ci`, lint, typecheck, and build also passed in the same run.
   - The initial formatting failure is retained in REV-004; successful rerun is recorded in REV-005. This is CI verification, not proof of production or live trading readiness.
-- [ ] **QOS-003 [READY]** Inspect frontend scripts/dependencies/tokens before UI changes.
+- [x] **QOS-003 [DONE]** Inspect frontend scripts/dependencies/tokens before UI changes.
+  - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
+
+## Next recommended task
+- **QOS-010 [READY]** Specify the `VenueAdapter` contract before implementation. Define async venue events, capabilities, instrument specs, health/readiness, idempotency, ambiguous outcomes, and reconciliation. Do not implement an adapter until the contract and acceptance tests are reviewed.
 
 ## Milestone 1 — Product B
 - [ ] **QOS-010 [READY]** Extend the existing `VenueAdapter` contract specification. Current trait has account state, submit/cancel, open orders, positions, and get-order; specify gaps for async events, explicit capabilities, instrument specs, health/readiness, ambiguous outcomes, and reconciliation.

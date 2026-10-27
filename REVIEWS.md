@@ -94,3 +94,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** CI workflow continues to run the Rust and frontend baseline commands on PRs to main and pushes to main.
 - **Verification result:** Both CI jobs passed on the latest PR head `2786b355cd08c4d9fc61dc4653c583646d4f00ae`, run 40425656667. QOS-002 acceptance criteria met by GitHub Actions evidence.
 - **Remaining risk:** CI passing is not proof of production safety, venue integrations, live execution, or money movement readiness. PR #3 has not been merged.
+
+
+## REV-006 — QOS-003 frontend baseline audit
+- **Date:** 2026-10-27
+- **Context:** PR #3 merged; QOS-003 selected as the next task.
+- **Finding/correction:** Source inspection confirmed mock repositories remain the only data source even when API mode is requested; the environment label can independently be set to LIVE; the top bar displays SYSTEM HEALTHY unconditionally; illustrative mock system telemetry contains old timestamps; and the current blue/dark token palette differs from the white-dominant navy/orange direction.
+- **Impact:** A visual refresh without first defining truthful state semantics could make simulated data or disconnected services appear live/healthy.
+- **Evidence:** `FRONTEND_AUDIT.md`; inspected frontend package/config, repositories, mock data, event/simulation providers, top bar, theme provider, CSS tokens, and dashboard.
+- **Rule that failed:** No financial-safety rule was shown to have been violated by the audit itself. Existing frontend rules already prohibit presenting mock as live, fake status, and unsupported health claims; the inspected implementation exposes risk areas against those rules.
+- **Rule update made in RULES.md:** None; current rules are adequate.
+- **Code/docs/tests changed:** Added `FRONTEND_AUDIT.md`; updated `TASKS.md`, `PROGRESS.md`, and this register. No UI/runtime/dependency/trading code changed.
+- **Regression/real-use check added:** Future UI work must test explicit mock/API mode, LIVE label disconnected from backend, stale/disconnected/unknown health, and ensure system status is never hardcoded as healthy.
+- **Verification result:** QOS-003 source-inspection acceptance met. CI run 40425954540 completed successfully for Rust and frontend baseline commands.
+- **Remaining risk:** No browser usability test, live API handshake, production deployment, or live venue integration was performed. Do not treat this audit or green CI as proof of live readiness.
