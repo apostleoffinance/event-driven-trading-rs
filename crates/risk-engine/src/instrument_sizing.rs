@@ -882,4 +882,59 @@ mod tests {
         assert_eq!(first, Decimal::from(100));
         assert_eq!(second, Decimal::from(200));
     }
+    #[test]
+    fn generated_valid_specs_preserve_quantity_and_loss_invariants() {
+        for equity in [1_000_i64, 5_000, 10_000] {
+            for risk_pct in [
+                Decimal::new(25, 2),
+                Decimal::new(5, 1),
+                Decimal::ONE,
+                Decimal::from(2),
+            ] {
+                for step in [Decimal::new(1, 2), Decimal::new(1, 1), Decimal::ONE] {
+                    for stop_distance in [
+                        Decimal::new(5, 1),
+                        Decimal::ONE,
+                        Decimal::from(5),
+                    ] {
+                        let mut request = sample_request();
+                        request.account_state.equity = Decimal::from(equity);
+                        request.policy.max_risk_per_trade_pct = risk_pct;
+                        request.policy.max_position_size_pct = Decimal::from(100);
+                        request.policy.max_total_exposure_pct = Decimal::from(100);
+                        request.policy.max_leverage = Decimal::from(100);
+                        request.entry_price = Some(Decimal::from(100));
+                        request.stop_loss = Some(Decimal::from(100) - stop_distance);
+                        request.requested_quantity = Some(Decimal::from(1_000));
+
+                        let mut sizing = context();
+                        sizing.quantity_step = step;
+                        sizing.min_quantity = step;
+                        sizing.max_quantity = Some(Decimal::from(1_000));
+                        let result = size_order_instrument_aware(&request, &sizing);
+
+                        if let InstrumentSizingOutcome::Approved {
+                            quantity,
+                            modeled_loss,
+                            risk_budget,
+                        }
+                        | InstrumentSizingOutcome::Resized {
+                            quantity,
+                            modeled_loss,
+                            risk_budget,
+                            ..
+                        } = result
+                        {
+                            assert!(quantity > Decimal::ZERO);
+                            assert!(quantity >= sizing.min_quantity);
+                            assert!(quantity <= Decimal::from(1_000));
+                            assert_eq!((quantity / step).trunc(), quantity / step);
+                            assert!(modeled_loss <= risk_budget);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
 }
