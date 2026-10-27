@@ -488,3 +488,69 @@ pub async fn persist_reconciliation_snapshot(
     tx.commit().await?;
     Ok(())
 }
+
+
+/// Persist broker-authoritative MT5 instrument metadata and fresh bid/ask quotes.
+/// This table is separate from reconciliation readiness so market data cannot mark
+/// an order/account stream ready by itself.
+pub async fn persist_market_data_snapshot(
+    pool: &PgPool,
+    account_id: &str,
+    terminal_id: &str,
+    server: &str,
+    sequence: u64,
+    source: &str,
+    account_currency: &str,
+    captured_at: DateTime<Utc>,
+    snapshot: Value,
+) -> PersistenceResult<()> {
+    let sequence = i64::try_from(sequence).map_err(|_| {
+        PersistenceError::Other("MT5 market-data sequence exceeds PostgreSQL BIGINT range".into())
+    })?;
+    let snapshot_timestamp = snapshot
+        .get("captured_at")
+        .and_then(Value::as_str)
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.with_timezone(&Utc));
+    if account_id.trim().is_empty()
+        || terminal_id.trim().is_empty()
+        || server.trim().is_empty()
+        || source.trim().is_empty()
+        || account_currency.trim().is_empty()
+        || sequence < 0
+        || snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
+        || snapshot.get("server").and_then(Value::as_str) != Some(server)
+        || snapshot.get("source").and_then(Value::as_str) != Some(source)
+        || snapshot.get("sequence").and_then(Value::as_i64) != Some(sequence)
+        || snapshot.get("account_currency").and_then(Value::as_str) != Some(account_currency)
+        || snapshot_timestamp != Some(captured_at)
+        || !snapshot.get("instruments").is_some_and(Value::is_array)
+        || !snapshot.get("quotes").is_some_and(Value::is_array)
+        || snapshot.get("instruments").and_then(Value::as_array).is_none_or(Vec::is_empty)
+        || snapshot.get("instruments").and_then(Value::as_array).map(Vec::len)
+            != snapshot.get("quotes").and_then(Value::as_array).map(Vec::len)
+    {
+        return Err(PersistenceError::Other(
+            "MT5 market-data snapshot requires matching identity and paired instrument/quote arrays".into(),
+        ));
+    }
+
+    sqlx::query(
+        r#"
+        INSERT INTO mt5_bridge_market_data_snapshots
+            (account_id, terminal_id, server, sequence, source, account_currency, captured_at, snapshot)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        "#,
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .bind(server)
+    .bind(sequence)
+    .bind(source)
+    .bind(account_currency)
+    .bind(captured_at)
+    .bind(Json(snapshot))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
