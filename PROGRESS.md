@@ -307,3 +307,10 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added side-aware provider loading; buy intents use ask and sell intents use bid. The resulting entry price is now used both by the risk evaluator and the downstream order request, avoiding sizing at one price and submitting at another.
 - Provider fails closed when capability and account-position-semantics gates are not explicitly validated. No order submission/cancellation capability was added; the existing explicit runtime sizing path remains opt-in.
 - Added SQLx-backed runtime integration tests for side-specific ask/bid selection and stale trusted-supplement rejection. Exact-head CI is pending. Windows MT5 demo-terminal smoke test and certificate lifecycle review remain outstanding. No live mode enabled.
+
+
+## Work log — QOS-015A/015B Windows demo smoke harness (2026-10-27)
+- Confirmed PR #31 is merged; its sizing runtime consumer is in `main`, but the actual Windows MT5 terminal has not been demonstrated by hosted CI.
+- Added `adapters/mt5-python/scripts/mt5-demo-smoke.ps1`: verifies required configuration/cert files, worker leaf certificate DER SHA-256 pin, server/client cert-key pairing, actual MT5 demo login/server/currency, exact configured symbols, fresh bid/ask and broker sizing metadata, daemon listener, PostgreSQL migration presence, and fresh persisted market-data plus reconciliation rows. It requires at least two distinct market-data sequences.
+- Added `docs/MT5_DEMO_SMOKE_TEST.md` and linked it from the adapter README. The runbook covers target-host setup, evidence retention, worker restart/reconciliation, and private-key ACL/certificate rotation/revocation review.
+- Safety boundary: this is read-only and contains no order submission/modification/cancellation. It cannot prove terminal conformance until the user runs it on the actual Windows VPS. PowerShell execution is not available in this authoring environment; exact-head GitHub CI and target-host execution are pending.

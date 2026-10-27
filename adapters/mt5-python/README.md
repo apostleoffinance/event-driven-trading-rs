@@ -81,6 +81,18 @@ Each connection begins with a heartbeat. The worker then sends a complete reconc
 
 The worker and daemon are read-only. Heartbeat capabilities disable market/limit/stop submission and cancellation, and the daemon exposes no order-dispatch command. Each poll now sends a market_data_snapshot containing exact broker symbol metadata (currencies, digits, point, tick size/value, contract size, volume min/max/step, trade mode) and the latest bid/ask tick timestamps for the configured MT5_SYMBOLS list. Rust rejects stale (>60 seconds), future, crossed, malformed, or symbol-mismatched quotes, then persists valid market data in mt5_bridge_market_data_snapshots separately from reconciliation readiness. Snapshot persistence is not proof that a Windows terminal has been smoke-tested. Do not proceed to order execution until a real demo-terminal smoke test, instrument metadata/fresh quote feed, credential lifecycle review, and all acceptance checks pass.
 
+## Windows demo smoke test (QOS-015A / QOS-015B)
+
+After applying migrations and starting the Rust daemon and Python worker in separate PowerShell sessions, open a third PowerShell session on the same Windows host. Set `MT5_EXPECTED_ACCOUNT_CURRENCY` to the expected demo-account currency, ensure the other variables above are set in that session, and run:
+
+```powershell
+.\adapters\mt5-python\scripts\mt5-demo-smoke.ps1
+```
+
+The script is read-only. It verifies the MT5 login/server/currency, exact configured symbols, fresh ticks and sizing metadata, the worker certificate DER fingerprint against `MT5_BRIDGE_PRINCIPAL_SHA256`, the local daemon listener, required PostgreSQL tables, fresh persisted market data and reconciliation, and at least two distinct market-data sequences. It never submits, modifies, or cancels orders. It intentionally fails if snapshots are stale, identities differ, symbols mismatch, or data is not persisted before the timeout.
+
+Run this on the target Windows VPS with a demo account only. Capture the timestamped console output and redacted daemon/worker logs. After a passing first run, restart the worker and rerun the script to verify reconnect and reconciliation recovery. Separately review server/client private-key filesystem ACLs, certificate expiry, revocation, rotation procedure, and the exact pinned worker fingerprint. Do not paste passwords, private keys, full connection strings, or unredacted logs into tickets.
+
 ## Local contract tests
 
     python -m unittest discover -s tests -v
