@@ -1,12 +1,12 @@
 //! Strict adapter from persisted MT5 market data to instrument-aware sizing inputs.
 //! This module performs no I/O and never submits orders. Missing/stale FX data fails closed.
 
+use crate::instrument_sizing::{InstrumentSizingContext, LossModel};
 use chrono::{DateTime, Duration, Utc};
 use rust_decimal::Decimal;
 use serde_json::Value;
 use std::str::FromStr;
 
-use crate::instrument_sizing::{InstrumentSizingContext, LossModel};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Mt5SizingDataError {
@@ -109,16 +109,36 @@ fn parse_instruments(snapshot: &Value) -> Result<Vec<Instrument>, Mt5SizingDataE
             symbol: text(value, "symbol")?.into(),
             base: text(value, "base_currency")?.into(),
             quote: text(value, "quote_currency")?.into(),
-            contract: decimal(value.get("contract_size").ok_or(Mt5SizingDataError::Malformed)?)?,
-            tick: decimal(value.get("tick_size").ok_or(Mt5SizingDataError::Malformed)?)?,
+            contract: decimal(
+                value
+                    .get("contract_size")
+                    .ok_or(Mt5SizingDataError::Malformed)?,
+            )?,
+            tick: decimal(
+                value
+                    .get("tick_size")
+                    .ok_or(Mt5SizingDataError::Malformed)?,
+            )?,
             tick_value: decimal(
                 value
                     .get("tick_value_account_currency")
                     .ok_or(Mt5SizingDataError::Malformed)?,
             )?,
-            min: decimal(value.get("volume_min").ok_or(Mt5SizingDataError::Malformed)?)?,
-            max: decimal(value.get("volume_max").ok_or(Mt5SizingDataError::Malformed)?)?,
-            step: decimal(value.get("volume_step").ok_or(Mt5SizingDataError::Malformed)?)?,
+            min: decimal(
+                value
+                    .get("volume_min")
+                    .ok_or(Mt5SizingDataError::Malformed)?,
+            )?,
+            max: decimal(
+                value
+                    .get("volume_max")
+                    .ok_or(Mt5SizingDataError::Malformed)?,
+            )?,
+            step: decimal(
+                value
+                    .get("volume_step")
+                    .ok_or(Mt5SizingDataError::Malformed)?,
+            )?,
         };
         if instrument.max < instrument.min
             || instrument
@@ -188,7 +208,10 @@ fn fx_rate(
             continue;
         }
         for instrument in instruments {
-            let Some(quote) = quotes.iter().find(|quote| quote.symbol == instrument.symbol) else {
+            let Some(quote) = quotes
+                .iter()
+                .find(|quote| quote.symbol == instrument.symbol)
+            else {
                 continue;
             };
             let edge = if instrument.base == currency {
@@ -232,10 +255,7 @@ pub fn prepare_mt5_sizing(
     max_age: Duration,
     supplement: &Mt5SizingSupplement,
 ) -> Result<PreparedMt5Sizing, Mt5SizingDataError> {
-    if symbol.trim().is_empty()
-        || account_currency.trim().is_empty()
-        || max_age < Duration::zero()
-    {
+    if symbol.trim().is_empty() || account_currency.trim().is_empty() || max_age < Duration::zero() {
         return Err(Mt5SizingDataError::Malformed);
     }
     if text(snapshot, "account_currency")? != account_currency {
@@ -354,11 +374,21 @@ mod tests {
         let now = Utc::now();
         let snapshot = snapshot(now.clone());
         let result = prepare_mt5_sizing(
-            &snapshot, "EURUSD.a", "USD", true, now, Duration::seconds(30), &supplement(),
-        ).unwrap();
+            &snapshot,
+            "EURUSD.a",
+            "USD",
+            true,
+            now,
+            Duration::seconds(30),
+            &supplement(),
+        )
+        .unwrap();
         assert_eq!(result.entry_price, Decimal::new(11001, 4));
         assert_eq!(result.context.quantity_step, Decimal::new(1, 2));
-        assert_eq!(result.context.notional_to_account_rate, Decimal::from(100000));
+        assert_eq!(
+            result.context.notional_to_account_rate,
+            Decimal::from(100000)
+        );
         assert_eq!(result.context.available_margin, Some(Decimal::from(1000)));
     }
 
@@ -367,8 +397,15 @@ mod tests {
         let now = Utc::now();
         let snapshot = snapshot(now.clone());
         let result = prepare_mt5_sizing(
-            &snapshot, "EURGBP.a", "USD", false, now, Duration::seconds(30), &supplement(),
-        ).unwrap();
+            &snapshot,
+            "EURGBP.a",
+            "USD",
+            false,
+            now,
+            Duration::seconds(30),
+            &supplement(),
+        )
+        .unwrap();
         assert!(result.context.notional_to_account_rate > Decimal::from(100000));
     }
 
@@ -377,12 +414,30 @@ mod tests {
         let now = Utc::now();
         let stale = snapshot(now.clone() - Duration::seconds(60));
         assert_eq!(
-            prepare_mt5_sizing(&stale, "EURUSD.a", "USD", true, now.clone(), Duration::seconds(30), &supplement()).unwrap_err(),
+            prepare_mt5_sizing(
+                &stale,
+                "EURUSD.a",
+                "USD",
+                true,
+                now.clone(),
+                Duration::seconds(30),
+                &supplement()
+            )
+            .unwrap_err(),
             Mt5SizingDataError::Stale
         );
         let current = snapshot(now.clone());
         assert_eq!(
-            prepare_mt5_sizing(&current, "EURUSD.a", "EUR", true, now, Duration::seconds(30), &supplement()).unwrap_err(),
+            prepare_mt5_sizing(
+                &current,
+                "EURUSD.a",
+                "EUR",
+                true,
+                now,
+                Duration::seconds(30),
+                &supplement()
+            )
+            .unwrap_err(),
             Mt5SizingDataError::AccountCurrencyMismatch
         );
     }
@@ -395,7 +450,16 @@ mod tests {
             {"symbol":"EURUSD.a","bid":"1.1","ask":"1.1001","tick_time":now.to_rfc3339()}
         ]);
         assert_eq!(
-            prepare_mt5_sizing(&value, "EURGBP.a", "USD", true, now, Duration::seconds(30), &supplement()).unwrap_err(),
+            prepare_mt5_sizing(
+                &value,
+                "EURGBP.a",
+                "USD",
+                true,
+                now,
+                Duration::seconds(30),
+                &supplement()
+            )
+            .unwrap_err(),
             Mt5SizingDataError::Malformed
         );
     }
