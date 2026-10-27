@@ -526,9 +526,18 @@ pub async fn persist_market_data_snapshot(
         || snapshot_timestamp != Some(captured_at)
         || !snapshot.get("instruments").is_some_and(Value::is_array)
         || !snapshot.get("quotes").is_some_and(Value::is_array)
-        || snapshot.get("instruments").and_then(Value::as_array).is_none_or(Vec::is_empty)
-        || snapshot.get("instruments").and_then(Value::as_array).map(Vec::len)
-            != snapshot.get("quotes").and_then(Value::as_array).map(Vec::len)
+        || snapshot
+            .get("instruments")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+        || snapshot
+            .get("instruments")
+            .and_then(Value::as_array)
+            .map(Vec::len)
+            != snapshot
+                .get("quotes")
+                .and_then(Value::as_array)
+                .map(Vec::len)
     {
         return Err(PersistenceError::Other(
             "MT5 market-data snapshot requires matching identity and paired instrument/quote arrays".into(),
