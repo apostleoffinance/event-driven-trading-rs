@@ -35,7 +35,7 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - API mode is currently a stub that falls back to mock repositories. Simulation controls emit synthetic intent/risk/order/fill/position events.
 - Environment label can be configured as LIVE independently of backend connectivity; label alone is not evidence of a live backend. Default label is PAPER.
 - Theme provider supports dark/light and defaults to dark; current CSS uses blue accents rather than the white-dominant navy/orange design direction. No UI changes were made.
-- Frontend lint, typecheck, and production build passed in CI run 40425954540 after PR #3 merge. See `FRONTEND_AUDIT.md` for the source audit.
+- Frontend lint, typecheck, and production build passed in CI run 40425954540 on PR #3's latest head before it was merged. See `FRONTEND_AUDIT.md` for the source audit.
 - Initial Rust CI run 40425100977: `cargo fmt --all -- --check` failed on five formatting-only diffs; compile/tests/Clippy were skipped. See REV-004.
 - Successful rerun on latest PR head: GitHub Actions run 40425656667 completed with conclusion `success`. Rust steps passed: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets`. Frontend steps passed: `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build`. See REV-005.
 
@@ -50,7 +50,7 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 ## Work log — QOS-003 frontend baseline (2026-10-27)
 - Read `RULES.md` and inspected the current frontend source on `main` before proposing UI changes.
 - Added `FRONTEND_AUDIT.md`; recorded script/dependency alignment risk, mock/API fallback behavior, environment-label semantics, hardcoded system-health presentation, stale mock telemetry, and theme-token mismatch.
-- Confirmed CI run 40425954540 passed frontend lint, typecheck, production build, and the Rust checks on the merged PR #3 head.
+- Confirmed CI run 40425954540 passed frontend lint, typecheck, production build, and Rust checks on PR #3's latest head before it was merged.
 - No UI, runtime, dependency, or trading behavior changed. Next work is contract specification, not live integration.
 
 ## Work log — QOS-002 CI verification (2026-10-27)
