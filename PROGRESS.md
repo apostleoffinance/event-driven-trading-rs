@@ -90,7 +90,7 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - Updated task/progress/review records. No risk/runtime/frontend code changed. No executable tests run because the change is documentation-only.
 
 ## Next
-QOS-012 sizing specification is drafted in `INSTRUMENT_AWARE_SIZING.md`. QOS-013 remains blocked until the specification is reviewed. QOS-011 is now READY because QOS-010's venue contract merged; these workstreams remain separate. Do not infer live execution readiness from documentation or green CI.
+QOS-011 is in progress in PR #7; await current-head CI and address any failures before marking it DONE. QOS-013 is READY because the QOS-012 sizing specification is merged, but remains a separate task. Event-stream deduplication is still a gap because `VenueAdapter` currently exposes no event stream. Do not infer live execution readiness from documentation or green CI.
 
 
 ## Work log — QOS-011 venue adapter hardening (2026-10-27)
