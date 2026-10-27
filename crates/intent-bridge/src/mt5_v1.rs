@@ -181,7 +181,6 @@ pub async fn observe_heartbeat_sequence(
     now: DateTime<Utc>,
     allowed_clock_skew: Duration,
 ) -> BridgeResult<persistence::Mt5SequenceObservation> {
-    frame.validate_at(now, allowed_clock_skew)?;
     let heartbeat = match &frame.payload {
         BridgePayload::Heartbeat(heartbeat) => heartbeat,
         _ => {
@@ -190,7 +189,24 @@ pub async fn observe_heartbeat_sequence(
             ));
         }
     };
+    if let Err(validation_error) = frame.validate_at(now, allowed_clock_skew) {
+        store
+            .mark_mt5_stream_degraded(
+                &frame.account_id,
+                &heartbeat.terminal_id,
+                heartbeat.sequence,
+            )
+            .await?;
+        return Err(validation_error);
+    }
     if heartbeat.connection != ConnectionState::Connected {
+        store
+            .mark_mt5_stream_degraded(
+                &frame.account_id,
+                &heartbeat.terminal_id,
+                heartbeat.sequence,
+            )
+            .await?;
         return Err(BridgeError::Invalid(
             "non-connected MT5 heartbeat cannot authorize sequence readiness".into(),
         ));
