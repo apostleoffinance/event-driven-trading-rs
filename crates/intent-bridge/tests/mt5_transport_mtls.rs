@@ -280,8 +280,10 @@ async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result
     Ok(())
 }
 
-#[tokio::test]
-async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry() -> Result<(), Box<dyn Error>>
+#[sqlx::test(migrations = "../../migrations")]
+async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>>
 {
     let pki = make_pki()?;
     let config =
@@ -297,18 +299,35 @@ async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry() -> Result
         &heartbeat_frame("account-001", "terminal-01", "broker-demo"),
     )
     .await?;
-    server.read_frame(Utc::now(), Duration::seconds(5)).await?;
+
+    let store = TradingStore::new(pool);
+    let policy = Mt5SessionPolicy::new(["account-001"])?;
+    let mut session_gate = Mt5SessionGate::after_transport_authentication(policy);
+    server
+        .read_frame_with_session_checkpoint(
+            &store,
+            &mut session_gate,
+            Utc::now(),
+            Duration::seconds(5),
+        )
+        .await?;
 
     let connection = Arc::new(Mutex::new(server));
-    let policy = Mt5SessionPolicy::new(["account-001"])?;
-    let session = Arc::new(Mutex::new(Mt5SessionGate::after_transport_authentication(policy)));
+    let session = Arc::new(Mutex::new(session_gate));
     let watchdog = spawn_heartbeat_watchdog(
         connection,
         session.clone(),
+        store.clone(),
         StdDuration::from_millis(5),
     )?;
     tokio::time::sleep(StdDuration::from_millis(100)).await;
     assert_eq!(session.lock().await.state(), Mt5SessionState::Degraded);
+    assert_eq!(
+        store
+            .mt5_stream_readiness("account-001", "terminal-01")
+            .await?,
+        Mt5StreamReadiness::Degraded
+    );
     watchdog.await?;
     Ok(())
 }
