@@ -96,8 +96,8 @@ impl Strategy for MeanReversionStrategy {
         let entry_price = current_price;
 
         // Stop loss is 2% below entry for simplicity
-        let stop_loss_distance =
-            entry_price * Decimal::from_str_exact("0.02").map_err(|e| TradingError::Decimal(e))?;
+        let stop_loss_distance = entry_price
+            * Decimal::from_str_exact("0.02").map_err(TradingError::Decimal)?;
 
         // Position size based on 2% risk
         let position_size = entry_price; // Simplified: 1 unit at current price
