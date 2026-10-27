@@ -256,13 +256,9 @@ impl AuthenticatedMt5Connection {
     /// freshness window. The runtime must call this from its watchdog/scheduler;
     /// a blocked read alone cannot detect a silent peer.
     pub fn check_heartbeat_fresh(&mut self, now: DateTime<Utc>) -> BridgeResult<()> {
-        let fresh = self.last_heartbeat_at.is_some_and(|last| {
-            let age = now.signed_duration_since(last);
-            age >= Duration::zero()
-                && age
-                    <= Duration::from_std(self.limits.heartbeat_timeout)
-                        .unwrap_or_else(|_| Duration::zero())
-        });
+        let fresh = self
+            .last_heartbeat_at
+            .is_some_and(|last| heartbeat_is_fresh(last, now, self.limits.heartbeat_timeout));
         if !fresh {
             self.failed = true;
             return Err(BridgeError::Invalid(
@@ -311,7 +307,10 @@ impl AuthenticatedMt5Connection {
                 Ok(Ok(count)) => count,
             };
             if count == 0 {
-                self.decoder.finish()?;
+                self.failed = true;
+                if let Err(error) = self.decoder.finish() {
+                    return Err(error);
+                }
                 return Err(BridgeError::Invalid(
                     "MT5 authenticated transport closed".into(),
                 ));
@@ -341,15 +340,9 @@ impl AuthenticatedMt5Connection {
                 "MT5 outbound frame account is not allowed for authenticated principal".into(),
             ));
         }
-        let encoded = serde_json::to_vec(frame)?;
-        if encoded.len() > crate::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
-            return Err(BridgeError::Invalid(
-                "MT5 outbound frame exceeds configured size limit".into(),
-            ));
-        }
+        let encoded = encode_frame_line(frame)?;
         match timeout(self.limits.io_timeout, async {
             self.stream.write_all(&encoded).await?;
-            self.stream.write_all(b"\\n").await?;
             self.stream.flush().await
         })
         .await
@@ -403,6 +396,23 @@ impl AuthenticatedMt5Connection {
         }
         Ok(())
     }
+}
+
+fn encode_frame_line(frame: &BridgeFrame) -> BridgeResult<Vec<u8>> {
+    let mut encoded = serde_json::to_vec(frame)?;
+    if encoded.len() > crate::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
+        return Err(BridgeError::Invalid(
+            "MT5 outbound frame exceeds configured size limit".into(),
+        ));
+    }
+    encoded.push(b'\n');
+    Ok(encoded)
+}
+
+fn heartbeat_is_fresh(last: DateTime<Utc>, now: DateTime<Utc>, timeout: StdDuration) -> bool {
+    let age = now.signed_duration_since(last);
+    age >= Duration::zero()
+        && age <= Duration::from_std(timeout).unwrap_or_else(|_| Duration::zero())
 }
 
 fn load_certificates(path: &Path) -> BridgeResult<Vec<CertificateDer<'static>>> {
@@ -477,6 +487,64 @@ mod tests {
         .validate()
         .is_err());
         assert!(Mt5TransportLimits::default().validate().is_ok());
+    }
+
+    #[test]
+    fn outbound_frame_encoding_uses_exactly_one_lf_delimiter() -> BridgeResult<()> {
+        let frame = BridgeFrame {
+            schema_version: crate::mt5_v1::MT5_BRIDGE_SCHEMA_VERSION,
+            message_id: "message-1".into(),
+            correlation_id: "correlation-1".into(),
+            account_id: "account-001".into(),
+            sent_at: Utc::now(),
+            payload: BridgePayload::Heartbeat(crate::mt5_v1::Heartbeat {
+                terminal_id: "terminal-01".into(),
+                server: "broker-demo".into(),
+                sequence: 1,
+                terminal_time: Utc::now(),
+                connection: crate::mt5_v1::ConnectionState::Connected,
+                capabilities: crate::mt5_v1::BridgeCapabilities {
+                    market_orders: true,
+                    limit_orders: true,
+                    stop_orders: true,
+                    cancel_requests: true,
+                    order_lookup: true,
+                    idempotent_client_order_id: true,
+                    sequence_numbers: true,
+                },
+            }),
+        };
+        let encoded = encode_frame_line(&frame)?;
+        assert_eq!(encoded.last(), Some(&b'\n'));
+        assert!(!encoded.ends_with(b"\\n"));
+        assert_eq!(encoded.iter().filter(|byte| **byte == b'\n').count(), 1);
+        let json = encoded
+            .strip_suffix(b"\n")
+            .ok_or_else(|| BridgeError::Invalid("encoded NDJSON frame is missing LF".into()))?;
+        let decoded = serde_json::from_slice::<BridgeFrame>(json)?;
+        assert_eq!(decoded, frame);
+        Ok(())
+    }
+
+    #[test]
+    fn heartbeat_freshness_rejects_expiry_and_future_timestamps() {
+        let last = Utc::now();
+        let timeout = StdDuration::from_secs(30);
+        assert!(heartbeat_is_fresh(
+            last,
+            last + Duration::seconds(30),
+            timeout
+        ));
+        assert!(!heartbeat_is_fresh(
+            last,
+            last + Duration::seconds(31),
+            timeout
+        ));
+        assert!(!heartbeat_is_fresh(
+            last,
+            last - Duration::seconds(1),
+            timeout
+        ));
     }
 
     #[test]

@@ -629,3 +629,41 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Wrapped the public transport exports in rustfmt's expected multi-line form.
 - **Verification:** Third full CI run is required on the new branch head. No Rust compilation or test pass is claimed from this run.
 - **Remaining risk:** The previous run reached only formatting. The next run must pass formatting, workspace check/tests, Clippy and frontend checks before the slice is considered verified.
+
+
+## REV-051 — Correct MT5 outbound NDJSON line framing
+
+- **Date:** 2026-10-27
+- **Context:** Post-merge code review following PR #23 (merge commit `7b47069623bb55d2994298d1e8eb9573f964bdb4`). The PR's CI passed on its final head and the merge-commit CI run `40457087734` passed, but those checks did not detect a protocol framing defect.
+- **Finding:** The outbound transport writer was writing the two literal bytes backslash and `n` rather than a single LF delimiter. This could prevent a peer's NDJSON decoder from recognizing the frame boundary.
+- **Correction:** Centralized serialization in `encode_frame_line`, enforces the existing frame size limit, appends exactly one LF byte, and writes the complete encoded line. Added a regression test that asserts one LF terminator, rejects a literal backslash-`n` suffix, and round-trips the JSON payload. Added deterministic heartbeat freshness boundary tests and poisons the connection on incomplete EOF.
+- **Verification:** Follow-up PR CI is pending. The previous green CI is not evidence that this new correction has passed.
+- **Severity / release gate:** Protocol correctness issue; do not connect to an MT5 client until this fix passes CI and the end-to-end transport conformance tests are implemented. No live trading enabled.
+
+
+## REV-052 — QOS-014 conformance PR formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** PR #24 CI run `40457381942`, Rust job `122033762951`.
+- **Finding:** `cargo fmt --all -- --check` rejected the multi-line signature of the short `heartbeat_is_fresh` helper. Workspace compilation, tests and Clippy were skipped by the formatting gate.
+- **Correction:** Applied the exact rustfmt signature layout.
+- **Verification:** A new full CI run is required on the updated PR head; no compilation or test success is claimed from the failed run.
+
+
+## REV-053 — QOS-014 conformance PR Clippy failure
+
+- **Date:** 2026-10-27
+- **Context:** PR #24 CI run `40457521240`, Rust job `122034210752`; formatting, workspace check and workspace tests passed, but all-target Clippy failed.
+- **Finding:** The new outbound NDJSON regression test used two `unwrap()` calls, which are denied by the `intent-bridge` crate's `clippy::unwrap_used` policy.
+- **Correction:** Replaced both unwraps with explicit error-reporting branches in the test, preserving coverage for exact LF framing and JSON round-trip.
+- **Verification:** A fresh full CI run is required on the updated PR head. This Clippy failure must not be treated as a code or test pass.
+- **Remaining risk:** MT5 transport integration gates documented in REV-051 and the PR description remain open; no live trading enabled.
+
+
+## REV-054 — QOS-014 test lint correction follow-up
+
+- **Date:** 2026-10-27
+- **Context:** PR #24 rerun `40457817820`, Rust job `122035147781`. Formatting, workspace check and workspace tests passed, but Clippy rejected the first correction because test-only `panic!` branches violated the crate-wide `clippy::panic` deny rule.
+- **Correction:** Changed the framing regression test to return `BridgeResult<()> `, use `?` for serialization/deserialization errors, and return an explicit validation error if the LF suffix is absent. This preserves assertions without `unwrap`, `expect`, or `panic!`.
+- **Verification:** A fresh CI run on this latest head must pass before PR #24 is considered verified.
+- **Remaining risk:** MT5 transport integration gates from REV-051 remain open; no live trading enabled.
