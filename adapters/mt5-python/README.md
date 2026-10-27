@@ -37,6 +37,7 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
 | MT5_BRIDGE_SERVER_NAME | Optional TLS hostname override; defaults to bridge host |
 | MT5_SEQUENCE_FILE | Optional durable sequence checkpoint path |
 | MT5_POLL_INTERVAL_SECONDS | Snapshot interval, 1–300 seconds; defaults to 10 |
+| MT5_SYMBOLS | Required comma-separated list of 1–64 exact broker symbols to monitor, e.g. EURUSD.a,GBPUSD.a |
 
 ## Start the Rust read-only daemon
 
@@ -78,7 +79,7 @@ The Rust principal allow-lists the configured leaf-certificate fingerprint, term
 
 Each connection begins with a heartbeat. The worker then sends a complete reconciliation_snapshot frame with account state, every currently open order and every open position. Values representing money, prices and quantities are encoded as decimal strings; symbol names are preserved exactly. The sequence is persisted locally before sending so process restarts do not silently reset it. A send failure can create a sequence gap, which must force reconciliation.
 
-The worker and daemon are read-only. Heartbeat capabilities disable market/limit/stop submission and cancellation, and the daemon exposes no order-dispatch command. Snapshot persistence is not proof that a Windows terminal has been smoke-tested. Do not proceed to order execution until a real demo-terminal smoke test, instrument metadata/fresh quote feed, credential lifecycle review, and all acceptance checks pass.
+The worker and daemon are read-only. Heartbeat capabilities disable market/limit/stop submission and cancellation, and the daemon exposes no order-dispatch command. Each poll now sends a market_data_snapshot containing exact broker symbol metadata (currencies, digits, point, tick size/value, contract size, volume min/max/step, trade mode) and the latest bid/ask tick timestamps for the configured MT5_SYMBOLS list. Rust rejects stale (>60 seconds), future, crossed, malformed, or symbol-mismatched quotes, then persists valid market data in mt5_bridge_market_data_snapshots separately from reconciliation readiness. Snapshot persistence is not proof that a Windows terminal has been smoke-tested. Do not proceed to order execution until a real demo-terminal smoke test, instrument metadata/fresh quote feed, credential lifecycle review, and all acceptance checks pass.
 
 ## Local contract tests
 
