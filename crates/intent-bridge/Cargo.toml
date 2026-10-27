@@ -31,4 +31,6 @@ trading-runtime = { path = "../trading-runtime" }
 venue-connectors = { path = "../venue-connectors" }
 
 [dev-dependencies]
+rcgen = "0.13"
+tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
