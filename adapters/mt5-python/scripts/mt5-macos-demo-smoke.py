@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import ssl
 import subprocess
 import sys
@@ -138,6 +139,9 @@ def smoke(timeout_seconds: int) -> dict[str, Any]:
         raise AdapterError("MT5_EXPECTED_ACCOUNT_CURRENCY is required")
     if sys.platform != "darwin":
         raise AdapterError("this smoke test is intended for macOS")
+    repository_commit = os.environ.get("QUANTOS_REPOSITORY_COMMIT", "")
+    if not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", repository_commit):
+        raise AdapterError("QUANTOS_REPOSITORY_COMMIT must be the exact 40- or 64-character deployed commit hash")
 
     terminal, constants = load_terminal_runtime(config)
     started = utc_now()
@@ -174,7 +178,7 @@ def smoke(timeout_seconds: int) -> dict[str, Any]:
             "platform": "macOS",
             "started_at_utc": started,
             "finished_at_utc": utc_now(),
-            "repository_commit": os.environ.get("QUANTOS_REPOSITORY_COMMIT", "UNRECORDED"),
+            "repository_commit": repository_commit.lower(),
             "terminal_provider": os.environ.get("MT5_TERMINAL_PROVIDER", "UNCONFIGURED"),
             "account_masked": "..." + str(config.login)[-4:],
             "broker_server": config.server,
