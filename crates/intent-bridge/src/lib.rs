@@ -21,7 +21,7 @@ pub use ingest::{BridgeVenueKind, IntentIngestSession};
 pub use mt5_dispatch::{prepare_submit, Mt5DispatchDecision, Mt5DispatchPermit};
 pub use mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
-    Mt5PositionSnapshot, Mt5ReconciliationSnapshot,
+    Mt5PositionSnapshot, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
 };
 pub use mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
 pub use mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
