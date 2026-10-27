@@ -374,3 +374,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Verify every subsequent file write explicitly supplies `branch: feat/qos-014-mt5-bridge-v1`; verify branch refs before PR creation.
 - **Verification result:** Revert commit and feature-branch file commit are confirmed by GitHub responses. CI has not yet verified the protocol code.
 - **Remaining risk:** Full Rust/frontend CI, schema conformance and actual terminal transport remain pending. No live execution enabled.
+
+
+## REV-028 — QOS-014 first CI run caught formatting-only differences
+- **Date:** 2026-10-27
+- **Context:** Draft PR #14, run 40446398790 on head `b92ff3bf8568ca255ac9b72abf4f37edf0f70479`.
+- **Finding/correction:** Rust formatting gate reported line wrapping and match-arm formatting in `crates/intent-bridge/src/mt5_v1.rs`; compilation, tests and Clippy were skipped by the workflow. Frontend checks continued independently.
+- **Impact:** No Rust compile/test evidence was produced by that run.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40446398790; Rust job `121998613711`.
+- **Rule that failed:** Formatting gate compliance; no financial-safety behavior was implicated.
+- **Rule update made in RULES.md:** None. Existing testing rules already require format/check/test/Clippy and accurate reporting.
+- **Code/docs/tests changed:** Applied the reported rustfmt line wrapping and match-arm formatting to `mt5_v1.rs`.
+- **Regression/real-use check added:** Rerun full CI on the corrected latest branch head.
+- **Verification result:** Formatting correction committed as `59dbf9dea5ebbf61b160230703e4e6dfd7f2a44d`; rerun pending.
+- **Remaining risk:** Rust compilation, protocol tests, Clippy and latest-head frontend CI still need successful evidence. No live execution enabled.
