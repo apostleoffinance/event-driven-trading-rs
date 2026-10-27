@@ -360,3 +360,35 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Applied the rustfmt changes reported by CI and corrected the margin-limit conditional syntax during follow-up edits. Subsequent latest-head CI remains required; no compile/test/Clippy success is claimed from the failed run.
 - **Rule update:** None; existing `RULES.md` already requires formatting and accurate verification claims.
 - **Remaining risk:** QOS-013 is not complete until latest-head Rust format/check/test/Clippy and frontend checks pass, and a concrete authoritative snapshot provider plus remaining acceptance coverage are implemented or explicitly scoped by review. No live execution enabled.
+
+
+## REV-027 — Margin-limit reason classification corrected
+- **Date:** 2026-10-27
+- **Context:** CI run `40443646563` failed the `available_margin_caps_quantity_independently` regression because a different lower-level cap was reported as the binding reason even when margin was the tighter constraint.
+- **Correction:** Changed limiting-reason selection to compare the margin cap against the risk, position, exposure, leverage and venue-maximum caps before selecting `MarginLimit`.
+- **Verification:** Corrected-head run `40444515528` passed Rust format/check/test/Clippy and frontend lint/typecheck/build.
+- **Remaining risk:** No live venue is enabled; margin data must come from a fresh trusted snapshot.
+
+## REV-028 — Venue-maximum limit reason classification corrected
+- **Date:** 2026-10-27
+- **Context:** CI run `40444389467` failed `venue_maximum_caps_quantity_without_rounding_up`; the code selected exposure/leverage as the reason even when venue maximum quantity was the binding cap.
+- **Correction:** Prioritized the venue-maximum reason when the maximum quantity is no greater than the other effective caps.
+- **Verification:** Corrected-head run `40444515528` passed the full Rust and frontend workflow.
+
+## REV-029 — Final rustfmt blank-line correction
+- **Date:** 2026-10-27
+- **Context:** CI run `40444154016` failed `cargo fmt --all -- --check` on a trailing blank line in `instrument_sizing.rs`.
+- **Correction:** Removed the trailing blank line. Corrected-head run `40444515528` passed formatting and all remaining Rust/frontend checks.
+
+## REV-030 — Generated sizing invariant test formatting correction
+- **Date:** 2026-10-27
+- **Context:** CI run `40445162003` failed formatting in `generated_valid_specs_preserve_quantity_and_loss_invariants`.
+- **Correction:** Applied the exact rustfmt loop formatting and removed the extra final blank line.
+- **Verification:** Corrected-head run `40445289729` passed the full Rust and frontend workflow.
+
+## REV-031 — Persistent sizing audit required for executable instrument-aware decisions
+- **Date:** 2026-10-27
+- **Context:** Review of the QOS-013 structured audit path found that the runtime allowed an executable instrument-aware decision to proceed when no persistent store was configured, which meant no sizing audit could be written.
+- **Correction:** Instrument-aware execution now rejects with `DependencyUnavailable` when persistent audit storage is absent; added an integration regression proving fresh inputs still create no OMS order without the store.
+- **Verification:** PR #13 head `7beb7987bb520faf81b965d5342973d4b5198082`, CI run `40445467228`, passed formatting, workspace check, tests, Clippy, frontend typecheck and production build.
+- **Remaining risk:** Explicit risk-policy version IDs are not yet modeled; the audit stores the complete policy snapshot and sizing model version. No live execution enabled.
