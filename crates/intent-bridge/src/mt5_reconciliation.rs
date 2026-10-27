@@ -150,7 +150,7 @@ pub async fn persist_and_confirm_reconciliation(
     max_age: Duration,
 ) -> BridgeResult<()> {
     if let Err(error) = snapshot.validate(now, max_age) {
-        degrade_session_and_stream(store, session, snapshot.sequence).await;
+        degrade_session_and_stream(store, session).await;
         return Err(error);
     }
     if session.state() != Mt5SessionState::ReconciliationRequired
@@ -191,17 +191,13 @@ pub async fn persist_and_confirm_reconciliation(
     Ok(())
 }
 
-async fn degrade_session_and_stream(
-    store: &TradingStore,
-    session: &mut Mt5SessionGate,
-    observed_sequence: u64,
-) {
+async fn degrade_session_and_stream(store: &TradingStore, session: &mut Mt5SessionGate) {
     let account_id = session.account_id().map(str::to_owned);
     let terminal_id = session.terminal_id().map(str::to_owned);
     session.degrade();
     if let (Some(account_id), Some(terminal_id)) = (account_id, terminal_id) {
         let _ = store
-            .mark_mt5_stream_degraded(&account_id, &terminal_id, observed_sequence)
+            .mark_mt5_stream_degraded(&account_id, &terminal_id, 0)
             .await;
     }
 }
