@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quant-os-mt5-readonly-adapter"
+version = "0.1.0"
+description = "Read-only MetaTrader 5 demo adapter for Quant OS"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+terminal = ["MetaTrader5>=5.0.45; platform_system == 'Windows'"]
+
+[project.scripts]
+quant-os-mt5-readonly = "mt5_adapter.worker:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mt5_adapter*"]
