@@ -177,3 +177,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Await the newest-head Rust formatting/check/test/Clippy and frontend build result. Determine whether `next/font` failure is stable or runner/network-dependent before changing font loading.
 - **Verification result:** Final rustfmt diff identified in this run was pushed as commit 93e919c5c55c2df8bc8aa8eaa724a96fc1ed609e. Latest-head CI pending.
 - **Remaining risk:** Rust tests have not yet run successfully; production frontend build requires diagnosis. QOS-011 remains IN PROGRESS.
+
+## REV-012 — QOS-011 compile failure: conflict error variant missing
+- **Date:** 2026-10-27
+- **Context:** PR #7 run 40433693778, Rust job 121957204050.
+- **Finding/correction:** After formatting passed, `cargo check --workspace` failed because four references to `VenueError::ClientOrderIdConflict` could not resolve: the typed variant was absent in the branch's current `crates/venue-connectors/src/error.rs`. Restored the variant with an explanatory typed error message.
+- **Impact:** Rust compilation failed before workspace tests and Clippy could run. The frontend build passed in the same CI run after an earlier intermittent `next/font` failure; no frontend code change was made.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433693778; Rust check reported E0599 “no variant ... named `ClientOrderIdConflict`”.
+- **Rule that failed:** The feature implementation referenced an error variant not present in the checked-in source state; existing workflow rule 2 (inspect source) and rule 7 (claim only verified state) apply.
+- **Rule update made in RULES.md:** None; existing rules are sufficient.
+- **Code/docs/tests changed:** Restored `ClientOrderIdConflict(String)` in `VenueError` on `fix/qos-011-venue-contract`.
+- **Regression/real-use check added:** Latest-head CI must rerun workspace compile, tests, and Clippy after formatting.
+- **Verification result:** Typed error variant update committed as `af8e29acc8f5127a8fd8b8ec6b6d2293ae4bbca7`; awaiting CI evidence.
+- **Remaining risk:** Compile/tests/Clippy not yet verified on the corrected head. Adapter event-stream deduplication remains outside this slice; no live execution enabled.
