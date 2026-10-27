@@ -207,8 +207,10 @@ def main() -> int:
         parser.error("--timeout-seconds must be between 1 and 60")
     try:
         report = smoke(args.timeout_seconds)
-    except (AdapterError, OSError, ValueError) as exc:
-        print(f"BLOCKED: macOS demo smoke failed ({type(exc).__name__}): {exc}", file=sys.stderr)
+    except Exception as exc:
+        # Provider/terminal exceptions may contain operational details; report only
+        # the type and keep raw diagnostics in the protected host log.
+        print(f"BLOCKED: macOS demo smoke failed ({type(exc).__name__}).", file=sys.stderr)
         return 1
     rendered = json.dumps(report, indent=2, sort_keys=True)
     if args.evidence_out:
