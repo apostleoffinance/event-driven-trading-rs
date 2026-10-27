@@ -282,8 +282,7 @@ async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result
 #[sqlx::test(migrations = "../../migrations")]
 async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry(
     pool: PgPool,
-) -> Result<(), Box<dyn Error>>
-{
+) -> Result<(), Box<dyn Error>> {
     let pki = make_pki()?;
     let config =
         server_config(&pki, pki.client_fingerprint.clone())?.with_limits(Mt5TransportLimits {
@@ -330,7 +329,6 @@ async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry(
     watchdog.await?;
     Ok(())
 }
-
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
