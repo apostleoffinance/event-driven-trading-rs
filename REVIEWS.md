@@ -410,3 +410,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update:** None; existing rules require formatting and accurate verification claims.
 - **Verification:** Fix is committed on `feat/qos-014-mt5-bridge-v1`. A new full latest-head CI result is still required; this failure run does not verify compilation or tests.
 - **Remaining risk:** Authenticated transport, durable idempotency, reconnect/reconciliation, and cross-language MT5 conformance remain open. No live execution, deployment, or money movement enabled.
+
+
+## REV-031 — QOS-014 second formatting correction completed
+- **Date:** 2026-10-27
+- **Context:** Continued inspection of CI run 40448579920 after REV-030.
+- **Finding:** The first formatting correction fixed the decoder line wrap and the partial-frame assertion, but the workflow diff also showed a remaining wrapped assertion for invalid UTF-8 input.
+- **Correction:** Applied the remaining rustfmt line wrapping in commit `e83897e3b99dcbecbe1114a6473fbca0e9aa0e0f`.
+- **Verification:** A fresh full CI run is in progress for the QOS-014 head; do not infer success from a commit being pushed. No runtime behavior change intended.
+- **Remaining risk:** Compilation, tests and Clippy still require a completed green CI run. No live execution enabled.
