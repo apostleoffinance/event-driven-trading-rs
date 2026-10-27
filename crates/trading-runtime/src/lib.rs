@@ -24,7 +24,10 @@ pub use multi_account::{
     execute_intent_across_accounts, AccountExecutionResult, AccountExecutionTarget,
     MultiAccountOutcome,
 };
-pub use mt5_sizing_provider::{Mt5InstrumentBinding, Mt5PersistedSizingProvider, Mt5SizingSupplementProvider};
+pub use mt5_sizing_provider::{
+    Mt5InstrumentBinding, Mt5PersistedSizingProvider, Mt5SizingSupplementProvider,
+    Mt5SizingSupplementSnapshot,
+};
 pub use pipeline::{
     InstrumentSizingSnapshotCache, InstrumentSizingSnapshotProvider, IntentOutcome,
     RuntimeInstrumentSizingContext,
