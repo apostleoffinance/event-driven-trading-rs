@@ -221,6 +221,17 @@ impl AuthenticatedMt5Connection {
     /// Write one validated protocol frame as NDJSON. Transport success means only
     /// bytes were written; it is never an order acceptance/fill/cancel confirmation.
     pub async fn write_frame(&mut self, frame: &BridgeFrame) -> BridgeResult<()> {
+        if self.failed || !self.heartbeat_seen {
+            return Err(BridgeError::Invalid(
+                "MT5 outbound frames are blocked until authenticated heartbeat validation".into(),
+            ));
+        }
+        if !self.principal.allowed_accounts.contains(&frame.account_id) {
+            self.failed = true;
+            return Err(BridgeError::Invalid(
+                "MT5 outbound frame account is not allowed for authenticated principal".into(),
+            ));
+        }
         let encoded = serde_json::to_vec(frame)?;
         if encoded.len() > crate::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
             return Err(BridgeError::Invalid(
