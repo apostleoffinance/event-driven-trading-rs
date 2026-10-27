@@ -3,7 +3,9 @@
 use domain::{RiskDecision, RiskRequest};
 
 use crate::error::RiskEngineResult;
-use crate::instrument_sizing::{size_order_instrument_aware, InstrumentSizingContext, InstrumentSizingOutcome};
+use crate::instrument_sizing::{
+    size_order_instrument_aware, InstrumentSizingContext, InstrumentSizingOutcome,
+};
 use crate::rules::{
     check_account_halt, check_daily_loss, check_drawdown, check_global_halt, check_instrument,
     check_position_limit, check_session, check_strategy_halt, RuleOutcome,
@@ -168,10 +170,10 @@ mod tests {
             min_notional_account_currency: None,
             estimated_cost_per_quantity: Decimal::ZERO,
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
-        pending_order_exposure: Decimal::ZERO,
-        available_margin: None,
-        pending_order_margin: Decimal::ZERO,
-        margin_per_quantity: None,
+            pending_order_exposure: Decimal::ZERO,
+            available_margin: None,
+            pending_order_margin: Decimal::ZERO,
+            margin_per_quantity: None,
         };
         let decision = evaluator
             .evaluate_with_instrument_sizing(&request, &context)
