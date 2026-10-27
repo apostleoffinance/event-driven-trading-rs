@@ -4,7 +4,7 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
 
-**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract and acceptance-test matrix drafted in `VENUE_ADAPTER_CONTRACT.md`; QOS-011 is blocked pending review. These are documentation/specification statuses, not implementation or live-readiness claims.
+**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract and acceptance-test matrix merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 is READY. QOS-012 DONE — instrument-aware sizing specification drafted in `INSTRUMENT_AWARE_SIZING.md`; QOS-013 remains blocked pending specification review. These are documentation/specification statuses, not implementation or live-readiness claims.
 
 Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
@@ -84,5 +84,10 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - Updated task status to QOS-010 DONE for specification only; QOS-011 remains blocked pending review of the contract and test matrix.
 - No runtime, trading, frontend, dependency, or live-mode behavior changed. No tests were run because this change is documentation-only.
 
+## Work log — QOS-012 instrument-aware sizing specification (2026-10-27)
+- Re-read `RULES.md`; verified PR #5 merged at `f3f07c6387f1e124ccfa250b1961f3a3e42de032` and inspected current risk sizing, `RiskRequest`/`RiskPolicy`/`RiskDecision`, `InstrumentSpec`, and venue adapter contract.
+- Added `INSTRUMENT_AWARE_SIZING.md` defining required per-account inputs, tick-value and linear loss models, currency conversion, costs/buffers, exposure/margin/pending-order constraints, conservative volume-step rounding, audit outputs, and 26 deterministic acceptance scenarios.
+- Updated task/progress/review records. No risk/runtime/frontend code changed. No executable tests run because the change is documentation-only.
+
 ## Next
-QOS-010 contract specification is drafted in `VENUE_ADAPTER_CONTRACT.md`. Next: QOS-012 instrument-aware sizing specification. QOS-011 implementation remains blocked until the venue contract and acceptance-test matrix are reviewed. Do not infer live execution readiness from documentation or green CI.
+QOS-012 sizing specification is drafted in `INSTRUMENT_AWARE_SIZING.md`. QOS-013 remains blocked until the specification is reviewed. QOS-011 is now READY because QOS-010's venue contract merged; these workstreams remain separate. Do not infer live execution readiness from documentation or green CI.
