@@ -225,11 +225,7 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         5,
     )
     .unwrap();
-    let mut runtime = TradingRuntime::new(RuntimeConfig::new(
-        account_id.clone(),
-        venue_id,
-        policy,
-    ));
+    let mut runtime = TradingRuntime::new(RuntimeConfig::new(account_id.clone(), venue_id, policy));
     runtime
         .bootstrap_prop_on_simulated(&venue, Decimal::from(100_000))
         .await
@@ -254,18 +250,18 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         account_id: account_id.clone(),
         instrument_id: intent.instrument_id.clone(),
         sizing: InstrumentSizingContext {
-        loss_model: LossModel::Linear {
-            contract_multiplier: Decimal::ONE,
-            pnl_to_account_rate: Decimal::ONE,
-        },
-        inputs_fresh: false,
-        notional_to_account_rate: Decimal::ONE,
-        quantity_step: Decimal::ONE,
-        min_quantity: Decimal::ONE,
-        max_quantity: Some(Decimal::from(100)),
-        min_notional_account_currency: None,
-        estimated_cost_per_quantity: Decimal::ZERO,
-        slippage_gap_buffer_per_quantity: Decimal::ZERO,
+            loss_model: LossModel::Linear {
+                contract_multiplier: Decimal::ONE,
+                pnl_to_account_rate: Decimal::ONE,
+            },
+            inputs_fresh: false,
+            notional_to_account_rate: Decimal::ONE,
+            quantity_step: Decimal::ONE,
+            min_quantity: Decimal::ONE,
+            max_quantity: Some(Decimal::from(100)),
+            min_notional_account_currency: None,
+            estimated_cost_per_quantity: Decimal::ZERO,
+            slippage_gap_buffer_per_quantity: Decimal::ZERO,
         },
     };
     let (events_out, _events_in) = event_channel(32);
