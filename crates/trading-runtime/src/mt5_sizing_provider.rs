@@ -32,7 +32,7 @@ pub trait Mt5SizingSupplementProvider: Send + Sync {
 }
 
 fn timestamps_match(left: &DateTime<Utc>, right: &DateTime<Utc>) -> bool {
-    left.signed_duration_since(right.clone())
+    left.clone().signed_duration_since(right.clone())
         .num_microseconds()
         .is_some_and(|delta| delta.unsigned_abs() <= 1)
 }
