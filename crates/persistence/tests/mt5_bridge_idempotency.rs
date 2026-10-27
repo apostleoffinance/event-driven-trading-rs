@@ -368,3 +368,87 @@ async fn reconciliation_snapshot_rejects_incomplete_external_state(pool: PgPool)
         .await
         .is_err());
 }
+
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: PgPool) {
+    use chrono::Utc;
+    use sqlx::types::Json;
+
+    let store = TradingStore::new(pool.clone());
+    let captured_at = Utc::now();
+    let snapshot = json!({
+        "terminal_id": "terminal-market-01",
+        "server": "broker-demo",
+        "source": "mt5_python_readonly_v1",
+        "sequence": 12,
+        "captured_at": captured_at,
+        "account_currency": "USD",
+        "instruments": [{
+            "symbol": "EURUSD.a",
+            "base_currency": "EUR",
+            "quote_currency": "USD",
+            "digits": 5,
+            "point": "0.00001",
+            "tick_size": "0.00001",
+            "tick_value_account_currency": "1.0",
+            "contract_size": "100000",
+            "volume_min": "0.01",
+            "volume_max": "100",
+            "volume_step": "0.01",
+            "trade_mode": "4"
+        }],
+        "quotes": [{
+            "symbol": "EURUSD.a",
+            "bid": "1.0845",
+            "ask": "1.08462",
+            "tick_time": captured_at
+        }]
+    });
+
+    store.persist_mt5_market_data_snapshot(
+        "account-market-01",
+        "terminal-market-01",
+        "broker-demo",
+        12,
+        "mt5_python_readonly_v1",
+        "USD",
+        captured_at,
+        snapshot.clone(),
+    ).await.unwrap();
+
+    let persisted = sqlx::query_scalar::<_, Json<serde_json::Value>>(
+        "SELECT snapshot FROM mt5_bridge_market_data_snapshots WHERE account_id = $1 AND terminal_id = $2 ORDER BY id DESC LIMIT 1",
+    )
+    .bind("account-market-01")
+    .bind("terminal-market-01")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(persisted.0, snapshot);
+    assert_eq!(
+        store.mt5_stream_readiness("account-market-01", "terminal-market-01").await.unwrap(),
+        Mt5StreamReadiness::Unknown
+    );
+
+    let invalid = json!({
+        "terminal_id": "terminal-market-01",
+        "server": "broker-demo",
+        "source": "mt5_python_readonly_v1",
+        "sequence": 13,
+        "captured_at": captured_at,
+        "account_currency": "USD",
+        "instruments": [],
+        "quotes": []
+    });
+    assert!(store.persist_mt5_market_data_snapshot(
+        "account-market-01",
+        "terminal-market-01",
+        "broker-demo",
+        13,
+        "mt5_python_readonly_v1",
+        "USD",
+        captured_at,
+        invalid,
+    ).await.is_err());
+}
