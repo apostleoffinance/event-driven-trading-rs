@@ -54,7 +54,7 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
 - [ ] Documentation work has not enabled live money movement
 
 
-- **QOS-014 heartbeat/session follow-up (PR #25):** Adds a transport API that checks heartbeat freshness and degrades the associated session gate on expiry, with deterministic regression coverage. The host runtime still must invoke the watchdog; autonomous scheduling, end-to-end TLS tests, dispatch/reconciliation wiring, and MT5 EA conformance remain open.
+- **QOS-014 heartbeat/session follow-up (PRs #25–#26):** PR #25 added heartbeat freshness checks; merged PR #26 adds autonomous watchdog scheduling, mTLS integration tests, runtime orchestration, dispatch persistence and reconciliation snapshot storage. A production daemon, protected certificate lifecycle, real MT5 client conformance and broker mapping remain open.
 
 
 - **QOS-014 implementation follow-up (PR #26):** PR #26 merged on 2026-10-27. It adds end-to-end generated-certificate TLS tests, autonomous heartbeat watchdog, runtime orchestration, durable heartbeat checkpoints, one-shot dispatch/outcome persistence, typed reconciliation snapshots, append-only PostgreSQL snapshot storage, and restart tests. Live readiness still requires a production host daemon, protected credential lifecycle, real MT5 adapter conformance, broker mapping and end-to-end demo verification.
