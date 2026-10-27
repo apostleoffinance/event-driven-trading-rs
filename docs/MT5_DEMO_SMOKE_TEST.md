@@ -59,7 +59,7 @@ This OS-level chain/revocation check is only a point-in-time review. Separately 
 Record and test all of the following in the protected operations record:
 
 - [ ] Issuing CA and trust-chain owner for client/server certificates.
-- [ ] Revocation method and evidence the deployed daemon/worker enforce it. The script does not query OCSP/CRL.
+- [ ] Revocation method and evidence the deployed daemon/worker enforce it. The script performs a point-in-time Windows `certutil -verify -urlfetch` check, but runtime enforcement still needs separate configuration review and negative tests.
 - [ ] Rotation owner, expiry alert owner, and rotation schedule.
 - [ ] New certificate fingerprint pin-update procedure and safe overlap of old/new certificates.
 - [ ] Tested roll-forward and rollback, including negative test that an old/untrusted identity is rejected when expected.
