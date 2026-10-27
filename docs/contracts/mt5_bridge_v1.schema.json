@@ -52,8 +52,8 @@
         "type": { "const": "submit_order" }, "client_order_id": { "type": "string", "minLength": 1, "maxLength": 128 },
         "instrument_id": { "type": "string", "minLength": 1 }, "side": { "enum": ["buy", "sell"] },
         "order_type": { "enum": ["market", "limit", "stop", "stop_limit"] },
-        "quantity": { "$ref": "#/$defs/decimal" }, "price": { "$ref": "#/$defs/decimal" },
-        "stop_loss": { "$ref": "#/$defs/decimal" }, "take_profit": { "$ref": "#/$defs/decimal" },
+        "quantity": { "$ref": "#/$defs/decimal" }, "price": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "stop_loss": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] }, "take_profit": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
         "time_in_force": { "enum": ["day", "gtc", "ioc", "fok"] }
       }
     },
