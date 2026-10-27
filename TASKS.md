@@ -14,7 +14,7 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
   - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
 
 ## Next recommended task
-- **QOS-011 [IN PROGRESS]** Adapter idempotency and cancel-confirmation implementation with simulator/bridge regression tests. Code-head CI run 40433848539 and latest docs-head run 40434017979 both passed Rust format/check/test/Clippy and frontend lint/typecheck/build. PR remains open/unmerged; event-stream deduplication remains limited by the current trait having no event-stream surface.
+- **QOS-011 [IMPLEMENTED; PR OPEN]** Adapter idempotency and cancel-confirmation implementation is CI-verified. Latest PR head `5f5fccd172434841db8176b06ae4c89317908f7d` passed Rust format/check/test/Clippy and frontend lint/typecheck/build in run 40434196486. Event-stream deduplication remains limited by the current trait having no event-stream surface.
 
 ## Milestone 1 — Product B
 - [x] **QOS-010 [DONE]** Specify the existing `VenueAdapter` contract and gaps. Evidence: `VENUE_ADAPTER_CONTRACT.md` documents capabilities, health/readiness, instrument constraints, async events, idempotency, ambiguity, cancel confirmation, reconnect/reconciliation, and 18 test scenarios. Spec-only; no runtime behavior changed.
