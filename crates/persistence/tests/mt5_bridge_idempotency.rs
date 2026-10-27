@@ -433,7 +433,7 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
             .mt5_stream_readiness("account-market-01", "terminal-market-01")
             .await
             .unwrap(),
-        Mt5StreamReadiness::Unknown
+        Mt5StreamReadiness::Degraded
     );
 
     let invalid = json!({
