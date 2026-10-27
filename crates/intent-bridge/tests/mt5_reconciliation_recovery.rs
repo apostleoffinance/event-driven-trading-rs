@@ -75,7 +75,9 @@ fn external_snapshot(now: chrono::DateTime<Utc>) -> Mt5ReconciliationSnapshot {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn authoritative_snapshot_restores_session_after_restart(pool: PgPool) -> Result<(), Box<dyn Error>> {
+async fn authoritative_snapshot_restores_session_after_restart(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>> {
     let now = Utc::now();
     let store = TradingStore::new(pool.clone());
     let heartbeat = heartbeat_frame(now);
@@ -125,13 +127,21 @@ async fn authoritative_snapshot_restores_session_after_restart(pool: PgPool) -> 
     .fetch_one(&pool)
     .await?;
     assert_eq!(persisted.0["account_state"]["equity"], "9975.50");
-    assert_eq!(persisted.0["open_orders"][0]["venue_order_id"], "ticket-7001");
-    assert_eq!(persisted.0["positions"][0]["venue_position_id"], "position-8001");
+    assert_eq!(
+        persisted.0["open_orders"][0]["venue_order_id"],
+        "ticket-7001"
+    );
+    assert_eq!(
+        persisted.0["positions"][0]["venue_position_id"],
+        "position-8001"
+    );
     Ok(())
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn identity_mismatch_cannot_restore_reconciliation_readiness(pool: PgPool) -> Result<(), Box<dyn Error>> {
+async fn identity_mismatch_cannot_restore_reconciliation_readiness(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>> {
     let now = Utc::now();
     let store = TradingStore::new(pool);
     let heartbeat = heartbeat_frame(now);
