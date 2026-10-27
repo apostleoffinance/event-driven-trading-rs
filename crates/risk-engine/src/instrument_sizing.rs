@@ -39,6 +39,12 @@ pub struct InstrumentSizingContext {
     pub min_notional_account_currency: Option<Decimal>,
     pub estimated_cost_per_quantity: Decimal,
     pub slippage_gap_buffer_per_quantity: Decimal,
+    /// Account-currency notional already reserved by pending orders.
+    pub pending_order_exposure: Decimal,
+    /// Remaining free margin from the same fresh account snapshot, when margin applies.
+    pub available_margin: Option<Decimal>,
+    /// Account-currency margin required per unit of this instrument.
+    pub margin_per_quantity: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +57,7 @@ pub enum SizingRejectReason {
     RiskBudgetExhausted,
     ExposureExhausted,
     LeverageExhausted,
+    MarginExhausted,
     BelowMinimumQuantity,
     MinimumNotional,
     ArithmeticOverflow,
@@ -62,6 +69,7 @@ pub enum SizingLimitReason {
     PositionLimit,
     ExposureLimit,
     LeverageLimit,
+    MarginLimit,
     VenueMaximum,
     VolumeStep,
 }
@@ -118,6 +126,7 @@ impl InstrumentSizingOutcome {
                     SizingRejectReason::RiskBudgetExhausted => RiskRejectReason::TradeRiskLimit,
                     SizingRejectReason::ExposureExhausted => RiskRejectReason::ExposureLimit,
                     SizingRejectReason::LeverageExhausted => RiskRejectReason::LeverageLimit,
+                    SizingRejectReason::MarginExhausted => RiskRejectReason::DependencyUnavailable,
                     SizingRejectReason::BelowMinimumQuantity
                     | SizingRejectReason::MinimumNotional => RiskRejectReason::InstrumentConstraint,
                 },
@@ -163,6 +172,10 @@ pub fn size_order_instrument_aware(
         || context.min_quantity <= Decimal::ZERO
         || context.estimated_cost_per_quantity < Decimal::ZERO
         || context.slippage_gap_buffer_per_quantity < Decimal::ZERO
+        || context.pending_order_exposure < Decimal::ZERO
+        || context.available_margin.is_some_and(|margin| margin < Decimal::ZERO)
+        || context.margin_per_quantity.is_some_and(|margin| margin <= Decimal::ZERO)
+        || context.available_margin.is_some() != context.margin_per_quantity.is_some()
     {
         return reject(SizingRejectReason::InvalidInput);
     }
@@ -228,7 +241,11 @@ pub fn size_order_instrument_aware(
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
-    let remaining_exposure = (max_exposure - request.current_exposure).max(Decimal::ZERO);
+    let effective_exposure = match request.current_exposure.checked_add(context.pending_order_exposure) {
+        Some(value) => value,
+        None => return reject(SizingRejectReason::ArithmeticOverflow),
+    };
+    let remaining_exposure = (max_exposure - effective_exposure).max(Decimal::ZERO);
     let max_by_exposure = match remaining_exposure.checked_div(notional_per_quantity) {
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
@@ -237,10 +254,19 @@ pub fn size_order_instrument_aware(
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
-    let remaining_levered = (max_levered_notional - request.current_exposure).max(Decimal::ZERO);
+    let remaining_levered = (max_levered_notional - effective_exposure).max(Decimal::ZERO);
     let max_by_leverage = match remaining_levered.checked_div(notional_per_quantity) {
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
+    };
+
+    let max_by_margin = match (context.available_margin, context.margin_per_quantity) {
+        (Some(available), Some(per_quantity)) => match available.checked_div(per_quantity) {
+            Some(cap) => Some(cap),
+            None => return reject(SizingRejectReason::ArithmeticOverflow),
+        },
+        (None, None) => None,
+        _ => return reject(SizingRejectReason::InvalidInput),
     };
 
     let explicit_request =
@@ -267,6 +293,9 @@ pub fn size_order_instrument_aware(
         .min(max_by_position)
         .min(max_by_exposure)
         .min(max_by_leverage);
+    if let Some(margin_cap) = max_by_margin {
+        allowed = allowed.min(margin_cap);
+    }
     if let Some(maximum) = context.max_quantity {
         allowed = allowed.min(maximum);
     }
@@ -275,6 +304,8 @@ pub fn size_order_instrument_aware(
             SizingRejectReason::ExposureExhausted
         } else if max_by_leverage <= Decimal::ZERO {
             SizingRejectReason::LeverageExhausted
+        } else if max_by_margin.is_some_and(|cap| cap <= Decimal::ZERO) {
+            SizingRejectReason::MarginExhausted
         } else {
             SizingRejectReason::RiskBudgetExhausted
         };
@@ -319,8 +350,10 @@ pub fn size_order_instrument_aware(
             SizingLimitReason::RiskBudget
         } else if max_by_exposure <= max_by_position && max_by_exposure <= max_by_leverage {
             SizingLimitReason::ExposureLimit
-        } else if max_by_leverage <= max_by_position {
+        } else if max_by_leverage <= max_by_position && max_by_leverage <= max_by_exposure {
             SizingLimitReason::LeverageLimit
+        } else if max_by_margin.is_some_and(|cap| cap <= max_by_position && cap <= max_by_exposure && cap <= max_by_leverage) {
+            SizingLimitReason::MarginLimit
         } else if context
             .max_quantity
             .is_some_and(|maximum| maximum <= allowed)
@@ -440,6 +473,9 @@ mod tests {
             min_notional_account_currency: None,
             estimated_cost_per_quantity: Decimal::ZERO,
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
+            pending_order_exposure: Decimal::ZERO,
+            available_margin: None,
+            margin_per_quantity: None,
         }
     }
 
