@@ -35,7 +35,11 @@ impl Mt5SessionPolicy {
         S: Into<String>,
     {
         let accounts: BTreeSet<String> = allowed_accounts.into_iter().map(Into::into).collect();
-        if accounts.is_empty() || accounts.iter().any(|account| account.trim().is_empty()) {
+        if accounts.is_empty()
+            || accounts
+                .iter()
+                .any(|account| account.trim().is_empty() || account.trim() != account)
+        {
             return Err(BridgeError::Invalid(
                 "MT5 session policy requires non-empty allow-listed account IDs".into(),
             ));
@@ -111,6 +115,16 @@ impl Mt5SessionGate {
             BridgePayload::Heartbeat(value) => value,
             _ => return Err(BridgeError::Invalid("expected MT5 heartbeat frame".into())),
         };
+
+        if frame.account_id.trim().is_empty()
+            || heartbeat.terminal_id.trim().is_empty()
+            || heartbeat.server.trim().is_empty()
+        {
+            self.state = Mt5SessionState::Closed;
+            return Err(BridgeError::Invalid(
+                "MT5 account, terminal and server identities must be non-empty and unpadded".into(),
+            ));
+        }
 
         if !self.policy.allows_account(&frame.account_id) {
             self.state = Mt5SessionState::Closed;
@@ -257,7 +271,7 @@ mod tests {
     use super::*;
     use chrono::{TimeZone, Utc};
     use crate::mt5_v1::{
-        BridgeFrame, CancelOrder, Heartbeat, OrderSide, SubmitOrder, TimeInForce,
+        CancelOrder, Heartbeat, OrderSide, SubmitOrder, TimeInForce,
         MT5_BRIDGE_SCHEMA_VERSION,
     };
 
@@ -273,7 +287,12 @@ mod tests {
         }
     }
 
-    fn heartbeat(account: &str, terminal: &str, server: &str, connection: ConnectionState) -> BridgeFrame {
+    fn heartbeat(
+        account: &str,
+        terminal: &str,
+        server: &str,
+        connection: ConnectionState,
+    ) -> BridgeFrame {
         BridgeFrame {
             schema_version: MT5_BRIDGE_SCHEMA_VERSION,
             message_id: "message-1".into(),
@@ -294,7 +313,12 @@ mod tests {
     fn ready_gate() -> Mt5SessionGate {
         let policy = Mt5SessionPolicy::new(["acct-1"]).unwrap();
         let mut gate = Mt5SessionGate::after_transport_authentication(policy);
-        let frame = heartbeat("acct-1", "terminal-1", "demo-server", ConnectionState::Connected);
+        let frame = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         assert_eq!(
             gate.observe_heartbeat(
                 &frame,
@@ -363,13 +387,23 @@ mod tests {
     fn account_switch_and_terminal_rebinding_close_session() {
         let policy = Mt5SessionPolicy::new(["acct-1", "acct-2"]).unwrap();
         let mut gate = Mt5SessionGate::after_transport_authentication(policy);
-        let first = heartbeat("acct-1", "terminal-1", "demo-server", ConnectionState::Connected);
+        let first = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         gate.observe_heartbeat(
             &first,
             Mt5SequenceObservation::ReconciliationRequired,
             Mt5StreamReadiness::Degraded,
         ).unwrap();
-        let switched = heartbeat("acct-2", "terminal-1", "demo-server", ConnectionState::Connected);
+        let switched = heartbeat(
+            "acct-2",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         assert!(gate.observe_heartbeat(
             &switched,
             Mt5SequenceObservation::Accepted,
@@ -383,7 +417,12 @@ mod tests {
         let mut gate = ready_gate();
         gate.degrade();
         assert!(gate.authorize_submit(&submit("acct-1")).is_err());
-        let connected = heartbeat("acct-1", "terminal-1", "demo-server", ConnectionState::Connected);
+        let connected = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         assert_eq!(
             gate.observe_heartbeat(
                 &connected,
@@ -395,6 +434,7 @@ mod tests {
         assert!(gate.authorize_submit(&submit("acct-1")).is_err());
         gate.confirm_reconciled(Mt5StreamReadiness::Ready).unwrap();
         assert!(gate.authorize_submit(&submit("acct-1")).is_ok());
+        assert!(gate.authorize_submit(&submit("acct-2")).is_err());
         assert!(gate.confirm_reconciled(Mt5StreamReadiness::Degraded).is_err());
     }
 
@@ -402,7 +442,12 @@ mod tests {
     fn non_allowlisted_account_and_missing_safe_capabilities_fail_closed() {
         let policy = Mt5SessionPolicy::new(["acct-1"]).unwrap();
         let mut gate = Mt5SessionGate::after_transport_authentication(policy);
-        let unauthorized = heartbeat("acct-evil", "terminal-1", "demo-server", ConnectionState::Connected);
+        let unauthorized = heartbeat(
+            "acct-evil",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         assert!(gate.observe_heartbeat(
             &unauthorized,
             Mt5SequenceObservation::Accepted,
@@ -411,7 +456,12 @@ mod tests {
         assert_eq!(gate.state(), Mt5SessionState::Closed);
 
         let mut gate = ready_gate();
-        let mut missing = heartbeat("acct-1", "terminal-1", "demo-server", ConnectionState::Connected);
+        let mut missing = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "demo-server",
+            ConnectionState::Connected,
+        );
         if let BridgePayload::Heartbeat(ref mut hb) = missing.payload {
             hb.capabilities.order_lookup = false;
         }
