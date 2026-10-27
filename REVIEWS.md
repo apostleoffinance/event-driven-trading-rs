@@ -341,3 +341,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Verification result:** Frontend fix is pushed to `feat/qos-013-runtime-sizing-boundary`; CI result for the combined head is pending. Do not claim build success until the rerun completes.
 - **Remaining risk:** System stacks avoid remote font access but don't bundle IBM Plex, so rendering may vary by platform. No live execution or money movement enabled.
 
+
+
+## REV-025 — QOS-013 combined Rust and frontend workflow passed after Google font fix
+- **Date:** 2026-10-27
+- **Context:** PR #10 runtime-sizing head after removal of `next/font/google`; GitHub Actions run 40439372393.
+- **Finding:** The prior frontend build failure was eliminated by removing the build-time Google font loader dependency. The workflow completed with conclusion `success`.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40439372393. Rust job 121975721468 passed formatting, workspace check, tests, and Clippy. Frontend job 121975721940 passed lint, typecheck, and production build.
+- **Code/docs/tests changed:** No additional behavior change for this verification entry; verification status is recorded here.
+- **Verification result:** Combined implementation head tested by run 40439372393 passed both jobs. PR #10 remains open and unmerged; no live/production readiness is implied.
+- **Remaining risk:** Runtime sizing still requires caller-supplied context rather than authoritative timestamped snapshots; pending-order reserves, margin, persistent structured sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. Font styling now uses system fallbacks, not bundled IBM Plex. No live execution or money movement enabled.
