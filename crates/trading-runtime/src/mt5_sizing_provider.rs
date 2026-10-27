@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use domain::{AccountId, InstrumentId, OrderSide};
 use persistence::{repos::mt5_market_data, TradingStore};
 use risk_engine::mt5_market_data::{prepare_mt5_sizing, Mt5SizingSupplement};
@@ -16,13 +16,25 @@ use crate::{
 };
 
 /// Dynamic account/instrument inputs that are not part of an MT5 market-data frame.
+pub struct Mt5SizingSupplementSnapshot {
+    pub inputs: Mt5SizingSupplement,
+    pub captured_at: DateTime<Utc>,
+    pub max_age_seconds: i64,
+}
+
 #[async_trait]
 pub trait Mt5SizingSupplementProvider: Send + Sync {
     async fn load_supplement(
         &self,
         account_id: &AccountId,
         instrument_id: &InstrumentId,
-    ) -> RuntimeResult<Mt5SizingSupplement>;
+    ) -> RuntimeResult<Mt5SizingSupplementSnapshot>;
+}
+
+fn timestamps_match(left: DateTime<Utc>, right: DateTime<Utc>) -> bool {
+    left.signed_duration_since(right)
+        .num_microseconds()
+        .is_some_and(|delta| delta.unsigned_abs() <= 1)
 }
 
 /// Explicit mapping from a Quant OS instrument ID to the broker's exact MT5 symbol.
@@ -134,24 +146,41 @@ impl Mt5PersistedSizingProvider {
             .load_supplement(account_id, instrument_id)
             .await?;
         let now = Utc::now();
+        if supplement.max_age_seconds <= 0 || supplement.captured_at > now {
+            return Err(RuntimeError::Invariant(
+                "trusted MT5 sizing supplement has invalid freshness metadata".into(),
+            ));
+        }
+        let max_age_seconds = self.max_age_seconds.min(supplement.max_age_seconds);
+        if now.signed_duration_since(supplement.captured_at)
+            > Duration::seconds(max_age_seconds)
+        {
+            return Err(RuntimeError::Invariant(
+                "trusted MT5 sizing supplement is stale".into(),
+            ));
+        }
         let prepared = prepare_mt5_sizing(
             &record.snapshot,
             &binding.symbol,
             &self.expected_account_currency,
             side == OrderSide::Buy,
             now,
-            Duration::seconds(self.max_age_seconds),
-            &supplement,
+            Duration::seconds(max_age_seconds),
+            &supplement.inputs,
         )
         .map_err(|error| RuntimeError::Invariant(format!("MT5 sizing data rejected: {error}")))?;
 
         if prepared.sequence != record.sequence
-            || prepared.snapshot_captured_at != record.captured_at
+            || !timestamps_match(prepared.snapshot_captured_at, record.captured_at)
         {
             return Err(RuntimeError::Invariant(
                 "prepared MT5 sizing metadata does not match persisted record".into(),
             ));
         }
+        let captured_at = prepared
+            .snapshot_captured_at
+            .min(prepared.quote_time)
+            .min(supplement.captured_at);
 
         Ok(RuntimeInstrumentSizingContext {
             account_id: account_id.clone(),
@@ -161,8 +190,8 @@ impl Mt5PersistedSizingProvider {
             notional_conversion_path: binding.notional_conversion_path.clone(),
             venue_capabilities_validated: self.venue_capabilities_validated,
             account_position_semantics_known: self.account_position_semantics_known,
-            captured_at: prepared.snapshot_captured_at,
-            max_age_seconds: self.max_age_seconds,
+            captured_at,
+            max_age_seconds,
             sizing: prepared.context,
             entry_price: Some(prepared.entry_price),
         })
