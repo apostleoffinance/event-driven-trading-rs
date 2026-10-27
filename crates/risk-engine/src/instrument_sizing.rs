@@ -778,4 +778,109 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn venue_maximum_caps_quantity_without_rounding_up() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(1_000_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(10));
+        request.stop_loss = Some(Decimal::from(9));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.max_quantity = Some(Decimal::from(2));
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::from(2)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::VenueMaximum,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn minimum_notional_failure_does_not_force_quantity_up() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::ONE;
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::new(5, 1));
+        let mut sizing = context();
+        sizing.min_notional_account_currency = Some(Decimal::from(100));
+
+        assert_eq!(
+            size_order_instrument_aware(&request, &sizing),
+            InstrumentSizingOutcome::Rejected {
+                reason: SizingRejectReason::MinimumNotional,
+            }
+        );
+    }
+
+    #[test]
+    fn contract_multiplier_increases_reduce_quantity() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::ONE;
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(100));
+        let mut first_context = context();
+        first_context.loss_model = LossModel::Linear {
+            contract_multiplier: Decimal::ONE,
+            pnl_to_account_rate: Decimal::ONE,
+        };
+        let mut second_context = first_context.clone();
+        second_context.loss_model = LossModel::Linear {
+            contract_multiplier: Decimal::from(2),
+            pnl_to_account_rate: Decimal::ONE,
+        };
+
+        let first = size_order_instrument_aware(&request, &first_context)
+            .quantity()
+            .unwrap();
+        let second = size_order_instrument_aware(&request, &second_context)
+            .quantity()
+            .unwrap();
+        assert_eq!(first, Decimal::from(100));
+        assert_eq!(second, Decimal::from(50));
+    }
+
+    #[test]
+    fn account_equity_changes_are_sized_independently() {
+        let mut first_request = sample_request();
+        first_request.account_state.equity = Decimal::from(10_000);
+        first_request.policy.max_risk_per_trade_pct = Decimal::ONE;
+        first_request.policy.max_position_size_pct = Decimal::from(100);
+        first_request.policy.max_total_exposure_pct = Decimal::from(100);
+        first_request.policy.max_leverage = Decimal::from(100);
+        first_request.entry_price = Some(Decimal::from(100));
+        first_request.stop_loss = Some(Decimal::from(99));
+        first_request.requested_quantity = Some(Decimal::from(1_000));
+        let mut second_request = first_request.clone();
+        second_request.account_state.equity = Decimal::from(20_000);
+        let mut sizing = context();
+        sizing.max_quantity = Some(Decimal::from(1_000));
+
+        let first = size_order_instrument_aware(&first_request, &sizing)
+            .quantity()
+            .unwrap();
+        let second = size_order_instrument_aware(&second_request, &sizing)
+            .quantity()
+            .unwrap();
+        assert_eq!(first, Decimal::from(100));
+        assert_eq!(second, Decimal::from(200));
+    }
+
 }
