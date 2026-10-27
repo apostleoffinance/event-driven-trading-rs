@@ -115,6 +115,21 @@ def verify_daemon_tls(config: Config, timeout: float) -> None:
         raise AdapterError("mTLS handshake with the configured bridge failed") from exc
 
 
+class ReadOnlyTerminalView:
+    """Delegate terminal reads while preventing smoke-test Market Watch changes."""
+
+    def __init__(self, terminal: Any, allowed_symbols: tuple[str, ...]) -> None:
+        self._terminal = terminal
+        self._allowed_symbols = frozenset(allowed_symbols)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._terminal, name)
+
+    def select_symbol(self, symbol: str) -> bool:
+        # The worker owns symbol selection. The smoke probe must not mutate it.
+        return symbol in self._allowed_symbols
+
+
 def smoke(timeout_seconds: int) -> dict[str, Any]:
     config = Config.from_env()
     expected_currency = os.environ.get("MT5_EXPECTED_ACCOUNT_CURRENCY", "")
@@ -137,8 +152,9 @@ def smoke(timeout_seconds: int) -> dict[str, Any]:
 
         # Build the same read-only contracts used by the worker. This verifies
         # provider behavior and exact configured symbols; no order action exists.
-        market = build_market_data_snapshot(config, terminal, 1)
-        reconciliation = build_snapshot(config, terminal, constants, 1)
+        read_only_terminal = ReadOnlyTerminalView(terminal, config.symbols)
+        market = build_market_data_snapshot(config, read_only_terminal, 1)
+        reconciliation = build_snapshot(config, read_only_terminal, constants, 1)
         verify_daemon_tls(config, timeout_seconds)
         persisted = latest_persisted_state(config)
 
