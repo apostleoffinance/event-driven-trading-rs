@@ -579,9 +579,13 @@ mod sizing_snapshot_tests {
         older.captured_at = now - Duration::seconds(1);
         assert!(cache.publish_snapshot(older).await.is_err());
 
-        let mut stale = fresh;
+        let mut stale = fresh.clone();
         stale.captured_at = now - Duration::seconds(120);
         assert!(cache.publish_snapshot(stale).await.is_err());
+
+        let mut missing_conversion = fresh;
+        missing_conversion.pnl_conversion_path = " ".to_string();
+        assert!(cache.publish_snapshot(missing_conversion).await.is_err());
     }
 
     #[tokio::test]
@@ -669,6 +673,8 @@ fn sizing_audit_payload(
 
     json!({
         "schema_version": 1,
+        "sizing_model_version": 1,
+        "risk_policy_version": null,
         "evaluated_at": evaluated_at.to_rfc3339(),
         "account_id": request.account_id.as_str(),
         "instrument_id": request.instrument_id.as_str(),
@@ -689,6 +695,11 @@ fn sizing_audit_payload(
             "requested_notional": optional_decimal(request.requested_notional),
             "equity": request.account_state.equity.to_string(),
             "account_balance": request.account_state.balance.to_string(),
+            "used_margin": request.account_state.used_margin.to_string(),
+            "daily_realized_pnl": request.account_state.daily_realized_pnl.to_string(),
+            "peak_equity": request.account_state.peak_equity.to_string(),
+            "account_kill_switch": request.account_state.kill_switch,
+            "session_allowed": request.session_allowed,
             "current_exposure": request.current_exposure.to_string(),
             "risk_per_trade_pct": request.policy.max_risk_per_trade_pct.to_string(),
             "position_cap_pct": request.policy.max_position_size_pct.to_string(),
