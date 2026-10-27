@@ -18,7 +18,7 @@ use tokio::sync::Mutex;
 
 use crate::adapter::VenueAdapter;
 use crate::error::{VenueError, VenueResult};
-use crate::types::{CancelRequest, OrderAck, OrderRequest};
+use crate::types::{same_submission_payload, CancelRequest, OrderAck, OrderRequest};
 
 static FILL_SEQ: AtomicU64 = AtomicU64::new(1);
 static POS_SEQ: AtomicU64 = AtomicU64::new(1);
@@ -259,6 +259,11 @@ impl VenueAdapter for PropVenue {
                 .values()
                 .find(|o| o.client_order_id == request.order.client_order_id)
             {
+                if !same_submission_payload(existing, &request.order) {
+                    return Err(VenueError::ClientOrderIdConflict(
+                        request.order.client_order_id.as_str().to_string(),
+                    ));
+                }
                 let fills: Vec<Fill> = inner
                     .fills
                     .iter()
@@ -291,6 +296,28 @@ impl VenueAdapter for PropVenue {
         order.status = OrderStatus::Filled;
 
         let mut inner = self.inner.lock().await;
+        // Re-check under the mutation lock to close the concurrent-submit race.
+        if let Some(existing) = inner
+            .orders
+            .values()
+            .find(|o| o.client_order_id == order.client_order_id)
+        {
+            if !same_submission_payload(existing, &order) {
+                return Err(VenueError::ClientOrderIdConflict(
+                    order.client_order_id.as_str().to_string(),
+                ));
+            }
+            let existing = existing.clone();
+            let replay_fills = inner.fills.iter().filter(|f| f.order_id == existing.id).cloned().collect();
+            return Ok(OrderAck {
+                client_order_id: existing.client_order_id.clone(),
+                order_id: existing.id.clone(),
+                venue_order_id: format!("prop-{}", existing.id.as_str()),
+                accepted: true,
+                fills: replay_fills,
+                message: Some("idempotent prop venue replay".into()),
+            });
+        }
         Self::apply_position_fill(&mut inner.positions, &order, &fill)?;
         inner.fills.push(fill.clone());
 
