@@ -115,6 +115,126 @@ pub fn parse_frame_json(
     Ok(frame)
 }
 
+/// Persist a submit claim before any transport send. Only `New` authorizes
+/// a first send; every existing key, including `prepared`, must reconcile.
+pub async fn claim_submit_order(
+    store: &persistence::TradingStore,
+    frame: &BridgeFrame,
+    now: DateTime<Utc>,
+    allowed_clock_skew: Duration,
+) -> BridgeResult<persistence::Mt5OrderClaim> {
+    frame.validate_at(now, allowed_clock_skew)?;
+    let order = match &frame.payload {
+        BridgePayload::SubmitOrder(order) => order,
+        _ => {
+            return Err(BridgeError::Invalid(
+                "durable submit claim requires a submit_order payload".into(),
+            ));
+        }
+    };
+    let canonical_payload = serde_json::to_value(&frame.payload)?;
+    store
+        .claim_mt5_order(&frame.account_id, &order.client_order_id, canonical_payload)
+        .await
+        .map_err(BridgeError::from)
+}
+
+/// Persist accepted/rejected/unknown response state. Unknown is deliberately
+/// not treated as rejected and must be reconciled before any further submit.
+pub async fn persist_submit_outcome(
+    store: &persistence::TradingStore,
+    frame: &BridgeFrame,
+    now: DateTime<Utc>,
+    allowed_clock_skew: Duration,
+) -> BridgeResult<()> {
+    frame.validate_at(now, allowed_clock_skew)?;
+    let outcome = match &frame.payload {
+        BridgePayload::SubmitOutcome(outcome) => outcome,
+        _ => {
+            return Err(BridgeError::Invalid(
+                "persisted submit outcome requires a submit_outcome payload".into(),
+            ));
+        }
+    };
+    let state = match outcome.outcome {
+        SubmitState::Accepted => persistence::Mt5DurableOrderState::Accepted,
+        SubmitState::Rejected => persistence::Mt5DurableOrderState::Rejected,
+        SubmitState::Unknown => persistence::Mt5DurableOrderState::Unknown,
+    };
+    store
+        .record_mt5_order_outcome(
+            &frame.account_id,
+            &outcome.client_order_id,
+            state,
+            outcome.venue_order_id.as_deref(),
+            outcome.reason_code.as_deref(),
+        )
+        .await
+        .map_err(BridgeError::from)
+}
+
+/// Observe a heartbeat sequence in durable storage. Non-connected heartbeats
+/// are never allowed to establish a ready stream; callers must reconcile first.
+pub async fn observe_heartbeat_sequence(
+    store: &persistence::TradingStore,
+    frame: &BridgeFrame,
+    now: DateTime<Utc>,
+    allowed_clock_skew: Duration,
+) -> BridgeResult<persistence::Mt5SequenceObservation> {
+    let heartbeat = match &frame.payload {
+        BridgePayload::Heartbeat(heartbeat) => heartbeat,
+        _ => {
+            return Err(BridgeError::Invalid(
+                "sequence observation requires a heartbeat payload".into(),
+            ));
+        }
+    };
+    if let Err(validation_error) = frame.validate_at(now, allowed_clock_skew) {
+        store
+            .mark_mt5_stream_degraded(
+                &frame.account_id,
+                &heartbeat.terminal_id,
+                heartbeat.sequence,
+            )
+            .await?;
+        return Err(validation_error);
+    }
+    if heartbeat.connection != ConnectionState::Connected {
+        store
+            .mark_mt5_stream_degraded(
+                &frame.account_id,
+                &heartbeat.terminal_id,
+                heartbeat.sequence,
+            )
+            .await?;
+        return Err(BridgeError::Invalid(
+            "non-connected MT5 heartbeat cannot authorize sequence readiness".into(),
+        ));
+    }
+    store
+        .observe_mt5_sequence(
+            &frame.account_id,
+            &heartbeat.terminal_id,
+            heartbeat.sequence,
+        )
+        .await
+        .map_err(BridgeError::from)
+}
+
+/// Mark readiness only after external orders, positions, and account state have
+/// been reconciled for this account/terminal pair.
+pub async fn mark_heartbeat_stream_reconciled(
+    store: &persistence::TradingStore,
+    account_id: &str,
+    terminal_id: &str,
+    reconciled_sequence: u64,
+) -> BridgeResult<()> {
+    store
+        .mark_mt5_stream_reconciled(account_id, terminal_id, reconciled_sequence)
+        .await
+        .map_err(BridgeError::from)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BridgeFrame {

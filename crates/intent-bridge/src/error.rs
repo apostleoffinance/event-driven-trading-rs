@@ -24,6 +24,9 @@ pub enum BridgeError {
 
     #[error("venue error: {0}")]
     Venue(#[from] venue_connectors::VenueError),
+
+    #[error("persistence error: {0}")]
+    Persistence(#[from] persistence::PersistenceError),
 }
 
 pub type BridgeResult<T> = Result<T, BridgeError>;
