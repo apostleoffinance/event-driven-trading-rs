@@ -20,6 +20,9 @@ class RestartVerificationContractTests(unittest.TestCase):
                 self.assertIn(required, source)
         self.assertNotIn("Stop-Service -Name $DaemonServiceName", source)
         self.assertNotIn("Restart-Service -Name $DaemonServiceName", source)
+        stopped_wait = source.index("$worker.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped")
+        stop_timestamp = source.index('$record.worker_stopped_at_utc = [DateTimeOffset]::UtcNow.ToString("o")')
+        self.assertLess(stopped_wait, stop_timestamp, "record stop time only after Windows confirms stopped state")
 
     def test_verifies_sequence_continuity_and_fresh_reconciliation(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
