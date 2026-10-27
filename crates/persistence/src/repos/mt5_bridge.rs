@@ -393,7 +393,7 @@ pub async fn persist_reconciliation_snapshot(
         || snapshot.get("account_id").and_then(Value::as_str) != Some(account_id)
         || snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
         || snapshot.get("source").and_then(Value::as_str) != Some(source)
-        || snapshot.get("sequence").and_then(Value::as_u64) != Some(sequence)
+        || snapshot.get("sequence").and_then(Value::as_i64) != Some(sequence)
         || snapshot
             .get("server")
             .and_then(Value::as_str)
