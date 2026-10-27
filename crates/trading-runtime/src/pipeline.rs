@@ -193,7 +193,13 @@ impl TradingRuntime {
                         &snapshot.source_id,
                         snapshot.captured_at,
                         evaluated_at,
-                        sizing_audit_payload(&risk_req, snapshot, &decision, sizing_outcome.as_ref(), evaluated_at),
+                        sizing_audit_payload(
+                            &risk_req,
+                            snapshot,
+                            &decision,
+                            sizing_outcome.as_ref(),
+                            evaluated_at,
+                        ),
                     )
                     .await?;
             }
@@ -497,12 +503,19 @@ fn sizing_audit_payload(
     evaluated_at: chrono::DateTime<Utc>,
 ) -> Value {
     let loss_model = match snapshot.sizing.loss_model {
-        LossModel::Linear { contract_multiplier, pnl_to_account_rate } => json!({
+        LossModel::Linear {
+            contract_multiplier,
+            pnl_to_account_rate,
+        } => json!({
             "type": "linear",
             "contract_multiplier": contract_multiplier.to_string(),
             "pnl_to_account_rate": pnl_to_account_rate.to_string()
         }),
-        LossModel::TickValue { tick_size, tick_value_per_quantity, tick_value_to_account_rate } => json!({
+        LossModel::TickValue {
+            tick_size,
+            tick_value_per_quantity,
+            tick_value_to_account_rate,
+        } => json!({
             "type": "tick_value",
             "tick_size": tick_size.to_string(),
             "tick_value_per_quantity": tick_value_per_quantity.to_string(),
@@ -510,13 +523,22 @@ fn sizing_audit_payload(
         }),
     };
     let sizing_result = match outcome {
-        Some(InstrumentSizingOutcome::Approved { quantity, risk_budget, modeled_loss }) => json!({
+        Some(InstrumentSizingOutcome::Approved {
+            quantity,
+            risk_budget,
+            modeled_loss,
+        }) => json!({
             "status": "approved",
             "quantity": quantity.to_string(),
             "risk_budget": risk_budget.to_string(),
             "modeled_loss": modeled_loss.to_string()
         }),
-        Some(InstrumentSizingOutcome::Resized { quantity, risk_budget, modeled_loss, reason }) => json!({
+        Some(InstrumentSizingOutcome::Resized {
+            quantity,
+            risk_budget,
+            modeled_loss,
+            reason,
+        }) => json!({
             "status": "resized",
             "quantity": quantity.to_string(),
             "risk_budget": risk_budget.to_string(),
