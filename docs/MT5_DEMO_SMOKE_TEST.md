@@ -52,9 +52,9 @@ Run from an authorized PowerShell session, substituting the exact Windows servic
 .\adapters\mt5-python\scripts\mt5-certificate-acl-review.ps1 -ExpectedServiceIdentity 'DOMAIN\QuantOS-MT5'
 ```
 
-The script verifies configured files exist, loads both certificate/key pairs without exporting or printing key material, prints certificate subject/issuer/validity/fingerprint, confirms the client leaf fingerprint matches MT5_BRIDGE_PRINCIPAL_SHA256, reports key ACL entries, fails on broad-principal read grants, and warns near expiry.
+The script verifies configured files exist, loads both certificate/key pairs without exporting or printing key material, prints certificate subject/issuer/validity/fingerprint, confirms the client leaf fingerprint matches MT5_BRIDGE_PRINCIPAL_SHA256, runs Windows `certutil -verify -urlfetch` for both certificate chains and online revocation, reports key-file and parent-directory ACL entries, fails on broad-principal read grants, and warns near expiry. Missing certutil or failed chain/revocation verification blocks the script.
 
-Review ACL output including inherited ACEs and warnings for other identities against actual service-account policy. Script success is necessary but not sufficient; perform a manual effective-access review including parent directories.
+This OS-level chain/revocation check is only a point-in-time review. Separately verify from the deployed daemon/worker configuration and negative tests that runtime TLS actually enforces the intended CA trust and revocation policy. Review ACL output including inherited ACEs and warnings for other identities against actual service-account policy; script success is necessary but not sufficient. Confirm the expected service identity has the required access and no unintended principal can read key material through parent directories.
 
 Record and test all of the following in the protected operations record:
 
