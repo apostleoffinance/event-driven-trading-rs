@@ -150,13 +150,12 @@ impl Mt5BridgeRuntime {
     /// restoring reconciliation readiness. No order submission is performed here.
     pub async fn reconcile_from_next_frame(
         &self,
-        now: DateTime<Utc>,
         allowed_clock_skew: Duration,
         max_age: Duration,
     ) -> BridgeResult<()> {
         let frame = loop {
-            let frame = self.read_next_frame(now, allowed_clock_skew).await?;
-            match frame.payload {
+            let frame = self.read_next_frame(Utc::now(), allowed_clock_skew).await?;
+            match &frame.payload {
                 BridgePayload::Heartbeat(_) => continue,
                 BridgePayload::ReconciliationSnapshot(_) => break frame,
                 _ => {
@@ -219,7 +218,7 @@ impl Mt5BridgeRuntime {
                 }
             }).collect(),
         };
-        self.reconcile(&snapshot, now, max_age).await
+        self.reconcile(&snapshot, Utc::now(), max_age).await
     }
 
     /// Fetch and persist an authoritative external snapshot after reconnect or
