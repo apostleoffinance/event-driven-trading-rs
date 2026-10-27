@@ -29,7 +29,7 @@ Optional timeout/poll settings:
 The harness checks:
 1. Required environment values and certificate files exist; the worker leaf-certificate DER SHA-256 fingerprint matches the daemon's configured pin.
 2. The configured MT5 terminal initializes with the expected demo login and server; account currency matches the operator-supplied expected value.
-3. Every configured exact symbol has fresh bid/ask and valid tick size/value, contract size, and volume constraints.
+3. Every configured exact symbol (already selected by the running worker) has fresh bid/ask and valid tick size/value, contract size, and volume constraints. The smoke probe does not call `symbol_select` or modify Market Watch.
 4. The daemon's configured TCP listener is reachable and PostgreSQL has both market-data and reconciliation snapshot tables.
 5. The database contains a fresh market-data snapshot and a fresh reconciliation snapshot for the exact account/terminal; server, account currency, symbols, bid/ask validity, quote freshness, and at least two distinct market-data sequences are checked.
 
