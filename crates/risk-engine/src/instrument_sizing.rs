@@ -700,4 +700,57 @@ mod tests {
         );
     }
 
+    #[test]
+    fn pending_margin_reserve_is_subtracted_before_margin_sizing() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.available_margin = Some(Decimal::from(25));
+        sizing.pending_order_margin = Decimal::from(5);
+        sizing.margin_per_quantity = Some(Decimal::from(10));
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::from(2)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::MarginLimit,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn deterministic_quantity_invariants_hold_across_risk_budgets() {
+        for budget_pct in 1..=20 {
+            let mut request = sample_request();
+            request.account_state.equity = Decimal::from(10_000);
+            request.policy.max_risk_per_trade_pct = Decimal::from(budget_pct);
+            request.policy.max_position_size_pct = Decimal::from(100);
+            request.policy.max_total_exposure_pct = Decimal::from(100);
+            request.policy.max_leverage = Decimal::from(100);
+            request.entry_price = Some(Decimal::from(100));
+            request.stop_loss = Some(Decimal::from(99));
+            request.requested_quantity = Some(Decimal::from(1_000));
+            let sizing = context();
+
+            let first = size_order_instrument_aware(&request, &sizing);
+            let second = size_order_instrument_aware(&request, &sizing);
+            assert_eq!(first, second);
+            if let InstrumentSizingOutcome::Approved { quantity, modeled_loss, risk_budget }
+                | InstrumentSizingOutcome::Resized { quantity, modeled_loss, risk_budget, .. } = first
+            {
+                assert_eq!((quantity / sizing.quantity_step).trunc(), quantity / sizing.quantity_step);
+                assert!(modeled_loss <= risk_budget);
+            }
+        }
+    }
+
 }
