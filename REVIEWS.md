@@ -351,3 +351,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Code/docs/tests changed:** No additional behavior change for this verification entry; verification status is recorded here.
 - **Verification result:** Combined implementation head tested by run 40439372393 passed both jobs. PR #10 remains open and unmerged; no live/production readiness is implied.
 - **Remaining risk:** Runtime sizing still requires caller-supplied context rather than authoritative timestamped snapshots; pending-order reserves, margin, persistent structured sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. Font styling now uses system fallbacks, not bundled IBM Plex. No live execution or money movement enabled.
+
+
+## REV-026 — QOS-013 expanded sizing implementation formatting failures and corrections
+- **Date:** 2026-10-27
+- **Context:** Draft PR #12, initial CI run 40443283430 on intermediate head `597587ef422720207f231aa0a11001e11a3b97a0`.
+- **Finding:** Rust formatting gate found rustfmt differences in the evaluator fixture, instrument sizing branches/invariant test, runtime imports/test module, and runtime integration fixture. Sequential CI skipped check/test/Clippy for that run; frontend checks passed.
+- **Correction:** Applied the rustfmt changes reported by CI and corrected the margin-limit conditional syntax during follow-up edits. Subsequent latest-head CI remains required; no compile/test/Clippy success is claimed from the failed run.
+- **Rule update:** None; existing `RULES.md` already requires formatting and accurate verification claims.
+- **Remaining risk:** QOS-013 is not complete until latest-head Rust format/check/test/Clippy and frontend checks pass, and a concrete authoritative snapshot provider plus remaining acceptance coverage are implemented or explicitly scoped by review. No live execution enabled.

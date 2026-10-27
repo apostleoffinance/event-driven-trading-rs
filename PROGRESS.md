@@ -152,3 +152,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Removed the build-time `next/font/google` dependency and switched global/chart typography to stable system font stacks. Theme switching and PAPER metadata are unchanged.
 - Applied the three frontend changes directly to `feat/qos-013-runtime-sizing-boundary` so PR #10 will rerun against the combined changes. Correction logged in REV-024.
 - CI for the combined latest head is pending. No build/test success is claimed until that run completes. No live mode, deployment, or money movement enabled.
+
+
+## Work log — QOS-013 snapshot freshness, reserves, and audit persistence (2026-10-27)
+- Re-read `RULES.md` and inspected the merged QOS-013 runtime path, risk sizing implementation, persistence façade, and SQLx migration layout.
+- Added a runtime snapshot-provider contract. Each sizing bundle carries a non-empty source ID, capture timestamp, and explicit positive max-age; future-dated, expired, unknown-source, identity-mismatched, or stale bundles reject before OMS. Provider errors propagate and do not fall back to legacy sizing.
+- Extended instrument-aware sizing to reserve pending-order notional exposure and pending-order margin, apply an optional available-margin-per-unit cap, round down, and recheck modeled loss. Added tests for pending exposure, margin caps, pending margin reserves, malformed margin inputs, and deterministic quantity/loss invariants.
+- Added a detailed evaluator outcome and an append-only `sizing_decision_audits` JSONB table/repository method. When a store is configured, the runtime records exact decimal strings for request, model, constraints, sizing result, and decision before OMS submission. Persistence failure therefore prevents the order from proceeding.
+- Branch/PR: `feat/qos-013-complete-sizing-snapshots`, draft PR #12. CI is still running/being corrected; QOS-013 remains IN PROGRESS. The provider is an interface, not yet a concrete authoritative venue/account/quote source. No live adapter, deployment, or money movement enabled.

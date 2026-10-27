@@ -249,6 +249,11 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
     let context = RuntimeInstrumentSizingContext {
         account_id: account_id.clone(),
         instrument_id: intent.instrument_id.clone(),
+        source_id: "test-fixture".to_string(),
+        pnl_conversion_path: "TEST:quote_to_account".to_string(),
+        notional_conversion_path: "TEST:price_to_account".to_string(),
+        captured_at: Utc::now(),
+        max_age_seconds: 30,
         sizing: InstrumentSizingContext {
             loss_model: LossModel::Linear {
                 contract_multiplier: Decimal::ONE,
@@ -262,6 +267,10 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
             min_notional_account_currency: None,
             estimated_cost_per_quantity: Decimal::ZERO,
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
+            pending_order_exposure: Decimal::ZERO,
+            available_margin: None,
+            pending_order_margin: Decimal::ZERO,
+            margin_per_quantity: None,
         },
     };
     let (events_out, _events_in) = event_channel(32);

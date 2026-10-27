@@ -39,6 +39,14 @@ pub struct InstrumentSizingContext {
     pub min_notional_account_currency: Option<Decimal>,
     pub estimated_cost_per_quantity: Decimal,
     pub slippage_gap_buffer_per_quantity: Decimal,
+    /// Account-currency notional already reserved by pending orders.
+    pub pending_order_exposure: Decimal,
+    /// Remaining free margin from the same fresh account snapshot, when margin applies.
+    pub available_margin: Option<Decimal>,
+    /// Account-currency margin already reserved by pending orders.
+    pub pending_order_margin: Decimal,
+    /// Account-currency margin required per unit of this instrument.
+    pub margin_per_quantity: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +59,7 @@ pub enum SizingRejectReason {
     RiskBudgetExhausted,
     ExposureExhausted,
     LeverageExhausted,
+    MarginExhausted,
     BelowMinimumQuantity,
     MinimumNotional,
     ArithmeticOverflow,
@@ -62,6 +71,7 @@ pub enum SizingLimitReason {
     PositionLimit,
     ExposureLimit,
     LeverageLimit,
+    MarginLimit,
     VenueMaximum,
     VolumeStep,
 }
@@ -118,6 +128,7 @@ impl InstrumentSizingOutcome {
                     SizingRejectReason::RiskBudgetExhausted => RiskRejectReason::TradeRiskLimit,
                     SizingRejectReason::ExposureExhausted => RiskRejectReason::ExposureLimit,
                     SizingRejectReason::LeverageExhausted => RiskRejectReason::LeverageLimit,
+                    SizingRejectReason::MarginExhausted => RiskRejectReason::DependencyUnavailable,
                     SizingRejectReason::BelowMinimumQuantity
                     | SizingRejectReason::MinimumNotional => RiskRejectReason::InstrumentConstraint,
                 },
@@ -163,6 +174,15 @@ pub fn size_order_instrument_aware(
         || context.min_quantity <= Decimal::ZERO
         || context.estimated_cost_per_quantity < Decimal::ZERO
         || context.slippage_gap_buffer_per_quantity < Decimal::ZERO
+        || context.pending_order_exposure < Decimal::ZERO
+        || context.pending_order_margin < Decimal::ZERO
+        || context
+            .available_margin
+            .is_some_and(|margin| margin < Decimal::ZERO)
+        || context
+            .margin_per_quantity
+            .is_some_and(|margin| margin <= Decimal::ZERO)
+        || context.available_margin.is_some() != context.margin_per_quantity.is_some()
     {
         return reject(SizingRejectReason::InvalidInput);
     }
@@ -228,7 +248,14 @@ pub fn size_order_instrument_aware(
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
-    let remaining_exposure = (max_exposure - request.current_exposure).max(Decimal::ZERO);
+    let effective_exposure = match request
+        .current_exposure
+        .checked_add(context.pending_order_exposure)
+    {
+        Some(value) => value,
+        None => return reject(SizingRejectReason::ArithmeticOverflow),
+    };
+    let remaining_exposure = (max_exposure - effective_exposure).max(Decimal::ZERO);
     let max_by_exposure = match remaining_exposure.checked_div(notional_per_quantity) {
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
@@ -237,10 +264,23 @@ pub fn size_order_instrument_aware(
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
-    let remaining_levered = (max_levered_notional - request.current_exposure).max(Decimal::ZERO);
+    let remaining_levered = (max_levered_notional - effective_exposure).max(Decimal::ZERO);
     let max_by_leverage = match remaining_levered.checked_div(notional_per_quantity) {
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
+    };
+
+    let max_by_margin = match (context.available_margin, context.margin_per_quantity) {
+        (Some(available), Some(per_quantity)) => match available
+            .checked_sub(context.pending_order_margin)
+            .map(|remaining| remaining.max(Decimal::ZERO))
+            .and_then(|remaining| remaining.checked_div(per_quantity))
+        {
+            Some(cap) => Some(cap),
+            None => return reject(SizingRejectReason::ArithmeticOverflow),
+        },
+        (None, None) => None,
+        _ => return reject(SizingRejectReason::InvalidInput),
     };
 
     let explicit_request =
@@ -267,6 +307,9 @@ pub fn size_order_instrument_aware(
         .min(max_by_position)
         .min(max_by_exposure)
         .min(max_by_leverage);
+    if let Some(margin_cap) = max_by_margin {
+        allowed = allowed.min(margin_cap);
+    }
     if let Some(maximum) = context.max_quantity {
         allowed = allowed.min(maximum);
     }
@@ -275,6 +318,8 @@ pub fn size_order_instrument_aware(
             SizingRejectReason::ExposureExhausted
         } else if max_by_leverage <= Decimal::ZERO {
             SizingRejectReason::LeverageExhausted
+        } else if max_by_margin.is_some_and(|cap| cap <= Decimal::ZERO) {
+            SizingRejectReason::MarginExhausted
         } else {
             SizingRejectReason::RiskBudgetExhausted
         };
@@ -317,15 +362,23 @@ pub fn size_order_instrument_aware(
                 .is_none_or(|maximum| risk_cap <= maximum)
         {
             SizingLimitReason::RiskBudget
-        } else if max_by_exposure <= max_by_position && max_by_exposure <= max_by_leverage {
-            SizingLimitReason::ExposureLimit
-        } else if max_by_leverage <= max_by_position {
-            SizingLimitReason::LeverageLimit
+        } else if max_by_margin.is_some_and(|cap| {
+            cap <= risk_cap
+                && cap <= max_by_position
+                && cap <= max_by_exposure
+                && cap <= max_by_leverage
+                && context.max_quantity.is_none_or(|maximum| cap <= maximum)
+        }) {
+            SizingLimitReason::MarginLimit
         } else if context
             .max_quantity
             .is_some_and(|maximum| maximum <= allowed)
         {
             SizingLimitReason::VenueMaximum
+        } else if max_by_exposure <= max_by_position && max_by_exposure <= max_by_leverage {
+            SizingLimitReason::ExposureLimit
+        } else if max_by_leverage <= max_by_position && max_by_leverage <= max_by_exposure {
+            SizingLimitReason::LeverageLimit
         } else if max_by_position < desired {
             SizingLimitReason::PositionLimit
         } else {
@@ -440,6 +493,10 @@ mod tests {
             min_notional_account_currency: None,
             estimated_cost_per_quantity: Decimal::ZERO,
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
+            pending_order_exposure: Decimal::ZERO,
+            available_margin: None,
+            pending_order_margin: Decimal::ZERO,
+            margin_per_quantity: None,
         }
     }
 
@@ -591,5 +648,238 @@ mod tests {
                 modeled_loss: Decimal::from(60),
             }
         );
+    }
+    #[test]
+    fn pending_order_exposure_reduces_available_exposure_cap() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::ONE;
+        request.policy.max_leverage = Decimal::from(10);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.pending_order_exposure = Decimal::from(50);
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::new(5, 1)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::ExposureLimit,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn available_margin_caps_quantity_independently() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.available_margin = Some(Decimal::from(25));
+        sizing.margin_per_quantity = Some(Decimal::from(10));
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::new(25, 1)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::MarginLimit,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn mismatched_margin_inputs_fail_closed() {
+        let request = sample_request();
+        let mut sizing = context();
+        sizing.available_margin = Some(Decimal::from(100));
+
+        assert_eq!(
+            size_order_instrument_aware(&request, &sizing),
+            InstrumentSizingOutcome::Rejected {
+                reason: SizingRejectReason::InvalidInput,
+            }
+        );
+    }
+
+    #[test]
+    fn pending_margin_reserve_is_subtracted_before_margin_sizing() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.available_margin = Some(Decimal::from(25));
+        sizing.pending_order_margin = Decimal::from(5);
+        sizing.margin_per_quantity = Some(Decimal::from(10));
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::from(2)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::MarginLimit,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn deterministic_quantity_invariants_hold_across_risk_budgets() {
+        for budget_pct in 1..=20 {
+            let mut request = sample_request();
+            request.account_state.equity = Decimal::from(10_000);
+            request.policy.max_risk_per_trade_pct = Decimal::from(budget_pct);
+            request.policy.max_position_size_pct = Decimal::from(100);
+            request.policy.max_total_exposure_pct = Decimal::from(100);
+            request.policy.max_leverage = Decimal::from(100);
+            request.entry_price = Some(Decimal::from(100));
+            request.stop_loss = Some(Decimal::from(99));
+            request.requested_quantity = Some(Decimal::from(1_000));
+            let sizing = context();
+
+            let first = size_order_instrument_aware(&request, &sizing);
+            let second = size_order_instrument_aware(&request, &sizing);
+            assert_eq!(first, second);
+            if let InstrumentSizingOutcome::Approved {
+                quantity,
+                modeled_loss,
+                risk_budget,
+            }
+            | InstrumentSizingOutcome::Resized {
+                quantity,
+                modeled_loss,
+                risk_budget,
+                ..
+            } = first
+            {
+                assert_eq!(
+                    (quantity / sizing.quantity_step).trunc(),
+                    quantity / sizing.quantity_step
+                );
+                assert!(modeled_loss <= risk_budget);
+            }
+        }
+    }
+    #[test]
+    fn venue_maximum_caps_quantity_without_rounding_up() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(1_000_000);
+        request.policy.max_risk_per_trade_pct = Decimal::from(10);
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(10));
+        request.stop_loss = Some(Decimal::from(9));
+        request.requested_quantity = Some(Decimal::from(10));
+        let mut sizing = context();
+        sizing.max_quantity = Some(Decimal::from(2));
+
+        let result = size_order_instrument_aware(&request, &sizing);
+        assert_eq!(result.quantity(), Some(Decimal::from(2)));
+        assert!(matches!(
+            result,
+            InstrumentSizingOutcome::Resized {
+                reason: SizingLimitReason::VenueMaximum,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn minimum_notional_failure_does_not_force_quantity_up() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::ONE;
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::new(5, 1));
+        let mut sizing = context();
+        sizing.min_notional_account_currency = Some(Decimal::from(100));
+
+        assert_eq!(
+            size_order_instrument_aware(&request, &sizing),
+            InstrumentSizingOutcome::Rejected {
+                reason: SizingRejectReason::MinimumNotional,
+            }
+        );
+    }
+
+    #[test]
+    fn contract_multiplier_increases_reduce_quantity() {
+        let mut request = sample_request();
+        request.account_state.equity = Decimal::from(10_000);
+        request.policy.max_risk_per_trade_pct = Decimal::ONE;
+        request.policy.max_position_size_pct = Decimal::from(100);
+        request.policy.max_total_exposure_pct = Decimal::from(100);
+        request.policy.max_leverage = Decimal::from(100);
+        request.entry_price = Some(Decimal::from(100));
+        request.stop_loss = Some(Decimal::from(99));
+        request.requested_quantity = Some(Decimal::from(100));
+        let mut first_context = context();
+        first_context.loss_model = LossModel::Linear {
+            contract_multiplier: Decimal::ONE,
+            pnl_to_account_rate: Decimal::ONE,
+        };
+        let mut second_context = first_context.clone();
+        second_context.loss_model = LossModel::Linear {
+            contract_multiplier: Decimal::from(2),
+            pnl_to_account_rate: Decimal::ONE,
+        };
+
+        let first = size_order_instrument_aware(&request, &first_context)
+            .quantity()
+            .unwrap();
+        let second = size_order_instrument_aware(&request, &second_context)
+            .quantity()
+            .unwrap();
+        assert_eq!(first, Decimal::from(100));
+        assert_eq!(second, Decimal::from(50));
+    }
+
+    #[test]
+    fn account_equity_changes_are_sized_independently() {
+        let mut first_request = sample_request();
+        first_request.account_state.equity = Decimal::from(10_000);
+        first_request.policy.max_risk_per_trade_pct = Decimal::ONE;
+        first_request.policy.max_position_size_pct = Decimal::from(100);
+        first_request.policy.max_total_exposure_pct = Decimal::from(100);
+        first_request.policy.max_leverage = Decimal::from(100);
+        first_request.entry_price = Some(Decimal::from(100));
+        first_request.stop_loss = Some(Decimal::from(99));
+        first_request.requested_quantity = Some(Decimal::from(1_000));
+        let mut second_request = first_request.clone();
+        second_request.account_state.equity = Decimal::from(20_000);
+        let mut sizing = context();
+        sizing.max_quantity = Some(Decimal::from(1_000));
+
+        let first = size_order_instrument_aware(&first_request, &sizing)
+            .quantity()
+            .unwrap();
+        let second = size_order_instrument_aware(&second_request, &sizing)
+            .quantity()
+            .unwrap();
+        assert_eq!(first, Decimal::from(100));
+        assert_eq!(second, Decimal::from(200));
     }
 }
