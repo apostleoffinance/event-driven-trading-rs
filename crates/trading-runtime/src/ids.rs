@@ -20,8 +20,10 @@ pub fn client_order_id_for_account_intent(
     intent_id: &TradeIntentId,
 ) -> RuntimeResult<ClientOrderId> {
     ClientOrderId::new(format!(
-        "clid-{}-{}",
+        "clid-{}-{}-{}-{}",
+        account_id.as_str().len(),
         account_id.as_str(),
+        intent_id.as_str().len(),
         intent_id.as_str()
     ))
     .map_err(RuntimeError::from)
