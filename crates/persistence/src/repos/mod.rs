@@ -124,7 +124,6 @@ impl TradingStore {
         audit::insert(&self.pool, event, account_id, trade_intent_id).await
     }
 
-
     /// Append an instrument-aware sizing calculation for immutable audit.
     #[allow(clippy::too_many_arguments)]
     pub async fn save_sizing_audit(
