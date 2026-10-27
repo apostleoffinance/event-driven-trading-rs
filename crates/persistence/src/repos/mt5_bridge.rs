@@ -284,6 +284,40 @@ pub async fn mark_stream_reconciled(
     Ok(())
 }
 
+/// Mark a stream degraded after a disconnected heartbeat or invalid/stale frame.
+/// Existing sequence checkpoints are retained so only explicit reconciliation can
+/// advance the checkpoint and restore readiness.
+pub async fn mark_stream_degraded(
+    pool: &PgPool,
+    account_id: &str,
+    terminal_id: &str,
+    observed_sequence: u64,
+) -> PersistenceResult<()> {
+    let sequence = i64::try_from(observed_sequence).map_err(|_| {
+        PersistenceError::Other("MT5 sequence exceeds PostgreSQL BIGINT range".into())
+    })?;
+    if account_id.trim().is_empty() || terminal_id.trim().is_empty() || sequence < 0 {
+        return Err(PersistenceError::Other(
+            "MT5 account ID, terminal ID and non-negative sequence are required".into(),
+        ));
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
+        VALUES ($1, $2, $3, 'degraded')
+        ON CONFLICT (account_id, terminal_id) DO UPDATE SET
+            readiness = 'degraded',
+            updated_at = NOW()
+        "#,
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .bind(sequence)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn stream_readiness(
     pool: &PgPool,
     account_id: &str,
