@@ -514,12 +514,15 @@ mod tests {
                 },
             }),
         };
-        let encoded = encode_frame_line(&frame).unwrap();
+        let encoded = encode_frame_line(&frame)
+            .unwrap_or_else(|error| panic!("valid heartbeat frame must encode: {error}"));
         assert_eq!(encoded.last(), Some(&b'\n'));
         assert!(!encoded.ends_with(b"\\n"));
         assert_eq!(encoded.iter().filter(|byte| **byte == b'\n').count(), 1);
         let json = &encoded[..encoded.len() - 1];
-        assert_eq!(serde_json::from_slice::<BridgeFrame>(json).unwrap(), frame);
+        let decoded = serde_json::from_slice::<BridgeFrame>(json)
+            .unwrap_or_else(|error| panic!("encoded frame must decode as JSON: {error}"));
+        assert_eq!(decoded, frame);
     }
 
     #[test]
