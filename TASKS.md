@@ -14,13 +14,13 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
   - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
 
 ## Next recommended task
-- **QOS-012 [DONE]** Instrument-aware sizing specification drafted in `INSTRUMENT_AWARE_SIZING.md`, including per-account inputs, tick-value/linear loss models, conversion/costs, constraints, rounding, and 26 test scenarios. QOS-013 implementation remains blocked until this specification is reviewed.
+- **QOS-011 [IN PROGRESS]** Adapter idempotency and cancel-confirmation implementation with simulator/bridge regression tests. CI verification is pending; event-stream deduplication remains limited by the current trait having no event-stream surface.
 
 ## Milestone 1 — Product B
 - [x] **QOS-010 [DONE]** Specify the existing `VenueAdapter` contract and gaps. Evidence: `VENUE_ADAPTER_CONTRACT.md` documents capabilities, health/readiness, instrument constraints, async events, idempotency, ambiguity, cancel confirmation, reconnect/reconciliation, and 18 test scenarios. Spec-only; no runtime behavior changed.
-- [ ] **QOS-011 [READY]** Implement/refine adapter contract with simulator tests; QOS-010 contract is merged. Cover duplicate submits, changed-payload conflicts, unknown outcomes, event deduplication, and confirmed cancellation. No risk bypass.
+- [ ] **QOS-011 [IN PROGRESS]** Enforce same-client-ID/same-payload idempotency and reject changed payloads in simulated and prop venues; close concurrent-submit race; require authoritative terminal cancellation confirmation in OMS bridge. Tests added for simulator replay/conflict and cancel-ack-with-open-order. Existing ambiguous-submit test retained. Event-stream deduplication is not implementable until an event stream contract exists; no event stream is exposed today. Await CI before marking DONE.
 - [x] **QOS-012 [DONE]** Specify per-account sizing inputs/outputs and loss models. Evidence: `INSTRUMENT_AWARE_SIZING.md` covers account-currency risk budget, tick-value and linear models, FX conversion, costs, exposure/margin/pending-order reserves, volume-step rounding, fail-closed behavior, and 26 acceptance scenarios. Specification only; no risk code changed.
-- [ ] **QOS-013 [BLOCKED by QOS-012 review]** Implement allocator behind risk authorization after specification review. Test boundary values, rounding, min/max volume, stale state, drawdown, and independent account decisions.
+- [ ] **QOS-013 [READY]** Implement allocator behind risk authorization using the merged QOS-012 sizing specification. Test boundary values, rounding, min/max volume, stale state, drawdown, and independent account decisions.
 - [ ] **QOS-014 [READY]** Specify MT5 bridge v1: schema version, IDs, decimal strings, units, heartbeat, reconnect, idempotency, ambiguous submit.
 - [ ] **QOS-015 [DEFERRED]** Implement first live venue after access/deployment choice; begin with simulator/paper.
 - [ ] **QOS-016 [READY]** Add multi-account failure injection: partial success, disconnect, delayed ack, partial fill, duplicate intent, reconciliation break, and cancel request acknowledged while order remains open.
