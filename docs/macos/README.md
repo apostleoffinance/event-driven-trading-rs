@@ -83,7 +83,7 @@ Run the provider-backed smoke test from the adapter package directory:
     cd /absolute/path/to/event-driven-trading-rs/adapters/mt5-python
     .venv/bin/python scripts/mt5-macos-demo-smoke.py --timeout-seconds 10 --evidence-out "$HOME/Library/Application Support/QuantOS/macos-smoke-evidence.json"
 
-The smoke test checks the provider's authenticated login/server/currency, configured symbols and quote metadata, a TLS 1.3 mTLS handshake to the bridge, and fresh persisted market-data/reconciliation snapshots for the configured account/terminal identity. It requires at least two distinct recent market-data sequences. It is read-only and does not place, modify, or cancel orders.
+The smoke test checks the provider's authenticated login/server/currency, configured symbols and quote metadata, the local TLS 1.3/mTLS client configuration and fresh persisted market-data/reconciliation snapshots from the active worker for the configured account/terminal identity. It requires at least two distinct recent market-data sequences. It is read-only and does not place, modify, or cancel orders.
 
 If no verified provider exists, the smoke test must fail closed. Do not replace it with fixture data or declare a pass because the MetaTrader app window is open.
 
