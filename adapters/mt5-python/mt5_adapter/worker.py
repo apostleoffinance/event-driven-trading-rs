@@ -5,6 +5,7 @@ code paths. Financial values on the wire are decimal strings.
 """
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import socket
@@ -439,14 +440,49 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
         terminal.shutdown()
 
 
-def main() -> None:
-    config = Config.from_env()
+def load_terminal_runtime(config: Config) -> tuple[Terminal, Any]:
+    """Load the default Windows terminal or an explicitly installed trusted provider.
+
+    A custom provider is an integration seam, not evidence of terminal support.
+    The provider module must export a factory with signature factory(config) and
+    return (terminal, constants), where terminal implements the Terminal protocol.
+    """
+    provider_spec = os.environ.get("MT5_TERMINAL_PROVIDER", "").strip()
+    if provider_spec:
+        module_name, separator, factory_name = provider_spec.partition(":")
+        if not separator or not module_name.strip() or not factory_name.strip():
+            raise AdapterError("MT5_TERMINAL_PROVIDER must use the trusted module:function format")
+        try:
+            module = importlib.import_module(module_name)
+            factory = getattr(module, factory_name)
+            provided = factory(config)
+        except Exception as exc:
+            raise AdapterError("configured terminal provider failed to initialize") from exc
+        if not isinstance(provided, tuple) or len(provided) != 2:
+            raise AdapterError("terminal provider must return (terminal, constants)")
+        terminal, constants = provided
+        required_methods = (
+            "connect", "connected", "account_info", "orders", "positions",
+            "select_symbol", "symbol_info", "symbol_info_tick", "shutdown",
+        )
+        if any(not callable(getattr(terminal, method, None)) for method in required_methods):
+            raise AdapterError("terminal provider does not implement the required read-only Terminal protocol")
+        if constants is None:
+            raise AdapterError("terminal provider did not supply terminal constants")
+        return terminal, constants
+
     terminal = MetaTraderTerminal()
     try:
         import MetaTrader5 as mt5
     except ImportError as exc:
-        raise SystemExit("Install with: pip install -e '.[terminal]' on Windows") from exc
-    run_worker(config, terminal, mt5)
+        raise AdapterError("install the Windows-only terminal extra or configure a trusted MT5_TERMINAL_PROVIDER") from exc
+    return terminal, mt5
+
+
+def main() -> None:
+    config = Config.from_env()
+    terminal, constants = load_terminal_runtime(config)
+    run_worker(config, terminal, constants)
 
 
 if __name__ == "__main__":
