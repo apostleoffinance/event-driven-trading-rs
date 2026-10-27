@@ -540,5 +540,5 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update made in RULES.md:** None; the existing testing/release rule already requires formatting checks and reruns after correction.
 - **Code/docs/tests changed:** Applied rustfmt's exact suggested import ordering, module ordering and wrapping changes in `crates/intent-bridge/src/lib.rs` and `crates/intent-bridge/src/mt5_session.rs` after both format failures.
 - **Regression/real-use check added:** Re-run full Rust and frontend CI on the latest PR head.
-- **Verification result:** Corrections for both format failures committed. A fresh full CI run is required on the final branch head; no pass is claimed yet.
+- **Verification result:** Corrections for both format failures committed. Full CI run `40453466375` passed on head `36c233fcf3274191dce9bcb15d5b9bd97a078541`: Rust formatting, workspace check, workspace tests, all-target Clippy, frontend lint, TypeScript typecheck, and production build. This establishes CI success only, not production or live readiness.
 - **Remaining risk:** Compilation, tests and Clippy are not verified until a successful latest-head run. No live execution, deployment, or money movement enabled.
