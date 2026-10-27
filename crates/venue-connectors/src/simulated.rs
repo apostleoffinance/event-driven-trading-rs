@@ -255,7 +255,12 @@ impl VenueAdapter for SimulatedVenue {
                 ));
             }
             let existing = existing.clone();
-            let replay_fills = inner.fills.iter().filter(|f| f.order_id == existing.id).cloned().collect();
+            let replay_fills = inner
+                .fills
+                .iter()
+                .filter(|f| f.order_id == existing.id)
+                .cloned()
+                .collect();
             return Ok(OrderAck {
                 client_order_id: existing.client_order_id.clone(),
                 order_id: existing.id.clone(),
