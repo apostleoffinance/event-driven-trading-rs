@@ -110,7 +110,7 @@ pub async fn execute_intent_across_accounts(
         let result = match target.sizing_provider {
             Some(provider) => {
                 let snapshot: RuntimeResult<RuntimeInstrumentSizingContext> = provider
-                    .load_snapshot(&account_id, &intent.instrument_id)
+                    .load_snapshot_for_side(&account_id, &intent.instrument_id, intent.side)
                     .await;
                 match snapshot {
                     Ok(snapshot) => target.runtime

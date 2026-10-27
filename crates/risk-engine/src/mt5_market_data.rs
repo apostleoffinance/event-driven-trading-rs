@@ -43,6 +43,8 @@ pub struct PreparedMt5Sizing {
     pub context: InstrumentSizingContext,
     pub snapshot_captured_at: DateTime<Utc>,
     pub quote_time: DateTime<Utc>,
+    /// Oldest quote timestamp in the snapshot, including FX conversion edges.
+    pub oldest_quote_time: DateTime<Utc>,
     pub source: String,
     pub sequence: u64,
 }
@@ -295,6 +297,11 @@ pub fn prepare_mt5_sizing(
         .iter()
         .find(|quote| quote.symbol == symbol)
         .ok_or(Mt5SizingDataError::InstrumentUnavailable)?;
+    let oldest_quote_time = quotes
+        .iter()
+        .map(|quote| quote.time.clone())
+        .min()
+        .ok_or(Mt5SizingDataError::Malformed)?;
     let conversion = fx_rate(&instrument.quote, account_currency, &instruments, &quotes)?;
     let notional_rate = instrument
         .contract
@@ -323,7 +330,8 @@ pub fn prepare_mt5_sizing(
             margin_per_quantity: Some(supplement.margin_per_quantity),
         },
         snapshot_captured_at: captured_at,
-        quote_time: quote.time,
+        quote_time: quote.time.clone(),
+        oldest_quote_time,
         source: text(snapshot, "source")?.into(),
         sequence: snapshot
             .get("sequence")

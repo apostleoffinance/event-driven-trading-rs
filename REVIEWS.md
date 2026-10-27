@@ -723,3 +723,14 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Unit tests cover ask/bid selection, tick value, broker volume step, FX conversion, stale snapshots, account-currency mismatch, and invalid margin inputs; persistence tests cover exact account/terminal retrieval.
 - **Verification result:** Implementation committed to feature branch; CI not yet run at time of this entry.
 - **Remaining risk:** CI may identify compile/test issues; Windows MT5 demo-terminal conformance is still pending. No order submission or live mode enabled.
+
+
+## REV-022 — QOS-013 persisted MT5 runtime consumer (CI pending)
+- **Date:** 2026-10-27
+- **Context:** PR #30 merged the persistence reader and pure MT5 sizing adapter. The runtime still needed to compose those inputs with the explicit instrument-aware risk path.
+- **Finding:** Without side-aware provider loading, broker ask/bid could be used inconsistently; without propagating the selected broker entry price, sizing could use one price while the order request retained the intent's stale price.
+- **Change:** Added `Mt5PersistedSizingProvider`, exact instrument-to-broker-symbol mapping, server/currency/sequence/capture identity checks, a dynamic trusted supplement provider for margin/cost/exposure inputs, side-aware snapshot loading, and entry-price propagation into both risk evaluation and the order request. Capability and account position semantics must be explicitly validated.
+- **Safety:** No legacy fallback is added to the explicit provider path. No execution feature was added. Windows MT5 demo conformance remains a release gate.
+- **Regression coverage:** Added SQLx-backed provider tests for ask-on-buy/bid-on-sell and stale supplement rejection.
+- **Verification:** Exact-head CI is pending; do not mark QOS-013 done until it passes.
+- **Remaining risk:** The caller must configure trusted supplement and capability/position-semantics providers correctly. No live trading readiness is claimed.

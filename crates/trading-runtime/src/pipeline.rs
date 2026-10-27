@@ -5,7 +5,9 @@ use std::collections::HashMap;
 use account_engine::AccountEngine;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{AccountId, InstrumentId, OrderStatus, RiskDecision, RiskRequest, TradeIntent};
+use domain::{
+    AccountId, InstrumentId, OrderSide, OrderStatus, RiskDecision, RiskRequest, TradeIntent,
+};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
 use risk_engine::{InstrumentSizingContext, InstrumentSizingOutcome, LossModel, RiskEvaluator};
@@ -46,6 +48,8 @@ pub struct RuntimeInstrumentSizingContext {
     /// Explicit configured freshness bound; unknown/zero bounds are invalid.
     pub max_age_seconds: i64,
     pub sizing: InstrumentSizingContext,
+    /// Broker-side entry price from the same fresh quote used for sizing, when supplied.
+    pub entry_price: Option<Decimal>,
 }
 
 impl RuntimeInstrumentSizingContext {
@@ -80,6 +84,16 @@ pub trait InstrumentSizingSnapshotProvider: Send + Sync {
         account_id: &AccountId,
         instrument_id: &InstrumentId,
     ) -> RuntimeResult<RuntimeInstrumentSizingContext>;
+
+    /// Side-aware providers override this to select bid for sells and ask for buys.
+    async fn load_snapshot_for_side(
+        &self,
+        account_id: &AccountId,
+        instrument_id: &InstrumentId,
+        _side: OrderSide,
+    ) -> RuntimeResult<RuntimeInstrumentSizingContext> {
+        self.load_snapshot(account_id, instrument_id).await
+    }
 }
 
 /// Runtime-owned cache for validated account/instrument sizing snapshots.
@@ -173,7 +187,7 @@ impl TradingRuntime {
         provider: &dyn InstrumentSizingSnapshotProvider,
     ) -> RuntimeResult<IntentOutcome> {
         let snapshot = provider
-            .load_snapshot(&self.config.account_id, &intent.instrument_id)
+            .load_snapshot_for_side(&self.config.account_id, &intent.instrument_id, intent.side)
             .await?;
         self.execute_intent_with_instrument_sizing(intent, venue, events_out, &snapshot)
             .await
@@ -235,7 +249,7 @@ impl TradingRuntime {
             }
         };
 
-        let risk_req = RiskRequest::from_intent(
+        let mut risk_req = RiskRequest::from_intent(
             intent,
             self.config.account_id.clone(),
             account_state,
@@ -244,6 +258,10 @@ impl TradingRuntime {
         )
         .with_exposure(self.config.current_exposure)
         .with_session_allowed(self.config.session_allowed);
+
+        if let Some(entry_price) = sizing_context.and_then(|snapshot| snapshot.entry_price) {
+            risk_req.entry_price = Some(entry_price);
+        }
 
         let evaluated_at = Utc::now();
         let (decision, sizing_outcome) = match sizing_context {
@@ -320,7 +338,7 @@ impl TradingRuntime {
                 side: intent.side,
                 order_type: self.config.order_type,
                 time_in_force: self.config.time_in_force,
-                price: intent.entry_price,
+                price: risk_req.entry_price,
                 risk_decision: decision.clone(),
                 instrument_spec: self.config.instrument_spec.clone(),
                 created_at: Utc::now(),
@@ -548,6 +566,7 @@ mod sizing_snapshot_tests {
             account_position_semantics_known: true,
             captured_at: now,
             max_age_seconds: 10,
+            entry_price: None,
             sizing: InstrumentSizingContext {
                 loss_model: LossModel::Linear {
                     contract_multiplier: Decimal::ONE,
