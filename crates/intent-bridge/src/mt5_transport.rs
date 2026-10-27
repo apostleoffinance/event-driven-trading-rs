@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use tokio::time::timeout;
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
+use tokio::time::{interval_at, timeout, Instant, JoinHandle};
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 use crate::mt5_session::Mt5SessionGate;
@@ -234,6 +234,38 @@ impl Mt5TransportConfig {
             failed: false,
         })
     }
+}
+
+/// Start an autonomous heartbeat watchdog for a shared authenticated connection.
+///
+/// The host must share the same connection/session mutexes with its transport loop.
+/// On the first missing/expired/future heartbeat, the watchdog poisons the connection,
+/// degrades the session and exits; callers must close/reconnect and reconcile before reuse.
+pub fn spawn_heartbeat_watchdog(
+    connection: Arc<Mutex<AuthenticatedMt5Connection>>,
+    session: Arc<Mutex<Mt5SessionGate>>,
+    poll_interval: StdDuration,
+) -> BridgeResult<JoinHandle<()>> {
+    if poll_interval.is_zero() {
+        return Err(BridgeError::Invalid(
+            "MT5 heartbeat watchdog poll interval must be positive".into(),
+        ));
+    }
+    let first_tick = Instant::now() + poll_interval;
+    Ok(tokio::spawn(async move {
+        let mut ticks = interval_at(first_tick, poll_interval);
+        loop {
+            ticks.tick().await;
+            let mut connection = connection.lock().await;
+            let mut session = session.lock().await;
+            if connection
+                .check_heartbeat_fresh_with_session(&mut session, Utc::now())
+                .is_err()
+            {
+                break;
+            }
+        }
+    }))
 }
 
 pub struct AuthenticatedMt5Connection {
