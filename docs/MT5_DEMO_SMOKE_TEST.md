@@ -89,3 +89,28 @@ All items must be PASS before any venue-execution task:
 - [ ] Redacted evidence attached and independently reviewed.
 
 Any FAIL, UNKNOWN, or unrecorded check means the gate is BLOCKED. Do not proceed to execution. Do not enable venue execution.
+
+## 6. Consolidated QOS-015 release evidence gate
+
+Do not use a green CI run as a substitute for the target-host evidence above. Copy `docs/QOS-015_RELEASE_EVIDENCE_MANIFEST_TEMPLATE.json` to the protected evidence store and fill it using verified, redacted artifact references. Keep the checked-in template in its default BLOCKED state; do not commit the completed manifest if it contains operational identifiers or evidence paths.
+
+The manifest requires explicit PASS evidence for:
+- Actual Windows VPS smoke and worker-only restart recovery.
+- Certificate validity/pin, CA trust, revocation enforcement, and certificate/key pairing.
+- Client/server private-key ACLs and parent-directory effective access.
+- Tested rotation, rollback, and rejection of an old/untrusted identity.
+- QOS-015B target-host feed, freshness, instrument specification, PostgreSQL persistence, stale-sequence rejection, and account/terminal identity binding.
+- QOS-013 account-currency conversion, costs/slippage, margin/exposure, broker volume rounding, final modeled loss, persistent sizing audit, and missing-data fail-closed tests.
+- Independent review by a person other than the operator, including the SHA-256 digest of the exact manifest reviewed.
+
+Run the validator against the completed protected manifest:
+
+```powershell
+python .\adapters\mt5-python\scripts\validate_qos015_release_manifest.py C:\QuantOS\evidence\qos-015-release-manifest.json
+```
+
+The validator exits nonzero if any gate is missing, false, unresolved, lacks an evidence reference, or has an invalid independent-review attestation. It validates recorded claims, not their truth: a reviewer must inspect the referenced artifacts, verify the manifest hash and the exact repository commit, and independently confirm the host and security tests. Keep `venue_execution_enabled` explicitly `false`.
+
+### Release decision
+
+All gates are conjunctive. CI green is necessary for code integrity but insufficient for release. Any missing Windows VPS access, failed/unknown security test, unavailable QOS-015B/QOS-013 evidence, or unreviewed evidence means BLOCKED. Do not begin venue order submission/cancellation work until every item is independently verified. Never turn on venue execution as part of this evidence workflow.
