@@ -75,3 +75,12 @@ Branch `feat/qos-013-mt5-runtime-integration` composes persisted MT5 snapshots w
 ## Next acceptance slice — QOS-015A/015B Windows demo verification
 - Branch `feat/qos-015a-windows-demo-smoke-harness` adds a PowerShell harness and a detailed runbook. It is designed to run on the actual Windows VPS after the daemon and Python worker are started. The script never submits, modifies, or cancels orders.
 - Required evidence is a passing target-host smoke run, followed by worker restart/reconciliation recovery, and a protected certificate lifecycle/private-key ACL review. Do not mark QOS-015A/015B or QOS-013 done based on hosted CI alone.
+
+
+## QOS-015 consolidated release gate — 2026-10-27
+
+- **QOS-015A [IN PROGRESS — tooling merged; real Windows VPS evidence pending].** PR #32 smoke harness, PR #33 certificate/ACL operator kit, PR #34 worker restart verifier, and PR #35 restart-evidence validator are merged. Hosted CI is not a substitute for actual target-host conformance. See `docs/MT5_DEMO_SMOKE_TEST.md`.
+- **QOS-015B [IN PROGRESS — hosted contract/persistence tests exist; target-host evidence pending].** Require verified target-host feed, fresh bid/ask and instrument specifications, PostgreSQL persistence, stale-sequence rejection, and exact account/terminal binding before accepting.
+- **QOS-013 [IN PROGRESS — sizing implementation merged; deployment evidence pending].** Require verified account-currency conversion, configured cost/slippage inputs, margin/exposure inputs, broker volume rounding, final modeled loss, persistent sizing audit, and missing-data fail-closed behavior.
+- **Consolidated evidence tooling [IN REVIEW — PR #36].** Adds a default-BLOCKED manifest and fail-closed validator requiring all preceding gates, certificate revocation/trust review, private-key/parent-directory ACL review, tested rotation/rollback, and independent reviewer sign-off.
+- **QOS-015 execution [BLOCKED].** No venue order submission/cancellation work until all gates are PASS and independently reviewed. Keep venue execution disabled. Missing or inaccessible Windows host evidence is not waivable by green CI.
