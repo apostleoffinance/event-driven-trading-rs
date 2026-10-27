@@ -201,7 +201,7 @@ def main() -> int:
         record = verify(args)
     except Exception as exc:
         print(f"BLOCKED: macOS worker restart verification failed ({type(exc).__name__}).", file=sys.stderr)
-        print("A protected evidence record was written when the verification sequence started.", file=sys.stderr)
+        print("Check the configured evidence path; preflight failures before the restart sequence may not produce an evidence file.", file=sys.stderr)
         return 1
     print(json.dumps(record, indent=2, sort_keys=True))
     print("PASS: macOS worker restart recovery assertions passed; Windows release gates remain separate.")
