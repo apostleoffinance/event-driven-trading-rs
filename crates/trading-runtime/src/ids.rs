@@ -9,7 +9,6 @@ pub fn client_order_id_for_intent(intent_id: &TradeIntentId) -> RuntimeResult<Cl
     ClientOrderId::new(format!("clid-{}", intent_id.as_str())).map_err(RuntimeError::from)
 }
 
-
 /// Stable client order ID scoped to both account and trade intent.
 ///
 /// A single strategy intent fanned out to multiple accounts must not reuse a
