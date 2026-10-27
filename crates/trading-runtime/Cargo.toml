@@ -6,6 +6,7 @@ license.workspace = true
 description = "Continuous trading pipeline orchestrator (strategy → risk → OMS → venue)"
 
 [dependencies]
+async-trait = { workspace = true }
 account-engine = { path = "../account-engine" }
 chrono = { workspace = true }
 domain = { path = "../domain" }
