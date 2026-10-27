@@ -70,6 +70,13 @@ fn required_identity(value: &str, label: &str) -> Result<String, Box<dyn std::er
     Ok(value.to_owned())
 }
 
+fn validate_bind(address: SocketAddr, allow_remote_bind: bool) -> Result<(), &'static str> {
+    if !address.ip().is_loopback() && !allow_remote_bind {
+        return Err("non-loopback MT5 bridge binding requires MT5_BRIDGE_ALLOW_REMOTE_BIND=true");
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -77,9 +84,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let args = Args::parse();
-    if !args.bind.ip().is_loopback() && !args.allow_remote_bind {
-        return Err("non-loopback MT5 bridge binding requires MT5_BRIDGE_ALLOW_REMOTE_BIND=true".into());
-    }
+    validate_bind(args.bind, args.allow_remote_bind)
+        .map_err(std::io::Error::other)?;
 
     let account_id = required_identity(&args.account_id, "MT5_ACCOUNT_ID")?;
     let terminal_id = required_identity(&args.terminal_id, "MT5_TERMINAL_ID")?;
@@ -188,4 +194,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn listener_defaults_are_safe_and_remote_binding_is_explicit() {
+        let loopback: SocketAddr = match "127.0.0.1:9443".parse() {
+            Ok(address) => address,
+            Err(error) => panic!("valid test socket address: {error}"),
+        };
+        let remote: SocketAddr = match "0.0.0.0:9443".parse() {
+            Ok(address) => address,
+            Err(error) => panic!("valid test socket address: {error}"),
+        };
+        assert!(validate_bind(loopback, false).is_ok());
+        assert!(validate_bind(remote, false).is_err());
+        assert!(validate_bind(remote, true).is_ok());
+    }
+
+    #[test]
+    fn configured_identity_rejects_empty_or_padded_values() {
+        assert!(required_identity("account-1", "account").is_ok());
+        assert!(required_identity("", "account").is_err());
+        assert!(required_identity(" account-1", "account").is_err());
+        assert!(required_identity("account-1 ", "account").is_err());
+    }
 }
