@@ -379,12 +379,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 ## REV-028 — QOS-014 first CI run caught formatting-only differences
 - **Date:** 2026-10-27
 - **Context:** Draft PR #14, run 40446398790 on head `b92ff3bf8568ca255ac9b72abf4f37edf0f70479`.
-- **Finding/correction:** Rust formatting gate reported line wrapping and match-arm formatting in `crates/intent-bridge/src/mt5_v1.rs`; compilation, tests and Clippy were skipped by the workflow. Frontend checks continued independently.
+- **Finding/correction:** Rust formatting gate reported line wrapping and match-arm formatting in `crates/intent-bridge/src/mt5_v1.rs`; compilation, tests and Clippy were skipped by the workflow. The first correction missed one zero-quantity assertion; rerun 40446528312 caught that remaining line. It was corrected in commit `a400cbe7bbcfef3391e54e678438fb306124dee4`. Frontend checks continued independently.
 - **Impact:** No Rust compile/test evidence was produced by that run.
-- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40446398790; Rust job `121998613711`.
+- **Evidence:** GitHub Actions runs https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40446398790 and https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40446528312; Rust jobs `121998613711` and `121999036260`.
 - **Rule that failed:** Formatting gate compliance; no financial-safety behavior was implicated.
 - **Rule update made in RULES.md:** None. Existing testing rules already require format/check/test/Clippy and accurate reporting.
-- **Code/docs/tests changed:** Applied the reported rustfmt line wrapping and match-arm formatting to `mt5_v1.rs`.
+- **Code/docs/tests changed:** Applied the reported rustfmt line wrapping and match-arm formatting to `mt5_v1.rs`; then corrected the remaining assertion wrap after the second run.
 - **Regression/real-use check added:** Rerun full CI on the corrected latest branch head.
-- **Verification result:** Formatting correction committed as `59dbf9dea5ebbf61b160230703e4e6dfd7f2a44d`; rerun pending.
+- **Verification result:** Formatting corrections committed as `59dbf9dea5ebbf61b160230703e4e6dfd7f2a44d` and `a400cbe7bbcfef3391e54e678438fb306124dee4`; latest-head rerun pending.
 - **Remaining risk:** Rust compilation, protocol tests, Clippy and latest-head frontend CI still need successful evidence. No live execution enabled.
