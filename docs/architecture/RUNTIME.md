@@ -49,3 +49,8 @@ runtime
 
 Continuous loop test: market ticks → mean-reversion intents → risk → simulated
 venue fills → open position, with outbound event vocabulary coverage.
+
+
+## Instrument-aware sizing entry point (QOS-013)
+
+`TradingRuntime::execute_intent_with_instrument_sizing` is an explicit opt-in alternative to `execute_intent`. It requires `RuntimeInstrumentSizingContext`, which binds a caller-supplied `InstrumentSizingContext` to an account ID and instrument ID. A mismatch or stale context rejects before OMS order creation; the method does not fall back to legacy sizing. The caller still owns the responsibility to supply trusted, current snapshot inputs. This API does not imply production or live readiness.

@@ -296,3 +296,58 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Full SZ-01–SZ-26 implementation and production runtime snapshot wiring are still open; this correction addresses only the failed test fixture.
 
 - **Verification result update (2026-10-27):** Corrected-head CI run 40436418111 completed with conclusion `success`. Rust format, workspace check, workspace test, and all-target Clippy steps passed; frontend lint, typecheck, and production build also passed. This verifies this implementation slice on the cited commit only, not full QOS-013 completion or production/live readiness.
+
+
+## REV-021 — Explicit instrument-aware runtime entry point (CI pending)
+- **Date:** 2026-10-27
+- **Context:** Follow-up implementation after PR #9 merged the first instrument-aware sizing slice.
+- **Finding:** The sizing API existed behind `DefaultRiskEvaluator`, but the production runtime had no explicit entry point to use it. The only runtime path invoked `RiskEvaluator::evaluate`, which retained legacy price-distance sizing.
+- **Change:** Added `TradingRuntime::execute_intent_with_instrument_sizing`, which accepts a `RuntimeInstrumentSizingContext` that binds `InstrumentSizingContext` to account and instrument IDs, validates those IDs against runtime/intent identity, and invokes `evaluate_with_instrument_sizing` only on a match. The method routes through the same risk → decision persistence/events → OMS pipeline and does not fall back to legacy sizing when the explicit entry point is selected. The original `execute_intent` remains unchanged at its public interface for compatibility.
+- **Regression test:** Added `instrument_aware_runtime_rejects_stale_sizing_before_oms` in `crates/trading-runtime/tests/continuous_pipeline.rs`; it expects `DependencyUnavailable`, no order status, and no OMS open orders for stale context and mismatched instrument identity.
+- **Verification:** Changes pushed to `feat/qos-013-runtime-sizing-boundary`; CI has not yet completed. No tests are claimed as passing for this branch until CI evidence is available.
+- **Remaining risk:** Runtime-owned authoritative timestamped snapshot retrieval and freshness calculation are not implemented. The context remains caller-supplied and is not yet a timestamped authoritative snapshot; margin, pending-order reserves, structured persistent sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. No live execution, deployment, or money movement enabled.
+
+
+## REV-022 — QOS-013 runtime regression formatting check failed and corrected
+- **Date:** 2026-10-27
+- **Context:** PR #10 CI run 40438016915, Rust job 121971313717.
+- **Finding:** `cargo fmt --all -- --check` failed on formatting-only differences in the newly added `crates/trading-runtime/tests/continuous_pipeline.rs` regression: constructor wrapping and indentation of nested `InstrumentSizingContext` fields. Workspace check, tests, and Clippy were not reached by the sequential Rust workflow.
+- **Correction:** Applied the formatting shown by rustfmt to those test expressions; no intended behavior change.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438016915/job/121971313717.
+- **Verification:** Correction pushed to `feat/qos-013-runtime-sizing-boundary` in commit `f0f4a470310e4b42a6842199f7db68d298a06c88`. A new latest-head CI run is required; no compilation/test/Clippy success is claimed until it completes.
+- **Remaining risk:** The runtime sizing entry point is caller-fed and not yet wired to authoritative timestamped data sources. No live execution or money movement enabled.
+
+
+## REV-023 — QOS-013 runtime sizing boundary full CI passed after rustfmt correction
+- **Date:** 2026-10-27
+- **Context:** Corrected PR #10 head `070e822d1afb2636c289d12ab79de042496d8400`; GitHub Actions run 40438207539.
+- **Finding:** After REV-022's formatting correction, the latest-head run completed successfully. Rust job passed `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets`. Frontend job passed lint, typecheck, and production build.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438207539. Run conclusion: success; Rust job 121971942780 and frontend job 121971942194 both concluded success.
+- **Code/docs/tests changed:** No additional code change in this verification record; status summaries updated with exact CI evidence.
+- **Verification result:** The PR head is verified by the full CI workflow. PR #10 remains open and unmerged. This does not establish live or production readiness and does not complete QOS-013.
+- **Remaining risk:** Runtime context remains caller-supplied rather than sourced from authoritative timestamped snapshots; margin, pending-order reserves, structured persistent sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. No live execution or money movement enabled.
+
+
+## REV-024 — Frontend production build failed in Next.js Google font loader; workaround applied to PR #10
+- **Date:** 2026-10-27
+- **Context:** PR #10 head `3d457365e78f8a0710cdb1281d134c52a639a68d`; GitHub Actions run 40438370475, frontend job 121972469846.
+- **Finding:** `npm ci`, `npm run lint`, and `npm run typecheck` passed, but `npm run build` failed in `frontend/src/app/layout.tsx` within `next/font/google/loader.js` with `TypeError: Cannot read properties of null (reading '1')`. The root layout imported IBM Plex fonts via `next/font/google`, making the production build depend on an external Google Fonts fetch/response parse.
+- **Correction:** Removed `next/font/google` imports; changed the global body and chart text to deterministic system font stacks. The theme switching script and PAPER metadata remain unchanged. This fix is committed directly to the PR #10 branch to rerun the original failing workflow.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438370475/job/121972469846.
+- **Rule that failed:** CI/release rule 2 (report exact commands/results) and workflow rule 7 (claims must match evidence); prior head had a failed production build.
+- **Rule update made in RULES.md:** None; existing rules already require a working production build and accurate test claims.
+- **Code/docs/tests changed:** `frontend/src/app/layout.tsx`, `frontend/src/styles/globals.css`, and `frontend/src/components/charts/EquityChart.tsx`.
+- **Regression check:** Latest-head CI must pass `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build`, and the Rust job.
+- **Verification result:** Frontend fix is pushed to `feat/qos-013-runtime-sizing-boundary`; CI result for the combined head is pending. Do not claim build success until the rerun completes.
+- **Remaining risk:** System stacks avoid remote font access but don't bundle IBM Plex, so rendering may vary by platform. No live execution or money movement enabled.
+
+
+
+## REV-025 — QOS-013 combined Rust and frontend workflow passed after Google font fix
+- **Date:** 2026-10-27
+- **Context:** PR #10 runtime-sizing head after removal of `next/font/google`; GitHub Actions run 40439372393.
+- **Finding:** The prior frontend build failure was eliminated by removing the build-time Google font loader dependency. The workflow completed with conclusion `success`.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40439372393. Rust job 121975721468 passed formatting, workspace check, tests, and Clippy. Frontend job 121975721940 passed lint, typecheck, and production build.
+- **Code/docs/tests changed:** No additional behavior change for this verification entry; verification status is recorded here.
+- **Verification result:** Combined implementation head tested by run 40439372393 passed both jobs. PR #10 remains open and unmerged; no live/production readiness is implied.
+- **Remaining risk:** Runtime sizing still requires caller-supplied context rather than authoritative timestamped snapshots; pending-order reserves, margin, persistent structured sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. Font styling now uses system fallbacks, not bundled IBM Plex. No live execution or money movement enabled.

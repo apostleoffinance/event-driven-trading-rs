@@ -5,14 +5,15 @@
 use account_engine::AccountEngine;
 use chrono::Utc;
 use domain::{
-    AccountId, DeploymentId, InstrumentId, OrderStatus, OrderType, RiskPolicy, StrategyId,
-    StrategyVersion, VenueId,
+    AccountId, DeploymentId, InstrumentId, OrderSide, OrderStatus, OrderType, RiskDecision,
+    RiskPolicy, StrategyId, StrategyVersion, TradeIntent, TradeIntentId, VenueId,
 };
 use events::{event_channel, MarketDataEvent, TradingEvent};
 use mean_reversion::{MeanReversionConfig, MeanReversionStrategy};
+use risk_engine::{InstrumentSizingContext, LossModel};
 use rust_decimal::Decimal;
 use strategy_runtime::StrategyContext;
-use trading_runtime::{RuntimeConfig, TradingRuntime};
+use trading_runtime::{RuntimeConfig, RuntimeInstrumentSizingContext, TradingRuntime};
 use venue_connectors::{SimulatedVenue, VenueAdapter};
 
 #[tokio::test]
@@ -207,4 +208,90 @@ async fn run_until_stops_after_fill() {
         .executions
         .iter()
         .any(|e| { e.order_status == Some(OrderStatus::Filled) }));
+}
+
+#[tokio::test]
+async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
+    let venue_id = VenueId::new("simulated").unwrap();
+    let venue = SimulatedVenue::new(venue_id.clone());
+    let account_id = AccountId::new("sizing-stale-account").unwrap();
+    let policy = RiskPolicy::try_new(
+        Decimal::from(2),
+        Decimal::from(10),
+        Decimal::from(50),
+        Decimal::from(2),
+        Decimal::from(5),
+        Decimal::from(10),
+        5,
+    )
+    .unwrap();
+    let mut runtime = TradingRuntime::new(RuntimeConfig::new(account_id.clone(), venue_id, policy));
+    runtime
+        .bootstrap_prop_on_simulated(&venue, Decimal::from(100_000))
+        .await
+        .unwrap();
+
+    let intent = TradeIntent::builder(
+        TradeIntentId::new("ti-stale-sizing").unwrap(),
+        StrategyId::new("test-strategy").unwrap(),
+        StrategyVersion::new("v1").unwrap(),
+        DeploymentId::new("deployment-stale-sizing").unwrap(),
+        InstrumentId::new("BTCUSDT").unwrap(),
+        OrderSide::Buy,
+        Utc::now(),
+    )
+    .entry_price(Decimal::from(100))
+    .unwrap()
+    .stop_loss(Decimal::from(90))
+    .unwrap()
+    .build()
+    .unwrap();
+    let context = RuntimeInstrumentSizingContext {
+        account_id: account_id.clone(),
+        instrument_id: intent.instrument_id.clone(),
+        sizing: InstrumentSizingContext {
+            loss_model: LossModel::Linear {
+                contract_multiplier: Decimal::ONE,
+                pnl_to_account_rate: Decimal::ONE,
+            },
+            inputs_fresh: false,
+            notional_to_account_rate: Decimal::ONE,
+            quantity_step: Decimal::ONE,
+            min_quantity: Decimal::ONE,
+            max_quantity: Some(Decimal::from(100)),
+            min_notional_account_currency: None,
+            estimated_cost_per_quantity: Decimal::ZERO,
+            slippage_gap_buffer_per_quantity: Decimal::ZERO,
+        },
+    };
+    let (events_out, _events_in) = event_channel(32);
+
+    let outcome = runtime
+        .execute_intent_with_instrument_sizing(&intent, &venue, &events_out, &context)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        outcome.decision,
+        RiskDecision::Rejected {
+            reason: domain::RiskRejectReason::DependencyUnavailable,
+        }
+    );
+    assert_eq!(outcome.order_status, None);
+    assert!(runtime.oms().open_orders_for(&account_id).is_empty());
+
+    let mut mismatched = context.clone();
+    mismatched.instrument_id = InstrumentId::new("ETHUSDT").unwrap();
+    let mismatch_outcome = runtime
+        .execute_intent_with_instrument_sizing(&intent, &venue, &events_out, &mismatched)
+        .await
+        .unwrap();
+    assert_eq!(
+        mismatch_outcome.decision,
+        RiskDecision::Rejected {
+            reason: domain::RiskRejectReason::DependencyUnavailable,
+        }
+    );
+    assert_eq!(mismatch_outcome.order_status, None);
+    assert!(runtime.oms().open_orders_for(&account_id).is_empty());
 }
