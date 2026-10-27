@@ -68,7 +68,6 @@ impl Mt5ReconciliationSnapshot {
             || self.server.trim() != self.server
             || self.source.trim().is_empty()
             || self.source.trim() != self.source
-            || self.sequence == 0
             || max_age < Duration::zero()
             || self.captured_at > now
             || now.signed_duration_since(self.captured_at) > max_age
@@ -150,7 +149,10 @@ pub async fn persist_and_confirm_reconciliation(
     now: DateTime<Utc>,
     max_age: Duration,
 ) -> BridgeResult<()> {
-    snapshot.validate(now, max_age)?;
+    if let Err(error) = snapshot.validate(now, max_age) {
+        degrade_session_and_stream(store, session, snapshot.sequence).await;
+        return Err(error);
+    }
     if session.state() != Mt5SessionState::ReconciliationRequired
         || session.account_id() != Some(snapshot.account_id.as_str())
         || session.terminal_id() != Some(snapshot.terminal_id.as_str())
@@ -159,7 +161,7 @@ pub async fn persist_and_confirm_reconciliation(
             caps.order_lookup && caps.idempotent_client_order_id && caps.sequence_numbers
         })
     {
-        session.degrade();
+        degrade_session_and_stream(store, session, snapshot.sequence).await;
         return Err(BridgeError::Invalid(
             "MT5 external snapshot does not match a connected session awaiting reconciliation"
                 .into(),
@@ -178,22 +180,30 @@ pub async fn persist_and_confirm_reconciliation(
         )
         .await
     {
-        session.degrade();
+        degrade_session_and_stream(store, session, snapshot.sequence).await;
         return Err(BridgeError::from(error));
     }
 
     if let Err(error) = session.confirm_reconciled(Mt5StreamReadiness::Ready) {
-        let _ = store
-            .mark_mt5_stream_degraded(
-                &snapshot.account_id,
-                &snapshot.terminal_id,
-                snapshot.sequence,
-            )
-            .await;
-        session.degrade();
+        degrade_session_and_stream(store, session, snapshot.sequence).await;
         return Err(error);
     }
     Ok(())
+}
+
+async fn degrade_session_and_stream(
+    store: &TradingStore,
+    session: &mut Mt5SessionGate,
+    observed_sequence: u64,
+) {
+    let account_id = session.account_id().map(str::to_owned);
+    let terminal_id = session.terminal_id().map(str::to_owned);
+    session.degrade();
+    if let (Some(account_id), Some(terminal_id)) = (account_id, terminal_id) {
+        let _ = store
+            .mark_mt5_stream_degraded(&account_id, &terminal_id, observed_sequence)
+            .await;
+    }
 }
 
 fn parse_decimal(value: &str, field: &str) -> BridgeResult<Decimal> {
