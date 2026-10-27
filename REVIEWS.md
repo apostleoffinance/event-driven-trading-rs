@@ -136,3 +136,83 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Defined SZ-01 through SZ-26 covering stop geometry, tick value, FX conversion, nonlinear models, costs, volume-step rounding, min/max volume, exposure/margin, pending orders, multi-account differences, stale state, decimal invariants, kill switches, and property tests.
 - **Verification result:** Source-backed specification drafted and repository task records updated on branch `spec/qos-012-instrument-aware-sizing`. No executable tests run because the change is documentation-only; PR CI remains pending.
 - **Remaining risk:** Specification must be reviewed before QOS-013 implementation. Existing sizing behavior remains unchanged; no live venue, live execution, or money movement was enabled.
+
+
+## REV-009 — QOS-011 idempotency and cancellation confirmation hardening
+- **Date:** 2026-10-27
+- **Context:** QOS-011 started after QOS-010 adapter contract and QOS-012 sizing specification merged.
+- **Finding/correction:** Both paper connectors previously returned the existing order for any repeated client order ID without checking the new payload; a concurrent duplicate submit could pass the initial lookup before either order was inserted. The cancel bridge also marked an order Cancelled after the cancel method returned success, without querying terminal venue state.
+- **Impact:** Reusing a client ID for different order intent could silently report the wrong order outcome, concurrent requests could create duplicate simulated effects, and a cancel acknowledgement could be mistaken for confirmed cancellation.
+- **Evidence:** Inspected `crates/venue-connectors/src/simulated.rs`, `prop.rs`, `types.rs`, `error.rs`, `bridge.rs`, `crates/domain/src/order.rs`, `crates/execution-engine/src/oms.rs`, and `VENUE_ADAPTER_CONTRACT.md` on main at `a39fd9d9a1bc0bb0b4fb8f7a09737a8b09aa1bf0`.
+- **Rule that failed:** Existing financial-safety rules 7 (same client ID with changed payload is a conflict) and 15 (cancel requests are not success until external confirmation) were not consistently enforced by the connector/bridge implementation.
+- **Rule update made in RULES.md:** None; existing rules are sufficient.
+- **Code/docs/tests changed:** Added `ClientOrderIdConflict` and immutable payload comparison; updated simulated and prop idempotency paths with a lock-protected second check; hardened cancel bridge confirmation; added replay/conflict simulator tests and cancel-ack-but-open regression test; updated task/progress records.
+- **Regression/real-use check added:** Unit/integration tests exercise same-payload replay, changed-payload conflict without extra position exposure, and a cancel acknowledgement where the venue still reports the order open. Existing ambiguous submit test continues to assert Unknown rather than Failed.
+- **Verification result:** Code and tests committed to feature branch; CI pending. No local test execution claimed.
+- **Remaining risk:** CI must verify formatting, compilation, tests, and Clippy. Adapter event-stream deduplication/reconnect remains unimplemented because no event-stream surface currently exists; live venue readiness and provider-specific cancellation semantics remain unverified.
+
+## REV-010 — QOS-011 CI formatting failure and correction
+- **Date:** 2026-10-27
+- **Context:** PR #7 initial-head CI run 40432165184, Rust job 121952211529.
+- **Finding/correction:** `cargo fmt --all -- --check` failed on formatting-only drift in the new replay-fill collection expressions and added tests in `crates/venue-connectors/src/prop.rs`, `crates/venue-connectors/src/simulated.rs`, and `crates/venue-connectors/tests/cancel_confirmation.rs`. The workspace check, tests, and Clippy were skipped because formatting is the first Rust CI gate. The frontend job passed.
+- **Impact:** The first run did not compile or test the Rust changes, so it supplied no test evidence for QOS-011.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40432165184/job/121952211529; failed step: “Check formatting”.
+- **Rule that failed:** Repository formatting did not satisfy the declared CI command; no financial-safety behavior rule was shown to have failed by this CI result.
+- **Rule update made in RULES.md:** None; existing rules already require exact command/result reporting.
+- **Code/docs/tests changed:** Applied rustfmt-equivalent formatting to the reported expressions/imports/assertions on `fix/qos-011-venue-contract`. No intended behavior change.
+- **Regression/real-use check added:** Latest-head CI must rerun formatting, workspace check, workspace tests, and Clippy; the existing frontend check remains green on run 40432165184.
+- **Verification result:** Formatting corrections pushed to the PR branch. New-head CI result pending; no Rust compile/test/Clippy success claimed.
+- **Remaining risk:** The corrected head must pass the complete Rust job. Event-stream deduplication/reconnect remains unimplemented until `VenueAdapter` has an event-stream API; live venue behavior remains unverified.
+
+
+## REV-011 — Latest-head CI found one remaining rustfmt diff
+- **Date:** 2026-10-27
+- **Context:** PR #7 Rust job in run 40433534897, job 121956683322.
+- **Finding/correction:** The first formatting correction fixed all reported differences except the second position assertion in `crates/venue-connectors/src/simulated.rs`. The formatting check continued to fail, so Rust workspace check, tests, and Clippy were skipped.
+- **Impact:** The implementation still had no compile/test evidence at that point. The frontend lint and typecheck passed, but production build also failed in `src/app/layout.tsx` inside Next.js `next/font` with `TypeError: Cannot read properties of null (reading '1')`; this is an external build-path issue to diagnose separately.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433534897; Rust formatting log around `simulated.rs:505`; frontend build log reports Next.js 15.5.7 and failure in `next/font`.
+- **Rule that failed:** The checked-in Rust formatting did not comply with `cargo fmt --all -- --check`; frontend production build did not complete.
+- **Rule update made in RULES.md:** None; safety rules remain unchanged.
+- **Code/docs/tests changed:** Corrected the remaining simulator-test formatting on the same feature branch. No behavioral code change intended.
+- **Regression/real-use check added:** Await the newest-head Rust formatting/check/test/Clippy and frontend build result. Determine whether `next/font` failure is stable or runner/network-dependent before changing font loading.
+- **Verification result:** Final rustfmt diff identified in this run was pushed as commit 93e919c5c55c2df8bc8aa8eaa724a96fc1ed609e. Latest-head CI pending.
+- **Remaining risk:** Rust tests have not yet run successfully; production frontend build requires diagnosis. QOS-011 remains IN PROGRESS.
+
+## REV-012 — QOS-011 compile failure: conflict error variant missing
+- **Date:** 2026-10-27
+- **Context:** PR #7 run 40433693778, Rust job 121957204050.
+- **Finding/correction:** After formatting passed, `cargo check --workspace` failed because four references to `VenueError::ClientOrderIdConflict` could not resolve: the typed variant was absent in the branch's current `crates/venue-connectors/src/error.rs`. Restored the variant with an explanatory typed error message.
+- **Impact:** Rust compilation failed before workspace tests and Clippy could run. The frontend build passed in the same CI run after an earlier intermittent `next/font` failure; no frontend code change was made.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433693778; Rust check reported E0599 “no variant ... named `ClientOrderIdConflict`”.
+- **Rule that failed:** The feature implementation referenced an error variant not present in the checked-in source state; existing workflow rule 2 (inspect source) and rule 7 (claim only verified state) apply.
+- **Rule update made in RULES.md:** None; existing rules are sufficient.
+- **Code/docs/tests changed:** Restored `ClientOrderIdConflict(String)` in `VenueError` on `fix/qos-011-venue-contract`.
+- **Regression/real-use check added:** Latest-head CI must rerun workspace compile, tests, and Clippy after formatting.
+- **Verification result:** Typed error variant update committed as `af8e29acc8f5127a8fd8b8ec6b6d2293ae4bbca7`; awaiting CI evidence.
+- **Remaining risk:** Compile/tests/Clippy not yet verified on the corrected head. Adapter event-stream deduplication remains outside this slice; no live execution enabled.
+
+## REV-013 — QOS-011 full CI verification passed
+- **Date:** 2026-10-27
+- **Context:** PR #7 code head `fc36d8bd598e93d231929cc2c10fe34663678de5` passed run 40433848539; latest documentation head `eb4c4d388e1160c25e6f757766731764ddb76809` also passed run 40434017979.
+- **Finding/correction:** After the formatting and missing `ClientOrderIdConflict` corrections, the latest-head Rust and frontend jobs completed successfully.
+- **Impact:** The PR now has CI evidence for formatting, compilation, workspace tests, Clippy, frontend lint, typecheck, and production build. This is not evidence of live-venue readiness or production financial correctness.
+- **Evidence:** Code-head run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433848539 and latest-head run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40434017979. Both run's Rust steps `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets` passed. Latest documentation-head run 40434017979 completed with conclusion `success`; frontend `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build` all passed there too.
+- **Rule that failed:** No new rule failure in the successful run; earlier failures and corrections are recorded in REV-010–REV-012.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Updated task/progress/review records only. No additional runtime changes.
+- **Regression/real-use check added:** No new test added in this verification step; existing replay/conflict and cancel-confirmation regressions are included in the passing workspace test suite.
+- **Verification result:** Both required CI jobs completed with conclusion `success` for the code head and again on the latest docs-only head `eb4c4d388e1160c25e6f757766731764ddb76809` in run 40434017979.
+- **Remaining risk:** PR #7 remains open and unmerged pending user review. Venue event-stream deduplication/reconnect remains unimplemented because the current adapter trait has no event-stream API; no live adapter, live execution, deployment, or money movement was enabled.
+
+## REV-014 — Latest PR-head CI reconfirmed after task-summary correction
+- **Date:** 2026-10-27
+- **Context:** The task summary was reconciled in commit `8b413f5127e906650f8621b84543b5bb4ee0741d`; GitHub Actions run 40434342385 checks the resulting PR head.
+- **Finding/correction:** Both required CI jobs completed successfully again on the actual latest PR head.
+- **Impact:** The task-summary correction itself is covered by the successful CI run; the PR does not have a known failing check on its current head.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40434342385 completed with conclusion `success`. Rust job passed `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets`; frontend job passed `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build`.
+- **Rule that failed:** None; this is final evidence reconciliation after the earlier documented failures.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Review register only.
+- **Regression/real-use check added:** None; the full CI matrix reran on the latest PR head.
+- **Verification result:** Latest PR head `8b413f5127e906650f8621b84543b5bb4ee0741d`, run 40434342385, all checks green.
+- **Remaining risk:** PR #7 is open/unmerged. Venue event-stream deduplication/reconnect remains out of scope until the adapter exposes an event stream; no live execution or money movement enabled.

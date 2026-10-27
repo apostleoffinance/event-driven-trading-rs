@@ -12,6 +12,9 @@ pub enum VenueError {
     #[error("order not found at venue: {0}")]
     OrderNotFound(String),
 
+    #[error("client order ID reused with a different submission payload: {0}")]
+    ClientOrderIdConflict(String),
+
     #[error("account not found at venue: {0}")]
     AccountNotFound(String),
 

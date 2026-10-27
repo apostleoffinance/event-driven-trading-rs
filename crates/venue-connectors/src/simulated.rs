@@ -14,7 +14,7 @@ use tokio::sync::Mutex;
 
 use crate::adapter::VenueAdapter;
 use crate::error::{VenueError, VenueResult};
-use crate::types::{CancelRequest, OrderAck, OrderRequest};
+use crate::types::{same_submission_payload, CancelRequest, OrderAck, OrderRequest};
 
 static FILL_SEQ: AtomicU64 = AtomicU64::new(1);
 static POS_SEQ: AtomicU64 = AtomicU64::new(1);
@@ -198,6 +198,11 @@ impl VenueAdapter for SimulatedVenue {
                 .values()
                 .find(|o| o.client_order_id == request.order.client_order_id)
             {
+                if !same_submission_payload(existing, &request.order) {
+                    return Err(VenueError::ClientOrderIdConflict(
+                        request.order.client_order_id.as_str().to_string(),
+                    ));
+                }
                 let fills: Vec<Fill> = inner
                     .fills
                     .iter()
@@ -238,6 +243,33 @@ impl VenueAdapter for SimulatedVenue {
         };
 
         let mut inner = self.inner.lock().await;
+        // Re-check under the mutation lock to close the concurrent-submit race.
+        if let Some(existing) = inner
+            .orders
+            .values()
+            .find(|o| o.client_order_id == order.client_order_id)
+        {
+            if !same_submission_payload(existing, &order) {
+                return Err(VenueError::ClientOrderIdConflict(
+                    order.client_order_id.as_str().to_string(),
+                ));
+            }
+            let existing = existing.clone();
+            let replay_fills = inner
+                .fills
+                .iter()
+                .filter(|f| f.order_id == existing.id)
+                .cloned()
+                .collect();
+            return Ok(OrderAck {
+                client_order_id: existing.client_order_id.clone(),
+                order_id: existing.id.clone(),
+                venue_order_id: format!("sv-{}", existing.id.as_str()),
+                accepted: true,
+                fills: replay_fills,
+                message: Some("idempotent venue replay".into()),
+            });
+        }
         for fill in &fills {
             Self::apply_position_fill(&mut inner.positions, &order, fill)?;
             inner.fills.push(fill.clone());
@@ -375,5 +407,110 @@ mod tests {
         let positions = venue.positions(&account_id).await.unwrap();
         assert_eq!(positions.len(), 1);
         assert_eq!(positions[0].quantity, Decimal::from(2));
+    }
+    fn idempotency_order(order_id: &str, quantity: Decimal) -> Order {
+        Order::create(
+            OrderId::new(order_id).unwrap(),
+            ClientOrderId::new("clid-idempotency").unwrap(),
+            AccountId::new("sim-idempotency").unwrap(),
+            VenueId::new("simulated").unwrap(),
+            DeploymentId::new("dep-idempotency").unwrap(),
+            StrategyId::new("strategy-idempotency").unwrap(),
+            Some(TradeIntentId::new("intent-idempotency").unwrap()),
+            InstrumentId::new("BTCUSDT").unwrap(),
+            OrderSide::Buy,
+            OrderType::Market,
+            TimeInForce::Ioc,
+            quantity,
+            Some(Decimal::from(100)),
+            Utc::now(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn same_client_id_and_payload_replays_original_order() {
+        let venue_id = VenueId::new("simulated").unwrap();
+        let venue = SimulatedVenue::new(venue_id.clone());
+        venue
+            .register_account(
+                AccountState::new(
+                    AccountId::new("sim-idempotency").unwrap(),
+                    Decimal::from(100_000),
+                    Utc::now(),
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let first = idempotency_order("ord-idempotency-1", Decimal::from(2));
+        let first_ack = venue
+            .submit_order(OrderRequest {
+                venue_id: venue_id.clone(),
+                order: first,
+            })
+            .await
+            .unwrap();
+        let replay = idempotency_order("ord-idempotency-2", Decimal::from(2));
+        let replay_ack = venue
+            .submit_order(OrderRequest {
+                venue_id,
+                order: replay,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(replay_ack.order_id, first_ack.order_id);
+        assert_eq!(replay_ack.fills, first_ack.fills);
+        assert_eq!(
+            venue
+                .positions(&AccountId::new("sim-idempotency").unwrap())
+                .await
+                .unwrap()[0]
+                .quantity,
+            Decimal::from(2)
+        );
+    }
+
+    #[tokio::test]
+    async fn changed_payload_with_same_client_id_is_rejected() {
+        let venue_id = VenueId::new("simulated").unwrap();
+        let venue = SimulatedVenue::new(venue_id.clone());
+        venue
+            .register_account(
+                AccountState::new(
+                    AccountId::new("sim-idempotency").unwrap(),
+                    Decimal::from(100_000),
+                    Utc::now(),
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        venue
+            .submit_order(OrderRequest {
+                venue_id: venue_id.clone(),
+                order: idempotency_order("ord-idempotency-1", Decimal::from(2)),
+            })
+            .await
+            .unwrap();
+        let result = venue
+            .submit_order(OrderRequest {
+                venue_id,
+                order: idempotency_order("ord-idempotency-2", Decimal::from(3)),
+            })
+            .await;
+
+        assert!(matches!(result, Err(VenueError::ClientOrderIdConflict(_))));
+        assert_eq!(
+            venue
+                .positions(&AccountId::new("sim-idempotency").unwrap())
+                .await
+                .unwrap()[0]
+                .quantity,
+            Decimal::from(2)
+        );
     }
 }

@@ -99,7 +99,30 @@ pub async fn cancel_order(
             client_order_id: order.client_order_id.clone(),
         })
         .await?;
-    oms.mark_cancelled(order_id, at).map_err(map_exec)?;
+
+    // A successful cancel call is only an acknowledgement of the request.
+    // Confirm terminal venue state before transitioning OMS to Cancelled.
+    let venue_order = venue.get_order(order_id).await.map_err(|err| {
+        VenueError::Ambiguous(format!(
+            "cancel request acknowledged but terminal state could not be confirmed: {err}"
+        ))
+    })?;
+    if venue_order.account_id != order.account_id
+        || venue_order.client_order_id != order.client_order_id
+        || venue_order.venue_id != order.venue_id
+    {
+        return Err(VenueError::Ambiguous(
+            "cancel confirmation identity mismatch; reconciliation required".into(),
+        ));
+    }
+    if venue_order.status != domain::OrderStatus::Cancelled {
+        return Err(VenueError::Ambiguous(format!(
+            "cancel request acknowledged but venue order is {}; reconciliation required",
+            venue_order.status.as_str()
+        )));
+    }
+
+    oms.mark_cancelled(order_id, Utc::now()).map_err(map_exec)?;
     Ok(())
 }
 
