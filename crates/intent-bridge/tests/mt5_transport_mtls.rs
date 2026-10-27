@@ -18,7 +18,7 @@ use tokio_rustls::{client::TlsStream, TlsConnector};
 
 use intent_bridge::mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
-    Mt5PositionSnapshot, Mt5ReconciliationSnapshot,
+    Mt5PositionSnapshot, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
 };
 use intent_bridge::mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
 use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
@@ -32,6 +32,28 @@ use intent_bridge::mt5_v1::{
 };
 use persistence::{Mt5DurableOrderState, Mt5OrderClaim, Mt5StreamReadiness, TradingStore};
 use sqlx::PgPool;
+
+struct FixedSnapshotSource(Mt5ReconciliationSnapshot);
+
+#[async_trait::async_trait]
+impl Mt5ReconciliationSource for FixedSnapshotSource {
+    async fn fetch_snapshot(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        server: &str,
+    ) -> intent_bridge::BridgeResult<Mt5ReconciliationSnapshot> {
+        if self.0.account_id != account_id
+            || self.0.terminal_id != terminal_id
+            || self.0.server != server
+        {
+            return Err(intent_bridge::BridgeError::Invalid(
+                "test snapshot source identity mismatch".into(),
+            ));
+        }
+        Ok(self.0.clone())
+    }
+}
 
 struct TestPki {
     _directory: tempfile::TempDir,
@@ -397,8 +419,9 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
         open_orders: Vec::<Mt5OpenOrderSnapshot>::new(),
         positions: Vec::<Mt5PositionSnapshot>::new(),
     };
+    let source = FixedSnapshotSource(snapshot);
     runtime
-        .reconcile(&snapshot, Utc::now(), Duration::seconds(30))
+        .reconcile_from_source(&source, Utc::now(), Duration::seconds(30))
         .await?;
     assert_eq!(runtime.session_state().await, Mt5SessionState::Ready);
 
