@@ -174,7 +174,7 @@ pub async fn persist_and_confirm_reconciliation(
             caps.order_lookup && caps.idempotent_client_order_id && caps.sequence_numbers
         })
     {
-        degrade_session_and_stream(store, session, snapshot.sequence).await;
+        degrade_session_and_stream(store, session).await;
         return Err(BridgeError::Invalid(
             "MT5 external snapshot does not match a connected session awaiting reconciliation"
                 .into(),
@@ -199,12 +199,12 @@ pub async fn persist_and_confirm_reconciliation(
         )
         .await
     {
-        degrade_session_and_stream(store, session, snapshot.sequence).await;
+        degrade_session_and_stream(store, session).await;
         return Err(BridgeError::from(error));
     }
 
     if let Err(error) = session.confirm_reconciled(Mt5StreamReadiness::Ready) {
-        degrade_session_and_stream(store, session, snapshot.sequence).await;
+        degrade_session_and_stream(store, session).await;
         return Err(error);
     }
     Ok(())
