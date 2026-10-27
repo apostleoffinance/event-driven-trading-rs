@@ -766,7 +766,10 @@ mod tests {
                 ..
             } = first
             {
-                assert_eq!((quantity / sizing.quantity_step).trunc(), quantity / sizing.quantity_step);
+                assert_eq!(
+                    (quantity / sizing.quantity_step).trunc(),
+                    quantity / sizing.quantity_step
+                );
                 assert!(modeled_loss <= risk_budget);
             }
         }
