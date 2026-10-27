@@ -522,7 +522,7 @@ pub async fn persist_market_data_snapshot(
         || snapshot.get("source").and_then(Value::as_str) != Some(source)
         || snapshot.get("sequence").and_then(Value::as_i64) != Some(sequence)
         || snapshot.get("account_currency").and_then(Value::as_str) != Some(account_currency)
-        || snapshot_timestamp != Some(captured_at)
+        || snapshot_timestamp != Some(captured_at.clone())
         || !snapshot.get("instruments").is_some_and(Value::is_array)
         || !snapshot.get("quotes").is_some_and(Value::is_array)
         || snapshot
