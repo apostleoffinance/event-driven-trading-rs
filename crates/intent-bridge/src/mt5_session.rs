@@ -101,6 +101,46 @@ impl Mt5SessionGate {
         self.capabilities.as_ref()
     }
 
+    /// Validate heartbeat identity before the transport persists any sequence
+    /// state. This check is side-effect-free so untrusted account IDs cannot create
+    /// durable stream rows before allow-list and immutable-binding checks pass.
+    pub fn validate_heartbeat_identity(&self, frame: &BridgeFrame) -> BridgeResult<()> {
+        if self.state == Mt5SessionState::Closed {
+            return Err(BridgeError::Invalid("MT5 session is closed".into()));
+        }
+        let heartbeat = match &frame.payload {
+            BridgePayload::Heartbeat(value) => value,
+            _ => return Err(BridgeError::Invalid("expected MT5 heartbeat frame".into())),
+        };
+        if frame.account_id.trim().is_empty()
+            || frame.account_id.trim() != frame.account_id
+            || heartbeat.terminal_id.trim().is_empty()
+            || heartbeat.terminal_id.trim() != heartbeat.terminal_id
+            || heartbeat.server.trim().is_empty()
+            || heartbeat.server.trim() != heartbeat.server
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 account, terminal and server identities must be non-empty and unpadded".into(),
+            ));
+        }
+        if !self.policy.allows_account(&frame.account_id) {
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat account is not allow-listed".into(),
+            ));
+        }
+        if let Some(bound) = self.account_id.as_deref() {
+            if bound != frame.account_id
+                || self.terminal_id.as_deref() != Some(heartbeat.terminal_id.as_str())
+                || self.server.as_deref() != Some(heartbeat.server.as_str())
+            {
+                return Err(BridgeError::Invalid(
+                    "MT5 connection identity changed after session binding".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Consume a validated heartbeat alongside the result of the durable
     /// sequence-checkpoint API. A fresh/gapped/degraded stream never becomes
     /// ready from a heartbeat alone; reconciliation must happen separately.
