@@ -15,6 +15,7 @@ execution-engine = { path = "../execution-engine" }
 persistence = { path = "../persistence" }
 risk-engine = { path = "../risk-engine" }
 rust_decimal = { workspace = true }
+serde_json = { workspace = true }
 strategy-runtime = { path = "../strategy-runtime" }
 reconciliation = { path = "../reconciliation" }
 thiserror = { workspace = true }
