@@ -3,7 +3,7 @@
 use domain::{RiskDecision, RiskRequest};
 
 use crate::error::RiskEngineResult;
-use crate::instrument_sizing::{size_order_instrument_aware, InstrumentSizingContext};
+use crate::instrument_sizing::{size_order_instrument_aware, InstrumentSizingContext, InstrumentSizingOutcome};
 use crate::rules::{
     check_account_halt, check_daily_loss, check_drawdown, check_global_halt, check_instrument,
     check_position_limit, check_session, check_strategy_halt, RuleOutcome,
@@ -52,16 +52,30 @@ impl DefaultRiskEvaluator {
     /// This is the preferred entry point when an authoritative instrument
     /// snapshot is available. The legacy `evaluate` method remains for
     /// compatibility with existing callers that have not yet wired snapshots.
+    pub fn evaluate_with_instrument_sizing_detailed(
+        &self,
+        request: &RiskRequest,
+        context: &InstrumentSizingContext,
+    ) -> RiskEngineResult<(RiskDecision, Option<InstrumentSizingOutcome>)> {
+        match Self::run_gates(request) {
+            RuleOutcome::Pass => {
+                let outcome = size_order_instrument_aware(request, context);
+                Ok((outcome.risk_decision(), Some(outcome)))
+            }
+            RuleOutcome::Halt { reason } => Ok((RiskDecision::Halted { reason }, None)),
+            RuleOutcome::Reject { reason } => Ok((RiskDecision::Rejected { reason }, None)),
+        }
+    }
+
+    /// Compatibility API returning only the public risk decision. Runtime callers
+    /// should prefer the detailed form so the exact sizing calculation is auditable.
     pub fn evaluate_with_instrument_sizing(
         &self,
         request: &RiskRequest,
         context: &InstrumentSizingContext,
     ) -> RiskEngineResult<RiskDecision> {
-        match Self::run_gates(request) {
-            RuleOutcome::Pass => Ok(size_order_instrument_aware(request, context).risk_decision()),
-            RuleOutcome::Halt { reason } => Ok(RiskDecision::Halted { reason }),
-            RuleOutcome::Reject { reason } => Ok(RiskDecision::Rejected { reason }),
-        }
+        self.evaluate_with_instrument_sizing_detailed(request, context)
+            .map(|(decision, _)| decision)
     }
 }
 
