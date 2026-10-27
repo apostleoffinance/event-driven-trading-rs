@@ -892,11 +892,7 @@ mod tests {
                 Decimal::from(2),
             ] {
                 for step in [Decimal::new(1, 2), Decimal::new(1, 1), Decimal::ONE] {
-                    for stop_distance in [
-                        Decimal::new(5, 1),
-                        Decimal::ONE,
-                        Decimal::from(5),
-                    ] {
+                    for stop_distance in [Decimal::new(5, 1), Decimal::ONE, Decimal::from(5)] {
                         let mut request = sample_request();
                         request.account_state.equity = Decimal::from(equity);
                         request.policy.max_risk_per_trade_pct = risk_pct;
@@ -936,5 +932,4 @@ mod tests {
             }
         }
     }
-
 }
