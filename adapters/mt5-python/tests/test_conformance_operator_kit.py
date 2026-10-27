@@ -27,7 +27,7 @@ class ConformanceOperatorKitTests(unittest.TestCase):
     def test_runbook_requires_worker_restart_and_sequence_continuity(self) -> None:
         source = RUNBOOK.read_text(encoding="utf-8")
         for required in (
-            "Keep the daemon running", "same MT5_SEQUENCE_FILE",
+            "Keep the daemon running", "same `MT5_SEQUENCE_FILE`",
             "post-restart market-data sequence is greater",
             "reconciliation was persisted after reconnect",
             "BLOCKED", "Do not proceed to execution",
