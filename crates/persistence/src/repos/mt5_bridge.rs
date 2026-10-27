@@ -345,6 +345,12 @@ pub async fn mark_stream_degraded(
             "MT5 account ID, terminal ID and non-negative sequence are required".into(),
         ));
     }
+    let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))")
+        .bind(account_id)
+        .bind(terminal_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         r#"
         INSERT INTO mt5_bridge_streams (account_id, terminal_id, last_sequence, readiness)
@@ -357,30 +363,10 @@ pub async fn mark_stream_degraded(
     .bind(account_id)
     .bind(terminal_id)
     .bind(sequence)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(())
-}
-
-pub async fn stream_readiness(
-    pool: &PgPool,
-    account_id: &str,
-    terminal_id: &str,
-) -> PersistenceResult<Mt5StreamReadiness> {
-    let readiness = sqlx::query_scalar::<_, String>(
-        "SELECT readiness FROM mt5_bridge_streams WHERE account_id = $1 AND terminal_id = $2",
-    )
-    .bind(account_id)
-    .bind(terminal_id)
-    .fetch_optional(pool)
-    .await?;
-    match readiness.as_deref() {
-        Some("ready") => Ok(Mt5StreamReadiness::Ready),
-        Some("degraded") | None => Ok(Mt5StreamReadiness::Degraded),
-        Some(other) => Err(PersistenceError::Other(format!(
-            "unknown MT5 stream readiness: {other}"
-        ))),
-    }
 }
 
 /// Persist a complete authoritative external-state snapshot and advance the stream
