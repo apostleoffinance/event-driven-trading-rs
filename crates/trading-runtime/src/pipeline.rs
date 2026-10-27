@@ -442,6 +442,7 @@ mod sizing_snapshot_tests {
                 slippage_gap_buffer_per_quantity: Decimal::ZERO,
                 pending_order_exposure: Decimal::ZERO,
                 available_margin: None,
+                pending_order_margin: Decimal::ZERO,
                 margin_per_quantity: None,
             },
         }
