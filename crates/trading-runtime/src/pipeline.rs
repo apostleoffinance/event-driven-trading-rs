@@ -336,7 +336,7 @@ impl TradingRuntime {
                 side: intent.side,
                 order_type: self.config.order_type,
                 time_in_force: self.config.time_in_force,
-                price: intent.entry_price,
+                price: risk_req.entry_price,
                 risk_decision: decision.clone(),
                 instrument_spec: self.config.instrument_spec.clone(),
                 created_at: Utc::now(),
