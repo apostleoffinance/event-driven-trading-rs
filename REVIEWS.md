@@ -230,3 +230,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** QOS-013 plan defines deterministic unit/integration acceptance criteria, including stop geometry, unsupported/missing instrument inputs, decimal rounding, fail-closed data requirements, and the risk-to-OMS boundary. These tests are planned, not yet implemented or run.
 - **Verification result:** PR #7 merge status verified through GitHub PR metadata; source inspection completed. No tests/checks were run because this PR is documentation-only. This is not a claim that the QOS-013 implementation is complete or safe for live execution.
 - **Remaining risk:** Current sizing implementation still lacks the required typed instrument, conversion, freshness, margin, and venue constraints. QOS-013 implementation must remain paper/simulation-only and must not mark unsupported instrument models executable.
+
+
+## REV-016 — QOS-013 first instrument-aware sizing implementation slice
+- **Date:** 2026-10-27
+- **Context:** User requested implementation of QOS-013 after the QOS-011 merge-status correction and sizing-plan review.
+- **Finding:** Existing sizing relied on absolute entry/stop price distance and did not encode explicit instrument loss mechanics. A new opt-in API is needed until authoritative sizing snapshots are wired into the runtime without unsafe defaults.
+- **Impact:** A price-distance-only calculation is not sufficient for instruments with contract multipliers, tick values, or differing account currency. Missing/stale sizing inputs must not yield an executable size through the new API.
+- **Evidence:** Current source audit in `QOS-013_IMPLEMENTATION_PLAN.md`; implementation in `crates/risk-engine/src/instrument_sizing.rs` and `crates/risk-engine/src/evaluator.rs`.
+- **Rule that failed:** No new rule violation is asserted; this work addresses gaps against Financial Safety rules 4, 5, and 13 and Rust/testing rules.
+- **Rule update made in RULES.md:** None; existing rules are adequate.
+- **Code/docs/tests changed:** Added explicit linear and tick-value loss models, conversion rates, freshness state, conservative step rounding, risk/position/exposure/leverage caps, minimum/maximum/minimum-notional checks, post-rounding modeled-loss verification, and an evaluator entry point that runs risk gates before sizing. Added eight focused tests and updated task/progress/plan docs.
+- **Regression/real-use check added:** Tests cover linear sizing and risk-budget resize, tick-value conversion, buy/sell stop geometry, stale-input rejection, off-tick stops, below-minimum quantity, costs/buffer effects, and kill-switch precedence. CI pending at time of entry; no real venue test was run.
+- **Verification result:** Files were written to the feature branch through GitHub. Compilation and test success are not yet claimed; CI must verify the current head.
+- **Remaining risk:** The new context is opt-in. Existing `RiskEvaluator::evaluate` and runtime do not yet source authoritative venue specs/conversion/freshness by default. Pending-order reserves, margin/free-funds caps, account-specific freshness thresholds, structured persisted audit, property tests, and full SZ-01–SZ-26 coverage remain incomplete. No live execution enabled.
