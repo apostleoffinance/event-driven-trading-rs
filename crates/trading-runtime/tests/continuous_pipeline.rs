@@ -283,4 +283,19 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
     );
     assert_eq!(outcome.order_status, None);
     assert!(runtime.oms().open_orders_for(&account_id).is_empty());
+
+    let mut mismatched = context.clone();
+    mismatched.instrument_id = InstrumentId::new("ETHUSDT").unwrap();
+    let mismatch_outcome = runtime
+        .execute_intent_with_instrument_sizing(&intent, &venue, &events_out, &mismatched)
+        .await
+        .unwrap();
+    assert_eq!(
+        mismatch_outcome.decision,
+        RiskDecision::Rejected {
+            reason: domain::RiskRejectReason::DependencyUnavailable,
+        }
+    );
+    assert_eq!(mismatch_outcome.order_status, None);
+    assert!(runtime.oms().open_orders_for(&account_id).is_empty());
 }
