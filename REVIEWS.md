@@ -709,3 +709,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression coverage:** The persistence test asserts that readiness restoration fails without a snapshot, then persists account state/open orders/positions and verifies restart recovery, stale sequence rejection, and subsequent sequence continuity.
 - **Verification:** Final-head Rust formatting, workspace check/tests, all-target Clippy, and frontend CI are still required. Intermediate failures to date have been formatting-gate failures; do not claim final verification until a latest-head run passes.
 - **Remaining risk:** Snapshot records are only as authoritative as the source supplied by the host. The real MT5 EA/client and its broker-specific external-state query adapter remain unimplemented; no live trading enabled.
+
+
+## REV-021 — QOS-013 MT5 sizing-data adapter
+- **Date:** 2026-10-27
+- **Context:** PR #29 merged; next scoped task connects persisted MT5 market data to instrument-aware sizing.
+- **Finding/correction:** The bridge stored broker instrument metadata and quotes, but the risk engine had no strict adapter to turn the persisted snapshot into sizing inputs.
+- **Impact:** Without an explicit adapter, a caller could accidentally use stale prices, wrong account currency, non-broker volume steps, or missing FX conversion data.
+- **Evidence:** Added pure adapter crates/risk-engine/src/mt5_market_data.rs and a persistence reader scoped to exact account/terminal keys.
+- **Rule that failed:** No rule violation asserted; this is a completion gap.
+- **Rule update made in RULES.md:** None; existing fail-closed freshness, exact-decimal, account identity, and risk-before-execution rules apply.
+- **Code/docs/tests changed:** Added adapter, latest-snapshot reader, persistence tests, and QOS-013 progress notes. Costs, margin per quantity, pending exposure, and pending margin remain explicit trusted inputs because the market-data frame does not contain those values.
+- **Regression/real-use check added:** Unit tests cover ask/bid selection, tick value, broker volume step, FX conversion, stale snapshots, account-currency mismatch, and invalid margin inputs; persistence tests cover exact account/terminal retrieval.
+- **Verification result:** Implementation committed to feature branch; CI not yet run at time of this entry.
+- **Remaining risk:** CI may identify compile/test issues; Windows MT5 demo-terminal conformance is still pending. No order submission or live mode enabled.

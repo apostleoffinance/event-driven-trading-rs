@@ -5,6 +5,7 @@ mod audit;
 mod fills;
 mod instruments;
 mod mt5_bridge;
+pub mod mt5_market_data;
 mod orders;
 mod positions;
 mod risk;
