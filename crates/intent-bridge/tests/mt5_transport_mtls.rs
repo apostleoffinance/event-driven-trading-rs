@@ -309,6 +309,33 @@ async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry(
             Duration::seconds(5),
         )
         .await?;
+    let reconciled_at = Utc::now();
+    let snapshot = Mt5ReconciliationSnapshot {
+        account_id: "account-001".into(),
+        terminal_id: "terminal-01".into(),
+        server: "broker-demo".into(),
+        source: "mt5_authoritative_snapshot_v1".into(),
+        sequence: 1,
+        captured_at: reconciled_at,
+        account_state: Mt5AccountStateSnapshot {
+            currency: "USD".into(),
+            balance: "10000.00".into(),
+            equity: "10000.00".into(),
+            margin_used: "0.00".into(),
+            free_margin: "10000.00".into(),
+        },
+        open_orders: Vec::<Mt5OpenOrderSnapshot>::new(),
+        positions: Vec::<Mt5PositionSnapshot>::new(),
+    };
+    persist_and_confirm_reconciliation(
+        &store,
+        &mut session_gate,
+        &snapshot,
+        Utc::now(),
+        Duration::seconds(30),
+    )
+    .await?;
+    assert_eq!(session_gate.state(), Mt5SessionState::Ready);
 
     let connection = Arc::new(Mutex::new(server));
     let session = Arc::new(Mutex::new(session_gate));
