@@ -337,7 +337,7 @@ mod tests {
         let certificate = CertificateDer::from(vec![1_u8, 2, 3, 4]);
         assert_eq!(
             certificate_fingerprint(&certificate),
-            "9f64a747e1b97f131fabb6b447296c9b6f0201e79b3fc5356e6c77e89b6a806a"
+            "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a"
         );
     }
 }
