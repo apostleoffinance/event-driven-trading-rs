@@ -399,3 +399,14 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update:** None; this implements existing API/bridge and security rules. It does not add transport/authentication or claim venue connectivity.
 - **Verification:** Code and documentation updates were committed to the feature branch. Full latest-head CI has not yet been verified; no tests are claimed as passing until CI completes.
 - **Remaining risk:** Authenticated connection binding, durable client-order idempotency, reconnect/sequence-gap reconciliation, and cross-language conformance against an MT5-side implementation remain open. No live execution, deployment, or money movement enabled.
+
+
+## REV-030 — QOS-014 Rust formatting CI failure and correction
+- **Date:** 2026-10-27
+- **Context:** GitHub Actions run 40448579920, Rust job 122005653340, on the QOS-014 PR merge ref.
+- **Finding:** `cargo fmt --all -- --check` failed only on line wrapping in three NDJSON decoder tests in `crates/intent-bridge/src/mt5_v1.rs`. The Rust job stopped at the formatting gate, so workspace check, tests, and Clippy did not run in that attempt. The frontend job passed.
+- **Correction:** Applied the exact rustfmt line wrapping to the feature branch in commit `4265d240582aae6722a049b09a54337f01fbcfca`; no runtime behavior change intended.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40448579920/job/122005653340.
+- **Rule update:** None; existing rules require formatting and accurate verification claims.
+- **Verification:** Fix is committed on `feat/qos-014-mt5-bridge-v1`. A new full latest-head CI result is still required; this failure run does not verify compilation or tests.
+- **Remaining risk:** Authenticated transport, durable idempotency, reconnect/reconciliation, and cross-language MT5 conformance remain open. No live execution, deployment, or money movement enabled.
