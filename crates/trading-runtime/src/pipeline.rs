@@ -1,5 +1,7 @@
 //! Single-intent pipeline: TradeIntent → Risk → OMS → Venue → Position.
 
+use std::collections::HashMap;
+
 use account_engine::AccountEngine;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -557,6 +559,7 @@ mod sizing_snapshot_tests {
         unknown_source.source_id = "  ".to_string();
         assert!(!unknown_source.is_fresh_at(now));
     }
+
     #[tokio::test]
     async fn cache_rejects_stale_and_out_of_order_snapshots() {
         let now = Utc::now();
@@ -585,7 +588,6 @@ mod sizing_snapshot_tests {
             .await;
         assert!(result.is_err());
     }
-
 }
 
 fn optional_decimal(value: Option<Decimal>) -> Option<String> {
