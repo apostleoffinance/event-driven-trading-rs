@@ -43,6 +43,8 @@ pub struct InstrumentSizingContext {
     pub pending_order_exposure: Decimal,
     /// Remaining free margin from the same fresh account snapshot, when margin applies.
     pub available_margin: Option<Decimal>,
+    /// Account-currency margin already reserved by pending orders.
+    pub pending_order_margin: Decimal,
     /// Account-currency margin required per unit of this instrument.
     pub margin_per_quantity: Option<Decimal>,
 }
@@ -173,6 +175,7 @@ pub fn size_order_instrument_aware(
         || context.estimated_cost_per_quantity < Decimal::ZERO
         || context.slippage_gap_buffer_per_quantity < Decimal::ZERO
         || context.pending_order_exposure < Decimal::ZERO
+        || context.pending_order_margin < Decimal::ZERO
         || context.available_margin.is_some_and(|margin| margin < Decimal::ZERO)
         || context.margin_per_quantity.is_some_and(|margin| margin <= Decimal::ZERO)
         || context.available_margin.is_some() != context.margin_per_quantity.is_some()
@@ -261,7 +264,10 @@ pub fn size_order_instrument_aware(
     };
 
     let max_by_margin = match (context.available_margin, context.margin_per_quantity) {
-        (Some(available), Some(per_quantity)) => match available.checked_div(per_quantity) {
+        (Some(available), Some(per_quantity)) => match available
+            .checked_sub(context.pending_order_margin)
+            .map(|remaining| remaining.max(Decimal::ZERO))
+            .and_then(|remaining| remaining.checked_div(per_quantity)) {
             Some(cap) => Some(cap),
             None => return reject(SizingRejectReason::ArithmeticOverflow),
         },
@@ -475,6 +481,7 @@ mod tests {
             slippage_gap_buffer_per_quantity: Decimal::ZERO,
             pending_order_exposure: Decimal::ZERO,
             available_margin: None,
+            pending_order_margin: Decimal::ZERO,
             margin_per_quantity: None,
         }
     }
