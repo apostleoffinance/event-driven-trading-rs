@@ -66,12 +66,7 @@ impl Mt5DispatchPermit {
         }
 
         let response = match connection
-            .read_frame_with_session_checkpoint(
-                store,
-                session,
-                Utc::now(),
-                allowed_clock_skew,
-            )
+            .read_frame_with_session_checkpoint(store, session, Utc::now(), allowed_clock_skew)
             .await
         {
             Ok(response) => response,
@@ -85,14 +80,8 @@ impl Mt5DispatchPermit {
                 return Err(read_error);
             }
         };
-        self.record_outcome(
-            store,
-            session,
-            &response,
-            Utc::now(),
-            allowed_clock_skew,
-        )
-        .await
+        self.record_outcome(store, session, &response, Utc::now(), allowed_clock_skew)
+            .await
     }
 
     /// Persist a response only if it is for this permit's account, correlation
