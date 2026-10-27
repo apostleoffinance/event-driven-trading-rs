@@ -409,11 +409,7 @@ fn encode_frame_line(frame: &BridgeFrame) -> BridgeResult<Vec<u8>> {
     Ok(encoded)
 }
 
-fn heartbeat_is_fresh(
-    last: DateTime<Utc>,
-    now: DateTime<Utc>,
-    timeout: StdDuration,
-) -> bool {
+fn heartbeat_is_fresh(last: DateTime<Utc>, now: DateTime<Utc>, timeout: StdDuration) -> bool {
     let age = now.signed_duration_since(last);
     age >= Duration::zero()
         && age <= Duration::from_std(timeout).unwrap_or_else(|_| Duration::zero())
