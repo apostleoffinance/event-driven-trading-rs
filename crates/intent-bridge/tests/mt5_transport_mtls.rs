@@ -261,8 +261,7 @@ async fn trusted_certificate_with_wrong_fingerprint_is_rejected() -> Result<(), 
 }
 
 #[tokio::test]
-async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>>
-{
+async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>> {
     let pki = make_pki()?;
     for frame in [
         heartbeat_frame("account-001", "other-terminal", "broker-demo"),
@@ -348,12 +347,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     let policy = Mt5SessionPolicy::new(["account-001"])?;
     let mut session = Mt5SessionGate::after_transport_authentication(policy);
     server
-        .read_frame_with_session_checkpoint(
-            &store,
-            &mut session,
-            Utc::now(),
-            Duration::seconds(5),
-        )
+        .read_frame_with_session_checkpoint(&store, &mut session, Utc::now(), Duration::seconds(5))
         .await?;
     let snapshot = Mt5ReconciliationSnapshot {
         account_id: "account-001".into(),
@@ -400,15 +394,8 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
             time_in_force: TimeInForce::Day,
         }),
     };
-    let permit = match prepare_submit(
-        &store,
-        &session,
-        &submit,
-        Utc::now(),
-        Duration::seconds(5),
-    )
-    .await?
-    {
+    let permit =
+        match prepare_submit(&store, &session, &submit, Utc::now(), Duration::seconds(5)).await? {
         Mt5DispatchDecision::SendOnce(permit) => permit,
         Mt5DispatchDecision::ReconcileRequired { .. } => {
             return Err("new test order unexpectedly required reconciliation".into());
@@ -469,12 +456,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     });
 
     permit
-        .execute_over_transport(
-            &mut server,
-            &store,
-            &mut session,
-            Duration::seconds(5),
-        )
+        .execute_over_transport(&mut server, &store, &mut session, Duration::seconds(5))
         .await?;
     responder.await??;
 
