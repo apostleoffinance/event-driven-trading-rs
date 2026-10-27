@@ -257,3 +257,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Latest-head CI run must rerun formatting, workspace check, workspace tests, and Clippy.
 - **Verification result:** Formatting correction pushed to the feature branch; rerun status pending. No compile/test success claimed from the failed run.
 - **Remaining risk:** Compilation, unit/integration test results, and Clippy remain unverified until the latest-head CI run completes.
+
+## REV-018 — QOS-013 follow-up CI formatting failure and correction
+- **Date:** 2026-10-27
+- **Context:** Follow-up QOS-013 CI run 40435630512 on commit `90f7af86202a79e34910c78f56c77d519cb62fd6`.
+- **Finding/correction:** The first formatting correction resolved the earlier reported diffs, but rustfmt identified one remaining match-arm wrapping difference in `InstrumentSizingOutcome::risk_decision`. Workspace check, tests, and Clippy were skipped again.
+- **Impact:** Compilation/test evidence remained unavailable from that run.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40435630512; Rust job 121963502803 failed at formatting step 6 and showed a single diff at `instrument_sizing.rs:106`.
+- **Rule that failed:** Required rustfmt check was still not satisfied.
+- **Rule update made in RULES.md:** None; current rules are sufficient.
+- **Code/docs/tests changed:** Applied the final rustfmt-indicated match-arm wrapping. No intended behavior change.
+- **Regression/real-use check added:** Run the complete CI matrix on the latest branch head.
+- **Verification result:** Correction committed as `3dcce8660a26982f30b6a2b085574436e9a525ca`; latest-head CI pending.
+- **Remaining risk:** Compilation, tests, and Clippy remain unverified until the current run finishes.
