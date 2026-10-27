@@ -404,6 +404,11 @@ impl AuthenticatedMt5Connection {
             BridgePayload::Heartbeat(value) => value,
             _ => return Ok(frame),
         };
+        if let Err(error) = session.validate_heartbeat_identity(&frame) {
+            self.failed = true;
+            session.close();
+            return Err(error);
+        }
         let account_id = frame.account_id.clone();
         let terminal_id = heartbeat.terminal_id.clone();
         let sequence = heartbeat.sequence;
