@@ -84,10 +84,7 @@ pub async fn claim_order(
         return Ok(Mt5OrderClaim::New);
     }
 
-    let existing = sqlx::query_as::<
-        _,
-        (Json<Value>, String, Option<String>, Option<String>),
-    >(
+    let existing = sqlx::query_as::<_, (Json<Value>, String, Option<String>, Option<String>)>(
         r#"
         SELECT request_payload, state, venue_order_id, reason_code
         FROM mt5_bridge_order_keys
@@ -99,20 +96,21 @@ pub async fn claim_order(
     .bind(client_order_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| PersistenceError::Other(
-        "MT5 idempotency key disappeared during claim".into()
-    ))?;
+    .ok_or_else(|| {
+        PersistenceError::Other("MT5 idempotency key disappeared during claim".into())
+    })?;
 
-    if existing.0.0 != request_payload {
+    let (Json(existing_payload), existing_state, venue_order_id, reason_code) = existing;
+    if existing_payload != request_payload {
         return Err(PersistenceError::Other(format!(
             "MT5 client order ID conflict for account {account_id}: canonical payload differs"
         )));
     }
 
     let claim = Mt5OrderClaim::Existing {
-        state: parse_state(&existing.1)?,
-        venue_order_id: existing.2,
-        reason_code: existing.3,
+        state: parse_state(&existing_state)?,
+        venue_order_id,
+        reason_code,
     };
     tx.commit().await?;
     Ok(claim)
@@ -223,11 +221,21 @@ pub async fn observe_sequence(
     .await?;
 
     let (observation, next_sequence, readiness) = match current {
-        None => (Mt5SequenceObservation::ReconciliationRequired, sequence, "degraded"),
-        Some((last, readiness)) if readiness == "ready" && last.checked_add(1) == Some(sequence) => {
+        None => (
+            Mt5SequenceObservation::ReconciliationRequired,
+            sequence,
+            "degraded",
+        ),
+        Some((last, readiness))
+            if readiness == "ready" && last.checked_add(1) == Some(sequence) =>
+        {
             (Mt5SequenceObservation::Accepted, sequence, "ready")
         }
-        Some((last, _)) => (Mt5SequenceObservation::ReconciliationRequired, last, "degraded"),
+        Some((last, _)) => (
+            Mt5SequenceObservation::ReconciliationRequired,
+            last,
+            "degraded",
+        ),
     };
 
     sqlx::query(
