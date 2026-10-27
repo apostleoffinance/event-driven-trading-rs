@@ -392,7 +392,7 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Instrument-aware execution now rejects with `DependencyUnavailable` when persistent audit storage is absent; added an integration regression proving fresh inputs still create no OMS order without the store.
 - **Verification:** PR #13 head `7beb7987bb520faf81b965d5342973d4b5198082`, CI run `40445467228`, passed formatting, workspace check, tests, Clippy, frontend typecheck and production build.
 - **Remaining risk:** Explicit risk-policy version IDs are not yet modeled; the audit stores the complete policy snapshot and sizing model version. No live execution enabled.
-## REV-027 — QOS-014 initial file was written to main and immediately reverted
+## REV-032 — QOS-014 initial file was written to main and immediately reverted
 - **Date:** 2026-10-27
 - **Context:** Starting QOS-014 MT5 bridge v1 protocol work.
 - **Finding/correction:** The initial `create_file` call omitted the optional `branch` argument, so the protocol source file was committed directly to `main`. This violated the feature-branch workflow.
@@ -406,7 +406,7 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Full Rust/frontend CI, schema conformance and actual terminal transport remain pending. No live execution enabled.
 
 
-## REV-028 — QOS-014 first CI run caught formatting-only differences
+## REV-033 — QOS-014 first CI run caught formatting-only differences
 - **Date:** 2026-10-27
 - **Context:** Draft PR #14, run 40446398790 on head `b92ff3bf8568ca255ac9b72abf4f37edf0f70479`.
 - **Finding/correction:** Rust formatting gate reported line wrapping and match-arm formatting in `crates/intent-bridge/src/mt5_v1.rs`; compilation, tests and Clippy were skipped by the workflow. The first correction missed one zero-quantity assertion; rerun 40446528312 caught that remaining line. It was corrected in commit `a400cbe7bbcfef3391e54e678438fb306124dee4`. Frontend checks continued independently.
@@ -420,7 +420,7 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Rust compilation, protocol tests, Clippy and latest-head frontend CI still need successful evidence. No live execution enabled.
 
 
-## REV-029 — QOS-014 bounded incremental NDJSON framing
+## REV-034 — QOS-014 bounded incremental NDJSON framing
 - **Date:** 2026-10-27
 - **Context:** Continued QOS-014 on `feat/qos-014-mt5-bridge-v1` after the initial protocol types and schema were present.
 - **Finding:** The original helper validated a single JSON string and relied on an external caller to frame the byte stream. A future transport could otherwise buffer an unbounded partial line or accidentally act on an incomplete frame.
@@ -431,7 +431,7 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Authenticated connection binding, durable client-order idempotency, reconnect/sequence-gap reconciliation, and cross-language conformance against an MT5-side implementation remain open. No live execution, deployment, or money movement enabled.
 
 
-## REV-030 — QOS-014 Rust formatting CI failure and correction
+## REV-035 — QOS-014 Rust formatting CI failure and correction
 - **Date:** 2026-10-27
 - **Context:** GitHub Actions run 40448579920, Rust job 122005653340, on the QOS-014 PR merge ref.
 - **Finding:** `cargo fmt --all -- --check` failed only on line wrapping in three NDJSON decoder tests in `crates/intent-bridge/src/mt5_v1.rs`. The Rust job stopped at the formatting gate, so workspace check, tests, and Clippy did not run in that attempt. The frontend job passed.
@@ -442,7 +442,7 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Authenticated transport, durable idempotency, reconnect/reconciliation, and cross-language MT5 conformance remain open. No live execution, deployment, or money movement enabled.
 
 
-## REV-031 — QOS-014 second formatting correction completed
+## REV-036 — QOS-014 second formatting correction completed
 - **Date:** 2026-10-27
 - **Context:** Continued inspection of CI run 40448579920 after REV-030.
 - **Finding:** The first formatting correction fixed the decoder line wrap and the partial-frame assertion, but the workflow diff also showed a remaining wrapped assertion for invalid UTF-8 input.
@@ -451,10 +451,24 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Remaining risk:** Compilation, tests and Clippy still require a completed green CI run. No live execution enabled.
 
 
-## REV-032 — QOS-014 repeated rustfmt diff and correction
+## REV-037 — QOS-014 repeated rustfmt diff and correction
 - **Date:** 2026-10-27
 - **Context:** Re-examined Rust format failure from run 40449083166/job 122007273488, following the initial formatting fix.
 - **Finding:** The new CI log still reported two issues: an extra blank line before the first NDJSON decoder test and an unwrapped invalid-UTF-8 assertion. The initial branch update had fixed the assertion but left the extra blank line.
 - **Correction:** Removed the extra blank line in commit `6b7fa8b8ff2fea86e1df23d6fbf4d6362ed94944`. The assertion wrap was already present in the previous branch head. The changes are formatting-only.
 - **Verification:** Full CI is still required on the current branch head. Earlier runs were rejected at the formatting gate, so workspace compilation, tests and Clippy have not yet been verified.
 - **Remaining risk:** Do not merge until a current-head CI run passes. No live execution or money movement enabled.
+
+
+## REV-038 — Review-register revision IDs reconciled after parallel QOS histories merged
+- **Date:** 2026-10-27
+- **Context:** The QOS-013 capability-gate history and QOS-014 MT5 bridge history were both retained during merge-conflict resolution, but each branch had independently assigned REV-027 through REV-031.
+- **Finding/correction:** Duplicate revision identifiers made references ambiguous. Preserved every historical entry and its original content, keeping QOS-013 entries REV-027 through REV-031 and renumbering the six QOS-014 entries sequentially as REV-032 through REV-037.
+- **Impact:** Review records now have unique, stable identifiers without dropping either workstream's audit trail.
+- **Evidence:** Compared the merged `REVIEWS.md` headings on `main`; five IDs were duplicated before this correction.
+- **Rule that failed:** Documentation consistency and auditability; no runtime or financial-safety behavior was implicated.
+- **Rule update made in RULES.md:** None. Existing rules require correction history and consistent, evidence-backed documentation.
+- **Code/docs/tests changed:** `REVIEWS.md` only; no application code or tests changed.
+- **Regression/real-use check added:** Check that every `REV-NNN` heading is unique after future history merges.
+- **Verification result:** Programmatic heading scan confirmed the five duplicate IDs before correction; post-update scan and PR CI should confirm uniqueness and document-only diff.
+- **Remaining risk:** This documentation-only correction does not change or verify runtime behavior, venue connectivity, or live readiness.
