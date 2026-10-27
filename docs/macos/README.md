@@ -37,6 +37,7 @@ Create the environment file with a text editor. Do not put secrets directly in s
 
 The file is shell-format configuration sourced by the launch wrapper. Quote values correctly. Set only approved values, including:
 
+- QUANTOS_REPOSITORY_COMMIT set to the exact deployed 40- or 64-character Git commit SHA.
 - MT5_TERMINAL_PROVIDER to the reviewed provider in module:function form.
 - MT5_TERMINAL_PATH, MT5_LOGIN, MT5_PASSWORD, MT5_SERVER, MT5_ACCOUNT_ID, MT5_TERMINAL_ID, MT5_SYMBOLS, and MT5_EXPECTED_ACCOUNT_CURRENCY.
 - MT5_BRIDGE_HOST=127.0.0.1, MT5_BRIDGE_PORT=9443, MT5_BRIDGE_SERVER_NAME, MT5_BRIDGE_CA_FILE, MT5_BRIDGE_CLIENT_CERT, MT5_BRIDGE_CLIENT_KEY, and an absolute MT5_SEQUENCE_FILE path.
