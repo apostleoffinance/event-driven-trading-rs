@@ -9,6 +9,7 @@ use execution_engine::NewOrderRequest;
 use risk_engine::{InstrumentSizingContext, InstrumentSizingOutcome, LossModel, RiskEvaluator};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
+use tokio::sync::RwLock;
 use venue_connectors::{submit_approved_order, VenueAdapter};
 
 use crate::error::RuntimeResult;
@@ -40,7 +41,11 @@ pub struct RuntimeInstrumentSizingContext {
 
 impl RuntimeInstrumentSizingContext {
     fn is_fresh_at(&self, now: DateTime<Utc>) -> bool {
-        if self.source_id.trim().is_empty() || self.max_age_seconds <= 0 || self.captured_at > now {
+        if self.source_id.trim().is_empty()
+            || self.max_age_seconds <= 0
+            || self.captured_at > now
+            || !self.sizing.inputs_fresh
+        {
             return false;
         }
         now.signed_duration_since(self.captured_at)
@@ -58,6 +63,69 @@ pub trait InstrumentSizingSnapshotProvider: Send + Sync {
         account_id: &AccountId,
         instrument_id: &InstrumentId,
     ) -> RuntimeResult<RuntimeInstrumentSizingContext>;
+}
+
+/// Runtime-owned cache for validated account/instrument sizing snapshots.
+/// Venue and market-data adapters publish snapshots here; execution reads only
+/// the latest snapshot and rejects missing, stale, or out-of-order data.
+#[derive(Debug, Default)]
+pub struct InstrumentSizingSnapshotCache {
+    snapshots: RwLock<HashMap<(AccountId, InstrumentId), RuntimeInstrumentSizingContext>>,
+}
+
+impl InstrumentSizingSnapshotCache {
+    pub async fn publish_snapshot(
+        &self,
+        snapshot: RuntimeInstrumentSizingContext,
+    ) -> RuntimeResult<()> {
+        if !snapshot.is_fresh_at(Utc::now()) {
+            return Err(crate::RuntimeError::Invariant(
+                "refusing to cache invalid or stale instrument sizing snapshot".to_string(),
+            ));
+        }
+        let key = (snapshot.account_id.clone(), snapshot.instrument_id.clone());
+        let mut snapshots = self.snapshots.write().await;
+        if let Some(existing) = snapshots.get(&key) {
+            if snapshot.captured_at < existing.captured_at {
+                return Err(crate::RuntimeError::Invariant(
+                    "refusing to replace a newer sizing snapshot with older data".to_string(),
+                ));
+            }
+            if snapshot.captured_at == existing.captured_at && snapshot != *existing {
+                return Err(crate::RuntimeError::Invariant(
+                    "conflicting sizing snapshots share the same capture timestamp".to_string(),
+                ));
+            }
+        }
+        snapshots.insert(key, snapshot);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl InstrumentSizingSnapshotProvider for InstrumentSizingSnapshotCache {
+    async fn load_snapshot(
+        &self,
+        account_id: &AccountId,
+        instrument_id: &InstrumentId,
+    ) -> RuntimeResult<RuntimeInstrumentSizingContext> {
+        let key = (account_id.clone(), instrument_id.clone());
+        let snapshot = self
+            .snapshots
+            .read()
+            .await
+            .get(&key)
+            .cloned()
+            .ok_or_else(|| crate::RuntimeError::Invariant(
+                "no instrument sizing snapshot available for account/instrument".to_string(),
+            ))?;
+        if !snapshot.is_fresh_at(Utc::now()) {
+            return Err(crate::RuntimeError::Invariant(
+                "cached instrument sizing snapshot is stale".to_string(),
+            ));
+        }
+        Ok(snapshot)
+    }
 }
 
 impl TradingRuntime {
@@ -489,6 +557,35 @@ mod sizing_snapshot_tests {
         unknown_source.source_id = "  ".to_string();
         assert!(!unknown_source.is_fresh_at(now));
     }
+    #[tokio::test]
+    async fn cache_rejects_stale_and_out_of_order_snapshots() {
+        let now = Utc::now();
+        let cache = InstrumentSizingSnapshotCache::default();
+        let mut fresh = snapshot(now);
+        fresh.max_age_seconds = 60;
+        cache.publish_snapshot(fresh.clone()).await.unwrap();
+
+        let mut older = fresh.clone();
+        older.captured_at = now - Duration::seconds(1);
+        assert!(cache.publish_snapshot(older).await.is_err());
+
+        let mut stale = fresh;
+        stale.captured_at = now - Duration::seconds(120);
+        assert!(cache.publish_snapshot(stale).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn cache_load_fails_closed_for_missing_instrument() {
+        let cache = InstrumentSizingSnapshotCache::default();
+        let result = cache
+            .load_snapshot(
+                &AccountId::new("account-a").unwrap(),
+                &InstrumentId::new("ETHUSDT").unwrap(),
+            )
+            .await;
+        assert!(result.is_err());
+    }
+
 }
 
 fn optional_decimal(value: Option<Decimal>) -> Option<String> {
