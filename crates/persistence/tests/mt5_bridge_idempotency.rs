@@ -369,7 +369,6 @@ async fn reconciliation_snapshot_rejects_incomplete_external_state(pool: PgPool)
         .is_err());
 }
 
-
 #[sqlx::test(migrations = "../../migrations")]
 async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: PgPool) {
     use chrono::Utc;
@@ -406,16 +405,19 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
         }]
     });
 
-    store.persist_mt5_market_data_snapshot(
-        "account-market-01",
-        "terminal-market-01",
-        "broker-demo",
-        12,
-        "mt5_python_readonly_v1",
-        "USD",
-        captured_at,
-        snapshot.clone(),
-    ).await.unwrap();
+    store
+        .persist_mt5_market_data_snapshot(
+            "account-market-01",
+            "terminal-market-01",
+            "broker-demo",
+            12,
+            "mt5_python_readonly_v1",
+            "USD",
+            captured_at,
+            snapshot.clone(),
+        )
+        .await
+        .unwrap();
 
     let persisted = sqlx::query_scalar::<_, Json<serde_json::Value>>(
         "SELECT snapshot FROM mt5_bridge_market_data_snapshots WHERE account_id = $1 AND terminal_id = $2 ORDER BY id DESC LIMIT 1",
@@ -427,7 +429,10 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
     .unwrap();
     assert_eq!(persisted.0, snapshot);
     assert_eq!(
-        store.mt5_stream_readiness("account-market-01", "terminal-market-01").await.unwrap(),
+        store
+            .mt5_stream_readiness("account-market-01", "terminal-market-01")
+            .await
+            .unwrap(),
         Mt5StreamReadiness::Unknown
     );
 
@@ -441,14 +446,17 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
         "instruments": [],
         "quotes": []
     });
-    assert!(store.persist_mt5_market_data_snapshot(
-        "account-market-01",
-        "terminal-market-01",
-        "broker-demo",
-        13,
-        "mt5_python_readonly_v1",
-        "USD",
-        captured_at,
-        invalid,
-    ).await.is_err());
+    assert!(store
+        .persist_mt5_market_data_snapshot(
+            "account-market-01",
+            "terminal-market-01",
+            "broker-demo",
+            13,
+            "mt5_python_readonly_v1",
+            "USD",
+            captured_at,
+            invalid,
+        )
+        .await
+        .is_err());
 }
