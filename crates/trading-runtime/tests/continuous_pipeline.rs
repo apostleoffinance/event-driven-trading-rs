@@ -10,7 +10,7 @@ use domain::{
 };
 use events::{event_channel, MarketDataEvent, TradingEvent};
 use mean_reversion::{MeanReversionConfig, MeanReversionStrategy};
-use risk_engine::{InstrumentSizingContext, LossModel, SizingRejectReason};
+use risk_engine::{InstrumentSizingContext, LossModel};
 use rust_decimal::Decimal;
 use strategy_runtime::StrategyContext;
 use trading_runtime::{RuntimeConfig, TradingRuntime};
