@@ -240,9 +240,11 @@ impl AuthenticatedMt5Connection {
     /// a blocked read alone cannot detect a silent peer.
     pub fn check_heartbeat_fresh(&mut self, now: DateTime<Utc>) -> BridgeResult<()> {
         let fresh = self.last_heartbeat_at.is_some_and(|last| {
-            now.signed_duration_since(last)
-                <= Duration::from_std(self.limits.heartbeat_timeout)
-                    .unwrap_or_else(|_| Duration::zero())
+            let age = now.signed_duration_since(last);
+            age >= Duration::zero()
+                && age
+                    <= Duration::from_std(self.limits.heartbeat_timeout)
+                        .unwrap_or_else(|_| Duration::zero())
         });
         if !fresh {
             self.failed = true;
@@ -293,9 +295,13 @@ impl AuthenticatedMt5Connection {
                     "MT5 authenticated transport closed".into(),
                 ));
             }
-            let frames = self
-                .decoder
-                .push(&chunk[..count], now, allowed_clock_skew)?;
+            let frames = match self.decoder.push(&chunk[..count], now, allowed_clock_skew) {
+                Ok(frames) => frames,
+                Err(error) => {
+                    self.failed = true;
+                    return Err(error);
+                }
+            };
             self.pending_frames.extend(frames);
         }
     }
@@ -320,18 +326,27 @@ impl AuthenticatedMt5Connection {
                 "MT5 outbound frame exceeds configured size limit".into(),
             ));
         }
-        self.stream
-            .write_all(&encoded)
-            .await
-            .map_err(|_| BridgeError::Invalid("MT5 authenticated transport write failed".into()))?;
-        self.stream
-            .write_all(b"\n")
-            .await
-            .map_err(|_| BridgeError::Invalid("MT5 authenticated transport write failed".into()))?;
-        self.stream
-            .flush()
-            .await
-            .map_err(|_| BridgeError::Invalid("MT5 authenticated transport flush failed".into()))
+        match timeout(self.limits.io_timeout, async {
+            self.stream.write_all(&encoded).await?;
+            self.stream.write_all(b"\\n").await?;
+            self.stream.flush().await
+        })
+        .await
+        {
+            Err(_) => {
+                self.failed = true;
+                Err(BridgeError::Invalid(
+                    "MT5 authenticated transport write timed out".into(),
+                ))
+            }
+            Ok(Err(_)) => {
+                self.failed = true;
+                Err(BridgeError::Invalid(
+                    "MT5 authenticated transport write failed".into(),
+                ))
+            }
+            Ok(Ok(())) => Ok(()),
+        }
     }
 
     fn validate_frame_identity(&mut self, frame: &BridgeFrame, received_at: DateTime<Utc>) -> BridgeResult<()> {
