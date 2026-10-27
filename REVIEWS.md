@@ -80,3 +80,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Re-run CI so formatting, workspace compile, tests, and Clippy can execute sequentially.
 - **Verification result:** Format-only edits were committed to branch `audit/qos-002-rust-checks`; post-fix CI result is pending.
 - **Remaining risk:** Compilation, workspace tests, and Clippy have not yet run successfully or been verified. No live trading or money movement enabled.
+
+
+## REV-005 — QOS-002 CI verification passed after format correction
+- **Date:** 2026-10-27
+- **Context:** Follow-up to REV-004, PR #3 latest-head CI run 40425656667.
+- **Finding/correction:** Formatting-only corrections resolved the initial `cargo fmt --all -- --check` failure. The subsequent complete Rust and frontend CI jobs succeeded.
+- **Impact:** First automated evidence now exists for the current PR head, including compilation, tests, and linting. This does not prove live-venue readiness or financial correctness beyond the covered checks.
+- **Evidence:** GitHub Actions run https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40425656667 completed with conclusion `success`. The Rust job reports success for `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets`. The frontend job reports success for `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build`.
+- **Rule that failed:** No safety rule failed. The initial formatting mismatch was corrected under REV-004.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Format-only edits in the five Rust files listed in REV-004; task/progress/review records updated. CI workflow unchanged.
+- **Regression/real-use check added:** CI workflow continues to run the Rust and frontend baseline commands on PRs to main and pushes to main.
+- **Verification result:** Both CI jobs passed on the latest PR head `2786b355cd08c4d9fc61dc4653c583646d4f00ae`, run 40425656667. QOS-002 acceptance criteria met by GitHub Actions evidence.
+- **Remaining risk:** CI passing is not proof of production safety, venue integrations, live execution, or money movement readiness. PR #3 has not been merged.
