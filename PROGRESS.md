@@ -209,4 +209,5 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Dispatch is blocked unless safe capabilities are declared, the connection is connected, durable stream readiness is ready, and explicit reconciliation has been confirmed.
 - Submit/cancel gates check account binding and declared order/cancel capabilities; they do not replace risk authorization or OMS lifecycle checks.
 - Unit tests cover fresh/gapped streams, disconnect/reconnect, account switching, non-allow-listed identities, missing capabilities, and allowed submit/cancel frames.
+- CI run `40453466375` passed on head `36c233fcf3274191dce9bcb15d5b9bd97a078541`: Rust format/check/test/Clippy and frontend lint/typecheck/build.
 - This module expects the future transport to authenticate the peer before constructing a session. It does not implement authentication, sockets, an MT5 Expert Advisor, broker mapping, or live execution.
