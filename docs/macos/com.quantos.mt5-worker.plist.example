@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.quantos.mt5-worker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/REPLACE_WITH_ABSOLUTE_REPO_PATH/adapters/mt5-python/scripts/mt5-macos-launch-wrapper.sh</string>
+    <string>/REPLACE_WITH_ABSOLUTE_REPO_PATH/adapters/mt5-python/.venv/bin/python</string>
+    <string>-m</string>
+    <string>mt5_adapter.worker</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/REPLACE_WITH_ABSOLUTE_REPO_PATH/adapters/mt5-python</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>QUANTOS_ENV_FILE</key>
+    <string>/REPLACE_WITH_ABSOLUTE_PROTECTED_PATH/quantos.env</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/REPLACE_WITH_ABSOLUTE_PROTECTED_PATH/logs/mt5-worker.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>/REPLACE_WITH_ABSOLUTE_PROTECTED_PATH/logs/mt5-worker.stderr.log</string>
+</dict>
+</plist>
