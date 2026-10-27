@@ -584,3 +584,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/verification:** Added tests for principal configuration validation and certificate fingerprint hashing. CI is required for compilation, formatting, workspace tests and Clippy. End-to-end certificate/handshake, wrong-certificate, identity-mismatch, timeout and reconnect tests remain required.
 - **Verification result:** Pending latest-head CI at time of entry.
 - **Remaining risk:** No MT5 EA/client, broker mapping, protected runtime credential rotation, listener timeouts/resource limits, durable dispatch wiring, reconciliation integration, or live trading.
+
+
+## REV-047 — Rust formatting check caught transport style drift
+
+- **Date:** 2026-10-27
+- **Context:** CI verification for QOS-014 authenticated transport PR #22.
+- **Finding:** The first CI run on the transport implementation failed at `cargo fmt --all -- --check`; the new transport module had formatting differences.
+- **Impact:** The patch could not pass the repository's mandatory format gate.
+- **Evidence:** GitHub Actions run `40455353695`, Rust job `122027289328`, reported diffs in `crates/intent-bridge/src/mt5_transport.rs`.
+- **Rule:** All code changes must pass repository formatting before being treated as verified.
+- **Artifacts:** Applied the formatting corrections in `crates/intent-bridge/src/mt5_transport.rs` on branch `feat/qos-014-authenticated-transport`.
+- **Regression/verification:** A new CI run `40455460153` is queued for head `037c678b9a4a22047233b5757b7621e7df543025`; success is not yet confirmed.
+- **Verification result:** Formatting correction committed; latest-head CI pending.
+- **Remaining risk:** Compile/API compatibility and tests still need to pass on the latest head.
