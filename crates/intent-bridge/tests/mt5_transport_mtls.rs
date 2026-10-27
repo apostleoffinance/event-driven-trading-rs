@@ -445,7 +445,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     };
 
     let responder = tokio::spawn(async move {
-        async {
+        let result: Result<(), Box<dyn Error + Send + Sync>> = async {
             let mut bytes = Vec::new();
             loop {
                 let mut byte = [0_u8; 1];
@@ -498,9 +498,10 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
             encoded.push(b'\\n');
             client.write_all(&encoded).await?;
             client.flush().await?;
-            Ok::<(), Box<dyn Error + Send + Sync>>(())
+            Ok(())
         }
-        .await
+        .await;
+        result
     });
 
     assert_eq!(
