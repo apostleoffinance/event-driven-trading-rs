@@ -368,7 +368,7 @@ pub fn size_order_instrument_aware(
             SizingLimitReason::LeverageLimit
         } else if max_by_margin.is_some_and(|cap| {
             cap <= max_by_position && cap <= max_by_exposure && cap <= max_by_leverage
-        })
+        }) {
             SizingLimitReason::MarginLimit
         } else if context
             .max_quantity
