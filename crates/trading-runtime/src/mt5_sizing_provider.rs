@@ -18,6 +18,8 @@ use crate::{
 /// Dynamic account/instrument inputs that are not part of an MT5 market-data frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mt5SizingSupplementSnapshot {
+    pub account_id: AccountId,
+    pub instrument_id: InstrumentId,
     pub inputs: Mt5SizingSupplement,
     pub captured_at: DateTime<Utc>,
     pub max_age_seconds: i64,
@@ -151,6 +153,11 @@ impl Mt5PersistedSizingProvider {
             .load_supplement(account_id, instrument_id)
             .await?;
         let now = Utc::now();
+        if supplement.account_id != *account_id || supplement.instrument_id != *instrument_id {
+            return Err(RuntimeError::Invariant(
+                "trusted sizing supplement account/instrument identity mismatch".into(),
+            ));
+        }
         if supplement.max_age_seconds <= 0 || supplement.captured_at > now {
             return Err(RuntimeError::Invariant(
                 "trusted MT5 sizing supplement has invalid freshness metadata".into(),
