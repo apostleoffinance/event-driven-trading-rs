@@ -15,6 +15,8 @@ class ConformanceOperatorKitTests(unittest.TestCase):
             "MT5_BRIDGE_CLIENT_CERT", "MT5_BRIDGE_CLIENT_KEY",
             "MT5_BRIDGE_SERVER_CERT", "MT5_BRIDGE_SERVER_KEY",
             "MT5_BRIDGE_PRINCIPAL_SHA256", "load_cert_chain",
+            "Test-CertificateChainAndRevocation", "certutil.exe", "-verify -urlfetch",
+            "client private-key parent directory", "server private-key parent directory",
             "not_after_utc", "Everyone", "NT AUTHORITY\\Authenticated Users",
             "BUILTIN\\Users", "ExpectedServiceIdentity",
             "client private-key parent directory", "server private-key parent directory",
