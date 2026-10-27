@@ -221,3 +221,10 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - The permit's outcome method validates account, correlation ID, client-order ID and timestamps before persisting accepted/rejected/unknown state. Ambiguous transport failure is persisted as unknown, consumes the permit, and degrades the session. Failure to persist a possible venue outcome also degrades the session.
 - Added unit tests for outcome identity binding and state mapping. GitHub Actions run `40454050187` passed on implementation head `80e74f7acf2786065800b5fa075a0216a8b965c9`: Rust formatting, workspace check/tests, all-target Clippy, frontend lint, TypeScript typecheck and production build. A final run is required after verification-document updates.
 - This is not an actual MT5 transport, and no socket, EA, broker mapping, live order submission, or deployment is enabled.
+
+
+## Work log — QOS-014 authenticated transport security contract (2026-10-27)
+
+- Verified PR #20 is merged at merge commit `3de8c7abd10cfe72b987d8f567ae5ce10864a4a1`.
+- Added `docs/MT5_TRANSPORT_SECURITY.md` to define the security requirements the concrete transport must satisfy before a session gate can be created: authenticated peer identity, confidentiality/integrity, host-managed principal-to-terminal/account mapping, bounded framing/resources, replay resistance, secret redaction, credential rotation/revocation, and fail-closed reconnect/reconciliation.
+- This is a documentation-only contract slice. It does not claim authenticated transport, socket/EA implementation, broker compatibility, or live execution. No executable tests are applicable to the document itself; the next transport code change must add the listed deterministic authentication and reconnect tests and pass full CI.
