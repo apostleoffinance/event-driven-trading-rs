@@ -1,0 +1,1 @@
+{"schema_version":1,"message_id":"msg-0001","correlation_id":"corr-0001","account_id":"paper-account-001","sent_at":"2026-10-27T12:00:00Z","payload":{"type":"submit_order","client_order_id":"co-0001","instrument_id":"EURUSD.a","side":"buy","order_type":"market","quantity":"0.01","price":null,"stop_loss":"1.08000","take_profit":"1.09000","time_in_force":"day"}}
