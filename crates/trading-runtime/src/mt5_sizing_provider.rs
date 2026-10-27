@@ -102,13 +102,12 @@ impl Mt5PersistedSizingProvider {
         let binding = self.bindings.get(instrument_id.as_str()).ok_or_else(|| {
             RuntimeError::Invariant("no explicit MT5 symbol mapping for instrument".into())
         })?;
-        let record = mt5_market_data::load_latest(
-            self.store.pool(),
-            account_id.as_str(),
-            &self.terminal_id,
-        )
-        .await?
-        .ok_or_else(|| RuntimeError::Invariant("no persisted MT5 market snapshot".into()))?;
+        let record =
+            mt5_market_data::load_latest(self.store.pool(), account_id.as_str(), &self.terminal_id)
+                .await?
+                .ok_or_else(|| {
+                    RuntimeError::Invariant("no persisted MT5 market snapshot".into())
+                })?;
         if record.server != self.expected_server
             || record.account_currency != self.expected_account_currency
             || record.snapshot.get("sequence").and_then(serde_json::Value::as_u64)
@@ -146,7 +145,9 @@ impl Mt5PersistedSizingProvider {
         )
         .map_err(|error| RuntimeError::Invariant(format!("MT5 sizing data rejected: {error}")))?;
 
-        if prepared.sequence != record.sequence || prepared.snapshot_captured_at != record.captured_at {
+        if prepared.sequence != record.sequence
+            || prepared.snapshot_captured_at != record.captured_at
+        {
             return Err(RuntimeError::Invariant(
                 "prepared MT5 sizing metadata does not match persisted record".into(),
             ));
@@ -175,7 +176,8 @@ impl InstrumentSizingSnapshotProvider for Mt5PersistedSizingProvider {
         account_id: &AccountId,
         instrument_id: &InstrumentId,
     ) -> RuntimeResult<RuntimeInstrumentSizingContext> {
-        self.load_for_side(account_id, instrument_id, OrderSide::Buy).await
+        self.load_for_side(account_id, instrument_id, OrderSide::Buy)
+            .await
     }
 
     async fn load_snapshot_for_side(
