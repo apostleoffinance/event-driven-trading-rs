@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import socket
+import ssl
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -40,7 +40,7 @@ def parse_time(value: Any, field: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def latest_persisted_state(config: Config) -> dict[str, Any]:
+def latest_persisted_state(config: Config, timeout_seconds: int = 20) -> dict[str, Any]:
     database_url = os.environ.get("DATABASE_URL", "")
     if not database_url or database_url.strip() != database_url:
         raise AdapterError("DATABASE_URL is required for persisted snapshot verification")
@@ -87,7 +87,7 @@ FROM market CROSS JOIN reconciliation CROSS JOIN recent;
             capture_output=True,
             text=True,
             env=env,
-            timeout=20,
+            timeout=max(5, min(timeout_seconds, 60)),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise AdapterError("unable to query persisted MT5 snapshots using psql") from exc
@@ -110,9 +110,9 @@ def verify_tls_configuration(config: Config) -> None:
     # streaming. The live worker's authenticated persisted snapshots are the
     # end-to-end connectivity evidence; this check validates local TLS settings.
     context = tls_context(config)
-    if context.minimum_version != __import__("ssl").TLSVersion.TLSv1_3:
+    if context.minimum_version != ssl.TLSVersion.TLSv1_3:
         raise AdapterError("client TLS minimum version is not TLS 1.3")
-    if context.maximum_version != __import__("ssl").TLSVersion.TLSv1_3:
+    if context.maximum_version != ssl.TLSVersion.TLSv1_3:
         raise AdapterError("client TLS maximum version is not TLS 1.3")
 
 
@@ -157,7 +157,7 @@ def smoke(timeout_seconds: int) -> dict[str, Any]:
         market = build_market_data_snapshot(config, read_only_terminal, 1)
         reconciliation = build_snapshot(config, read_only_terminal, constants, 1)
         verify_tls_configuration(config)
-        persisted = latest_persisted_state(config)
+        persisted = latest_persisted_state(config, timeout_seconds)
 
         now = datetime.now(timezone.utc)
         market_at = parse_time(persisted["market_captured_at"], "market_captured_at")
