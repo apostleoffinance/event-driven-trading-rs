@@ -266,7 +266,7 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 
 ## Work log — QOS-014 runtime, transport conformance and recovery integration (2026-10-27)
 
-- Opened PR #26: https://github.com/apostleoffinance/event-driven-trading-rs/pull/26. The PR remains open and unmerged; no live trading is enabled.
+- PR #26 merged on 2026-10-27 at `3f7c3a213e7777ccae2f723aca01d496afac2ab6`; no live trading is enabled.
 - Added generated-certificate end-to-end mTLS tests for a trusted peer, an untrusted client certificate, a trusted certificate with a mismatched fingerprint, and heartbeat identity mismatches for terminal/server/account.
 - Added `spawn_heartbeat_watchdog`, which runs on a Tokio interval, poisons the transport on missing/expired/future heartbeat, degrades the session, and marks the known durable stream degraded. Added an integration test with a short heartbeat deadline.
 - Added `read_frame_with_session_checkpoint`: heartbeat identity is checked before durable writes; then the sequence is persisted and the session gate consumes the durable observation/readiness result. Transport/runtime errors degrade the session and durable stream.
