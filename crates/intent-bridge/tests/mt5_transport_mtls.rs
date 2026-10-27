@@ -509,9 +509,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
             .await?,
         Mt5RuntimeDispatchResult::OutcomePersisted
     );
-    responder
-        .await?
-        .map_err(|error| -> Box<dyn Error> { error })?;
+    responder.await?.map_err(|error| -> Box<dyn Error> { error })?;
 
     let replay = store
         .claim_mt5_order(
