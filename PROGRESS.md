@@ -247,3 +247,12 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added `check_heartbeat_fresh` to fail closed when the configured heartbeat age is exceeded. This is a watchdog API, not a background timer: the host runtime must call it regularly and must degrade the associated session/reconciliation state when it fails.
 - Added unit tests for zero/invalid timeout and connection-capacity settings. Existing NDJSON frame size limit and exact certificate fingerprint allow-list remain in force.
 - Verification is pending the current branch CI run. No local execution is claimed. End-to-end TLS certificate fixtures/handshake tests, client identity mismatch tests, automatic watchdog orchestration, dispatch/reconciliation wiring, MT5 EA conformance and restart integration remain open; no live trading is enabled.
+
+
+## Work log — QOS-014 transport conformance follow-up (2026-10-27)
+
+- PR #23 is merged at `7b47069623bb55d2994298d1e8eb9573f964bdb4`; merge-commit CI run `40457087734` passed both Rust and frontend jobs.
+- Code review after merge found the outbound writer encoded a literal backslash-plus-n sequence instead of an actual LF byte, despite inbound framing being NDJSON. This follow-up centralizes frame encoding in `encode_frame_line`, appends exactly one LF delimiter, and tests the exact delimiter plus JSON round-trip.
+- Added deterministic heartbeat freshness tests for the timeout boundary, expired heartbeat and future timestamps. A truncated/incomplete EOF now poisons the connection before returning an error.
+- Verification for this follow-up is pending CI on the current PR head. No local test execution is claimed.
+- Still not complete: test-certificate TLS integration tests for trusted/untrusted/mismatched peers; runtime heartbeat watchdog scheduling and session degradation; durable dispatch and sequence/reconciliation orchestration; actual MT5 EA/client conformance; protected credential loading/rotation; end-to-end restart recovery. No live broker is connected and no live trading is enabled.
