@@ -447,57 +447,57 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     let responder = tokio::spawn(async move {
         async {
             let mut bytes = Vec::new();
-        loop {
-            let mut byte = [0_u8; 1];
-            let count = client.read(&mut byte).await?;
-            if count == 0 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof,
-                    "transport closed before submit frame",
-                )
-                .into());
+            loop {
+                let mut byte = [0_u8; 1];
+                let count = client.read(&mut byte).await?;
+                if count == 0 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "transport closed before submit frame",
+                    )
+                    .into());
+                }
+                if byte[0] == b'\\n' {
+                    break;
+                }
+                bytes.push(byte[0]);
+                if bytes.len() > intent_bridge::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "submit frame exceeded test limit",
+                    )
+                    .into());
+                }
             }
-            if byte[0] == b'\n' {
-                break;
-            }
-            bytes.push(byte[0]);
-            if bytes.len() > intent_bridge::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "submit frame exceeded test limit",
-                )
-                .into());
-            }
-        }
-        let received: BridgeFrame = serde_json::from_slice(&bytes)?;
-        let client_order_id = match &received.payload {
-            BridgePayload::SubmitOrder(order) => order.client_order_id.clone(),
-            _ => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "expected submit_order frame",
-                )
-                .into());
-            }
-        };
-        let response = BridgeFrame {
-            schema_version: MT5_BRIDGE_SCHEMA_VERSION,
-            message_id: "submit-outcome-1".into(),
-            correlation_id: received.correlation_id,
-            account_id: received.account_id,
-            sent_at: Utc::now(),
-            payload: BridgePayload::SubmitOutcome(SubmitOutcome {
-                client_order_id,
-                outcome: SubmitState::Accepted,
-                venue_order_id: Some("broker-ticket-9001".into()),
-                reason_code: None,
-                observed_at: Utc::now(),
-            }),
-        };
-        let mut encoded = serde_json::to_vec(&response)?;
-        encoded.push(b'\n');
-        client.write_all(&encoded).await?;
-        client.flush().await?;
+            let received: BridgeFrame = serde_json::from_slice(&bytes)?;
+            let client_order_id = match &received.payload {
+                BridgePayload::SubmitOrder(order) => order.client_order_id.clone(),
+                _ => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "expected submit_order frame",
+                    )
+                    .into());
+                }
+            };
+            let response = BridgeFrame {
+                schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+                message_id: "submit-outcome-1".into(),
+                correlation_id: received.correlation_id,
+                account_id: received.account_id,
+                sent_at: Utc::now(),
+                payload: BridgePayload::SubmitOutcome(SubmitOutcome {
+                    client_order_id,
+                    outcome: SubmitState::Accepted,
+                    venue_order_id: Some("broker-ticket-9001".into()),
+                    reason_code: None,
+                    observed_at: Utc::now(),
+                }),
+            };
+            let mut encoded = serde_json::to_vec(&response)?;
+            encoded.push(b'\\n');
+            client.write_all(&encoded).await?;
+            client.flush().await?;
             Ok::<(), Box<dyn Error + Send + Sync>>(())
         }
         .await
