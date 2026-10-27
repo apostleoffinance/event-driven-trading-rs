@@ -361,7 +361,9 @@ pub async fn persist_reconciliation_snapshot(
     snapshot: Value,
 ) -> PersistenceResult<()> {
     let sequence = i64::try_from(sequence).map_err(|_| {
-        PersistenceError::Other("MT5 reconciliation sequence exceeds PostgreSQL BIGINT range".into())
+        PersistenceError::Other(
+            "MT5 reconciliation sequence exceeds PostgreSQL BIGINT range".into(),
+        )
     })?;
     if account_id.trim().is_empty()
         || terminal_id.trim().is_empty()
