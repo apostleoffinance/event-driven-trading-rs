@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
@@ -68,6 +69,7 @@ pub struct Mt5TransportLimits {
     pub handshake_timeout: StdDuration,
     pub io_timeout: StdDuration,
     pub heartbeat_timeout: StdDuration,
+    pub max_concurrent_connections: usize,
 }
 
 impl Default for Mt5TransportLimits {
@@ -76,6 +78,7 @@ impl Default for Mt5TransportLimits {
             handshake_timeout: StdDuration::from_secs(5),
             io_timeout: StdDuration::from_secs(15),
             heartbeat_timeout: StdDuration::from_secs(30),
+            max_concurrent_connections: 64,
         }
     }
 }
@@ -85,6 +88,7 @@ impl Mt5TransportLimits {
         if self.handshake_timeout.is_zero()
             || self.io_timeout.is_zero()
             || self.heartbeat_timeout.is_zero()
+            || self.max_concurrent_connections == 0
         {
             return Err(BridgeError::Invalid(
                 "MT5 transport timeouts must be positive".into(),
@@ -99,6 +103,7 @@ pub struct Mt5TransportConfig {
     acceptor: TlsAcceptor,
     principals: BTreeMap<String, Mt5TransportPrincipal>,
     limits: Mt5TransportLimits,
+    connection_slots: Arc<Semaphore>,
 }
 
 impl Mt5TransportConfig {
@@ -158,12 +163,15 @@ impl Mt5TransportConfig {
             acceptor: TlsAcceptor::from(Arc::new(tls_config)),
             principals: mapped,
             limits: Mt5TransportLimits::default(),
+            connection_slots: Arc::new(Semaphore::new(64)),
         })
     }
 
     /// Replace runtime bounds with validated, non-zero limits.
     pub fn with_limits(mut self, limits: Mt5TransportLimits) -> BridgeResult<Self> {
-        self.limits = limits.validate()?;
+        let limits = limits.validate()?;
+        self.connection_slots = Arc::new(Semaphore::new(limits.max_concurrent_connections));
+        self.limits = limits;
         Ok(self)
     }
 
@@ -190,6 +198,9 @@ impl Mt5TransportConfig {
         &self,
         stream: TcpStream,
     ) -> BridgeResult<AuthenticatedMt5Connection> {
+        let connection_slot = self.connection_slots.clone().try_acquire_owned().map_err(|_| {
+            BridgeError::Invalid("MT5 transport connection capacity exhausted".into())
+        })?;
         let tls_stream = timeout(self.limits.handshake_timeout, self.acceptor.accept(stream))
             .await
             .map_err(|_| BridgeError::Invalid("MT5 mutual-TLS handshake timed out".into()))?
@@ -214,6 +225,7 @@ impl Mt5TransportConfig {
             heartbeat_seen: false,
             last_heartbeat_at: None,
             limits: self.limits,
+            _connection_slot: connection_slot,
             failed: false,
         })
     }
@@ -227,6 +239,7 @@ pub struct AuthenticatedMt5Connection {
     heartbeat_seen: bool,
     last_heartbeat_at: Option<DateTime<Utc>>,
     limits: Mt5TransportLimits,
+    _connection_slot: OwnedSemaphorePermit,
     failed: bool,
 }
 
