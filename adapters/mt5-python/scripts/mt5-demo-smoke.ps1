@@ -175,13 +175,13 @@ SELECT json_build_object(
   'market_sequence', m.sequence,
   'market_server', m.server,
   'account_currency', m.account_currency,
-  'symbols', (SELECT COALESCE(json_agg(i->>'symbol' ORDER BY i->>'symbol'), '[]'::json)
-              FROM jsonb_array_elements(m.snapshot->'instruments') AS i),
+  'symbols', (SELECT COALESCE(json_agg(value->>'symbol' ORDER BY value->>'symbol'), '[]'::json)
+              FROM jsonb_array_elements(m.snapshot->'instruments') AS instrument(value)),
   'quotes_fresh', (SELECT COALESCE(bool_and(
-      EXTRACT(EPOCH FROM (NOW() - (q->>'tick_time')::timestamptz)) BETWEEN -5 AND 60
-      AND (q->>'bid')::numeric > 0
-      AND (q->>'ask')::numeric >= (q->>'bid')::numeric
-    ), false) FROM jsonb_array_elements(m.snapshot->'quotes') AS q)
+      EXTRACT(EPOCH FROM (NOW() - (value->>'tick_time')::timestamptz)) BETWEEN -5 AND 60
+      AND (value->>'bid')::numeric > 0
+      AND (value->>'ask')::numeric >= (q->>'bid')::numeric
+    ), false) FROM jsonb_array_elements(m.snapshot->'quotes') AS quote(value))
   ,
   'reconciliation_age_seconds', EXTRACT(EPOCH FROM (NOW() - r.captured_at)),
   'reconciliation_sequence', r.reconciled_sequence
