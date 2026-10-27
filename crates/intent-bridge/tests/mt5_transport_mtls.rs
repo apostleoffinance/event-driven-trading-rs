@@ -16,11 +16,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
-use intent_bridge::mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
 use intent_bridge::mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
     Mt5PositionSnapshot, Mt5ReconciliationSnapshot,
 };
+use intent_bridge::mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
 use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 use intent_bridge::mt5_transport::{
     spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
@@ -261,7 +261,8 @@ async fn trusted_certificate_with_wrong_fingerprint_is_rejected() -> Result<(), 
 }
 
 #[tokio::test]
-async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>> {
+async fn terminal_server_and_account_identity_mismatches_fail_closed() -> Result<(), Box<dyn Error>>
+{
     let pki = make_pki()?;
     for frame in [
         heartbeat_frame("account-001", "other-terminal", "broker-demo"),
@@ -367,12 +368,7 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
     let store = TradingStore::new(pool.clone());
     let policy = Mt5SessionPolicy::new(["account-001"])?;
     let session = Mt5SessionGate::after_transport_authentication(policy);
-    let runtime = Mt5BridgeRuntime::new(
-        store.clone(),
-        server,
-        session,
-        StdDuration::from_secs(1),
-    )?;
+    let runtime = Mt5BridgeRuntime::new(store.clone(), server, session, StdDuration::from_secs(1))?;
 
     write_frame(
         &mut client,
