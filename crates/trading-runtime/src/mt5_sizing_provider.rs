@@ -190,7 +190,7 @@ impl Mt5PersistedSizingProvider {
         let captured_at = prepared
             .snapshot_captured_at
             .clone()
-            .min(prepared.quote_time.clone())
+            .min(prepared.oldest_quote_time.clone())
             .min(supplement.captured_at);
 
         Ok(RuntimeInstrumentSizingContext {
