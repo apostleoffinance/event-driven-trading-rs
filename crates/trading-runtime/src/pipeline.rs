@@ -409,3 +409,56 @@ impl TradingRuntime {
         Ok(())
     }
 }
+
+
+#[cfg(test)]
+mod sizing_snapshot_tests {
+    use super::*;
+    use chrono::Duration;
+    use rust_decimal::Decimal;
+    use risk_engine::LossModel;
+
+    fn snapshot(now: DateTime<Utc>) -> RuntimeInstrumentSizingContext {
+        RuntimeInstrumentSizingContext {
+            account_id: AccountId::new("account-a").unwrap(),
+            instrument_id: InstrumentId::new("BTCUSDT").unwrap(),
+            source_id: "test-provider".to_string(),
+            captured_at: now,
+            max_age_seconds: 10,
+            sizing: InstrumentSizingContext {
+                loss_model: LossModel::Linear {
+                    contract_multiplier: Decimal::ONE,
+                    pnl_to_account_rate: Decimal::ONE,
+                },
+                inputs_fresh: true,
+                notional_to_account_rate: Decimal::ONE,
+                quantity_step: Decimal::ONE,
+                min_quantity: Decimal::ONE,
+                max_quantity: Some(Decimal::from(100)),
+                min_notional_account_currency: None,
+                estimated_cost_per_quantity: Decimal::ZERO,
+                slippage_gap_buffer_per_quantity: Decimal::ZERO,
+                pending_order_exposure: Decimal::ZERO,
+                available_margin: None,
+                margin_per_quantity: None,
+            },
+        }
+    }
+
+    #[test]
+    fn timestamped_snapshot_freshness_is_explicit_and_deterministic() {
+        let now = Utc::now();
+        assert!(snapshot(now).is_fresh_at(now));
+        assert!(snapshot(now - Duration::seconds(10)).is_fresh_at(now));
+        assert!(!snapshot(now - Duration::seconds(11)).is_fresh_at(now));
+        assert!(!snapshot(now + Duration::seconds(1)).is_fresh_at(now));
+
+        let mut unknown_bound = snapshot(now);
+        unknown_bound.max_age_seconds = 0;
+        assert!(!unknown_bound.is_fresh_at(now));
+
+        let mut unknown_source = snapshot(now);
+        unknown_source.source_id = "  ".to_string();
+        assert!(!unknown_source.is_fresh_at(now));
+    }
+}
