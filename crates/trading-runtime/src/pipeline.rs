@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 use venue_connectors::{submit_approved_order, VenueAdapter};
 
 use crate::error::RuntimeResult;
-use crate::ids::client_order_id_for_intent;
+use crate::ids::client_order_id_for_account_intent;
 use crate::TradingRuntime;
 
 /// Outcome of processing one trade intent through risk + execution.
@@ -304,7 +304,7 @@ impl TradingRuntime {
             });
         }
 
-        let client_order_id = client_order_id_for_intent(&intent.id)?;
+        let client_order_id = client_order_id_for_account_intent(&self.config.account_id, &intent.id)?;
         let outcome = submit_approved_order(
             &mut self.oms,
             venue,
