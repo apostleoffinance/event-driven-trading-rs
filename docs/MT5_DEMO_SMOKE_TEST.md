@@ -68,6 +68,21 @@ Record and test all of the following in the protected operations record:
 
 Do not test rejection by disabling certificate verification or weakening TLS.
 
+
+### Certificate rotation and rollback drill (demo/staging only)
+
+Perform this as a controlled change with an assigned operator and independent observer. Use only the demo/staging endpoint and a protected change window. Never export private keys to the repository, CI artifacts, console transcripts, or the evidence manifest.
+
+1. Record the current certificate serial/fingerprint, pin/config version, trust bundle version, expiry, service identity, and a protected backup reference. Do not copy private-key bytes into the record.
+2. Stage a newly issued client/server certificate and matching private keys in a new protected directory. Apply least-privilege file and parent-directory ACLs before use. Run the certificate/ACL review script against the staged paths; verify chain, revocation, identity, validity, and fingerprint.
+3. Exercise the documented overlap procedure in staging: deploy the new certificate and pin/trust configuration without disabling verification; restart only the affected demo service using its normal change procedure; verify authenticated connection and fresh read-only heartbeat, market-data and reconciliation snapshots.
+4. Remove the old identity from the accepted pin/trust configuration after the overlap period. Using a separate read-only probe configured with the old certificate, prove that the old identity is rejected. Capture only redacted error/status and server-side authentication evidence. Never use order submission to test this.
+5. Exercise rollback with the documented prior configuration and still-valid, non-revoked credential set. Verify the intended identity reconnects and read-only snapshots recover. If the old certificate is expired or revoked, do not restore it; use a newly issued recovery identity instead.
+6. Restore the approved final configuration, confirm no temporary trust/pin remains, rerun the smoke and worker-restart checks, and have an independent reviewer inspect timestamps, config-version diffs, fingerprints, rejection evidence and rollback results.
+7. Record PASS only if the new identity works, the retired identity is rejected when expected, rollback recovery is demonstrated, and no verification checks were disabled. Otherwise record BLOCKED and leave venue execution disabled.
+
+This is a procedure, not evidence that rotation or rollback has already been exercised. Do not perform the drill against a live account or live order path.
+
 ## 5. Evidence record
 
 Copy `docs/MT5_DEMO_CONFORMANCE_EVIDENCE_TEMPLATE.md` into the protected release record. Complete every field and attach redacted console output and timestamped logs. Link the protected evidence record from the PR/release review without committing credentials or sensitive operational details.
