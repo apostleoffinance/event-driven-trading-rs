@@ -6,7 +6,9 @@ use async_trait::async_trait;
 use domain::{AccountId, InstrumentId, OrderStatus, RiskDecision, RiskRequest, TradeIntent};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
-use risk_engine::{InstrumentSizingContext, RiskEvaluator};
+use risk_engine::{InstrumentSizingContext, InstrumentSizingOutcome, LossModel, RiskEvaluator};
+use rust_decimal::Decimal;
+use serde_json::{json, Value};
 use venue_connectors::{submit_approved_order, VenueAdapter};
 
 use crate::error::RuntimeResult;
@@ -155,20 +157,24 @@ impl TradingRuntime {
         .with_exposure(self.config.current_exposure)
         .with_session_allowed(self.config.session_allowed);
 
-        let decision = match sizing_context {
+        let evaluated_at = Utc::now();
+        let (decision, sizing_outcome) = match sizing_context {
             Some(snapshot)
                 if snapshot.account_id != self.config.account_id
                     || snapshot.instrument_id != intent.instrument_id
-                    || !snapshot.is_fresh_at(Utc::now()) =>
+                    || !snapshot.is_fresh_at(evaluated_at) =>
             {
-                RiskDecision::Rejected {
-                    reason: domain::RiskRejectReason::DependencyUnavailable,
-                }
+                (
+                    RiskDecision::Rejected {
+                        reason: domain::RiskRejectReason::DependencyUnavailable,
+                    },
+                    None,
+                )
             }
             Some(snapshot) => self
                 .risk
-                .evaluate_with_instrument_sizing(&risk_req, &snapshot.sizing)?,
-            None => self.risk.evaluate(&risk_req)?,
+                .evaluate_with_instrument_sizing_detailed(&risk_req, &snapshot.sizing)?,
+            None => (self.risk.evaluate(&risk_req)?, None),
         };
         self.publish_risk_decision(intent, &decision, events_out)
             .await?;
@@ -177,6 +183,19 @@ impl TradingRuntime {
             store
                 .save_risk_decision(&intent.id, &self.config.account_id, &decision)
                 .await?;
+            if let Some(snapshot) = sizing_context {
+                store
+                    .save_sizing_audit(
+                        &intent.id,
+                        &self.config.account_id,
+                        &intent.instrument_id,
+                        &snapshot.source_id,
+                        snapshot.captured_at,
+                        evaluated_at,
+                        sizing_audit_payload(&risk_req, snapshot, &decision, sizing_outcome.as_ref(), evaluated_at),
+                    )
+                    .await?;
+            }
         }
 
         if !decision.is_executable() {
