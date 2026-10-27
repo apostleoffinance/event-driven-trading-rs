@@ -128,17 +128,76 @@ pub fn prepare_mt5_sizing(snapshot:&Value, symbol:&str, account_currency:&str, i
 
 #[cfg(test)]
 mod tests {
- #![allow(clippy::unwrap_used, clippy::panic)]
- use super::*; use serde_json::json;
- fn snap(now:DateTime<Utc>)->Value { json!({"captured_at":now.to_rfc3339(),"account_currency":"USD","source":"mt5_python_readonly_v1","sequence":8,
- "instruments":[
- {"symbol":"EURUSD.a","base_currency":"EUR","quote_currency":"USD","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.00","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"},
- {"symbol":"EURGBP.a","base_currency":"EUR","quote_currency":"GBP","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.20","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"},
- {"symbol":"GBPUSD.a","base_currency":"GBP","quote_currency":"USD","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.50","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"}],
- "quotes":[{"symbol":"EURUSD.a","bid":"1.10000","ask":"1.10010","tick_time":now.to_rfc3339()},{"symbol":"EURGBP.a","bid":"0.85000","ask":"0.85010","tick_time":now.to_rfc3339()},{"symbol":"GBPUSD.a","bid":"1.25000","ask":"1.25010","tick_time":now.to_rfc3339()}]}) }
- fn extra()->Mt5SizingSupplement { Mt5SizingSupplement{estimated_cost_per_quantity:Decimal::new(2,1),slippage_gap_buffer_per_quantity:Decimal::new(1,1),pending_order_exposure:Decimal::from(100),available_margin:Decimal::from(1000),pending_order_margin:Decimal::from(100),margin_per_quantity:Decimal::from(50),min_notional_account_currency:None} }
- #[test] fn uses_ask_and_broker_steps_and_tick_value(){let n=Utc::now();let r=prepare_mt5_sizing(&snap(n),"EURUSD.a","USD",true,n,Duration::seconds(30),&extra()).unwrap();assert_eq!(r.entry_price,Decimal::new(11001,4));assert_eq!(r.context.quantity_step,Decimal::new(1,2));assert_eq!(r.context.notional_to_account_rate,Decimal::from(100000));assert_eq!(r.context.available_margin,Some(Decimal::from(1000)));}
- #[test] fn derives_cross_currency_conversion_from_fresh_quotes(){let n=Utc::now();let r=prepare_mt5_sizing(&snap(n),"EURGBP.a","USD",false,n,Duration::seconds(30),&extra()).unwrap();assert!(r.context.notional_to_account_rate>Decimal::from(100000));}
- #[test] fn stale_and_mismatched_account_fail_closed(){let n=Utc::now();assert_eq!(prepare_mt5_sizing(&snap(n-Duration::seconds(60)),"EURUSD.a","USD",true,n,Duration::seconds(30),&extra()).unwrap_err(),Mt5SizingDataError::Stale);assert_eq!(prepare_mt5_sizing(&snap(n),"EURUSD.a","EUR",true,n,Duration::seconds(30),&extra()).unwrap_err(),Mt5SizingDataError::AccountCurrencyMismatch);}
- #[test] fn missing_fx_path_fails_closed(){let n=Utc::now();let mut s=snap(n);s["quotes"]=json!([{"symbol":"EURUSD.a","bid":"1.1","ask":"1.1001","tick_time":n.to_rfc3339()}]);assert_eq!(prepare_mt5_sizing(&s,"EURGBP.a","USD",true,n,Duration::seconds(30),&extra()).unwrap_err(),Mt5SizingDataError::Malformed);}
+    #![allow(clippy::unwrap_used, clippy::panic)]
+    use super::*;
+    use serde_json::json;
+
+    fn snap(now: DateTime<Utc>) -> Value {
+        json!({
+            "captured_at": now.to_rfc3339(),
+            "account_currency": "USD",
+            "source": "mt5_python_readonly_v1",
+            "sequence": 8,
+            "instruments": [
+                {"symbol":"EURUSD.a","base_currency":"EUR","quote_currency":"USD","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.00","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"},
+                {"symbol":"EURGBP.a","base_currency":"EUR","quote_currency":"GBP","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.20","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"},
+                {"symbol":"GBPUSD.a","base_currency":"GBP","quote_currency":"USD","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.50","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"}
+            ],
+            "quotes": [
+                {"symbol":"EURUSD.a","bid":"1.10000","ask":"1.10010","tick_time":now.to_rfc3339()},
+                {"symbol":"EURGBP.a","bid":"0.85000","ask":"0.85010","tick_time":now.to_rfc3339()},
+                {"symbol":"GBPUSD.a","bid":"1.25000","ask":"1.25010","tick_time":now.to_rfc3339()}
+            ]
+        })
+    }
+
+    fn extra() -> Mt5SizingSupplement {
+        Mt5SizingSupplement {
+            estimated_cost_per_quantity: Decimal::new(2, 1),
+            slippage_gap_buffer_per_quantity: Decimal::new(1, 1),
+            pending_order_exposure: Decimal::from(100),
+            available_margin: Decimal::from(1000),
+            pending_order_margin: Decimal::from(100),
+            margin_per_quantity: Decimal::from(50),
+            min_notional_account_currency: None,
+        }
+    }
+
+    #[test]
+    fn uses_ask_and_broker_steps_and_tick_value() {
+        let now = Utc::now();
+        let snapshot = snap(now.clone());
+        let result = prepare_mt5_sizing(&snapshot, "EURUSD.a", "USD", true, now, Duration::seconds(30), &extra()).unwrap();
+        assert_eq!(result.entry_price, Decimal::new(11001, 4));
+        assert_eq!(result.context.quantity_step, Decimal::new(1, 2));
+        assert_eq!(result.context.notional_to_account_rate, Decimal::from(100000));
+        assert_eq!(result.context.available_margin, Some(Decimal::from(1000)));
+    }
+
+    #[test]
+    fn derives_cross_currency_conversion_from_fresh_quotes() {
+        let now = Utc::now();
+        let snapshot = snap(now.clone());
+        let result = prepare_mt5_sizing(&snapshot, "EURGBP.a", "USD", false, now, Duration::seconds(30), &extra()).unwrap();
+        assert!(result.context.notional_to_account_rate > Decimal::from(100000));
+    }
+
+    #[test]
+    fn stale_and_mismatched_account_fail_closed() {
+        let now = Utc::now();
+        let stale = snap(now - Duration::seconds(60));
+        assert_eq!(prepare_mt5_sizing(&stale, "EURUSD.a", "USD", true, now.clone(), Duration::seconds(30), &extra()).unwrap_err(), Mt5SizingDataError::Stale);
+        let current = snap(now.clone());
+        assert_eq!(prepare_mt5_sizing(&current, "EURUSD.a", "EUR", true, now, Duration::seconds(30), &extra()).unwrap_err(), Mt5SizingDataError::AccountCurrencyMismatch);
+    }
+
+    #[test]
+    fn missing_fx_path_fails_closed() {
+        let now = Utc::now();
+        let mut snapshot = snap(now.clone());
+        snapshot["quotes"] = json!([
+            {"symbol":"EURUSD.a","bid":"1.1","ask":"1.1001","tick_time":now.to_rfc3339()}
+        ]);
+        assert_eq!(prepare_mt5_sizing(&snapshot, "EURGBP.a", "USD", true, now, Duration::seconds(30), &extra()).unwrap_err(), Mt5SizingDataError::Malformed);
+    }
 }
