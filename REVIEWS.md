@@ -419,3 +419,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Applied the remaining rustfmt line wrapping in commit `e83897e3b99dcbecbe1114a6473fbca0e9aa0e0f`.
 - **Verification:** A fresh full CI run is in progress for the QOS-014 head; do not infer success from a commit being pushed. No runtime behavior change intended.
 - **Remaining risk:** Compilation, tests and Clippy still require a completed green CI run. No live execution enabled.
+
+
+## REV-032 — QOS-014 repeated rustfmt diff and correction
+- **Date:** 2026-10-27
+- **Context:** Re-examined Rust format failure from run 40449083166/job 122007273488, following the initial formatting fix.
+- **Finding:** The new CI log still reported two issues: an extra blank line before the first NDJSON decoder test and an unwrapped invalid-UTF-8 assertion. The initial branch update had fixed the assertion but left the extra blank line.
+- **Correction:** Removed the extra blank line in commit `6b7fa8b8ff2fea86e1df23d6fbf4d6362ed94944`. The assertion wrap was already present in the previous branch head. The changes are formatting-only.
+- **Verification:** Full CI is still required on the current branch head. Earlier runs were rejected at the formatting gate, so workspace compilation, tests and Clippy have not yet been verified.
+- **Remaining risk:** Do not merge until a current-head CI run passes. No live execution or money movement enabled.
