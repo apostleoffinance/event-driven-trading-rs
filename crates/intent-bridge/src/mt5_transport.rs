@@ -501,7 +501,18 @@ impl AuthenticatedMt5Connection {
                         "MT5 submit outcome timed out; reconciliation is required".into(),
                     ));
                 }
-                Ok(Err(error)) => return Err(error),
+                Ok(Err(error)) => {
+                    self.failed = true;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (session.account_id(), session.terminal_id())
+                    {
+                        let _ = store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                            .await;
+                    }
+                    return Err(error);
+                }
                 Ok(Ok(frame)) => frame,
             };
             match &frame.payload {
