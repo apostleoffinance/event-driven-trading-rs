@@ -5,7 +5,9 @@ use std::collections::HashMap;
 use account_engine::AccountEngine;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use domain::{AccountId, InstrumentId, OrderSide, OrderStatus, RiskDecision, RiskRequest, TradeIntent};
+use domain::{
+    AccountId, InstrumentId, OrderSide, OrderStatus, RiskDecision, RiskRequest, TradeIntent,
+};
 use events::{EventPublisher, TradingEvent};
 use execution_engine::NewOrderRequest;
 use risk_engine::{InstrumentSizingContext, InstrumentSizingOutcome, LossModel, RiskEvaluator};
