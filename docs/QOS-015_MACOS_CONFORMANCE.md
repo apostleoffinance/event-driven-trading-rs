@@ -53,7 +53,7 @@ Omit --crl-file only when you explicitly accept that the report will be blocked 
 
 macOS uses launchd, not Windows Services. Service supervision can be implemented with per-user LaunchAgents or system LaunchDaemons, but the service definitions must not contain broker passwords, private-key contents, or database credentials in plaintext. Use a protected configuration mechanism and ensure the service identity can read only the required key files.
 
-A restart test must stop/restart only the worker and must not reset or delete the durable sequence checkpoint or database snapshots. It must verify the daemon remained running, the market-data sequence advanced, and fresh market-data plus reconciliation snapshots were persisted after the worker stopped. Until a provider-specific real-terminal smoke command and service definition exist, do not claim this test has passed on macOS.
+A restart test must stop/restart only the worker and must not reset or delete the durable sequence checkpoint or database snapshots. It must verify the daemon remained running, the market-data sequence advanced, and fresh market-data plus reconciliation snapshots were persisted after the worker stopped. The provider-backed smoke and LaunchAgent restart scripts now exist, but no native macOS MT5 provider is bundled. Until a trusted provider is implemented and verified against a real terminal, these commands cannot establish a real-terminal PASS.
 
 ## Release policy
 
