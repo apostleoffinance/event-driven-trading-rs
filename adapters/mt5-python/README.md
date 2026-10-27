@@ -5,11 +5,12 @@ This package connects a Windows-hosted MetaTrader 5 terminal to the Rust MT5 bri
 ## Runtime placement
 
 - Run this process on the same Windows VPS/host as the self-hosted MT5 terminal.
-- Host the Rust bridge and PostgreSQL wherever the deployment architecture requires; expose the bridge only over a firewall-restricted endpoint with mTLS.
+- Run the Rust bridge daemon on the same host for the default loopback binding, or deliberately configure a protected remote endpoint.
+- PostgreSQL may be hosted separately, but the Windows daemon must have private network access to it.
 - Vercel is for the Next.js frontend, not the MT5 process. A standard Linux Render service cannot host this Windows-only terminal worker.
 - Never put broker passwords or client private keys in frontend variables, browser storage, logs, or source control.
 
-## Install
+## Install the Python worker
 
 PowerShell on the Windows VPS, with MT5 installed and logged into the intended demo account:
 
@@ -18,7 +19,7 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
     python -m pip install --upgrade pip
     pip install -e ".[terminal]"
 
-## Required environment variables
+## Required Python worker environment variables
 
 | Variable | Purpose |
 |---|---|
@@ -27,7 +28,7 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
 | MT5_PASSWORD | Demo account password; never logged |
 | MT5_SERVER | Exact broker demo server name |
 | MT5_TERMINAL_ID | Stable host-assigned terminal identity |
-| MT5_BRIDGE_HOST | DNS name/IP of the Rust mTLS listener |
+| MT5_BRIDGE_HOST | Rust listener host; use 127.0.0.1 when colocated |
 | MT5_BRIDGE_PORT | Bridge port; defaults to 9443 |
 | MT5_BRIDGE_CA_FILE | CA certificate used to validate the Rust server |
 | MT5_BRIDGE_CLIENT_CERT | Client certificate issued for this worker |
@@ -37,13 +38,47 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
 | MT5_SEQUENCE_FILE | Optional durable sequence checkpoint path |
 | MT5_POLL_INTERVAL_SECONDS | Snapshot interval, 1–300 seconds; defaults to 10 |
 
-The Rust transport principal must allow-list the exact client-certificate fingerprint, terminal ID, server name and account ID. Certificate issuance and rotation must be managed outside this package.
+## Start the Rust read-only daemon
 
-## Contract
+Build/run from the repository root on the Windows host with a Rust toolchain installed. The database schema must already be migrated using the project's deployment/migration process; the daemon does not run schema migrations automatically.
+
+The daemon reads these environment variables:
+
+| Variable | Purpose |
+|---|---|
+| DATABASE_URL | PostgreSQL connection string |
+| MT5_BRIDGE_BIND | Listener address; defaults to 127.0.0.1:9443 |
+| MT5_BRIDGE_SERVER_CERT | Server certificate chain PEM; include the listener host in SAN |
+| MT5_BRIDGE_SERVER_KEY | Matching server private key PEM; restrict filesystem ACLs |
+| MT5_BRIDGE_CLIENT_CA | CA bundle used to verify the worker certificate chain |
+| MT5_BRIDGE_PRINCIPAL_SHA256 | Exact worker leaf-certificate DER SHA-256 fingerprint, 64 hex characters |
+| MT5_TERMINAL_ID | Expected terminal identity; must match the worker |
+| MT5_SERVER | Exact broker server string; must match the worker |
+| MT5_ACCOUNT_ID | Exact Rust account ID sent in worker frames |
+| MT5_BRIDGE_ALLOW_REMOTE_BIND | Defaults false; set true only for an intentionally protected non-loopback listener |
+
+Example PowerShell environment setup (use real values; never commit secrets):
+
+    $env:DATABASE_URL = "postgres://..."
+    $env:MT5_BRIDGE_BIND = "127.0.0.1:9443"
+    $env:MT5_BRIDGE_SERVER_CERT = "C:\QuantOS\certs\server-chain.pem"
+    $env:MT5_BRIDGE_SERVER_KEY = "C:\QuantOS\certs\server-key.pem"
+    $env:MT5_BRIDGE_CLIENT_CA = "C:\QuantOS\certs\worker-ca.pem"
+    $env:MT5_BRIDGE_PRINCIPAL_SHA256 = "<64-character-worker-leaf-sha256>"
+    $env:MT5_TERMINAL_ID = "terminal-demo-01"
+    $env:MT5_SERVER = "<exact broker demo server>"
+    $env:MT5_ACCOUNT_ID = "<same account ID configured for the worker>"
+    cargo run -p intent-bridge --bin mt5-bridge-daemon
+
+Configure the Python worker to connect to 127.0.0.1:9443 and use a server certificate valid for that name (or configure a matching MT5_BRIDGE_SERVER_NAME). The daemon rejects non-loopback binds unless MT5_BRIDGE_ALLOW_REMOTE_BIND=true is explicit. If remote binding is needed, also apply host firewall rules and private-network controls; mTLS is not a substitute for network restriction.
+
+The Rust principal allow-lists the configured leaf-certificate fingerprint, terminal ID, broker server, and one account ID. The daemon accepts one active worker at a time, persists fresh account/order/position snapshots, and discards failed streams so the worker must reconnect and reconcile. Certificate issuance, private-key storage, and rotation must be managed outside this package.
+
+## Contract and safety boundary
 
 Each connection begins with a heartbeat. The worker then sends a complete reconciliation_snapshot frame with account state, every currently open order and every open position. Values representing money, prices and quantities are encoded as decimal strings; symbol names are preserved exactly. The sequence is persisted locally before sending so process restarts do not silently reset it. A send failure can create a sequence gap, which must force reconciliation.
 
-The worker never claims an order was accepted or filled. Heartbeat capabilities explicitly disable market/limit/stop submission and cancellation. Rust can persist the external snapshot, but submit/cancel must remain blocked until an execution-capable adapter passes its separate acceptance gate.
+The worker and daemon are read-only. Heartbeat capabilities disable market/limit/stop submission and cancellation, and the daemon exposes no order-dispatch command. Snapshot persistence is not proof that a Windows terminal has been smoke-tested. Do not proceed to order execution until a real demo-terminal smoke test, instrument metadata/fresh quote feed, credential lifecycle review, and all acceptance checks pass.
 
 ## Local contract tests
 
