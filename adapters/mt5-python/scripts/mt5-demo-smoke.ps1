@@ -117,8 +117,8 @@ try:
     now = datetime.now(timezone.utc).timestamp()
     symbols = os.environ["SMOKE_SYMBOLS"].split(",")
     for symbol in symbols:
-        if not mt5.symbol_select(symbol, True):
-            fail("configured broker symbol could not be selected: " + symbol)
+        # Do not call symbol_select here: it mutates the terminal's Market Watch.
+        # The running worker owns symbol selection; the smoke probe only observes it.
         info = mt5.symbol_info(symbol)
         tick = mt5.symbol_info_tick(symbol)
         if info is None or tick is None:
