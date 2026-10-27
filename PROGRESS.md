@@ -291,3 +291,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added `mt5-bridge-daemon`, which loads mTLS certificate files and a single explicit certificate-fingerprint/terminal/server/account principal, defaults to loopback binding, requires an explicit override for non-loopback binds, connects to PostgreSQL, creates the existing `Mt5BridgeRuntime`, persists read-only reconciliation snapshots, and discards failed connections so the worker must reconnect and reconcile.
 - Added daemon environment/setup documentation. The daemon intentionally exposes no order-submit/cancel command and does not run migrations automatically.
 - GitHub Actions run `40499291725` passed Rust format, workspace check, workspace tests, Clippy, Python adapter contract tests, and frontend lint/typecheck/build on code commit `bac103c8986408356fec37a4a35f69984c97ab99`. The Windows demo-terminal smoke test, protected certificate lifecycle, and instrument metadata/fresh quote integration remain release gates.
+
+
+## Work log — QOS-015B market data feed (2026-10-27)
+- Started after PR #28 was confirmed merged. Branch: `feat/qos-015b-mt5-market-data`.
+- Added a typed `market_data_snapshot` protocol payload for broker instrument specifications and paired bid/ask ticks, with strict decimal, identity, symbol-match, volume-constraint, and 60-second quote-freshness validation.
+- Updated the Windows worker to require `MT5_SYMBOLS` (1–64 exact symbols), query symbol metadata and current ticks from the official MetaTrader5 API, and emit the market-data frame alongside heartbeat/reconciliation frames. The worker remains read-only.
+- Added PostgreSQL migration `20261027000004_mt5_market_data_snapshots.sql`, persistence API, and runtime handling that stores market-data snapshots separately from reconciliation readiness.
+- Added schema, Python contract tests, Rust validation tests, and deployment/protocol docs. CI is pending; Windows demo verification and downstream QOS-013 sizing integration remain outstanding.
