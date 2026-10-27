@@ -69,6 +69,39 @@ impl Mt5BridgeRuntime {
         })
     }
 
+    /// Replace a failed connection with a newly authenticated transport/session.
+    /// The caller must construct the new session after TLS identity validation; the
+    /// first heartbeat on this connection will still require durable external-state
+    /// reconciliation before any submit can be authorized.
+    pub async fn reconnect_authenticated(
+        &mut self,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<()> {
+        if watchdog_poll_interval.is_zero() {
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat watchdog poll interval must be positive".into(),
+            ));
+        }
+        self.watchdog.abort();
+        {
+            let mut current_connection = self.connection.lock().await;
+            *current_connection = connection;
+        }
+        {
+            let mut current_session = self.session.lock().await;
+            *current_session = session;
+        }
+        self.watchdog = spawn_heartbeat_watchdog(
+            self.connection.clone(),
+            self.session.clone(),
+            self.store.clone(),
+            watchdog_poll_interval,
+        )?;
+        Ok(())
+    }
+
     /// Read a validated frame and durably checkpoint heartbeat sequence state. A read,
     /// protocol or persistence error degrades both in-memory and durable readiness.
     pub async fn read_next_frame(
