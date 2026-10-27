@@ -176,8 +176,12 @@ pub fn size_order_instrument_aware(
         || context.slippage_gap_buffer_per_quantity < Decimal::ZERO
         || context.pending_order_exposure < Decimal::ZERO
         || context.pending_order_margin < Decimal::ZERO
-        || context.available_margin.is_some_and(|margin| margin < Decimal::ZERO)
-        || context.margin_per_quantity.is_some_and(|margin| margin <= Decimal::ZERO)
+        || context
+            .available_margin
+            .is_some_and(|margin| margin < Decimal::ZERO)
+        || context
+            .margin_per_quantity
+            .is_some_and(|margin| margin <= Decimal::ZERO)
         || context.available_margin.is_some() != context.margin_per_quantity.is_some()
     {
         return reject(SizingRejectReason::InvalidInput);
@@ -244,7 +248,10 @@ pub fn size_order_instrument_aware(
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
-    let effective_exposure = match request.current_exposure.checked_add(context.pending_order_exposure) {
+    let effective_exposure = match request
+        .current_exposure
+        .checked_add(context.pending_order_exposure)
+    {
         Some(value) => value,
         None => return reject(SizingRejectReason::ArithmeticOverflow),
     };
@@ -267,7 +274,8 @@ pub fn size_order_instrument_aware(
         (Some(available), Some(per_quantity)) => match available
             .checked_sub(context.pending_order_margin)
             .map(|remaining| remaining.max(Decimal::ZERO))
-            .and_then(|remaining| remaining.checked_div(per_quantity)) {
+            .and_then(|remaining| remaining.checked_div(per_quantity))
+        {
             Some(cap) => Some(cap),
             None => return reject(SizingRejectReason::ArithmeticOverflow),
         },
@@ -358,7 +366,9 @@ pub fn size_order_instrument_aware(
             SizingLimitReason::ExposureLimit
         } else if max_by_leverage <= max_by_position && max_by_leverage <= max_by_exposure {
             SizingLimitReason::LeverageLimit
-        } else if max_by_margin.is_some_and(|cap| cap <= max_by_position && cap <= max_by_exposure && cap <= max_by_leverage) {
+        } else if max_by_margin.is_some_and(|cap| {
+            cap <= max_by_position && cap <= max_by_exposure && cap <= max_by_leverage
+        })
             SizingLimitReason::MarginLimit
         } else if context
             .max_quantity
@@ -744,13 +754,21 @@ mod tests {
             let first = size_order_instrument_aware(&request, &sizing);
             let second = size_order_instrument_aware(&request, &sizing);
             assert_eq!(first, second);
-            if let InstrumentSizingOutcome::Approved { quantity, modeled_loss, risk_budget }
-                | InstrumentSizingOutcome::Resized { quantity, modeled_loss, risk_budget, .. } = first
+            if let InstrumentSizingOutcome::Approved {
+                quantity,
+                modeled_loss,
+                risk_budget,
+            }
+            | InstrumentSizingOutcome::Resized {
+                quantity,
+                modeled_loss,
+                risk_budget,
+                ..
+            } = first
             {
                 assert_eq!((quantity / sizing.quantity_step).trunc(), quantity / sizing.quantity_step);
                 assert!(modeled_loss <= risk_budget);
             }
         }
     }
-
 }
