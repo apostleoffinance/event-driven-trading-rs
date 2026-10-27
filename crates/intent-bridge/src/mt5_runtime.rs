@@ -53,6 +53,7 @@ impl Mt5BridgeRuntime {
         session: Mt5SessionGate,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
+        validate_initial_session(&connection, &session)?;
         let connection = Arc::new(Mutex::new(connection));
         let session = Arc::new(Mutex::new(session));
         let watchdog = spawn_heartbeat_watchdog(
@@ -84,6 +85,7 @@ impl Mt5BridgeRuntime {
                 "MT5 heartbeat watchdog poll interval must be positive".into(),
             ));
         }
+        validate_initial_session(&connection, &session)?;
         self.watchdog.abort();
         {
             let mut current_connection = self.connection.lock().await;
@@ -239,6 +241,27 @@ impl Mt5BridgeRuntime {
     pub async fn session_state(&self) -> Mt5SessionState {
         self.session.lock().await.state()
     }
+}
+
+fn validate_initial_session(
+    connection: &AuthenticatedMt5Connection,
+    session: &Mt5SessionGate,
+) -> BridgeResult<()> {
+    let principal = connection.principal();
+    if session.state() != Mt5SessionState::AwaitingHeartbeat
+        || session.account_id().is_some()
+        || session.terminal_id().is_some()
+        || session.server().is_some()
+        || !principal
+            .allowed_accounts
+            .iter()
+            .any(|account_id| session.allows_account(account_id))
+    {
+        return Err(BridgeError::Invalid(
+            "MT5 runtime requires a fresh heartbeat-waiting session whose account policy intersects the authenticated principal".into(),
+        ));
+    }
+    Ok(())
 }
 
 impl Drop for Mt5BridgeRuntime {
