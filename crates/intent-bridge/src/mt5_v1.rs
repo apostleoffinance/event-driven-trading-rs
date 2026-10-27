@@ -481,7 +481,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn ndjson_decoder_handles_split_and_multiple_frames() {
         let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 1).unwrap();
