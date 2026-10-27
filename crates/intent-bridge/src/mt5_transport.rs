@@ -349,7 +349,7 @@ impl AuthenticatedMt5Connection {
         }
         match timeout(self.limits.io_timeout, async {
             self.stream.write_all(&encoded).await?;
-            self.stream.write_all(b"\\n").await?;
+            self.stream.write_all(b"\n").await?;
             self.stream.flush().await
         })
         .await
