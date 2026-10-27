@@ -91,10 +91,10 @@ fn timestamp(value: &Value, key: &str) -> Result<DateTime<Utc>, Mt5SizingDataErr
         .map_err(|_| Mt5SizingDataError::Malformed)
 }
 
-fn fresh(time: DateTime<Utc>, now: DateTime<Utc>, max_age: Duration) -> bool {
+fn fresh(time: &DateTime<Utc>, now: &DateTime<Utc>, max_age: Duration) -> bool {
     max_age >= Duration::zero()
         && time <= now
-        && now.signed_duration_since(time) <= max_age
+        && now.clone().signed_duration_since(time.clone()) <= max_age
 }
 
 fn parse_instruments(snapshot: &Value) -> Result<Vec<Instrument>, Mt5SizingDataError> {
@@ -157,7 +157,7 @@ fn parse_quotes(
         if quote.ask < quote.bid {
             return Err(Mt5SizingDataError::Malformed);
         }
-        if !fresh(quote.time, now, max_age) {
+        if !fresh(&quote.time, &now, max_age) {
             return Err(Mt5SizingDataError::Stale);
         }
         if result
@@ -242,7 +242,7 @@ pub fn prepare_mt5_sizing(
         return Err(Mt5SizingDataError::AccountCurrencyMismatch);
     }
     let captured_at = timestamp(snapshot, "captured_at")?;
-    if !fresh(captured_at, now, max_age) {
+    if !fresh(&captured_at, &now, max_age) {
         return Err(Mt5SizingDataError::Stale);
     }
     if supplement.estimated_cost_per_quantity < Decimal::ZERO
