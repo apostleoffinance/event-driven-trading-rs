@@ -7,6 +7,7 @@ mod instruments;
 mod orders;
 mod positions;
 mod risk;
+mod sizing_audits;
 mod trade_intents;
 mod venues;
 
@@ -121,6 +122,32 @@ impl TradingStore {
         trade_intent_id: Option<&domain::TradeIntentId>,
     ) -> PersistenceResult<()> {
         audit::insert(&self.pool, event, account_id, trade_intent_id).await
+    }
+
+
+    /// Append an instrument-aware sizing calculation for immutable audit.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn save_sizing_audit(
+        &self,
+        trade_intent_id: &domain::TradeIntentId,
+        account_id: &domain::AccountId,
+        instrument_id: &domain::InstrumentId,
+        source_id: &str,
+        snapshot_captured_at: chrono::DateTime<chrono::Utc>,
+        evaluated_at: chrono::DateTime<chrono::Utc>,
+        payload: serde_json::Value,
+    ) -> PersistenceResult<()> {
+        sizing_audits::insert(
+            &self.pool,
+            trade_intent_id,
+            account_id,
+            instrument_id,
+            source_id,
+            snapshot_captured_at,
+            evaluated_at,
+            payload,
+        )
+        .await
     }
 
     pub async fn ensure_strategy_graph(
