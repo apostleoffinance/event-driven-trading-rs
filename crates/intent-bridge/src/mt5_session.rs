@@ -199,7 +199,7 @@ impl Mt5SessionGate {
         self.capabilities = Some(heartbeat.capabilities.clone());
         self.connection_state = Some(heartbeat.connection);
         if heartbeat.connection != ConnectionState::Connected
-            || !capabilities_support_safe_dispatch(&heartbeat.capabilities)
+            || !capabilities_support_reconciliation(&heartbeat.capabilities)
         {
             self.state = Mt5SessionState::Degraded;
             return Ok(self.state);
@@ -233,7 +233,7 @@ impl Mt5SessionGate {
             || !self
                 .capabilities
                 .as_ref()
-                .is_some_and(capabilities_support_safe_dispatch)
+                .is_some_and(capabilities_support_reconciliation)
             || persisted_readiness != Mt5StreamReadiness::Ready
         {
             self.state = Mt5SessionState::ReconciliationRequired;
@@ -256,6 +256,11 @@ impl Mt5SessionGate {
         let capabilities = self.capabilities.as_ref().ok_or_else(|| {
             BridgeError::Invalid("MT5 capabilities have not been observed".into())
         })?;
+        if !capabilities.idempotent_client_order_id {
+            return Err(BridgeError::Invalid(
+                "MT5 terminal does not declare stable client-order idempotency".into(),
+            ));
+        }
         let supported = match order.order_type {
             OrderType::Market => capabilities.market_orders,
             OrderType::Limit => capabilities.limit_orders,
@@ -316,11 +321,10 @@ impl Mt5SessionGate {
     }
 }
 
-fn capabilities_support_safe_dispatch(capabilities: &BridgeCapabilities) -> bool {
-    capabilities.order_lookup
-        && capabilities.idempotent_client_order_id
-        && capabilities.sequence_numbers
-        && (capabilities.market_orders || capabilities.limit_orders || capabilities.stop_orders)
+fn capabilities_support_reconciliation(capabilities: &BridgeCapabilities) -> bool {
+    // Read-only clients may reconcile safely without advertising execution support.
+    // Submit authorization separately requires idempotency and the relevant order type.
+    capabilities.order_lookup && capabilities.sequence_numbers
 }
 
 #[cfg(test)]
