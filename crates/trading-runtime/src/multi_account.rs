@@ -139,6 +139,8 @@ pub async fn execute_intent_across_accounts(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
     use super::*;
     use domain::{AccountId, RiskPolicy, StrategyVersion, VenueId};
     use rust_decimal::Decimal;
@@ -253,7 +255,6 @@ mod tests {
             OrderSide::Buy,
             chrono::Utc::now(),
         )
-        .unwrap()
         .entry_price(Decimal::from(100))
         .unwrap()
         .stop_loss(Decimal::from(95))
