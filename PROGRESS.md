@@ -256,3 +256,10 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added deterministic heartbeat freshness tests for the timeout boundary, expired heartbeat and future timestamps. A truncated/incomplete EOF now poisons the connection before returning an error.
 - Verification for this follow-up is pending CI on the current PR head. No local test execution is claimed.
 - Still not complete: test-certificate TLS integration tests for trusted/untrusted/mismatched peers; runtime heartbeat watchdog scheduling and session degradation; durable dispatch and sequence/reconciliation orchestration; actual MT5 EA/client conformance; protected credential loading/rotation; end-to-end restart recovery. No live broker is connected and no live trading is enabled.
+
+
+## Work log — QOS-014 heartbeat expiry degrades session (2026-10-27)
+
+- Added `check_heartbeat_fresh_with_session` to the authenticated MT5 connection. When heartbeat freshness fails, it poisons the connection and degrades the supplied `Mt5SessionGate`, so stale transport health cannot leave the session gate apparently ready.
+- Added a deterministic test for expired heartbeat causing session degradation and a fresh heartbeat leaving the session state unchanged.
+- The API is invoked by a host-managed watchdog; it is not an autonomous timer. Runtime scheduling, reconnect reconciliation, certificate handshake integration tests, durable dispatch wiring, and MT5 EA conformance remain open. No live trading enabled.

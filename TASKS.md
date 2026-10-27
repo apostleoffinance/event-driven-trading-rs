@@ -54,3 +54,6 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
 - [ ] PROGRESS.md matches actual state
 - [ ] Corrections logged in REVIEWS.md
 - [ ] Documentation work has not enabled live money movement
+
+
+- **QOS-014 heartbeat/session follow-up (PR #25):** Adds a transport API that checks heartbeat freshness and degrades the associated session gate on expiry, with deterministic regression coverage. The host runtime still must invoke the watchdog; autonomous scheduling, end-to-end TLS tests, dispatch/reconciliation wiring, and MT5 EA conformance remain open.

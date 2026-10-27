@@ -667,3 +667,23 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Changed the framing regression test to return `BridgeResult<()> `, use `?` for serialization/deserialization errors, and return an explicit validation error if the LF suffix is absent. This preserves assertions without `unwrap`, `expect`, or `panic!`.
 - **Verification:** A fresh CI run on this latest head must pass before PR #24 is considered verified.
 - **Remaining risk:** MT5 transport integration gates from REV-051 remain open; no live trading enabled.
+
+
+## REV-055 — QOS-014 heartbeat expiry must degrade session state
+
+- **Date:** 2026-10-27
+- **Context:** Follow-up after PR #24 merged and merge-commit CI passed.
+- **Finding:** The transport exposed heartbeat freshness validation, but expiry only poisoned the connection object. Unless the caller separately degraded the associated `Mt5SessionGate`, a host integration could leave session readiness state stale.
+- **Correction:** Added `check_heartbeat_fresh_with_session`, which fails closed by poisoning the connection and degrading the supplied session gate on stale/missing/future heartbeat time. Added a regression test for expiry and a healthy-heartbeat control case.
+- **Verification:** Pending PR-head CI; no pass is claimed until the complete Rust and frontend workflows succeed.
+- **Remaining risk:** This is an explicit watchdog callback, not an autonomous background scheduler. TLS integration tests, durable dispatch/reconciliation orchestration, restart recovery and MT5-side conformance remain open. No live trading enabled.
+
+
+## REV-056 — QOS-014 heartbeat watchdog formatting correction
+
+- **Date:** 2026-10-27
+- **Context:** PR #25 CI run `40458446603`, Rust job `122037144816`.
+- **Finding:** `cargo fmt --all -- --check` rejected three formatting differences in the new heartbeat freshness helper and regression test; workspace check, tests and Clippy were skipped.
+- **Correction:** Applied the exact rustfmt layout to the helper expression and test assertions.
+- **Verification:** A fresh full CI run is required on the updated PR head; no Rust test or Clippy success is claimed from the formatting-failed run.
+- **Remaining risk:** Automatic watchdog scheduling, end-to-end TLS tests, durable dispatch/reconciliation wiring, restart recovery and MT5 EA conformance remain open. No live trading enabled.

@@ -24,6 +24,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
+use crate::mt5_session::Mt5SessionGate;
 use crate::mt5_v1::{BridgeFrame, BridgePayload, NdjsonFrameDecoder};
 use crate::{BridgeError, BridgeResult};
 
@@ -256,13 +257,41 @@ impl AuthenticatedMt5Connection {
     /// freshness window. The runtime must call this from its watchdog/scheduler;
     /// a blocked read alone cannot detect a silent peer.
     pub fn check_heartbeat_fresh(&mut self, now: DateTime<Utc>) -> BridgeResult<()> {
-        let fresh = self
-            .last_heartbeat_at
-            .is_some_and(|last| heartbeat_is_fresh(last, now, self.limits.heartbeat_timeout));
-        if !fresh {
+        if enforce_heartbeat_freshness(
+            self.last_heartbeat_at,
+            now,
+            self.limits.heartbeat_timeout,
+            None,
+        )
+        .is_err()
+        {
             self.failed = true;
             return Err(BridgeError::Invalid(
                 "MT5 heartbeat expired; connection must be reconciled before reuse".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Check heartbeat freshness and degrade the associated session gate on expiry.
+    /// The host runtime must invoke this from its watchdog/scheduler; this method
+    /// does not create a background task or replace reconnect reconciliation.
+    pub fn check_heartbeat_fresh_with_session(
+        &mut self,
+        session: &mut Mt5SessionGate,
+        now: DateTime<Utc>,
+    ) -> BridgeResult<()> {
+        if enforce_heartbeat_freshness(
+            self.last_heartbeat_at,
+            now,
+            self.limits.heartbeat_timeout,
+            Some(session),
+        )
+        .is_err()
+        {
+            self.failed = true;
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat expired; connection and session are degraded".into(),
             ));
         }
         Ok(())
@@ -409,6 +438,24 @@ fn encode_frame_line(frame: &BridgeFrame) -> BridgeResult<Vec<u8>> {
     Ok(encoded)
 }
 
+fn enforce_heartbeat_freshness(
+    last_heartbeat_at: Option<DateTime<Utc>>,
+    now: DateTime<Utc>,
+    timeout: StdDuration,
+    mut session: Option<&mut Mt5SessionGate>,
+) -> BridgeResult<()> {
+    let fresh = last_heartbeat_at.is_some_and(|last| heartbeat_is_fresh(last, now, timeout));
+    if !fresh {
+        if let Some(session) = session.as_mut() {
+            session.degrade();
+        }
+        return Err(BridgeError::Invalid(
+            "MT5 heartbeat expired; connection must be reconciled before reuse".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn heartbeat_is_fresh(last: DateTime<Utc>, now: DateTime<Utc>, timeout: StdDuration) -> bool {
     let age = now.signed_duration_since(last);
     age >= Duration::zero()
@@ -523,6 +570,41 @@ mod tests {
             .ok_or_else(|| BridgeError::Invalid("encoded NDJSON frame is missing LF".into()))?;
         let decoded = serde_json::from_slice::<BridgeFrame>(json)?;
         assert_eq!(decoded, frame);
+        Ok(())
+    }
+
+    #[test]
+    fn heartbeat_expiry_degrades_the_session_gate() -> BridgeResult<()> {
+        let now = Utc::now();
+        let timeout = StdDuration::from_secs(30);
+        let policy = crate::mt5_session::Mt5SessionPolicy::new(["account-001"])?;
+        let mut session = Mt5SessionGate::after_transport_authentication(policy);
+
+        assert!(enforce_heartbeat_freshness(
+            Some(now - Duration::seconds(31)),
+            now,
+            timeout,
+            Some(&mut session),
+        )
+        .is_err());
+        assert_eq!(
+            session.state(),
+            crate::mt5_session::Mt5SessionState::Degraded
+        );
+
+        let healthy_policy = crate::mt5_session::Mt5SessionPolicy::new(["account-001"])?;
+        let mut healthy_session = Mt5SessionGate::after_transport_authentication(healthy_policy);
+        assert!(enforce_heartbeat_freshness(
+            Some(now - Duration::seconds(10)),
+            now,
+            timeout,
+            Some(&mut healthy_session),
+        )
+        .is_ok());
+        assert_eq!(
+            healthy_session.state(),
+            crate::mt5_session::Mt5SessionState::AwaitingHeartbeat
+        );
         Ok(())
     }
 
