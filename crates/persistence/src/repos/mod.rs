@@ -42,13 +42,7 @@ impl TradingStore {
         client_order_id: &str,
         request_payload: serde_json::Value,
     ) -> PersistenceResult<Mt5OrderClaim> {
-        mt5_bridge::claim_order(
-            &self.pool,
-            account_id,
-            client_order_id,
-            request_payload,
-        )
-        .await
+        mt5_bridge::claim_order(&self.pool, account_id, client_order_id, request_payload).await
     }
 
     /// Persist an MT5 accepted/rejected/unknown outcome without rewriting terminal state.
@@ -88,13 +82,8 @@ impl TradingStore {
         terminal_id: &str,
         reconciled_sequence: u64,
     ) -> PersistenceResult<()> {
-        mt5_bridge::mark_stream_reconciled(
-            &self.pool,
-            account_id,
-            terminal_id,
-            reconciled_sequence,
-        )
-        .await
+        mt5_bridge::mark_stream_reconciled(&self.pool, account_id, terminal_id, reconciled_sequence)
+            .await
     }
 
     /// Persist degraded state without advancing a known-good sequence checkpoint.
