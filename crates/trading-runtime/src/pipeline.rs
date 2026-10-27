@@ -34,6 +34,9 @@ pub struct RuntimeInstrumentSizingContext {
     pub instrument_id: InstrumentId,
     /// Identifier of the trusted snapshot source (for audit and operations).
     pub source_id: String,
+    /// Explicit conversion routes used by the trusted source for loss and notional.
+    pub pnl_conversion_path: String,
+    pub notional_conversion_path: String,
     /// Capture time of the oldest required input in this bundle.
     pub captured_at: DateTime<Utc>,
     /// Explicit configured freshness bound; unknown/zero bounds are invalid.
@@ -44,6 +47,8 @@ pub struct RuntimeInstrumentSizingContext {
 impl RuntimeInstrumentSizingContext {
     fn is_fresh_at(&self, now: DateTime<Utc>) -> bool {
         if self.source_id.trim().is_empty()
+            || self.pnl_conversion_path.trim().is_empty()
+            || self.notional_conversion_path.trim().is_empty()
             || self.max_age_seconds <= 0
             || self.captured_at > now
             || !self.sizing.inputs_fresh
@@ -520,6 +525,8 @@ mod sizing_snapshot_tests {
             account_id: AccountId::new("account-a").unwrap(),
             instrument_id: InstrumentId::new("BTCUSDT").unwrap(),
             source_id: "test-provider".to_string(),
+            pnl_conversion_path: "TEST:quote_to_account".to_string(),
+            notional_conversion_path: "TEST:price_to_account".to_string(),
             captured_at: now,
             max_age_seconds: 10,
             sizing: InstrumentSizingContext {
@@ -668,6 +675,8 @@ fn sizing_audit_payload(
         "trade_intent_id": request.trade_intent_id.as_str(),
         "snapshot": {
             "source_id": snapshot.source_id,
+            "pnl_conversion_path": snapshot.pnl_conversion_path,
+            "notional_conversion_path": snapshot.notional_conversion_path,
             "captured_at": snapshot.captured_at.to_rfc3339(),
             "max_age_seconds": snapshot.max_age_seconds,
             "inputs_fresh_flag": snapshot.sizing.inputs_fresh
