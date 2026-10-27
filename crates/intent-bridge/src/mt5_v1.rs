@@ -621,10 +621,10 @@ impl BridgeFrame {
                 require_text(&snapshot.account_currency, "account currency")?;
                 if snapshot.instruments.is_empty()
                     || snapshot.instruments.len() != snapshot.quotes.len()
-                    || snapshot.instruments.len() > 128
+                    || snapshot.instruments.len() > 64
                 {
                     return Err(BridgeError::Invalid(
-                        "market-data snapshot must contain 1–128 matched instrument/quote pairs".into(),
+                        "market-data snapshot must contain 1–64 matched instrument/quote pairs".into(),
                     ));
                 }
                 let mut symbols = std::collections::BTreeSet::new();
@@ -793,6 +793,58 @@ mod tests {
             sent_at: Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap(),
             payload,
         }
+    }
+
+    #[test]
+    fn market_data_snapshot_requires_matching_symbols_and_fresh_valid_quotes() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        let instrument = InstrumentMarketDataWire {
+            symbol: "EURUSD.a".into(),
+            base_currency: "EUR".into(),
+            quote_currency: "USD".into(),
+            digits: 5,
+            point: "0.00001".into(),
+            tick_size: "0.00001".into(),
+            tick_value_account_currency: "1.0".into(),
+            contract_size: "100000".into(),
+            volume_min: "0.01".into(),
+            volume_max: "100".into(),
+            volume_step: "0.01".into(),
+            trade_mode: "4".into(),
+        };
+        let quote = QuoteWire {
+            symbol: "EURUSD.a".into(),
+            bid: "1.0845".into(),
+            ask: "1.08462".into(),
+            tick_time: now,
+        };
+        let payload = MarketDataSnapshotWire {
+            terminal_id: "terminal-1".into(),
+            server: "Broker-Demo".into(),
+            source: "mt5_python_readonly_v1".into(),
+            sequence: 7,
+            captured_at: now,
+            account_currency: "USD".into(),
+            instruments: vec![instrument.clone()],
+            quotes: vec![quote.clone()],
+        };
+        assert!(frame(BridgePayload::MarketDataSnapshot(payload.clone()))
+            .validate_at(now, Duration::zero()).is_ok());
+
+        let mut stale = payload.clone();
+        stale.quotes[0].tick_time = now - Duration::seconds(61);
+        assert!(frame(BridgePayload::MarketDataSnapshot(stale))
+            .validate_at(now, Duration::zero()).is_err());
+
+        let mut crossed = payload.clone();
+        crossed.quotes[0].ask = "1.0844".into();
+        assert!(frame(BridgePayload::MarketDataSnapshot(crossed))
+            .validate_at(now, Duration::zero()).is_err());
+
+        let mut unmatched = payload;
+        unmatched.quotes[0].symbol = "EURUSD".into();
+        assert!(frame(BridgePayload::MarketDataSnapshot(unmatched))
+            .validate_at(now, Duration::zero()).is_err());
     }
 
     fn valid_order() -> SubmitOrder {
