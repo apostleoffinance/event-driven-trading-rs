@@ -150,3 +150,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Unit/integration tests exercise same-payload replay, changed-payload conflict without extra position exposure, and a cancel acknowledgement where the venue still reports the order open. Existing ambiguous submit test continues to assert Unknown rather than Failed.
 - **Verification result:** Code and tests committed to feature branch; CI pending. No local test execution claimed.
 - **Remaining risk:** CI must verify formatting, compilation, tests, and Clippy. Adapter event-stream deduplication/reconnect remains unimplemented because no event-stream surface currently exists; live venue readiness and provider-specific cancellation semantics remain unverified.
+
+## REV-010 — QOS-011 CI formatting failure and correction
+- **Date:** 2026-10-27
+- **Context:** PR #7 initial-head CI run 40432165184, Rust job 121952211529.
+- **Finding/correction:** `cargo fmt --all -- --check` failed on formatting-only drift in the new replay-fill collection expressions and added tests in `crates/venue-connectors/src/prop.rs`, `crates/venue-connectors/src/simulated.rs`, and `crates/venue-connectors/tests/cancel_confirmation.rs`. The workspace check, tests, and Clippy were skipped because formatting is the first Rust CI gate. The frontend job passed.
+- **Impact:** The first run did not compile or test the Rust changes, so it supplied no test evidence for QOS-011.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40432165184/job/121952211529; failed step: “Check formatting”.
+- **Rule that failed:** Repository formatting did not satisfy the declared CI command; no financial-safety behavior rule was shown to have failed by this CI result.
+- **Rule update made in RULES.md:** None; existing rules already require exact command/result reporting.
+- **Code/docs/tests changed:** Applied rustfmt-equivalent formatting to the reported expressions/imports/assertions on `fix/qos-011-venue-contract`. No intended behavior change.
+- **Regression/real-use check added:** Latest-head CI must rerun formatting, workspace check, workspace tests, and Clippy; the existing frontend check remains green on run 40432165184.
+- **Verification result:** Formatting corrections pushed to the PR branch. New-head CI result pending; no Rust compile/test/Clippy success claimed.
+- **Remaining risk:** The corrected head must pass the complete Rust job. Event-stream deduplication/reconnect remains unimplemented until `VenueAdapter` has an event-stream API; live venue behavior remains unverified.
+
