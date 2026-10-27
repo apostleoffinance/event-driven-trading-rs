@@ -20,11 +20,11 @@ Confirm the terminal is connected to the expected demo server and the daemon and
 
 In a PowerShell session on the same host, with the smoke-test environment values configured but not echoed:
 
-\`\`\`powershell
+```powershell
 $PSVersionTable.PSVersion
 python --version
 .\adapters\mt5-python\scripts\mt5-demo-smoke.ps1 -TimeoutSeconds 240 -PollSeconds 10
-\`\`\`
+```
 
 Save timestamped console output to the protected evidence location. The script must verify account/server/currency, exact symbols, fresh quote/specification data, client certificate fingerprint and certificate/key loading, daemon listener, migrated database tables, persisted market-data/reconciliation snapshots, and two distinct fresh market-data sequences.
 
@@ -32,25 +32,25 @@ If it fails, preserve the redacted error and timestamped daemon/worker logs, dia
 
 ## 3. Automated worker restart and recovery
 
-After the first smoke pass succeeds, the restart verifier can automate the second pass. Run in an authorized PowerShell session with the same required environment values as the smoke harness. Substitute the actual Windows service names; do not guess them.
+The restart verifier runs the initial smoke pass itself, then performs the worker-only restart and second pass. Run in an authorized PowerShell session with the same required environment values as the smoke harness. Substitute the actual Windows service names; do not guess them.
 
-\`\`\`powershell
+```powershell
 .\adapters\mt5-python\scripts\mt5-demo-restart-verify.ps1 -WorkerServiceName 'QuantOS-MT5-Worker' -DaemonServiceName 'QuantOS-MT5-Bridge' -TimeoutSeconds 240 -PollSeconds 5 -EvidencePath 'C:\QuantOS\evidence\mt5-restart-evidence.json'
-\`\`\`
+```
 
-The script requires both services to be running before it starts. It runs the first smoke pass, records the latest persisted market-data sequence, stops and restarts only the worker, confirms the daemon remains running, waits for market-data sequence advancement and fresh post-stop reconciliation, runs the smoke harness again, and writes a JSON evidence record in \`finally\`, including failure details when possible. It never clears database rows or the worker sequence checkpoint.
+The script requires both services to be running before it starts. It runs the first smoke pass, records the latest persisted market-data sequence, stops and restarts only the worker, confirms the daemon remains running, waits for market-data sequence advancement and fresh post-stop reconciliation, runs the smoke harness again, and writes a JSON evidence record in `finally`, including failure details when possible. It never clears database rows or the worker sequence checkpoint.
 
 Review the evidence record and logs. The record is not a replacement for daemon authentication logs or independent review. If it fails, diagnose and rerun after fixing the cause; a failed/partial record is not a pass.
 
-For manual verification instead, keep the daemon running, stop only the worker with its normal service manager, confirm the daemon records connection closure, restart the worker with the same \`MT5_SEQUENCE_FILE\`, rerun the smoke test, and compare exact pre-stop and post-restart sequence values. Do not reset the sequence file or delete database rows.
+For manual verification instead, Keep the daemon running, stop only the worker with its normal service manager, confirm the daemon records connection closure, restart the worker with the same `MT5_SEQUENCE_FILE`, rerun the smoke test, and compare exact pre-stop and post-restart sequence values. Do not reset the sequence file or delete database rows.
 
 ## 4. Certificate lifecycle and private-key ACL review
 
 Run from an authorized PowerShell session, substituting the exact Windows service identity running the worker/daemon. Do not use a broad group as the expected service identity.
 
-\`\`\`powershell
+```powershell
 .\adapters\mt5-python\scripts\mt5-certificate-acl-review.ps1 -ExpectedServiceIdentity 'DOMAIN\QuantOS-MT5'
-\`\`\`
+```
 
 The script verifies configured files exist, loads both certificate/key pairs without exporting or printing key material, prints certificate subject/issuer/validity/fingerprint, confirms the client leaf fingerprint matches MT5_BRIDGE_PRINCIPAL_SHA256, reports key ACL entries, fails on broad-principal read grants, and warns near expiry.
 
@@ -70,7 +70,7 @@ Do not test rejection by disabling certificate verification or weakening TLS.
 
 ## 5. Evidence record
 
-Copy \`docs/MT5_DEMO_CONFORMANCE_EVIDENCE_TEMPLATE.md\` into the protected release record. Complete every field and attach redacted console output and timestamped logs. Link the protected evidence record from the PR/release review without committing credentials or sensitive operational details.
+Copy `docs/MT5_DEMO_CONFORMANCE_EVIDENCE_TEMPLATE.md` into the protected release record. Complete every field and attach redacted console output and timestamped logs. Link the protected evidence record from the PR/release review without committing credentials or sensitive operational details.
 
 ## Acceptance gate
 
@@ -88,4 +88,4 @@ All items must be PASS before any venue-execution task:
 - [ ] Rotation and rollback procedure tested and recorded.
 - [ ] Redacted evidence attached and independently reviewed.
 
-Any FAIL, UNKNOWN, or unrecorded check means the gate is BLOCKED. Do not enable venue execution.
+Any FAIL, UNKNOWN, or unrecorded check means the gate is BLOCKED. Do not proceed to execution. Do not enable venue execution.
