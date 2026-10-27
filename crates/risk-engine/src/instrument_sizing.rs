@@ -411,7 +411,7 @@ fn round_down_to_step(value: Decimal, step: Decimal) -> Option<Decimal> {
     }
     value
         .checked_div(step)
-        .map(Decimal::trunc)
+        .map(|steps| steps.trunc())
         .and_then(|steps| steps.checked_mul(step))
 }
 
