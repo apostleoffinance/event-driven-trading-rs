@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "operator": "REPLACE_WITH_OPERATOR_ID",
+  "repository_commit": "REPLACE_WITH_VERIFIED_COMMIT_SHA",
+  "venue_execution_enabled": false,
+  "gates": {
+    "windows_demo_smoke": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "actual_windows_host": "HOST_IDENTIFIER_NON_SENSITIVE",
+      "demo_account_masked": "MASKED_DEMO_LOGIN",
+      "broker_server": "EXACT_DEMO_SERVER",
+      "account_currency": "ACCOUNT_CURRENCY",
+      "exact_symbols": ["EXACT_BROKER_SYMBOL"],
+      "fresh_quotes_specs": false,
+      "market_data_persisted": false,
+      "reconciliation_persisted": false,
+      "distinct_sequences": false
+    },
+    "worker_restart": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "restart_evidence_json_ref": "PROTECTED_RESTART_JSON_REFERENCE",
+      "daemon_remained_running": false,
+      "sequence_advanced": false,
+      "fresh_reconciliation": false,
+      "second_smoke_passed": false
+    },
+    "certificate_review": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "client_server_cert_validity": "UNVERIFIED",
+      "fingerprint_pin_verified": false,
+      "ca_trust_reviewed": false,
+      "revocation_enforcement_verified": false,
+      "certificate_key_pair_verified": false
+    },
+    "private_key_acl_review": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "client_key_acl_reviewed": false,
+      "server_key_acl_reviewed": false,
+      "parent_directories_effective_access_reviewed": false,
+      "unreviewed_principals_resolved": false
+    },
+    "rotation_rollback": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "rotation_tested": false,
+      "rollback_tested": false,
+      "old_or_untrusted_identity_rejection_tested": false,
+      "rotation_owner": "UNASSIGNED"
+    },
+    "qos015b_persistence": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "target_host_feed_verified": false,
+      "fresh_bid_ask_verified": false,
+      "instrument_specs_verified": false,
+      "postgres_persistence_verified": false,
+      "stale_sequence_rejected": false,
+      "account_terminal_identity_bound": false
+    },
+    "qos013_sizing": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "account_currency_conversion_verified": false,
+      "costs_and_slippage_inputs_verified": false,
+      "margin_and_exposure_inputs_verified": false,
+      "broker_volume_rounding_verified": false,
+      "final_modeled_loss_verified": false,
+      "persistent_sizing_audit_verified": false,
+      "fail_closed_missing_data_tested": false
+    },
+    "independent_review": {
+      "status": "BLOCKED",
+      "evidence_ref": "PROTECTED_EVIDENCE_REFERENCE",
+      "reviewer": "INDEPENDENT_REVIEWER_ID",
+      "reviewed_at_utc": "UNVERIFIED",
+      "reviewed_manifest_sha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+      "no_execution_enabled": false
+    }
+  }
+}

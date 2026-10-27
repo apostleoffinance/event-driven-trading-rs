@@ -100,8 +100,25 @@ foreach ($entry in @(@{name="client"; cert=$metadata.client}, @{name="server"; c
     if ($after -le $now) { Write-Error "$($entry.name) certificate is expired."; $expired = $true }
     elseif ($after -le $threshold) { Write-Warning "$($entry.name) certificate expires within $ExpiryWarningDays days." }
 }
+function Test-CertificateChainAndRevocation([string]$Label, [string]$CertificatePath) {
+    $certutil = Get-Command certutil.exe -ErrorAction SilentlyContinue
+    if (-not $certutil) { throw "certutil.exe is required to verify $Label chain and online revocation. Review is BLOCKED." }
+    Write-Host "CHAIN/REVOCATION $Label: running certutil -verify -urlfetch (chain trust and revocation must succeed)."
+    $output = & $certutil.Source -verify -urlfetch $CertificatePath 2>&1
+    $exitCode = $LASTEXITCODE
+    $output | ForEach-Object { Write-Host ("  " + [string]$_) }
+    if ($exitCode -ne 0) { throw "$Label certificate chain/revocation verification failed (certutil exit $exitCode). Do not proceed to venue execution." }
+    Write-Host "PASS: $Label certificate chain and online revocation check returned success."
+}
+Test-CertificateChainAndRevocation "client" $clientCert
+Test-CertificateChainAndRevocation "server" $serverCert
+
 $clientAclOk = Test-PrivateKeyAcl "client private key" $clientKey
 $serverAclOk = Test-PrivateKeyAcl "server private key" $serverKey
-if ($expired -or -not $clientAclOk -or -not $serverAclOk) { throw "Certificate lifecycle/ACL review FAILED. Do not proceed to venue execution." }
+$clientKeyParent = Split-Path -Parent $clientKey
+$serverKeyParent = Split-Path -Parent $serverKey
+$clientParentAclOk = Test-PrivateKeyAcl "client private-key parent directory" $clientKeyParent
+$serverParentAclOk = Test-PrivateKeyAcl "server private-key parent directory" $serverKeyParent
+if ($expired -or -not $clientAclOk -or -not $serverAclOk -or -not $clientParentAclOk -or -not $serverParentAclOk) { throw "Certificate lifecycle/ACL review FAILED. Do not proceed to venue execution." }
 Write-Host "PASS: certificate/key pairs load, client fingerprint matches pin, validity dates inspected, and no broad-principal key-read ACL was found."
 Write-Host "MANUAL REQUIRED: record CA trust/revocation method, rotation owner, overlap, rollback, and tested rotation evidence. This script cannot prove revocation status or that rotation/rollback has been exercised."

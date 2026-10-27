@@ -314,3 +314,12 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added `adapters/mt5-python/scripts/mt5-demo-smoke.ps1`: verifies required configuration/cert files, worker leaf certificate DER SHA-256 pin, server/client cert-key pairing, actual MT5 demo login/server/currency, exact configured symbols, fresh bid/ask and broker sizing metadata, daemon listener, PostgreSQL migration presence, and fresh persisted market-data plus reconciliation rows. It requires at least two distinct market-data sequences.
 - Added `docs/MT5_DEMO_SMOKE_TEST.md` and linked it from the adapter README. The runbook covers target-host setup, evidence retention, worker restart/reconciliation, and private-key ACL/certificate rotation/revocation review.
 - Safety boundary: this is read-only and contains no order submission/modification/cancellation. It cannot prove terminal conformance until the user runs it on the actual Windows VPS. PowerShell execution is not available in this authoring environment; exact-head GitHub CI and target-host execution are pending.
+
+
+## QOS-015 release evidence gate — 2026-10-27
+
+- PR #35 merged the restart-evidence JSON validator. The merge-triggered main CI run must be checked independently; this record does not assume a passing conclusion.
+- PR #36 adds a consolidated release manifest validator and a template that remains BLOCKED by default. It requires attested evidence for actual Windows demo smoke/restart, certificate trust/revocation, key and parent-directory ACL review, rotation/rollback, QOS-015B persistence, QOS-013 sizing, and independent review by someone other than the operator.
+- The new validator is a structural gate over operator-provided evidence references. It cannot authenticate referenced files or execute Windows/MT5/certificate lifecycle tests.
+- **Not verified here:** access to the target Windows VPS, real demo terminal/account, revocation enforcement, ACL effective access, rotation/rollback, QOS-015B runtime persistence on that host, and QOS-013 trusted sizing inputs/audit in deployment.
+- **Current release decision: BLOCKED.** No venue execution is authorized or enabled. Only change this status after the referenced evidence is inspected and the exact commit and manifest digest are independently reviewed.

@@ -52,14 +52,14 @@ Run from an authorized PowerShell session, substituting the exact Windows servic
 .\adapters\mt5-python\scripts\mt5-certificate-acl-review.ps1 -ExpectedServiceIdentity 'DOMAIN\QuantOS-MT5'
 ```
 
-The script verifies configured files exist, loads both certificate/key pairs without exporting or printing key material, prints certificate subject/issuer/validity/fingerprint, confirms the client leaf fingerprint matches MT5_BRIDGE_PRINCIPAL_SHA256, reports key ACL entries, fails on broad-principal read grants, and warns near expiry.
+The script verifies configured files exist, loads both certificate/key pairs without exporting or printing key material, prints certificate subject/issuer/validity/fingerprint, confirms the client leaf fingerprint matches MT5_BRIDGE_PRINCIPAL_SHA256, runs Windows `certutil -verify -urlfetch` for both certificate chains and online revocation, reports key-file and parent-directory ACL entries, fails on broad-principal read grants, and warns near expiry. Missing certutil or failed chain/revocation verification blocks the script.
 
-Review ACL output including inherited ACEs and warnings for other identities against actual service-account policy. Script success is necessary but not sufficient; perform a manual effective-access review including parent directories.
+This OS-level chain/revocation check is only a point-in-time review. Separately verify from the deployed daemon/worker configuration and negative tests that runtime TLS actually enforces the intended CA trust and revocation policy. Review ACL output including inherited ACEs and warnings for other identities against actual service-account policy; script success is necessary but not sufficient. Confirm the expected service identity has the required access and no unintended principal can read key material through parent directories.
 
 Record and test all of the following in the protected operations record:
 
 - [ ] Issuing CA and trust-chain owner for client/server certificates.
-- [ ] Revocation method and evidence the deployed daemon/worker enforce it. The script does not query OCSP/CRL.
+- [ ] Revocation method and evidence the deployed daemon/worker enforce it. The script performs a point-in-time Windows `certutil -verify -urlfetch` check, but runtime enforcement still needs separate configuration review and negative tests.
 - [ ] Rotation owner, expiry alert owner, and rotation schedule.
 - [ ] New certificate fingerprint pin-update procedure and safe overlap of old/new certificates.
 - [ ] Tested roll-forward and rollback, including negative test that an old/untrusted identity is rejected when expected.
@@ -67,6 +67,21 @@ Record and test all of the following in the protected operations record:
 - [ ] No private key or secret copied into source, CI artifacts, logs, or evidence attachments.
 
 Do not test rejection by disabling certificate verification or weakening TLS.
+
+
+### Certificate rotation and rollback drill (demo/staging only)
+
+Perform this as a controlled change with an assigned operator and independent observer. Use only the demo/staging endpoint and a protected change window. Never export private keys to the repository, CI artifacts, console transcripts, or the evidence manifest.
+
+1. Record the current certificate serial/fingerprint, pin/config version, trust bundle version, expiry, service identity, and a protected backup reference. Do not copy private-key bytes into the record.
+2. Stage a newly issued client/server certificate and matching private keys in a new protected directory. Apply least-privilege file and parent-directory ACLs before use. Run the certificate/ACL review script against the staged paths; verify chain, revocation, identity, validity, and fingerprint.
+3. Exercise the documented overlap procedure in staging: deploy the new certificate and pin/trust configuration without disabling verification; restart only the affected demo service using its normal change procedure; verify authenticated connection and fresh read-only heartbeat, market-data and reconciliation snapshots.
+4. Remove the old identity from the accepted pin/trust configuration after the overlap period. Using a separate read-only probe configured with the old certificate, prove that the old identity is rejected. Capture only redacted error/status and server-side authentication evidence. Never use order submission to test this.
+5. Exercise rollback with the documented prior configuration and still-valid, non-revoked credential set. Verify the intended identity reconnects and read-only snapshots recover. If the old certificate is expired or revoked, do not restore it; use a newly issued recovery identity instead.
+6. Restore the approved final configuration, confirm no temporary trust/pin remains, rerun the smoke and worker-restart checks, and have an independent reviewer inspect timestamps, config-version diffs, fingerprints, rejection evidence and rollback results.
+7. Record PASS only if the new identity works, the retired identity is rejected when expected, rollback recovery is demonstrated, and no verification checks were disabled. Otherwise record BLOCKED and leave venue execution disabled.
+
+This is a procedure, not evidence that rotation or rollback has already been exercised. Do not perform the drill against a live account or live order path.
 
 ## 5. Evidence record
 
@@ -89,3 +104,28 @@ All items must be PASS before any venue-execution task:
 - [ ] Redacted evidence attached and independently reviewed.
 
 Any FAIL, UNKNOWN, or unrecorded check means the gate is BLOCKED. Do not proceed to execution. Do not enable venue execution.
+
+## 6. Consolidated QOS-015 release evidence gate
+
+Do not use a green CI run as a substitute for the target-host evidence above. Copy `docs/QOS-015_RELEASE_EVIDENCE_MANIFEST_TEMPLATE.json` to the protected evidence store and fill it using verified, redacted artifact references. Keep the checked-in template in its default BLOCKED state; do not commit the completed manifest if it contains operational identifiers or evidence paths.
+
+The manifest requires explicit PASS evidence for:
+- Actual Windows VPS smoke and worker-only restart recovery.
+- Certificate validity/pin, CA trust, revocation enforcement, and certificate/key pairing.
+- Client/server private-key ACLs and parent-directory effective access.
+- Tested rotation, rollback, and rejection of an old/untrusted identity.
+- QOS-015B target-host feed, freshness, instrument specification, PostgreSQL persistence, stale-sequence rejection, and account/terminal identity binding.
+- QOS-013 account-currency conversion, costs/slippage, margin/exposure, broker volume rounding, final modeled loss, persistent sizing audit, and missing-data fail-closed tests.
+- Independent review by a person other than the operator, including the SHA-256 digest of the exact manifest reviewed.
+
+Run the validator against the completed protected manifest:
+
+```powershell
+python .\adapters\mt5-python\scripts\validate_qos015_release_manifest.py C:\QuantOS\evidence\qos-015-release-manifest.json
+```
+
+The validator exits nonzero if any gate is missing, false, unresolved, lacks an evidence reference, or has an invalid independent-review attestation. It validates recorded claims, not their truth: a reviewer must inspect the referenced artifacts, verify the manifest hash and the exact repository commit, and independently confirm the host and security tests. Keep `venue_execution_enabled` explicitly `false`.
+
+### Release decision
+
+All gates are conjunctive. CI green is necessary for code integrity but insufficient for release. Any missing Windows VPS access, failed/unknown security test, unavailable QOS-015B/QOS-013 evidence, or unreviewed evidence means BLOCKED. Do not begin venue order submission/cancellation work until every item is independently verified. Never turn on venue execution as part of this evidence workflow.

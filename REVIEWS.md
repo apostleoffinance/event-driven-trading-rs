@@ -743,3 +743,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Change:** Added `adapters/mt5-python/scripts/mt5-demo-smoke.ps1` and `docs/MT5_DEMO_SMOKE_TEST.md`, linked from the adapter README. The script checks demo login/server/currency, exact symbols, fresh ticks and sizing constraints, client certificate fingerprint and certificate/key pairing, daemon listener, PostgreSQL tables, fresh rows for the exact account/terminal, and at least two distinct market-data sequences. It does not submit, modify, or cancel orders.
 - **Verification boundary:** PowerShell cannot be executed in this authoring environment. The script requires review and execution on the target Windows VPS. Passing this script alone does not complete reconnect recovery or certificate lifecycle review; those remain separate required gates.
 - **Safety:** No live mode or execution command was added. Do not proceed to QOS-015 order execution until target-host smoke, worker restart/reconciliation, credential ACL/rotation review, and exact-head CI all pass.
+
+
+## REV-065 — consolidated QOS-015 evidence gate
+
+- **Date:** 2026-10-27
+- **Context:** The restart evidence validator can check the JSON structure, but release readiness also depends on real Windows host conformance, certificate lifecycle and effective ACL review, rotation/rollback, QOS-015B persistence, QOS-013 sizing inputs/audit, and independent review.
+- **Finding:** A green CI run or a structurally valid restart JSON record can be misread as proof of operational conformance. Hosted CI cannot establish real terminal/broker behavior, revocation enforcement, or effective filesystem permissions.
+- **Change:** PR #36 adds a default-BLOCKED release manifest and fail-closed validator that requires all listed gates to be explicitly PASS, evidence references to be provided, the reviewer to differ from the operator, and the reviewed manifest SHA-256 to be recorded. Tests cover missing/false gates, same-person review, execution-enabled manifest, and malformed input.
+- **Verification boundary:** The validator only validates manifest assertions and references; reviewers must inspect referenced artifacts and verify the digest. Actual Windows/VPS and security testing has not been performed by this change.
+- **Safety:** `venue_execution_enabled` must remain false. No venue execution implementation or authorization is added. Any missing/unknown evidence remains BLOCKED.
