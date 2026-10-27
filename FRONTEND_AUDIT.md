@@ -49,5 +49,5 @@ Acceptance met: scripts, dependencies, config, theme/tokens, data-source selecti
 ## Evidence and limitations
 
 - Source files inspected: `frontend/package.json`, `README.md`, `.env.example`, `eslint.config.mjs`, `next.config.ts`, `tsconfig.json`, `src/styles/globals.css`, `src/config/frontend.ts`, `src/components/layout/{AppShell,Topbar,Sidebar}.tsx`, `src/features/theme/ThemeProvider.tsx`, `src/features/events/EventStreamProvider.tsx`, `src/features/simulation/SimulationProvider.tsx`, `src/lib/repositories/{index,mock}.ts`, `src/mocks/{accounts,portfolio,system}.ts`, and `src/app/page.tsx`.
-- CI evidence: run 40425954540 completed successfully for the merged PR #3 head, including frontend lint, typecheck, and production build, as well as Rust format/check/test/Clippy.
+- CI evidence: run 40425954540 completed successfully on PR #3's latest head before it was merged, including frontend lint, typecheck, and production build, as well as Rust format/check/test/Clippy.
 - This is a source-backed baseline review, not a browser usability test, security assessment, live API integration test, or production readiness certification.
