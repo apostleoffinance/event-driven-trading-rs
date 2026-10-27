@@ -30,7 +30,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
     return {
       backgroundColor: "transparent",
       textStyle: {
-        fontFamily: "var(--font-ibm-plex-sans), IBM Plex Sans, sans-serif",
+        fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif',
         fontSize: 12,
       },
       grid: { left: 52, right: 20, top: 28, bottom: 36 },
