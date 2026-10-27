@@ -85,6 +85,11 @@ impl Mt5SessionGate {
         self.state
     }
 
+    /// Check the immutable session policy without mutating or binding identity.
+    pub fn allows_account(&self, account_id: &str) -> bool {
+        self.policy.allows_account(account_id)
+    }
+
     pub fn account_id(&self) -> Option<&str> {
         self.account_id.as_deref()
     }
