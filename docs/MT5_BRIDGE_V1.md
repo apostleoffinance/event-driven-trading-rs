@@ -48,6 +48,16 @@ The permit exposes the exact validated request frame for the future transport's 
 
 The coordinator is a safety boundary, not a transport. It does not implement the authenticated handshake, sockets, Expert Advisor, broker symbol mapping, or actual venue send/reconciliation queries. Transport integration must use this coordinator rather than calling raw persistence helpers ad hoc.
 
+## Read-only market-data snapshots (QOS-015B)
+
+The Python MT5 worker may emit `market_data_snapshot` frames between heartbeats and reconciliation snapshots. Configure `MT5_SYMBOLS` as a comma-separated list of 1–64 exact broker symbol names; symbols are not normalized or guessed. Each frame pairs one instrument specification with one quote for every configured symbol.
+
+Instrument metadata includes base/profit currency, digits, point, tick size, tick value in account currency, contract size, volume minimum/maximum/step, and trade mode. Each quote includes bid, ask, and the broker tick timestamp. The adapter fails closed if a configured symbol cannot be selected, metadata or tick data is unavailable, the account identity changes, or a tick is older than 60 seconds or more than five seconds in the future.
+
+Rust validates that quote symbols exactly match metadata symbols, bid is positive, ask is not below bid, sizing constraints are positive/consistent, and quote timestamps are fresh (maximum 60 seconds). Accepted frames are persisted to `mt5_bridge_market_data_snapshots`, separately from the reconciliation snapshot table. A market-data write does not by itself restore stream readiness. Consumers must re-check quote freshness at the point of sizing and use the broker's exact symbol and account-currency tick-value semantics.
+
+This is still a read-only feed. It does not authorize or submit orders, and it does not make QOS-013 sizing production-ready until the sizing engine consumes these records with account-currency conversion, cost assumptions, exposure/margin reserves, and symbol-specific volume rounding.
+
 ## Security and deployment boundary
 
 - Use an authenticated local IPC channel or mutually authenticated transport; do not expose an unauthenticated order socket to a LAN or public internet.
