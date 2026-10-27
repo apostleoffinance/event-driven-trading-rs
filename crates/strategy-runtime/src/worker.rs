@@ -2,9 +2,7 @@
 
 use chrono::Utc;
 use domain::TradeIntent;
-use events::{
-    EventEnvelope, EventPublisher, MarketDataHealthTracker, TradingEvent,
-};
+use events::{EventEnvelope, EventPublisher, MarketDataHealthTracker, TradingEvent};
 
 use crate::context::StrategyContext;
 use crate::error::StrategyResult;
