@@ -102,7 +102,7 @@ fn fx_rate(from: &str, to: &str, specs: &[Instrument], qs: &[Quote]) -> Result<D
 }
 
 /// Build a sizing context using ask for buys, bid for sells, tick value in account currency,
-/// broker volume limits, and a fresh conversion path from instrument base currency to account currency.
+/// broker volume limits, and a fresh conversion path from instrument quote currency to account currency.
 pub fn prepare_mt5_sizing(snapshot:&Value, symbol:&str, account_currency:&str, is_buy:bool, now:DateTime<Utc>, max_age:Duration, extra:&Mt5SizingSupplement)->Result<PreparedMt5Sizing,Mt5SizingDataError> {
     if symbol.trim().is_empty() || account_currency.trim().is_empty() || max_age<Duration::zero() { return Err(Mt5SizingDataError::Malformed); }
     if text(snapshot,"account_currency")? != account_currency { return Err(Mt5SizingDataError::AccountCurrencyMismatch); }
@@ -113,7 +113,7 @@ pub fn prepare_mt5_sizing(snapshot:&Value, symbol:&str, account_currency:&str, i
     if specs.len()!=qs.len() || specs.iter().any(|i| !qs.iter().any(|q|q.symbol==i.symbol)) { return Err(Mt5SizingDataError::Malformed); }
     let i=specs.iter().find(|i|i.symbol==symbol).ok_or(Mt5SizingDataError::InstrumentUnavailable)?;
     let q=qs.iter().find(|q|q.symbol==symbol).ok_or(Mt5SizingDataError::InstrumentUnavailable)?;
-    let conversion=fx_rate(&i.base,account_currency,&specs,&qs)?;
+    let conversion=fx_rate(&i.quote,account_currency,&specs,&qs)?;
     let notional_rate=i.contract.checked_mul(conversion).ok_or(Mt5SizingDataError::Decimal)?;
     Ok(PreparedMt5Sizing {
         entry_price:if is_buy {q.ask}else{q.bid},
