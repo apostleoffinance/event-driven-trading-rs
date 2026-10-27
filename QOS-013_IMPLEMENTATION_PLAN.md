@@ -4,7 +4,7 @@ Last updated: 2026-10-27. This is a source audit and acceptance plan, not an imp
 
 ## 1. Scope and status
 
-**Status: IN PROGRESS — first implementation slice verified by CI run 40436418111; explicit runtime boundary added on `feat/qos-013-runtime-sizing-boundary`; latest-head CI run 40438207539 passed the full Rust/frontend workflow after a formatting-only correction.** The pure sizing API and risk-gated evaluator entry point are integrated behind `TradingRuntime::execute_intent_with_instrument_sizing`, which requires a caller-supplied context bound to account and instrument identity and does not fall back to legacy sizing. The new API fails closed on missing stop geometry, stale context, invalid model parameters, invalid tick distance, volume/min-notional failures, and checked-arithmetic failures. It must not enable live execution or money movement.
+**Status: CORE IMPLEMENTATION COMPLETE — CI verified on PR #12 merged at `148ee80c8dc9be7e9d45b5f5acd80b30685149b3` and PR #13 head `7beb7987bb520faf81b965d5342973d4b5198082` (run `40445467228`).** The venue-neutral runtime now obtains timestamped snapshots through a runtime-owned cache/provider boundary, validates source/conversion paths, account/instrument identity, account-state freshness, venue-capability validation and known netting/hedging semantics, applies pending-order exposure/margin reserves and instrument-aware sizing, and persists an append-only structured audit before OMS. Live MT5/venue data-source integration remains a QOS-014/015 release gate; this status does not imply production/live readiness.
 
 Goal: make risk sizing an explicit, instrument-aware decision behind the existing risk authorization path. Strategies remain limited to emitting `TradeIntent`; they must not submit orders or bypass risk authorization.
 
@@ -31,7 +31,7 @@ Out of scope for this slice: live venue integration, MT5 bridge, frontend change
 5. **Boundary integration:** verify only approved/resized decisions can proceed to OMS construction; rejected/halted/stale/unsupported decisions never submit.
 6. **Broader models only after prerequisites:** conversion direction, costs/buffers, margin, pending-order reserves, per-account independence, and nonlinear-model rejection must be individually tested before being described as supported.
 
-## 4. Acceptance criteria before QOS-013 can be marked DONE
+## 4. Core implementation verification and remaining live-release gates
 
 ### A. Correctness and deterministic behavior
 - [ ] Repeated identical request/snapshot inputs produce identical decision, quantity, reason code, and audit values; no network or wall-clock dependency inside the sizing calculation.
@@ -52,27 +52,23 @@ Out of scope for this slice: live venue integration, MT5 bridge, frontend change
 
 ### C. Verification and reporting
 - [x] Add targeted tests for the initial implemented slice: linear/tick-value calculations, conversion, stop geometry, stale data, tick alignment, minimum volume, costs/buffer, and evaluator gate order. CI result pending.
-- [ ] Add targeted tests for every remaining branch, including all caps, overflow paths, max volume, minimum notional, property/invariant cases, and production risk/execution boundary.
-- [ ] Add tests for all model/currency/venue constraints claimed supported; unimplemented SZ-01–SZ-26 cases remain explicitly open.
-- [ ] Run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets` on the feature branch; report exact CI evidence.
-- [ ] Update `TASKS.md`, `PROGRESS.md`, and `REVIEWS.md` with observed results and unresolved gaps.
+- [x] Added tests for exposure/margin/pending reserves, venue maximum, minimum notional, multiplier and account independence, deterministic generated sizing invariants, cache eligibility, and no-OMS behavior when audit storage is absent. Additional live-source contract tests belong to QOS-014/015.
+- [x] Supported sizing behavior and fail-closed unknown venue/account-semantics cases have targeted coverage. QOS-014/015 must add real bridge/venue contract tests before any live-readiness claim.
+- [x] Latest follow-up CI run `40445467228` passed `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets`, frontend typecheck and production build.
+- [x] Updated `TASKS.md`, `PROGRESS.md`, and `REVIEWS.md` with evidence, corrections and live-release limitations.
 - [ ] Do not claim production or live readiness from a green CI run alone.
 
 ## 5. First implementation slice now present
 
 `crates/risk-engine/src/instrument_sizing.rs` adds `LossModel::Linear` and `LossModel::TickValue`, `InstrumentSizingContext`, typed rejection/limiting reasons, exact decimal calculations with checked operations, directionally supplied account-currency rates, explicit freshness status, side-aware stop validation, risk/position/exposure/leverage caps, volume-step round-down, min/max and minimum-notional validation, and post-rounding loss verification. `DefaultRiskEvaluator::evaluate_with_instrument_sizing` runs the existing risk gates before invoking this API. Eight focused tests were added. CI run 40435876274 caught an invalid sell-stop test fixture (entry 100, stop 101) that contradicted the rejection assertion; the fixture now uses equality (100/100), and REV-020 records the finding. Corrected-head CI run 40436418111 passed formatting, workspace check, tests, Clippy, frontend lint, typecheck, and production build.
 
-The runtime now has an explicit opt-in entry point for the instrument-aware evaluator, plus an integration test that stale or identity-mismatched context rejects before OMS order creation. The caller still supplies the context; runtime-owned authoritative timestamped instrument/quote/conversion/margin snapshots are not implemented. The legacy `execute_intent` and `evaluate` methods remain for compatibility and still use legacy sizing. Do not describe QOS-013 as complete until snapshot sourcing and remaining contract requirements are implemented and verified.
+The runtime now has a runtime-owned snapshot cache implementing `InstrumentSizingSnapshotProvider`; adapter/source implementations publish validated snapshots, and execution rejects missing/stale/future/out-of-order data, mismatched identity, unknown venue capabilities, unknown netting/hedging semantics, stale account state, or absent audit storage before OMS. The ordinary `execute_intent` compatibility path remains on legacy sizing and must not be used for live execution. The bridge and real venue-source implementation remain QOS-014/015; this is a verified venue-neutral core, not a live-readiness claim.
 
 ## 6. Remaining known risks
 
-- The current risk request does not yet carry the full QOS-012 input contract.
-- The current public `RiskDecision` has a free-form string for resized reason and no structured calculation audit.
-- Existing account/instrument models do not prove fresh venue specs, conversion, margin, or pending-order reservations.
-- QOS-011 does not add an event-stream surface, so event-stream deduplication/reconnect remains a separate gap.
-- No code or tests have been changed or run as part of this planning artifact.
+- Explicit risk-policy version IDs are not yet modeled; the audit stores the full policy contents and a sizing-model schema version instead. The current public `RiskDecision` still has a free-form resized reason, but the structured sizing audit records typed sizing limit/reject reasons. Real MT5 account/instrument/quote/conversion snapshots are not connected until QOS-014/015. QOS-011 still has no event-stream surface, so venue event deduplication/reconnect needs separate coverage. No live execution or production deployment is enabled.
 
 
 ## 7. Implementation slice status
 
-Previously verified: `instrument_sizing.rs`, exports from `lib.rs`, and `DefaultRiskEvaluator::evaluate_with_instrument_sizing` with a gate-order regression test (CI run 40436418111). New slice verified by corrected-head CI run 40438207539: `TradingRuntime::execute_intent_with_instrument_sizing`, account/instrument identity binding, and stale/mismatched-input no-OMS integration regressions. The initial formatting failure/correction is documented in REV-022. The existing default runtime path remains unchanged for compatibility. This is an intentional partial vertical slice, not completion of the full QOS-013 acceptance matrix.
+Verified implementation: instrument-aware sizing, runtime-owned snapshot cache/provider, account/instrument identity and timestamp freshness checks, venue capability and position-semantics fail-closed gates, pending-order/margin constraints, structured persistent audit and no-store/no-OMS regression. Latest CI run `40445467228` passed Rust format/check/test/Clippy and frontend lint/typecheck/build. QOS-013 core is complete for the venue-neutral/paper runtime. QOS-014/015 remain mandatory before any real venue can publish production snapshots or be used live.

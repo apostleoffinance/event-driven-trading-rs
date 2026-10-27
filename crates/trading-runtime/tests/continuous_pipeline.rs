@@ -252,6 +252,8 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         source_id: "test-fixture".to_string(),
         pnl_conversion_path: "TEST:quote_to_account".to_string(),
         notional_conversion_path: "TEST:price_to_account".to_string(),
+        venue_capabilities_validated: true,
+        account_position_semantics_known: true,
         captured_at: Utc::now(),
         max_age_seconds: 30,
         sizing: InstrumentSizingContext {
@@ -302,5 +304,26 @@ async fn instrument_aware_runtime_rejects_stale_sizing_before_oms() {
         }
     );
     assert_eq!(mismatch_outcome.order_status, None);
+    assert!(runtime.oms().open_orders_for(&account_id).is_empty());
+
+    let mut fresh_without_audit_store = context.clone();
+    fresh_without_audit_store.sizing.inputs_fresh = true;
+    fresh_without_audit_store.captured_at = Utc::now();
+    let no_store_outcome = runtime
+        .execute_intent_with_instrument_sizing(
+            &intent,
+            &venue,
+            &events_out,
+            &fresh_without_audit_store,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        no_store_outcome.decision,
+        RiskDecision::Rejected {
+            reason: domain::RiskRejectReason::DependencyUnavailable,
+        }
+    );
+    assert_eq!(no_store_outcome.order_status, None);
     assert!(runtime.oms().open_orders_for(&account_id).is_empty());
 }
