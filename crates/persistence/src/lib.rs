@@ -12,4 +12,7 @@ pub mod repos;
 
 pub use error::{PersistenceError, PersistenceResult};
 pub use pool::{connect, migrate};
-pub use repos::TradingStore;
+pub use repos::{
+    Mt5DurableOrderState, Mt5OrderClaim, Mt5SequenceObservation, Mt5StreamReadiness,
+    TradingStore,
+};
