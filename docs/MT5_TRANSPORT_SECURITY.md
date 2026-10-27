@@ -1,6 +1,6 @@
 # MT5 Bridge Transport Security Contract — QOS-014
 
-Status: **design contract only**. No authenticated transport, socket listener, terminal EA, credential provisioning, or live execution is implemented by this document.
+Status: **mTLS transport boundary implemented; integration remains incomplete**. The Rust bridge now has a TLS 1.3 mutual-authentication/configuration boundary and certificate-fingerprint-to-principal allow-list. No MT5 Expert Advisor, broker mapping, order-dispatch wiring, or live execution is implemented.
 
 ## Goal and trust boundary
 
@@ -49,3 +49,18 @@ A green unit test or TLS handshake alone does not establish broker compatibility
 ## Explicit non-scope
 
 This contract does not choose the final MT5 transport implementation, provision certificates, add a socket listener, implement an Expert Advisor, map broker symbols/lots/ticks, connect to a broker, enable live mode, deploy services, or move money. Those actions require a separately reviewed implementation and explicit deployment/account selection.
+
+
+## Implementation status — authenticated transport boundary
+
+The current Rust implementation in `crates/intent-bridge/src/mt5_transport.rs`:
+
+- Loads a TLS 1.3 server certificate/key and a trusted client-CA bundle from configured file paths.
+- Requires a valid client certificate, then requires the leaf certificate's SHA-256 fingerprint to match an explicit configured principal.
+- Binds that principal to a terminal ID, server name and explicit allowed-account set.
+- Does not expose frames until mutual TLS and principal allow-list checks succeed.
+- Requires the first application frame to be a heartbeat matching the authenticated terminal/server/account binding.
+- Uses the bounded NDJSON decoder and fails closed on protocol identity/order violations.
+- Treats successful socket writes as byte delivery only, never as venue order/fill/cancel confirmation.
+
+**Still required before this is a usable bridge:** certificate-generation/rotation operations, configuration loading from a protected deployment secret/config source, listener resource limits and connection timeouts, authenticated client/EA compatibility tests, heartbeat timeout handling, durable sequence/checkpoint orchestration, dispatch coordinator wiring, order/position/account reconciliation, and full end-to-end restart tests. The current boundary must not be described as production-ready or connected to a live broker.

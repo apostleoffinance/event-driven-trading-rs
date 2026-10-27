@@ -17,10 +17,14 @@ domain = { path = "../domain" }
 events = { path = "../events" }
 persistence = { path = "../persistence" }
 rust_decimal = { workspace = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
+sha2 = "0.10"
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trading-runtime = { path = "../trading-runtime" }

@@ -570,3 +570,31 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/verification:** Documentation consistency review only. No executable tests were run for this docs-only slice. Transport implementation must test certificate/principal binding, unauthenticated-session rejection, replay, credential failure, reconnect latching, bounded input, and secret redaction.
 - **Verification result:** Pending PR review and repository CI checks where configured; no code/test success is claimed.
 - **Remaining risk:** No authenticated transport, terminal EA, broker mapping, or live execution exists.
+
+
+## REV-046 — Authenticated MT5 transport boundary
+
+- **Date:** 2026-10-27
+- **Context:** QOS-014 follow-up after PR #21 merged the transport security contract.
+- **Finding:** The existing session gate assumes the transport authenticated the peer; without a concrete boundary, account/terminal/server fields from a heartbeat could be mistaken for authenticated identity.
+- **Impact:** An unauthenticated or unbound peer could inject bridge messages. A transport write could also be misinterpreted as venue acceptance if the contract were not explicit.
+- **Evidence:** Inspected `RULES.md`, `docs/MT5_TRANSPORT_SECURITY.md`, `crates/intent-bridge/src/mt5_session.rs`, `crates/intent-bridge/src/mt5_dispatch.rs`, and `crates/intent-bridge/src/mt5_v1.rs`.
+- **Rule:** Transport identity must be authenticated before session creation; untrusted boundary data must be validated; secrets must not be logged; ambiguous order outcomes must not be retried blindly. No safety rule was weakened.
+- **Artifacts:** Added `crates/intent-bridge/src/mt5_transport.rs`; added Rust TLS/hash dependencies; exported transport APIs; updated `docs/MT5_TRANSPORT_SECURITY.md`, `TASKS.md`, and `PROGRESS.md`.
+- **Regression/verification:** Added tests for principal configuration validation and certificate fingerprint hashing. CI is required for compilation, formatting, workspace tests and Clippy. End-to-end certificate/handshake, wrong-certificate, identity-mismatch, timeout and reconnect tests remain required.
+- **Verification result:** Pending latest-head CI at time of entry.
+- **Remaining risk:** No MT5 EA/client, broker mapping, protected runtime credential rotation, listener timeouts/resource limits, durable dispatch wiring, reconciliation integration, or live trading.
+
+
+## REV-047 — Rust formatting check caught transport style drift
+
+- **Date:** 2026-10-27
+- **Context:** CI verification for QOS-014 authenticated transport PR #22.
+- **Finding:** The first CI run on the transport implementation failed at `cargo fmt --all -- --check`; the new transport module had formatting differences.
+- **Impact:** The patch could not pass the repository's mandatory format gate.
+- **Evidence:** GitHub Actions run `40455353695`, Rust job `122027289328`, reported diffs in `crates/intent-bridge/src/mt5_transport.rs`.
+- **Rule:** All code changes must pass repository formatting before being treated as verified.
+- **Artifacts:** Applied the formatting corrections in `crates/intent-bridge/src/mt5_transport.rs` on branch `feat/qos-014-authenticated-transport`.
+- **Regression/verification:** A new CI run `40455460153` is queued for head `037c678b9a4a22047233b5757b7621e7df543025`; success is not yet confirmed.
+- **Verification result:** Formatting correction committed; latest-head CI pending.
+- **Remaining risk:** Compile/API compatibility and tests still need to pass on the latest head.

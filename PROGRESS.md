@@ -228,3 +228,13 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Verified PR #20 is merged at merge commit `3de8c7abd10cfe72b987d8f567ae5ce10864a4a1`.
 - Added `docs/MT5_TRANSPORT_SECURITY.md` to define the security requirements the concrete transport must satisfy before a session gate can be created: authenticated peer identity, confidentiality/integrity, host-managed principal-to-terminal/account mapping, bounded framing/resources, replay resistance, secret redaction, credential rotation/revocation, and fail-closed reconnect/reconciliation.
 - This is a documentation-only contract slice. It does not claim authenticated transport, socket/EA implementation, broker compatibility, or live execution. No executable tests are applicable to the document itself; the next transport code change must add the listed deterministic authentication and reconnect tests and pass full CI.
+
+
+## Work log — QOS-014 mTLS transport boundary (2026-10-27)
+
+- Confirmed PR #21 merged at `770bf46918313f7bfca0265efabd07dfb735b7da`.
+- Added `crates/intent-bridge/src/mt5_transport.rs`: TLS 1.3-only server configuration, required client certificates validated against a configured CA, exact leaf-certificate SHA-256 fingerprint allow-list, explicit terminal/server/account principal mapping, and authenticated NDJSON read/write boundary.
+- The first application frame must be a heartbeat matching the authenticated principal. Identity/order violations fail closed. Successful writes are not interpreted as venue acceptance or fills.
+- Added direct dependencies for rustls, tokio-rustls, rustls-pemfile and sha2; exported the transport types from `intent-bridge`.
+- Updated the transport security contract and task queue. This code is a transport boundary, not end-to-end MT5 dispatch. It has no EA/broker integration, protected runtime config/rotation flow, connection timeouts/resource limits, durable reconciliation orchestration or live execution.
+- Verification: GitHub Actions is triggered for the PR branch; results must be checked against the final head before claiming success. No local test execution is claimed.
