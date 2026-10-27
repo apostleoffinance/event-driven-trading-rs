@@ -292,8 +292,29 @@ fn require_text(value: &str, field: &str) -> BridgeResult<()> {
 }
 
 fn decimal(raw: &str, field: &str) -> BridgeResult<Decimal> {
-    if raw.trim() != raw || raw.is_empty() {
-        return Err(BridgeError::Invalid(format!("{field} must be an unpadded decimal string")));
+    let unsigned = raw.strip_prefix('-').unwrap_or(raw);
+    let valid_integer = unsigned
+        .split_once('.')
+        .map(|(integer, fraction)| {
+            !fraction.is_empty()
+                && integer.chars().all(|ch| ch.is_ascii_digit())
+                && fraction.chars().all(|ch| ch.is_ascii_digit())
+                && (integer == "0" || !integer.starts_with('0'))
+        })
+        .unwrap_or_else(|| {
+            unsigned.chars().all(|ch| ch.is_ascii_digit())
+                && (unsigned == "0" || !unsigned.starts_with('0'))
+        });
+    if raw.trim() != raw
+        || raw.is_empty()
+        || raw.starts_with('+')
+        || raw.starts_with('.')
+        || raw.contains(['e', 'E'])
+        || !valid_integer
+    {
+        return Err(BridgeError::Invalid(format!(
+            "{field} must be a canonical, unpadded base-10 decimal string"
+        )));
     }
     Decimal::from_str_exact(raw)
         .map_err(|error| BridgeError::Invalid(format!("{field}: invalid decimal string: {error}")))
