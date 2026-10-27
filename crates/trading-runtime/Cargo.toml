@@ -25,4 +25,5 @@ venue-connectors = { path = "../venue-connectors" }
 
 [dev-dependencies]
 mean-reversion = { path = "../../strategies/mean-reversion" }
+sqlx = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
