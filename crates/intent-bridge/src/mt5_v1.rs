@@ -296,7 +296,8 @@ fn decimal(raw: &str, field: &str) -> BridgeResult<Decimal> {
     let valid_integer = unsigned
         .split_once('.')
         .map(|(integer, fraction)| {
-            !fraction.is_empty()
+            !integer.is_empty()
+                && !fraction.is_empty()
                 && integer.chars().all(|ch| ch.is_ascii_digit())
                 && fraction.chars().all(|ch| ch.is_ascii_digit())
                 && (integer == "0" || !integer.starts_with('0'))
