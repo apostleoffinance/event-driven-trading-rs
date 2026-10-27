@@ -203,3 +203,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** No new test added in this verification step; existing replay/conflict and cancel-confirmation regressions are included in the passing workspace test suite.
 - **Verification result:** Both required CI jobs completed with conclusion `success` for the code head and again on the latest docs-only head `eb4c4d388e1160c25e6f757766731764ddb76809` in run 40434017979.
 - **Remaining risk:** PR #7 remains open and unmerged pending user review. Venue event-stream deduplication/reconnect remains unimplemented because the current adapter trait has no event-stream API; no live adapter, live execution, deployment, or money movement was enabled.
+
+## REV-014 — Latest PR-head CI reconfirmed after task-summary correction
+- **Date:** 2026-10-27
+- **Context:** The task summary was reconciled in commit `8b413f5127e906650f8621b84543b5bb4ee0741d`; GitHub Actions run 40434342385 checks the resulting PR head.
+- **Finding/correction:** Both required CI jobs completed successfully again on the actual latest PR head.
+- **Impact:** The task-summary correction itself is covered by the successful CI run; the PR does not have a known failing check on its current head.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40434342385 completed with conclusion `success`. Rust job passed `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets`; frontend job passed `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build`.
+- **Rule that failed:** None; this is final evidence reconciliation after the earlier documented failures.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Review register only.
+- **Regression/real-use check added:** None; the full CI matrix reran on the latest PR head.
+- **Verification result:** Latest PR head `8b413f5127e906650f8621b84543b5bb4ee0741d`, run 40434342385, all checks green.
+- **Remaining risk:** PR #7 is open/unmerged. Venue event-stream deduplication/reconnect remains out of scope until the adapter exposes an event stream; no live execution or money movement enabled.
