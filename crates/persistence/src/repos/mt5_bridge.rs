@@ -393,6 +393,17 @@ pub async fn persist_reconciliation_snapshot(
         || snapshot.get("account_id").and_then(Value::as_str) != Some(account_id)
         || snapshot.get("terminal_id").and_then(Value::as_str) != Some(terminal_id)
         || snapshot.get("source").and_then(Value::as_str) != Some(source)
+        || snapshot.get("sequence").and_then(Value::as_u64) != Some(sequence)
+        || snapshot
+            .get("server")
+            .and_then(Value::as_str)
+            .is_none_or(|server| server.trim().is_empty() || server.trim() != server)
+        || snapshot
+            .get("captured_at")
+            .and_then(Value::as_str)
+            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&Utc))
+            != Some(captured_at)
         || !snapshot.get("account_state").is_some_and(Value::is_object)
         || !snapshot.get("open_orders").is_some_and(Value::is_array)
         || !snapshot.get("positions").is_some_and(Value::is_array)
