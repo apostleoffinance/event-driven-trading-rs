@@ -306,3 +306,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression test:** Added `instrument_aware_runtime_rejects_stale_sizing_before_oms` in `crates/trading-runtime/tests/continuous_pipeline.rs`; it expects `DependencyUnavailable`, no order status, and no OMS open orders for stale context and mismatched instrument identity.
 - **Verification:** Changes pushed to `feat/qos-013-runtime-sizing-boundary`; CI has not yet completed. No tests are claimed as passing for this branch until CI evidence is available.
 - **Remaining risk:** Runtime-owned authoritative timestamped snapshot retrieval and freshness calculation are not implemented. The context remains caller-supplied and is not yet a timestamped authoritative snapshot; margin, pending-order reserves, structured persistent sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. No live execution, deployment, or money movement enabled.
+
+
+## REV-022 — QOS-013 runtime regression formatting check failed and corrected
+- **Date:** 2026-10-27
+- **Context:** PR #10 CI run 40438016915, Rust job 121971313717.
+- **Finding:** `cargo fmt --all -- --check` failed on formatting-only differences in the newly added `crates/trading-runtime/tests/continuous_pipeline.rs` regression: constructor wrapping and indentation of nested `InstrumentSizingContext` fields. Workspace check, tests, and Clippy were not reached by the sequential Rust workflow.
+- **Correction:** Applied the formatting shown by rustfmt to those test expressions; no intended behavior change.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438016915/job/121971313717.
+- **Verification:** Correction pushed to `feat/qos-013-runtime-sizing-boundary` in commit `f0f4a470310e4b42a6842199f7db68d298a06c88`. A new latest-head CI run is required; no compilation/test/Clippy success is claimed until it completes.
+- **Remaining risk:** The runtime sizing entry point is caller-fed and not yet wired to authoritative timestamped data sources. No live execution or money movement enabled.
