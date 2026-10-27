@@ -77,12 +77,7 @@ impl Mt5BridgeRuntime {
         let mut connection = self.connection.lock().await;
         let mut session = self.session.lock().await;
         match connection
-            .read_frame_with_session_checkpoint(
-                &self.store,
-                &mut session,
-                now,
-                allowed_clock_skew,
-            )
+            .read_frame_with_session_checkpoint(&self.store, &mut session, now, allowed_clock_skew)
             .await
         {
             Ok(frame) => Ok(frame),
@@ -110,8 +105,7 @@ impl Mt5BridgeRuntime {
         max_age: Duration,
     ) -> BridgeResult<()> {
         let mut session = self.session.lock().await;
-        persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age)
-            .await
+        persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
     }
 
     /// Claim a client-order key durably and execute at most one send through the
