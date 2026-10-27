@@ -4,7 +4,7 @@ Last updated: 2026-10-27. Only verified facts belong here; see `RULES.md`.
 
 ## Current status
 
-**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract and acceptance-test matrix merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 is READY. QOS-012 DONE — instrument-aware sizing specification drafted in `INSTRUMENT_AWARE_SIZING.md`; QOS-013 remains blocked pending specification review. These are documentation/specification statuses, not implementation or live-readiness claims.
+**QOS-001 DONE — source-backed baseline audit documented. QOS-002 DONE — Rust format/check/test/Clippy and frontend lint/typecheck/build passed in GitHub Actions. QOS-003 DONE — frontend baseline documented in `FRONTEND_AUDIT.md` (PR #4 merged at `e92e4e2c4fb9e5f3792c353397a9d1e536eec0a3`). QOS-010 DONE — adapter contract and acceptance-test matrix merged in PR #5 at `f3f07c6387f1e124ccfa250b1961f3a3e42de032`. QOS-011 IN PROGRESS — implementing venue idempotency and confirmed-cancel semantics with regression tests; CI pending. QOS-012 DONE — instrument-aware sizing specification merged in `INSTRUMENT_AWARE_SIZING.md`; QOS-013 is READY now that the specification is merged. These are documentation/specification statuses, not implementation or live-readiness claims.
 
 Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
@@ -91,3 +91,12 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 
 ## Next
 QOS-012 sizing specification is drafted in `INSTRUMENT_AWARE_SIZING.md`. QOS-013 remains blocked until the specification is reviewed. QOS-011 is now READY because QOS-010's venue contract merged; these workstreams remain separate. Do not infer live execution readiness from documentation or green CI.
+
+
+## Work log — QOS-011 venue adapter hardening (2026-10-27)
+- Re-read `RULES.md` and inspected the current venue adapter, simulated and prop connectors, order lifecycle, OMS cancel methods, bridge, ambiguous-submit test, and `VENUE_ADAPTER_CONTRACT.md` on main at `a39fd9d9a1bc0bb0b4fb8f7a09737a8b09aa1bf0`.
+- On branch `fix/qos-011-venue-contract`, added a typed `ClientOrderIdConflict` error and immutable submit-payload comparison. Both simulated and prop venues reject reuse of a client order ID with changed account/order payload and recheck under the mutation lock to close a concurrent duplicate-submit race.
+- Updated the OMS/venue bridge so a cancel request acknowledgement is not treated as terminal success: it queries the venue order and only marks OMS Cancelled when identity matches and venue status is Cancelled; unconfirmed/mismatched state returns Ambiguous for reconciliation.
+- Added simulated venue tests for same-payload replay and changed-payload conflict, plus a bridge regression test where cancel is acknowledged but the order remains open. Existing ambiguous-submit regression remains in place.
+- Event-stream deduplication remains out of scope for this code slice because the current `VenueAdapter` exposes no event-stream API; this limitation is explicit and no event behavior is claimed.
+- No live adapter, deployment, frontend, sizing logic, or money movement enabled. CI has not yet been verified; do not mark QOS-011 DONE until the PR checks pass.
