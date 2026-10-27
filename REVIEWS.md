@@ -164,3 +164,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Verification result:** Formatting corrections pushed to the PR branch. New-head CI result pending; no Rust compile/test/Clippy success claimed.
 - **Remaining risk:** The corrected head must pass the complete Rust job. Event-stream deduplication/reconnect remains unimplemented until `VenueAdapter` has an event-stream API; live venue behavior remains unverified.
 
+
+## REV-011 — Latest-head CI found one remaining rustfmt diff
+- **Date:** 2026-10-27
+- **Context:** PR #7 Rust job in run 40433534897, job 121956683322.
+- **Finding/correction:** The first formatting correction fixed all reported differences except the second position assertion in `crates/venue-connectors/src/simulated.rs`. The formatting check continued to fail, so Rust workspace check, tests, and Clippy were skipped.
+- **Impact:** The implementation still had no compile/test evidence at that point. The frontend lint and typecheck passed, but production build also failed in `src/app/layout.tsx` inside Next.js `next/font` with `TypeError: Cannot read properties of null (reading '1')`; this is an external build-path issue to diagnose separately.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433534897; Rust formatting log around `simulated.rs:505`; frontend build log reports Next.js 15.5.7 and failure in `next/font`.
+- **Rule that failed:** The checked-in Rust formatting did not comply with `cargo fmt --all -- --check`; frontend production build did not complete.
+- **Rule update made in RULES.md:** None; safety rules remain unchanged.
+- **Code/docs/tests changed:** Corrected the remaining simulator-test formatting on the same feature branch. No behavioral code change intended.
+- **Regression/real-use check added:** Await the newest-head Rust formatting/check/test/Clippy and frontend build result. Determine whether `next/font` failure is stable or runner/network-dependent before changing font loading.
+- **Verification result:** Final rustfmt diff identified in this run was pushed as commit 93e919c5c55c2df8bc8aa8eaa724a96fc1ed609e. Latest-head CI pending.
+- **Remaining risk:** Rust tests have not yet run successfully; production frontend build requires diagnosis. QOS-011 remains IN PROGRESS.
