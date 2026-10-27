@@ -21,7 +21,7 @@ use crate::mt5_reconciliation::{
 use crate::mt5_session::{Mt5SessionGate, Mt5SessionState};
 use crate::mt5_transport::{spawn_heartbeat_watchdog, AuthenticatedMt5Connection};
 use crate::mt5_v1::BridgeFrame;
-use crate::BridgeResult;
+use crate::{BridgeError, BridgeResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mt5RuntimeDispatchResult {
