@@ -216,3 +216,124 @@ async fn mt5_sequence_gaps_degrade_stream_until_explicit_reconciliation(pool: Pg
         .await
         .is_err());
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn reconciliation_snapshot_persists_external_orders_positions_and_account_state_across_restart(
+    pool: PgPool,
+) {
+    use chrono::Utc;
+    use serde_json::json;
+    use sqlx::types::Json;
+
+    let store = TradingStore::new(pool.clone());
+    let captured_at = Utc::now();
+    let snapshot = json!({
+        "account_id": "account-reconcile-01",
+        "terminal_id": "terminal-reconcile-01",
+        "server": "broker-demo",
+        "source": "mt5_authoritative_snapshot_v1",
+        "sequence": 42,
+        "captured_at": captured_at,
+        "account_state": {
+            "currency": "USD",
+            "balance": "10000.00",
+            "equity": "9975.50",
+            "margin_used": "500.00",
+            "free_margin": "9475.50"
+        },
+        "open_orders": [{
+            "venue_order_id": "ticket-7001",
+            "client_order_id": "client-7001",
+            "instrument_id": "EURUSD.a",
+            "side": "buy",
+            "order_type": "limit",
+            "quantity": "0.10",
+            "status": "working"
+        }],
+        "positions": [{
+            "venue_position_id": "position-8001",
+            "instrument_id": "EURUSD.a",
+            "side": "buy",
+            "quantity": "0.10",
+            "average_price": "1.08000",
+            "unrealized_pnl": "-24.50"
+        }]
+    });
+
+    store
+        .persist_mt5_reconciliation_snapshot(
+            "account-reconcile-01",
+            "terminal-reconcile-01",
+            42,
+            "mt5_authoritative_snapshot_v1",
+            captured_at,
+            snapshot.clone(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .mt5_stream_readiness("account-reconcile-01", "terminal-reconcile-01")
+            .await
+            .unwrap(),
+        Mt5StreamReadiness::Ready
+    );
+
+    // A new store handle simulates a process restart. The persisted external
+    // state is available for recovery, and the next heartbeat must be sequential.
+    let restarted = TradingStore::new(pool.clone());
+    let persisted = sqlx::query_scalar::<_, Json<serde_json::Value>>(
+        "SELECT snapshot FROM mt5_bridge_reconciliation_snapshots WHERE account_id = $1 AND terminal_id = $2 ORDER BY id DESC LIMIT 1",
+    )
+    .bind("account-reconcile-01")
+    .bind("terminal-reconcile-01")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(persisted.0, snapshot);
+    assert_eq!(
+        restarted
+            .observe_mt5_sequence("account-reconcile-01", "terminal-reconcile-01", 43)
+            .await
+            .unwrap(),
+        Mt5SequenceObservation::Accepted
+    );
+
+    let stale = restarted
+        .persist_mt5_reconciliation_snapshot(
+            "account-reconcile-01",
+            "terminal-reconcile-01",
+            41,
+            "mt5_authoritative_snapshot_v1",
+            captured_at,
+            snapshot,
+        )
+        .await;
+    assert!(stale.is_err());
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn reconciliation_snapshot_rejects_incomplete_external_state(pool: PgPool) {
+    use chrono::Utc;
+    use serde_json::json;
+
+    let store = TradingStore::new(pool);
+    let incomplete = json!({
+        "account_id": "account-reconcile-02",
+        "terminal_id": "terminal-reconcile-02",
+        "source": "mt5_authoritative_snapshot_v1",
+        "account_state": { "currency": "USD", "balance": "1000.00" },
+        "open_orders": []
+    });
+    assert!(store
+        .persist_mt5_reconciliation_snapshot(
+            "account-reconcile-02",
+            "terminal-reconcile-02",
+            1,
+            "mt5_authoritative_snapshot_v1",
+            Utc::now(),
+            incomplete,
+        )
+        .await
+        .is_err());
+}
