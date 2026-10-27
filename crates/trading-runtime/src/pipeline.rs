@@ -248,7 +248,8 @@ impl TradingRuntime {
         let evaluated_at = Utc::now();
         let (decision, sizing_outcome) = match sizing_context {
             Some(snapshot)
-                if snapshot.account_id != self.config.account_id
+                if self.store.is_none()
+                    || snapshot.account_id != self.config.account_id
                     || snapshot.instrument_id != intent.instrument_id
                     || !snapshot.is_eligible_at(evaluated_at)
                     || risk_req.account_state.updated_at > evaluated_at
