@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use domain::{
     AccountId, AccountState, ClientOrderId, DeploymentId, InstrumentId, Order, OrderId, OrderSide,
-    OrderStatus, OrderType, Position, RiskDecision, StrategyId, TimeInForce, TradeIntentId, VenueId,
+    OrderStatus, OrderType, Position, RiskDecision, StrategyId, TimeInForce, TradeIntentId,
+    VenueId,
 };
 use execution_engine::{ExecutionEngine, NewOrderRequest};
 use rust_decimal::Decimal;
@@ -89,14 +90,11 @@ impl VenueAdapter for InjectedVenue {
     }
 }
 
-async fn seeded_venue(
-    account_text: &str,
-) -> (SimulatedVenue, AccountId, VenueId) {
+async fn seeded_venue(account_text: &str) -> (SimulatedVenue, AccountId, VenueId) {
     let venue_id = VenueId::new("simulated").unwrap();
     let venue = SimulatedVenue::new(venue_id.clone());
     let account_id = AccountId::new(account_text).unwrap();
-    let state = AccountState::new(account_id.clone(), Decimal::from(100_000), Utc::now())
-        .unwrap();
+    let state = AccountState::new(account_id.clone(), Decimal::from(100_000), Utc::now()).unwrap();
     venue.register_account(state).await.unwrap();
     (venue, account_id, venue_id)
 }
@@ -134,14 +132,23 @@ async fn disconnect_before_submit_is_failed_not_unknown() {
     let result = submit_approved_order(
         &mut oms,
         &venue,
-        approved_request(account_id, venue_id, "qos016-disconnect-order", Decimal::ONE),
+        approved_request(
+            account_id,
+            venue_id,
+            "qos016-disconnect-order",
+            Decimal::ONE,
+        ),
     )
     .await;
 
     assert!(matches!(result, Err(VenueError::Failed(_))));
     let order = oms.orders().into_iter().next().unwrap();
     assert_eq!(order.status, OrderStatus::Failed);
-    assert!(venue.open_orders(&order.account_id).await.unwrap().is_empty());
+    assert!(venue
+        .open_orders(&order.account_id)
+        .await
+        .unwrap()
+        .is_empty());
 }
 
 #[tokio::test]
@@ -166,10 +173,15 @@ async fn response_loss_after_venue_commit_keeps_oms_unknown_without_blind_retry(
     assert_eq!(venue_order.status, OrderStatus::Filled);
 
     // A same-client-ID replay is handled by OMS and does not submit a second order.
-    let replay = submit_approved_order(&mut oms, &venue, request).await.unwrap();
+    let replay = submit_approved_order(&mut oms, &venue, request)
+        .await
+        .unwrap();
     assert!(!replay.created);
     assert_eq!(replay.order.id, first.order.id);
-    assert_eq!(venue.positions(&account_id).await.unwrap()[0].quantity, Decimal::ONE);
+    assert_eq!(
+        venue.positions(&account_id).await.unwrap()[0].quantity,
+        Decimal::ONE
+    );
 }
 
 #[tokio::test]
@@ -181,14 +193,23 @@ async fn delayed_ack_is_handled_without_changing_order_identity() {
     let outcome = submit_approved_order(
         &mut oms,
         &venue,
-        approved_request(account_id.clone(), venue_id, "qos016-delayed-order", Decimal::ONE),
+        approved_request(
+            account_id.clone(),
+            venue_id,
+            "qos016-delayed-order",
+            Decimal::ONE,
+        ),
     )
     .await
     .unwrap();
 
     assert_eq!(outcome.order.status, OrderStatus::Filled);
     assert_eq!(
-        venue.get_order(&outcome.order.id).await.unwrap().client_order_id,
+        venue
+            .get_order(&outcome.order.id)
+            .await
+            .unwrap()
+            .client_order_id,
         outcome.order.client_order_id
     );
 }
