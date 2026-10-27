@@ -190,3 +190,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Latest-head CI must rerun workspace compile, tests, and Clippy after formatting.
 - **Verification result:** Typed error variant update committed as `af8e29acc8f5127a8fd8b8ec6b6d2293ae4bbca7`; awaiting CI evidence.
 - **Remaining risk:** Compile/tests/Clippy not yet verified on the corrected head. Adapter event-stream deduplication remains outside this slice; no live execution enabled.
+
+## REV-013 — QOS-011 full CI verification passed
+- **Date:** 2026-10-27
+- **Context:** PR #7 corrected head `fc36d8bd598e93d231929cc2c10fe34663678de5`, GitHub Actions run 40433848539.
+- **Finding/correction:** After the formatting and missing `ClientOrderIdConflict` corrections, the latest-head Rust and frontend jobs completed successfully.
+- **Impact:** The PR now has CI evidence for formatting, compilation, workspace tests, Clippy, frontend lint, typecheck, and production build. This is not evidence of live-venue readiness or production financial correctness.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433848539 and Rust job https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40433848539/job/121957713892. Rust steps `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace`, and `cargo clippy --workspace --all-targets` all passed. Frontend `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build` all passed.
+- **Rule that failed:** No new rule failure in the successful run; earlier failures and corrections are recorded in REV-010–REV-012.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Updated task/progress/review records only. No additional runtime changes.
+- **Regression/real-use check added:** No new test added in this verification step; existing replay/conflict and cancel-confirmation regressions are included in the passing workspace test suite.
+- **Verification result:** Both required CI jobs completed with conclusion `success` on the PR's current head SHA `fc36d8bd598e93d231929cc2c10fe34663678de5`, run 40433848539.
+- **Remaining risk:** PR #7 remains open and unmerged pending user review. Venue event-stream deduplication/reconnect remains unimplemented because the current adapter trait has no event-stream API; no live adapter, live execution, deployment, or money movement was enabled.
