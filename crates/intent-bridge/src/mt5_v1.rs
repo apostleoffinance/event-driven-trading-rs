@@ -654,6 +654,14 @@ impl BridgeFrame {
                     if instrument.digits > 16 {
                         return Err(BridgeError::Invalid("instrument digits exceed supported precision".into()));
                     }
+                    let volume_min = decimal(&instrument.volume_min, "volume_min")?;
+                    let volume_max = decimal(&instrument.volume_max, "volume_max")?;
+                    let volume_step = decimal(&instrument.volume_step, "volume_step")?;
+                    if volume_max < volume_min || volume_step > volume_max {
+                        return Err(BridgeError::Invalid(
+                            "instrument volume bounds or step are inconsistent".into(),
+                        ));
+                    }
                 }
                 let mut quote_symbols = std::collections::BTreeSet::new();
                 for quote in &snapshot.quotes {
@@ -816,25 +824,25 @@ mod tests {
             symbol: "EURUSD.a".into(),
             bid: "1.0845".into(),
             ask: "1.08462".into(),
-            tick_time: now,
+            tick_time: now.clone(),
         };
         let payload = MarketDataSnapshotWire {
             terminal_id: "terminal-1".into(),
             server: "Broker-Demo".into(),
             source: "mt5_python_readonly_v1".into(),
             sequence: 7,
-            captured_at: now,
+            captured_at: now.clone(),
             account_currency: "USD".into(),
             instruments: vec![instrument.clone()],
             quotes: vec![quote.clone()],
         };
         assert!(frame(BridgePayload::MarketDataSnapshot(payload.clone()))
-            .validate_at(now, Duration::zero()).is_ok());
+            .validate_at(now.clone(), Duration::zero()).is_ok());
 
         let mut stale = payload.clone();
         stale.quotes[0].tick_time = now - Duration::seconds(61);
         assert!(frame(BridgePayload::MarketDataSnapshot(stale))
-            .validate_at(now, Duration::zero()).is_err());
+            .validate_at(now.clone(), Duration::zero()).is_err());
 
         let mut crossed = payload.clone();
         crossed.quotes[0].ask = "1.0844".into();
