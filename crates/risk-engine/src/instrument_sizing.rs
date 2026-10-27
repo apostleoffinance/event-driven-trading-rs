@@ -182,8 +182,8 @@ pub fn size_order_instrument_aware(
         return reject(SizingRejectReason::InvalidInput);
     }
 
-    let stop_distance = match entry.checked_sub(stop).map(Decimal::abs) {
-        Some(distance) if distance > Decimal::ZERO => distance,
+    let stop_distance = match entry.checked_sub(stop) {
+        Some(delta) if delta != Decimal::ZERO => delta.abs(),
         _ => return reject(SizingRejectReason::ArithmeticOverflow),
     };
     let loss_per_quantity = match loss_per_quantity(context, stop_distance) {
