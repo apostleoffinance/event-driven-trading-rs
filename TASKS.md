@@ -14,7 +14,7 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
   - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
 
 ## Current recommended task
-- **QOS-014 [IN PROGRESS]** Add durable MT5 order idempotency and reconnect/sequence checkpoints on `feat/qos-014-mt5-idempotency-v1`. Latest scope includes PostgreSQL claim/outcome APIs and fail-closed sequence readiness; transport wiring and end-to-end restart/reconnect tests remain open.
+- **QOS-014 [IN PROGRESS]** Add durable MT5 order idempotency and reconnect/sequence checkpoints on `feat/qos-014-mt5-idempotency-v1`. Latest scope includes PostgreSQL claim/outcome APIs and fail-closed sequence readiness; transport wiring and transport-level restart/reconnect integration remain open; DB-backed persistence restart and sequence-gap tests are now added.
 - QOS-014's typed MT5 v1 protocol boundary is merged in PR #14; authenticated transport, durable idempotency, reconnect/reconciliation integration, and MT5-side conformance remain outstanding.
 - **QOS-011 [DONE — merged]** PR #7 merged on 2026-10-27 at merge commit `324d327f035ca5ccb573404cc8e446b816990ada`. The PR adds same-client-ID/same-payload replay semantics, typed conflicts, concurrent duplicate protection in paper connectors, and confirmed cancellation checks. Event-stream deduplication remains limited by the current trait having no event-stream surface.
 
