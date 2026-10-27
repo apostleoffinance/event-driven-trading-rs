@@ -128,6 +128,32 @@ impl TradingStore {
         .await
     }
 
+    /// Persist an MT5 instrument/quote frame without changing stream readiness.
+    pub async fn persist_mt5_market_data_snapshot(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        server: &str,
+        sequence: u64,
+        source: &str,
+        account_currency: &str,
+        captured_at: chrono::DateTime<chrono::Utc>,
+        snapshot: serde_json::Value,
+    ) -> PersistenceResult<()> {
+        mt5_bridge::persist_market_data_snapshot(
+            &self.pool,
+            account_id,
+            terminal_id,
+            server,
+            sequence,
+            source,
+            account_currency,
+            captured_at,
+            snapshot,
+        )
+        .await
+    }
+
     pub async fn upsert_venue(&self, venue: &domain::Venue) -> PersistenceResult<()> {
         venues::upsert(&self.pool, venue).await
     }

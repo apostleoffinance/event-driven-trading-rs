@@ -260,6 +260,7 @@ pub enum BridgePayload {
     OrderSnapshot(OrderSnapshot),
     ReconcileRequest(ReconcileRequest),
     ReconciliationSnapshot(ReconciliationSnapshotWire),
+    MarketDataSnapshot(MarketDataSnapshotWire),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -434,6 +435,45 @@ pub struct ReconciliationSnapshotWire {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct MarketDataSnapshotWire {
+    pub terminal_id: String,
+    pub server: String,
+    pub source: String,
+    pub sequence: u64,
+    pub captured_at: DateTime<Utc>,
+    pub account_currency: String,
+    pub instruments: Vec<InstrumentMarketDataWire>,
+    pub quotes: Vec<QuoteWire>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InstrumentMarketDataWire {
+    pub symbol: String,
+    pub base_currency: String,
+    pub quote_currency: String,
+    pub digits: u32,
+    pub point: String,
+    pub tick_size: String,
+    pub tick_value_account_currency: String,
+    pub contract_size: String,
+    pub volume_min: String,
+    pub volume_max: String,
+    pub volume_step: String,
+    pub trade_mode: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QuoteWire {
+    pub symbol: String,
+    pub bid: String,
+    pub ask: String,
+    pub tick_time: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReconciliationAccountStateWire {
     pub currency: String,
     pub balance: String,
@@ -574,6 +614,88 @@ impl BridgeFrame {
             BridgePayload::ReconcileRequest(request) => {
                 require_text(&request.client_order_id, "client_order_id")?
             }
+            BridgePayload::MarketDataSnapshot(snapshot) => {
+                require_text(&snapshot.terminal_id, "terminal_id")?;
+                require_text(&snapshot.server, "server")?;
+                require_text(&snapshot.source, "source")?;
+                require_text(&snapshot.account_currency, "account currency")?;
+                if snapshot.instruments.is_empty()
+                    || snapshot.instruments.len() != snapshot.quotes.len()
+                    || snapshot.instruments.len() > 64
+                {
+                    return Err(BridgeError::Invalid(
+                        "market-data snapshot must contain 1–64 matched instrument/quote pairs"
+                            .into(),
+                    ));
+                }
+                let mut symbols = std::collections::BTreeSet::new();
+                for instrument in &snapshot.instruments {
+                    require_text(&instrument.symbol, "instrument symbol")?;
+                    require_text(&instrument.base_currency, "base currency")?;
+                    require_text(&instrument.quote_currency, "quote currency")?;
+                    require_text(&instrument.trade_mode, "trade mode")?;
+                    if !symbols.insert(instrument.symbol.as_str()) {
+                        return Err(BridgeError::Invalid(
+                            "market-data snapshot contains duplicate instrument symbols".into(),
+                        ));
+                    }
+                    for (field, value) in [
+                        ("point", instrument.point.as_str()),
+                        ("tick_size", instrument.tick_size.as_str()),
+                        (
+                            "tick_value_account_currency",
+                            instrument.tick_value_account_currency.as_str(),
+                        ),
+                        ("contract_size", instrument.contract_size.as_str()),
+                        ("volume_min", instrument.volume_min.as_str()),
+                        ("volume_max", instrument.volume_max.as_str()),
+                        ("volume_step", instrument.volume_step.as_str()),
+                    ] {
+                        if decimal(value, field)? <= Decimal::ZERO {
+                            return Err(BridgeError::Invalid(format!("{field} must be positive")));
+                        }
+                    }
+                    if instrument.digits > 16 {
+                        return Err(BridgeError::Invalid(
+                            "instrument digits exceed supported precision".into(),
+                        ));
+                    }
+                    let volume_min = decimal(&instrument.volume_min, "volume_min")?;
+                    let volume_max = decimal(&instrument.volume_max, "volume_max")?;
+                    let volume_step = decimal(&instrument.volume_step, "volume_step")?;
+                    if volume_max < volume_min || volume_step > volume_max {
+                        return Err(BridgeError::Invalid(
+                            "instrument volume bounds or step are inconsistent".into(),
+                        ));
+                    }
+                }
+                let mut quote_symbols = std::collections::BTreeSet::new();
+                for quote in &snapshot.quotes {
+                    require_text(&quote.symbol, "quote symbol")?;
+                    if !quote_symbols.insert(quote.symbol.as_str())
+                        || !symbols.contains(quote.symbol.as_str())
+                    {
+                        return Err(BridgeError::Invalid(
+                            "market-data quote symbols must uniquely match instrument metadata"
+                                .into(),
+                        ));
+                    }
+                    let bid = decimal(&quote.bid, "bid")?;
+                    let ask = decimal(&quote.ask, "ask")?;
+                    if bid <= Decimal::ZERO || ask < bid {
+                        return Err(BridgeError::Invalid(
+                            "quote bid must be positive and ask must be greater than or equal to bid".into(),
+                        ));
+                    }
+                    if quote.tick_time > now + allowed_clock_skew
+                        || now.signed_duration_since(quote.tick_time) > Duration::seconds(60)
+                    {
+                        return Err(BridgeError::Invalid(
+                            "market-data quote is stale or timestamped in the future".into(),
+                        ));
+                    }
+                }
+            }
             BridgePayload::ReconciliationSnapshot(snapshot) => {
                 require_text(&snapshot.terminal_id, "terminal_id")?;
                 require_text(&snapshot.server, "server")?;
@@ -686,6 +808,62 @@ mod tests {
             sent_at: Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap(),
             payload,
         }
+    }
+
+    #[test]
+    fn market_data_snapshot_requires_matching_symbols_and_fresh_valid_quotes() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
+        let instrument = InstrumentMarketDataWire {
+            symbol: "EURUSD.a".into(),
+            base_currency: "EUR".into(),
+            quote_currency: "USD".into(),
+            digits: 5,
+            point: "0.00001".into(),
+            tick_size: "0.00001".into(),
+            tick_value_account_currency: "1.0".into(),
+            contract_size: "100000".into(),
+            volume_min: "0.01".into(),
+            volume_max: "100".into(),
+            volume_step: "0.01".into(),
+            trade_mode: "4".into(),
+        };
+        let quote = QuoteWire {
+            symbol: "EURUSD.a".into(),
+            bid: "1.0845".into(),
+            ask: "1.08462".into(),
+            tick_time: now.clone(),
+        };
+        let payload = MarketDataSnapshotWire {
+            terminal_id: "terminal-1".into(),
+            server: "Broker-Demo".into(),
+            source: "mt5_python_readonly_v1".into(),
+            sequence: 7,
+            captured_at: now.clone(),
+            account_currency: "USD".into(),
+            instruments: vec![instrument],
+            quotes: vec![quote],
+        };
+        assert!(frame(BridgePayload::MarketDataSnapshot(payload.clone()))
+            .validate_at(now.clone(), Duration::zero())
+            .is_ok());
+
+        let mut stale = payload.clone();
+        stale.quotes[0].tick_time = now.clone() - Duration::seconds(61);
+        assert!(frame(BridgePayload::MarketDataSnapshot(stale))
+            .validate_at(now.clone(), Duration::zero())
+            .is_err());
+
+        let mut crossed = payload.clone();
+        crossed.quotes[0].ask = "1.0844".into();
+        assert!(frame(BridgePayload::MarketDataSnapshot(crossed))
+            .validate_at(now.clone(), Duration::zero())
+            .is_err());
+
+        let mut unmatched = payload;
+        unmatched.quotes[0].symbol = "EURUSD".into();
+        assert!(frame(BridgePayload::MarketDataSnapshot(unmatched))
+            .validate_at(now, Duration::zero())
+            .is_err());
     }
 
     fn valid_order() -> SubmitOrder {

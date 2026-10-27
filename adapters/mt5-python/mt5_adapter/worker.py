@@ -62,6 +62,7 @@ class Config:
     client_cert: str
     client_key: str
     sequence_file: str
+    symbols: tuple[str, ...]
     poll_seconds: float = 10.0
 
     @classmethod
@@ -84,6 +85,14 @@ class Config:
         if not account_id or account_id.strip() != account_id:
             raise AdapterError("MT5_ACCOUNT_ID is invalid")
         bridge_host = need("MT5_BRIDGE_HOST")
+        symbols = tuple(symbol.strip() for symbol in need("MT5_SYMBOLS").split(","))
+        if (
+            not symbols
+            or len(symbols) > 64
+            or any(not symbol or symbol.strip() != symbol for symbol in symbols)
+            or len(set(symbols)) != len(symbols)
+        ):
+            raise AdapterError("MT5_SYMBOLS must contain 1–64 unique, exact broker symbol names")
         return cls(
             terminal_path=need("MT5_TERMINAL_PATH"),
             login=login,
@@ -101,6 +110,7 @@ class Config:
                 "MT5_SEQUENCE_FILE",
                 str(Path(os.environ.get("PROGRAMDATA", ".")) / "QuantOS" / "mt5-sequence.json"),
             ),
+            symbols=symbols,
             poll_seconds=poll,
         )
 
@@ -111,6 +121,9 @@ class Terminal(Protocol):
     def account_info(self) -> Any: ...
     def orders(self) -> list[Any]: ...
     def positions(self) -> list[Any]: ...
+    def select_symbol(self, symbol: str) -> bool: ...
+    def symbol_info(self, symbol: str) -> Any: ...
+    def symbol_info_tick(self, symbol: str) -> Any: ...
     def shutdown(self) -> None: ...
 
 
@@ -162,6 +175,21 @@ class MetaTraderTerminal:
         if result is None:
             raise AdapterError(f"MT5 positions_get failed (code={self.mt5.last_error()[0]})")
         return list(result)
+
+    def select_symbol(self, symbol: str) -> bool:
+        return bool(self.mt5.symbol_select(symbol, True))
+
+    def symbol_info(self, symbol: str) -> Any:
+        result = self.mt5.symbol_info(symbol)
+        if result is None:
+            raise AdapterError(f"MT5 symbol_info failed for configured symbol (code={self.mt5.last_error()[0]})")
+        return result
+
+    def symbol_info_tick(self, symbol: str) -> Any:
+        result = self.mt5.symbol_info_tick(symbol)
+        if result is None:
+            raise AdapterError(f"MT5 symbol_info_tick failed for configured symbol (code={self.mt5.last_error()[0]})")
+        return result
 
     def shutdown(self) -> None:
         self.mt5.shutdown()
@@ -263,6 +291,74 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
     }
 
 
+def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int) -> dict[str, Any]:
+    """Capture exact broker symbol specifications and current bid/ask quotes."""
+    if not terminal.connected():
+        raise AdapterError("MT5 terminal disconnected; refusing to emit market data")
+    account = terminal.account_info()
+    if account is None or int(account.login) != config.login or str(account.server) != config.server:
+        raise AdapterError("MT5 account identity changed; refusing to emit market data")
+
+    instruments = []
+    quotes = []
+    captured_at = utc_now()
+    now = datetime.now(timezone.utc).timestamp()
+    for symbol in config.symbols:
+        if not terminal.select_symbol(symbol):
+            raise AdapterError(f"MT5 could not select configured symbol: {symbol}")
+        info = terminal.symbol_info(symbol)
+        tick = terminal.symbol_info_tick(symbol)
+        if info is None or tick is None:
+            raise AdapterError(f"MT5 metadata or quote is unavailable for configured symbol: {symbol}")
+        tick_time = datetime.fromtimestamp(int(tick.time), timezone.utc)
+        if now - tick_time.timestamp() < -5 or now - tick_time.timestamp() > 60:
+            raise AdapterError(f"MT5 quote is stale or timestamped in the future for symbol: {symbol}")
+        bid = Decimal(decimal_text(tick.bid, f"{symbol} bid"))
+        ask = Decimal(decimal_text(tick.ask, f"{symbol} ask"))
+        if bid <= 0 or ask < bid:
+            raise AdapterError(f"MT5 quote has invalid bid/ask for symbol: {symbol}")
+
+        instruments.append({
+            "symbol": required_text(info.name, "instrument symbol"),
+            "base_currency": required_text(info.currency_base, "base currency"),
+            "quote_currency": required_text(info.currency_profit, "quote currency"),
+            "digits": int(info.digits),
+            "point": decimal_text(info.point, "instrument point"),
+            "tick_size": decimal_text(info.trade_tick_size, "instrument tick size"),
+            "tick_value_account_currency": decimal_text(info.trade_tick_value, "tick value in account currency"),
+            "contract_size": decimal_text(info.trade_contract_size, "contract size"),
+            "volume_min": decimal_text(info.volume_min, "minimum volume"),
+            "volume_max": decimal_text(info.volume_max, "maximum volume"),
+            "volume_step": decimal_text(info.volume_step, "volume step"),
+            "trade_mode": str(info.trade_mode),
+        })
+        quotes.append({
+            "symbol": required_text(tick.symbol if hasattr(tick, "symbol") else symbol, "quote symbol"),
+            "bid": decimal_text(tick.bid, "bid"),
+            "ask": decimal_text(tick.ask, "ask"),
+            "tick_time": tick_time.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        })
+
+    return {
+        "schema_version": 1,
+        "message_id": str(uuid.uuid4()),
+        "correlation_id": str(uuid.uuid4()),
+        "account_id": config.account_id,
+        "sent_at": captured_at,
+        "payload": {
+            "type": "market_data_snapshot",
+            "terminal_id": config.terminal_id,
+            "server": config.server,
+            "source": "mt5_python_readonly_v1",
+            "sequence": sequence,
+            "captured_at": captured_at,
+            "account_currency": required_text(account.currency, "account currency"),
+            "instruments": instruments,
+            "quotes": quotes,
+        },
+    }
+
+
 def build_heartbeat(config: Config, sequence: int) -> dict[str, Any]:
     now = utc_now()
     return {
@@ -325,6 +421,7 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
                         while stop is None or not stop.is_set():
                             sequence = sequence_store.next()
                             send_frame(connection, build_heartbeat(config, sequence))
+                            send_frame(connection, build_market_data_snapshot(config, terminal, sequence))
                             send_frame(connection, build_snapshot(config, terminal, mt5_constants, sequence))
                             backoff = 1.0
                             if stop is not None and stop.wait(config.poll_seconds):

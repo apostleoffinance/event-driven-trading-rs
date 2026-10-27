@@ -5,150 +5,728 @@
   "description": "Versioned terminal bridge protocol. Financial decimals are JSON strings, never JSON numbers.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "message_id", "correlation_id", "account_id", "sent_at", "payload"],
+  "required": [
+    "schema_version",
+    "message_id",
+    "correlation_id",
+    "account_id",
+    "sent_at",
+    "payload"
+  ],
   "properties": {
-    "schema_version": { "const": 1 },
-    "message_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "correlation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "account_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "sent_at": { "type": "string", "format": "date-time" },
+    "schema_version": {
+      "const": 1
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "payload": {
       "oneOf": [
-        { "$ref": "#/$defs/heartbeat" },
-        { "$ref": "#/$defs/submit_order" },
-        { "$ref": "#/$defs/submit_outcome" },
-        { "$ref": "#/$defs/cancel_order" },
-        { "$ref": "#/$defs/cancel_outcome" },
-        { "$ref": "#/$defs/order_snapshot" },
-        { "$ref": "#/$defs/reconcile_request" },
-        { "$ref": "#/$defs/reconciliation_snapshot" }
+        {
+          "$ref": "#/$defs/heartbeat"
+        },
+        {
+          "$ref": "#/$defs/submit_order"
+        },
+        {
+          "$ref": "#/$defs/submit_outcome"
+        },
+        {
+          "$ref": "#/$defs/cancel_order"
+        },
+        {
+          "$ref": "#/$defs/cancel_outcome"
+        },
+        {
+          "$ref": "#/$defs/order_snapshot"
+        },
+        {
+          "$ref": "#/$defs/reconcile_request"
+        },
+        {
+          "$ref": "#/$defs/reconciliation_snapshot"
+        },
+        {
+          "$ref": "#/$defs/market_data_snapshot"
+        }
       ]
     }
   },
   "$defs": {
-    "decimal": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$", "description": "Exact base-10 decimal string; no exponent, whitespace, or JSON number." },
+    "decimal": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "description": "Exact base-10 decimal string; no exponent, whitespace, or JSON number."
+    },
     "heartbeat": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "sequence", "terminal_id", "server", "terminal_time", "connection", "capabilities"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "sequence",
+        "terminal_id",
+        "server",
+        "terminal_time",
+        "connection",
+        "capabilities"
+      ],
       "properties": {
-        "type": { "const": "heartbeat" }, "sequence": { "type": "integer", "minimum": 0 },
-        "terminal_id": { "type": "string", "minLength": 1 }, "server": { "type": "string", "minLength": 1 },
-        "terminal_time": { "type": "string", "format": "date-time" },
-        "connection": { "enum": ["connected", "degraded", "disconnected", "unknown"] },
-        "capabilities": { "type": "object", "additionalProperties": false,
-          "required": ["market_orders", "limit_orders", "stop_orders", "cancel_requests", "order_lookup", "idempotent_client_order_id", "sequence_numbers"],
+        "type": {
+          "const": "heartbeat"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "terminal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "terminal_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "connection": {
+          "enum": [
+            "connected",
+            "degraded",
+            "disconnected",
+            "unknown"
+          ]
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "market_orders",
+            "limit_orders",
+            "stop_orders",
+            "cancel_requests",
+            "order_lookup",
+            "idempotent_client_order_id",
+            "sequence_numbers"
+          ],
           "properties": {
-            "market_orders": { "type": "boolean" }, "limit_orders": { "type": "boolean" },
-            "stop_orders": { "type": "boolean" }, "cancel_requests": { "type": "boolean" },
-            "order_lookup": { "type": "boolean" }, "idempotent_client_order_id": { "type": "boolean" },
-            "sequence_numbers": { "type": "boolean" }
+            "market_orders": {
+              "type": "boolean"
+            },
+            "limit_orders": {
+              "type": "boolean"
+            },
+            "stop_orders": {
+              "type": "boolean"
+            },
+            "cancel_requests": {
+              "type": "boolean"
+            },
+            "order_lookup": {
+              "type": "boolean"
+            },
+            "idempotent_client_order_id": {
+              "type": "boolean"
+            },
+            "sequence_numbers": {
+              "type": "boolean"
+            }
           }
         }
       }
     },
     "submit_order": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "client_order_id", "instrument_id", "side", "order_type", "quantity", "time_in_force"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "client_order_id",
+        "instrument_id",
+        "side",
+        "order_type",
+        "quantity",
+        "time_in_force"
+      ],
       "properties": {
-        "type": { "const": "submit_order" }, "client_order_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "instrument_id": { "type": "string", "minLength": 1 }, "side": { "enum": ["buy", "sell"] },
-        "order_type": { "enum": ["market", "limit", "stop", "stop_limit"] },
-        "quantity": { "$ref": "#/$defs/decimal" }, "price": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
-        "stop_loss": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] }, "take_profit": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
-        "time_in_force": { "enum": ["day", "gtc", "ioc", "fok"] }
+        "type": {
+          "const": "submit_order"
+        },
+        "client_order_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "instrument_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "side": {
+          "enum": [
+            "buy",
+            "sell"
+          ]
+        },
+        "order_type": {
+          "enum": [
+            "market",
+            "limit",
+            "stop",
+            "stop_limit"
+          ]
+        },
+        "quantity": {
+          "$ref": "#/$defs/decimal"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stop_loss": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "take_profit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_in_force": {
+          "enum": [
+            "day",
+            "gtc",
+            "ioc",
+            "fok"
+          ]
+        }
       }
     },
     "submit_outcome": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "client_order_id", "outcome", "observed_at"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "client_order_id",
+        "outcome",
+        "observed_at"
+      ],
       "properties": {
-        "type": { "const": "submit_outcome" }, "client_order_id": { "type": "string", "minLength": 1 },
-        "outcome": { "enum": ["accepted", "rejected", "unknown"] }, "venue_order_id": { "type": ["string", "null"] },
-        "reason_code": { "type": ["string", "null"] }, "observed_at": { "type": "string", "format": "date-time" }
+        "type": {
+          "const": "submit_outcome"
+        },
+        "client_order_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "unknown"
+          ]
+        },
+        "venue_order_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "cancel_order": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "client_order_id"],
-      "properties": { "type": { "const": "cancel_order" }, "client_order_id": { "type": "string", "minLength": 1 }, "venue_order_id": { "type": ["string", "null"] } }
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "client_order_id"
+      ],
+      "properties": {
+        "type": {
+          "const": "cancel_order"
+        },
+        "client_order_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "venue_order_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "cancel_outcome": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "client_order_id", "request_state", "terminal_state", "observed_at", "reason_code"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "client_order_id",
+        "request_state",
+        "terminal_state",
+        "observed_at",
+        "reason_code"
+      ],
       "properties": {
-        "type": { "const": "cancel_outcome" }, "client_order_id": { "type": "string", "minLength": 1 },
-        "request_state": { "enum": ["requested", "rejected", "unknown"] },
-        "terminal_state": { "enum": ["filled", "cancelled", "expired", "rejected", null] },
-        "observed_at": { "type": "string", "format": "date-time" }, "reason_code": { "type": ["string", "null"] }
+        "type": {
+          "const": "cancel_outcome"
+        },
+        "client_order_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_state": {
+          "enum": [
+            "requested",
+            "rejected",
+            "unknown"
+          ]
+        },
+        "terminal_state": {
+          "enum": [
+            "filled",
+            "cancelled",
+            "expired",
+            "rejected",
+            null
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     },
     "order_snapshot": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "client_order_id", "sequence", "status", "filled_quantity", "average_fill_price", "source_time"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "client_order_id",
+        "sequence",
+        "status",
+        "filled_quantity",
+        "average_fill_price",
+        "source_time"
+      ],
       "properties": {
-        "type": { "const": "order_snapshot" }, "client_order_id": { "type": "string", "minLength": 1 },
-        "venue_order_id": { "type": ["string", "null"] }, "sequence": { "type": ["integer", "null"], "minimum": 0 },
-        "status": { "enum": ["pending", "accepted", "partially_filled", "filled", "cancel_pending", "cancelled", "rejected", "expired", "unknown"] },
-        "filled_quantity": { "$ref": "#/$defs/decimal" }, "average_fill_price": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
-        "source_time": { "type": "string", "format": "date-time" }
+        "type": {
+          "const": "order_snapshot"
+        },
+        "client_order_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "venue_order_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sequence": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "accepted",
+            "partially_filled",
+            "filled",
+            "cancel_pending",
+            "cancelled",
+            "rejected",
+            "expired",
+            "unknown"
+          ]
+        },
+        "filled_quantity": {
+          "$ref": "#/$defs/decimal"
+        },
+        "average_fill_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_time": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     },
     "reconcile_request": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "client_order_id"],
-      "properties": { "type": { "const": "reconcile_request" }, "client_order_id": { "type": "string", "minLength": 1 } }
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "client_order_id"
+      ],
+      "properties": {
+        "type": {
+          "const": "reconcile_request"
+        },
+        "client_order_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
     "reconciliation_snapshot": {
-      "type": "object", "additionalProperties": false,
-      "required": ["type", "terminal_id", "server", "source", "sequence", "captured_at", "account_state", "open_orders", "positions"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "terminal_id",
+        "server",
+        "source",
+        "sequence",
+        "captured_at",
+        "account_state",
+        "open_orders",
+        "positions"
+      ],
       "properties": {
-        "type": { "const": "reconciliation_snapshot" },
-        "terminal_id": { "type": "string", "minLength": 1 },
-        "server": { "type": "string", "minLength": 1 },
-        "source": { "type": "string", "minLength": 1 },
-        "sequence": { "type": "integer", "minimum": 0 },
-        "captured_at": { "type": "string", "format": "date-time" },
+        "type": {
+          "const": "reconciliation_snapshot"
+        },
+        "terminal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
         "account_state": {
-          "type": "object", "additionalProperties": false,
-          "required": ["currency", "balance", "equity", "margin_used", "free_margin"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "currency",
+            "balance",
+            "equity",
+            "margin_used",
+            "free_margin"
+          ],
           "properties": {
-            "currency": { "type": "string", "minLength": 1 },
-            "balance": { "$ref": "#/$defs/decimal" },
-            "equity": { "$ref": "#/$defs/decimal" },
-            "margin_used": { "$ref": "#/$defs/decimal" },
-            "free_margin": { "$ref": "#/$defs/decimal" }
+            "currency": {
+              "type": "string",
+              "minLength": 1
+            },
+            "balance": {
+              "$ref": "#/$defs/decimal"
+            },
+            "equity": {
+              "$ref": "#/$defs/decimal"
+            },
+            "margin_used": {
+              "$ref": "#/$defs/decimal"
+            },
+            "free_margin": {
+              "$ref": "#/$defs/decimal"
+            }
           }
         },
         "open_orders": {
           "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["venue_order_id", "client_order_id", "instrument_id", "side", "order_type", "quantity", "status"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "venue_order_id",
+              "client_order_id",
+              "instrument_id",
+              "side",
+              "order_type",
+              "quantity",
+              "status"
+            ],
             "properties": {
-              "venue_order_id": { "type": "string", "minLength": 1 },
-              "client_order_id": { "type": ["string", "null"] },
-              "instrument_id": { "type": "string", "minLength": 1 },
-              "side": { "type": "string", "minLength": 1 },
-              "order_type": { "type": "string", "minLength": 1 },
-              "quantity": { "$ref": "#/$defs/decimal" },
-              "status": { "type": "string", "minLength": 1 }
+              "venue_order_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "client_order_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "instrument_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "side": {
+                "type": "string",
+                "minLength": 1
+              },
+              "order_type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "quantity": {
+                "$ref": "#/$defs/decimal"
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         },
         "positions": {
           "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["venue_position_id", "instrument_id", "side", "quantity", "average_price", "unrealized_pnl"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "venue_position_id",
+              "instrument_id",
+              "side",
+              "quantity",
+              "average_price",
+              "unrealized_pnl"
+            ],
             "properties": {
-              "venue_position_id": { "type": "string", "minLength": 1 },
-              "instrument_id": { "type": "string", "minLength": 1 },
-              "side": { "type": "string", "minLength": 1 },
-              "quantity": { "$ref": "#/$defs/decimal" },
-              "average_price": { "$ref": "#/$defs/decimal" },
-              "unrealized_pnl": { "$ref": "#/$defs/decimal" }
+              "venue_position_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "instrument_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "side": {
+                "type": "string",
+                "minLength": 1
+              },
+              "quantity": {
+                "$ref": "#/$defs/decimal"
+              },
+              "average_price": {
+                "$ref": "#/$defs/decimal"
+              },
+              "unrealized_pnl": {
+                "$ref": "#/$defs/decimal"
+              }
             }
           }
+        }
+      }
+    },
+    "market_data_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "terminal_id",
+        "server",
+        "source",
+        "sequence",
+        "captured_at",
+        "account_currency",
+        "instruments",
+        "quotes"
+      ],
+      "properties": {
+        "type": {
+          "const": "market_data_snapshot"
+        },
+        "terminal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "account_currency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instruments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/instrument_market_data"
+          }
+        },
+        "quotes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/quote"
+          }
+        }
+      }
+    },
+    "instrument_market_data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbol",
+        "base_currency",
+        "quote_currency",
+        "digits",
+        "point",
+        "tick_size",
+        "tick_value_account_currency",
+        "contract_size",
+        "volume_min",
+        "volume_max",
+        "volume_step",
+        "trade_mode"
+      ],
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "base_currency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quote_currency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "point": {
+          "$ref": "#/$defs/decimal"
+        },
+        "tick_size": {
+          "$ref": "#/$defs/decimal"
+        },
+        "tick_value_account_currency": {
+          "$ref": "#/$defs/decimal"
+        },
+        "contract_size": {
+          "$ref": "#/$defs/decimal"
+        },
+        "volume_min": {
+          "$ref": "#/$defs/decimal"
+        },
+        "volume_max": {
+          "$ref": "#/$defs/decimal"
+        },
+        "volume_step": {
+          "$ref": "#/$defs/decimal"
+        },
+        "trade_mode": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbol",
+        "bid",
+        "ask",
+        "tick_time"
+      ],
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bid": {
+          "$ref": "#/$defs/decimal"
+        },
+        "ask": {
+          "$ref": "#/$defs/decimal"
+        },
+        "tick_time": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     }

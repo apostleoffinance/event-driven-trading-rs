@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from mt5_adapter.worker import AdapterError, Config, SequenceStore, build_heartbeat, build_snapshot, decimal_text, send_frame
+from mt5_adapter.worker import AdapterError, Config, SequenceStore, build_heartbeat, build_market_data_snapshot, build_snapshot, decimal_text, send_frame
 
 
 class FakeTerminal:
@@ -24,6 +24,20 @@ class FakeTerminal:
         return [SimpleNamespace(ticket=88, type=0, symbol="EURUSD.a", volume=0.1,
                                 price_open=1.08, profit=-9.5)]
 
+    def select_symbol(self, symbol):
+        return symbol == "EURUSD.a"
+
+    def symbol_info(self, symbol):
+        return SimpleNamespace(name=symbol, currency_base="EUR", currency_profit="USD",
+                               digits=5, point=0.00001, trade_tick_size=0.00001,
+                               trade_tick_value=1.0, trade_contract_size=100000.0,
+                               volume_min=0.01, volume_max=100.0, volume_step=0.01,
+                               trade_mode=4)
+
+    def symbol_info_tick(self, symbol):
+        import time
+        return SimpleNamespace(symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()))
+
 
 class FakeConstants:
     ORDER_TYPE_BUY = 0
@@ -40,7 +54,7 @@ class FakeConstants:
 def config(path):
     return Config("C:/terminal64.exe", 123456, "not-logged", "Broker-Demo", "123456",
                   "terminal-demo-1", "127.0.0.1", 9443, "bridge.example.test",
-                  "ca.pem", "client.pem", "client.key", str(path))
+                  "ca.pem", "client.pem", "client.key", str(path), ("EURUSD.a",))
 
 
 class AdapterContractTests(unittest.TestCase):
@@ -72,6 +86,27 @@ class AdapterContractTests(unittest.TestCase):
         self.assertEqual(payload["open_orders"][0]["instrument_id"], "EURUSD.a")
         self.assertEqual(payload["positions"][0]["unrealized_pnl"], "-9.5")
         self.assertEqual(payload["sequence"], 12)
+
+    def test_market_data_snapshot_contains_exact_specs_and_fresh_bid_ask(self):
+        payload = build_market_data_snapshot(config("unused"), FakeTerminal(), 13)["payload"]
+        self.assertEqual(payload["type"], "market_data_snapshot")
+        self.assertEqual(payload["account_currency"], "USD")
+        self.assertEqual(payload["instruments"][0]["symbol"], "EURUSD.a")
+        self.assertEqual(payload["instruments"][0]["tick_size"], "0.00001")
+        self.assertEqual(payload["instruments"][0]["volume_step"], "0.01")
+        self.assertEqual(payload["quotes"][0]["bid"], "1.0845")
+        self.assertEqual(payload["quotes"][0]["ask"], "1.08462")
+        self.assertTrue(payload["quotes"][0]["tick_time"].endswith("Z"))
+
+    def test_market_data_snapshot_fails_closed_when_symbol_or_quote_unavailable(self):
+        terminal = FakeTerminal()
+        terminal.select_symbol = lambda symbol: False
+        with self.assertRaises(AdapterError):
+            build_market_data_snapshot(config("unused"), terminal, 13)
+        terminal = FakeTerminal()
+        terminal.symbol_info_tick = lambda symbol: None
+        with self.assertRaises(AdapterError):
+            build_market_data_snapshot(config("unused"), terminal, 13)
 
     def test_snapshot_rejects_disconnect_or_account_switch(self):
         terminal = FakeTerminal()
