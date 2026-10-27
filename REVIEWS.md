@@ -326,3 +326,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Code/docs/tests changed:** No additional code change in this verification record; status summaries updated with exact CI evidence.
 - **Verification result:** The PR head is verified by the full CI workflow. PR #10 remains open and unmerged. This does not establish live or production readiness and does not complete QOS-013.
 - **Remaining risk:** Runtime context remains caller-supplied rather than sourced from authoritative timestamped snapshots; margin, pending-order reserves, structured persistent sizing audit, property tests, and full SZ-01–SZ-26 coverage remain open. No live execution or money movement enabled.
+
+
+## REV-024 — Frontend production build failed in Next.js Google font loader; workaround submitted
+- **Date:** 2026-10-27
+- **Context:** PR #10 head `3d457365e78f8a0710cdb1281d134c52a639a68d`; GitHub Actions run 40438370475, frontend job 121972469846.
+- **Finding:** `npm ci`, `npm run lint`, and `npm run typecheck` passed, but `npm run build` failed in `frontend/src/app/layout.tsx` within `next/font/google/loader.js` with `TypeError: Cannot read properties of null (reading '1')`. The job log shows a compile-time Google font loader failure. The root layout imports `IBM_Plex_Mono` and `IBM_Plex_Sans` from `next/font/google`; CI therefore depends on remote Google Fonts response/parsing during build.
+- **Correction submitted:** PR #11 removes the `next/font/google` imports, uses stable system font stacks in `globals.css` and the ECharts font configuration, and leaves theme switching and the PAPER metadata untouched.
+- **Evidence:** https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40438370475/job/121972469846 and https://github.com/apostleoffinance/event-driven-trading-rs/pull/11.
+- **Rule that failed:** Rule 7 (claim changes and test results only with evidence); prior head had a failing production build. Existing workflow/test rules otherwise remain adequate.
+- **Rule update made in RULES.md:** None; deterministic build verification is already required by the CI workflow and the existing rules.
+- **Code/docs/tests changed:** `frontend/src/app/layout.tsx`, `frontend/src/styles/globals.css`, and `frontend/src/components/charts/EquityChart.tsx` on `fix/frontend-next-font-build`.
+- **Regression/real-use check:** CI must complete `npm ci`, `npm run lint`, `npm run typecheck`, and `npm run build` on the fix head; Rust checks should remain green in the combined PR state.
+- **Verification result:** Source changes pushed and PR #11 opened. CI is pending; this fix is not yet verified.
+- **Remaining risk:** System font stacks avoid Google font network dependence but do not bundle IBM Plex. Visual differences in font rendering are possible across OS platforms. No live execution or money movement enabled.
