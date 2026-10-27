@@ -22,7 +22,7 @@ async fn persist_reconciliation_snapshot(
             terminal_id,
             sequence,
             "mt5_authoritative_snapshot_v1",
-            captured_at,
+            captured_at.clone(),
             json!({
                 "account_id": account_id,
                 "terminal_id": terminal_id,
