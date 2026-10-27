@@ -489,7 +489,6 @@ pub async fn persist_reconciliation_snapshot(
     Ok(())
 }
 
-
 /// Persist broker-authoritative MT5 instrument metadata and fresh bid/ask quotes.
 /// This table is separate from reconciliation readiness so market data cannot mark
 /// an order/account stream ready by itself.
