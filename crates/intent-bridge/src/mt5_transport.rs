@@ -444,8 +444,7 @@ fn enforce_heartbeat_freshness(
     timeout: StdDuration,
     mut session: Option<&mut Mt5SessionGate>,
 ) -> BridgeResult<()> {
-    let fresh = last_heartbeat_at
-        .is_some_and(|last| heartbeat_is_fresh(last, now, timeout));
+    let fresh = last_heartbeat_at.is_some_and(|last| heartbeat_is_fresh(last, now, timeout));
     if !fresh {
         if let Some(session) = session.as_mut() {
             session.degrade();
@@ -588,11 +587,13 @@ mod tests {
             Some(&mut session),
         )
         .is_err());
-        assert_eq!(session.state(), crate::mt5_session::Mt5SessionState::Degraded);
+        assert_eq!(
+            session.state(),
+            crate::mt5_session::Mt5SessionState::Degraded
+        );
 
         let healthy_policy = crate::mt5_session::Mt5SessionPolicy::new(["account-001"])?;
-        let mut healthy_session =
-            Mt5SessionGate::after_transport_authentication(healthy_policy);
+        let mut healthy_session = Mt5SessionGate::after_transport_authentication(healthy_policy);
         assert!(enforce_heartbeat_freshness(
             Some(now - Duration::seconds(10)),
             now,
