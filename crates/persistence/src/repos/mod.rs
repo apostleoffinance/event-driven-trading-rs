@@ -4,6 +4,7 @@ mod accounts;
 mod audit;
 mod fills;
 mod instruments;
+mod mt5_bridge;
 mod orders;
 mod positions;
 mod risk;
@@ -14,6 +15,10 @@ mod venues;
 use sqlx::PgPool;
 
 use crate::error::PersistenceResult;
+
+pub use mt5_bridge::{
+    Mt5DurableOrderState, Mt5OrderClaim, Mt5SequenceObservation, Mt5StreamReadiness,
+};
 
 /// Aggregated store used by the trading runtime.
 #[derive(Clone)]
@@ -28,6 +33,76 @@ impl TradingStore {
 
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    /// Atomically reserve a durable MT5 client-order ID before transport send.
+    pub async fn claim_mt5_order(
+        &self,
+        account_id: &str,
+        client_order_id: &str,
+        request_payload: serde_json::Value,
+    ) -> PersistenceResult<Mt5OrderClaim> {
+        mt5_bridge::claim_order(
+            &self.pool,
+            account_id,
+            client_order_id,
+            request_payload,
+        )
+        .await
+    }
+
+    /// Persist an MT5 accepted/rejected/unknown outcome without rewriting terminal state.
+    pub async fn record_mt5_order_outcome(
+        &self,
+        account_id: &str,
+        client_order_id: &str,
+        state: Mt5DurableOrderState,
+        venue_order_id: Option<&str>,
+        reason_code: Option<&str>,
+    ) -> PersistenceResult<()> {
+        mt5_bridge::record_outcome(
+            &self.pool,
+            account_id,
+            client_order_id,
+            state,
+            venue_order_id,
+            reason_code,
+        )
+        .await
+    }
+
+    /// Record a sequence checkpoint; gaps and uninitialized streams require reconciliation.
+    pub async fn observe_mt5_sequence(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        sequence: u64,
+    ) -> PersistenceResult<Mt5SequenceObservation> {
+        mt5_bridge::observe_sequence(&self.pool, account_id, terminal_id, sequence).await
+    }
+
+    /// Mark the stream ready only after the caller has reconciled external orders and positions.
+    pub async fn mark_mt5_stream_reconciled(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+        reconciled_sequence: u64,
+    ) -> PersistenceResult<()> {
+        mt5_bridge::mark_stream_reconciled(
+            &self.pool,
+            account_id,
+            terminal_id,
+            reconciled_sequence,
+        )
+        .await
+    }
+
+    pub async fn mt5_stream_readiness(
+        &self,
+        account_id: &str,
+        terminal_id: &str,
+    ) -> PersistenceResult<Mt5StreamReadiness> {
+        mt5_bridge::stream_readiness(&self.pool, account_id, terminal_id).await
     }
 
     pub async fn upsert_venue(&self, venue: &domain::Venue) -> PersistenceResult<()> {
