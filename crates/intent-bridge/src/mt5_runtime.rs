@@ -158,6 +158,36 @@ impl Mt5BridgeRuntime {
             if matches!(&frame.payload, BridgePayload::Heartbeat(_)) {
                 continue;
             }
+            if let BridgePayload::MarketDataSnapshot(snapshot) = &frame.payload {
+                let serialized = serde_json::to_value(snapshot)?;
+                if let Err(error) = self
+                    .store
+                    .persist_mt5_market_data_snapshot(
+                        &frame.account_id,
+                        &snapshot.terminal_id,
+                        &snapshot.server,
+                        snapshot.sequence,
+                        &snapshot.source,
+                        &snapshot.account_currency,
+                        snapshot.captured_at,
+                        serialized,
+                    )
+                    .await
+                {
+                    let mut session = self.session.lock().await;
+                    session.degrade();
+                    let _ = self
+                        .store
+                        .mark_mt5_stream_degraded(
+                            &frame.account_id,
+                            &snapshot.terminal_id,
+                            snapshot.sequence,
+                        )
+                        .await;
+                    return Err(BridgeError::from(error));
+                }
+                continue;
+            }
             if matches!(&frame.payload, BridgePayload::ReconciliationSnapshot(_)) {
                 break frame;
             }
