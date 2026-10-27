@@ -648,3 +648,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Finding:** `cargo fmt --all -- --check` rejected the multi-line signature of the short `heartbeat_is_fresh` helper. Workspace compilation, tests and Clippy were skipped by the formatting gate.
 - **Correction:** Applied the exact rustfmt signature layout.
 - **Verification:** A new full CI run is required on the updated PR head; no compilation or test success is claimed from the failed run.
+
+
+## REV-053 — QOS-014 conformance PR Clippy failure
+
+- **Date:** 2026-10-27
+- **Context:** PR #24 CI run `40457521240`, Rust job `122034210752`; formatting, workspace check and workspace tests passed, but all-target Clippy failed.
+- **Finding:** The new outbound NDJSON regression test used two `unwrap()` calls, which are denied by the `intent-bridge` crate's `clippy::unwrap_used` policy.
+- **Correction:** Replaced both unwraps with explicit error-reporting branches in the test, preserving coverage for exact LF framing and JSON round-trip.
+- **Verification:** A fresh full CI run is required on the updated PR head. This Clippy failure must not be treated as a code or test pass.
+- **Remaining risk:** MT5 transport integration gates documented in REV-051 and the PR description remain open; no live trading enabled.
