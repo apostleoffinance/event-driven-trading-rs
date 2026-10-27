@@ -275,7 +275,7 @@ pub async fn mark_stream_reconciled(
             "MT5 account ID, terminal ID and non-negative sequence are required".into(),
         ));
     }
-    let snapshot_sequence = sqlx::query_scalar::<_, i64>(
+    let snapshot_sequence = sqlx::query_scalar::<_, Option<i64>>(
         "SELECT MAX(reconciled_sequence) FROM mt5_bridge_reconciliation_snapshots WHERE account_id = $1 AND terminal_id = $2",
     )
     .bind(account_id)
