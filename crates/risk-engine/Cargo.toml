@@ -8,6 +8,7 @@ description = "Deterministic pre-trade risk evaluation"
 [dependencies]
 domain = { path = "../domain" }
 rust_decimal = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
