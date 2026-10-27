@@ -450,6 +450,81 @@ impl AuthenticatedMt5Connection {
         Ok(frame)
     }
 
+    /// Wait for the submit outcome while still checkpointing interleaved heartbeats.
+    /// The entire response wait is bounded by one I/O deadline, not reset by each
+    /// heartbeat. Unexpected application frames and timeout fail closed.
+    pub async fn read_submit_outcome_with_session_checkpoint(
+        &mut self,
+        store: &TradingStore,
+        session: &mut Mt5SessionGate,
+        allowed_clock_skew: Duration,
+    ) -> BridgeResult<BridgeFrame> {
+        let deadline = Instant::now() + self.limits.io_timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                self.failed = true;
+                session.degrade();
+                if let (Some(account_id), Some(terminal_id)) =
+                    (session.account_id(), session.terminal_id())
+                {
+                    let _ = store
+                        .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                        .await;
+                }
+                return Err(BridgeError::Invalid(
+                    "MT5 submit outcome deadline expired; reconciliation is required".into(),
+                ));
+            }
+            let result = timeout(
+                remaining,
+                self.read_frame_with_session_checkpoint(
+                    store,
+                    session,
+                    Utc::now(),
+                    allowed_clock_skew,
+                ),
+            )
+            .await;
+            let frame = match result {
+                Err(_) => {
+                    self.failed = true;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (session.account_id(), session.terminal_id())
+                    {
+                        let _ = store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                            .await;
+                    }
+                    return Err(BridgeError::Invalid(
+                        "MT5 submit outcome timed out; reconciliation is required".into(),
+                    ));
+                }
+                Ok(Err(error)) => return Err(error),
+                Ok(Ok(frame)) => frame,
+            };
+            match &frame.payload {
+                BridgePayload::Heartbeat(_) => continue,
+                BridgePayload::SubmitOutcome(_) => return Ok(frame),
+                _ => {
+                    self.failed = true;
+                    session.degrade();
+                    if let (Some(account_id), Some(terminal_id)) =
+                        (session.account_id(), session.terminal_id())
+                    {
+                        let _ = store
+                            .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                            .await;
+                    }
+                    return Err(BridgeError::Invalid(
+                        "unexpected MT5 frame while awaiting submit outcome".into(),
+                    ));
+                }
+            }
+        }
+    }
+
     /// Write one validated protocol frame as NDJSON. Transport success means only
     /// bytes were written; it is never an order acceptance/fill/cancel confirmation.
     pub async fn write_frame(&mut self, frame: &BridgeFrame) -> BridgeResult<()> {
