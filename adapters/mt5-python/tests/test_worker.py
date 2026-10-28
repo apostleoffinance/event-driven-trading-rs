@@ -143,6 +143,26 @@ class AdapterContractTests(unittest.TestCase):
         with self.assertRaises(AdapterError):
             build_market_data_snapshot(config("unused"), terminal, 13)
 
+    def test_market_data_snapshot_reports_stale_quote_age(self):
+        import time
+
+        terminal = FakeTerminal()
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()) - 120
+        )
+        with self.assertRaisesRegex(AdapterError, r"quote is stale by .*s.*tick_time="):
+            build_market_data_snapshot(config("unused"), terminal, 13)
+
+    def test_market_data_snapshot_reports_future_quote_timestamp(self):
+        import time
+
+        terminal = FakeTerminal()
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()) + 30
+        )
+        with self.assertRaisesRegex(AdapterError, r"timestamp is .*s in the future.*tick_time="):
+            build_market_data_snapshot(config("unused"), terminal, 13)
+
     def test_snapshot_rejects_disconnect_or_account_switch(self):
         terminal = FakeTerminal()
         terminal.is_connected = False
