@@ -198,7 +198,7 @@ class MacOsProviderTests(unittest.TestCase):
                 "trade_tick_value": 1.0, "trade_contract_size": 100000.0,
                 "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01, "trade_mode": 4,
             },
-            "TICK\tEURUSD.a": {"symbol": "EURUSD.a", "bid": 1.0845, "ask": 1.08462, "time": 1793000000},
+            "TICK\tEURUSD.a": {"symbol": "EURUSD.a", "bid": 1.0845, "ask": 1.08462, "time": 1793000000, "server_time": 1793000001},
         }
 
         def fake_ea():

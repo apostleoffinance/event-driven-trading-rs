@@ -243,16 +243,21 @@ string TickJson(const string symbol)
    // This logs no account credentials, tokens, prices, or other sensitive data.
    long tick_epoch = (long)tick.time;
    long utc_epoch = (long)TimeGMT();
+   long local_epoch = (long)TimeLocal();
    long current_epoch = (long)TimeCurrent();
    long server_epoch = (long)TimeTradeServer();
-   PrintFormat("QuantOS time diagnostic: symbol=%s tick_epoch=%I64d utc_epoch=%I64d current_epoch=%I64d server_epoch=%I64d tick_minus_utc_seconds=%I64d",
-               symbol, tick_epoch, utc_epoch, current_epoch, server_epoch,
-               tick_epoch - utc_epoch);
+   int gmt_offset = TimeGMTOffset();
+   PrintFormat("QuantOS time diagnostic: symbol=%s tick_epoch=%I64d utc_epoch=%I64d local_epoch=%I64d current_epoch=%I64d server_epoch=%I64d gmt_offset_seconds=%d tick_minus_utc_seconds=%I64d",
+               symbol, tick_epoch, utc_epoch, local_epoch, current_epoch, server_epoch,
+               gmt_offset, tick_epoch - utc_epoch);
 
+   // MqlTick.time is server quote time. Send TimeCurrent separately so the
+   // host worker can normalize server-clock epochs against its trusted UTC clock.
    return "{\"symbol\":" + JsonString(symbol) +
           ",\"bid\":" + JsonNumber(tick.bid, 16) +
           ",\"ask\":" + JsonNumber(tick.ask, 16) +
-          ",\"time\":" + IntegerToString((long)tick.time) + "}";
+          ",\"time\":" + IntegerToString((long)tick.time) +
+          ",\"server_time\":" + IntegerToString((long)TimeCurrent()) + "}";
 }
 
 void Respond(const bool ok, const string data)
