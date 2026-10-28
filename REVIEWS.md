@@ -767,3 +767,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Python tests cover token and loopback constraints, account/server identity, symbol allowlisting, request mapping, and the absence of unsupported command names. CI is required before merge; terminal compilation and real demo smoke remain manual acceptance gates.
 - **Verification result:** Not yet verified by CI or real terminal. The local clone attempt failed because this environment could not resolve GitHub; no tests are claimed to have passed.
 - **Remaining risk:** MQL5 compiler/API compatibility, terminal socket permissions, real-account data mapping, stale/reconnect behavior, and restart/persistence/certificate gates remain open. Venue execution stays disabled.
+
+
+## REV-040 — macOS smoke harness aligned with latest-row persistence model
+- **Date:** 2026-10-28
+- **Context:** Integrating the native macOS provider with the existing macOS smoke and restart tools.
+- **Finding/correction:** The market-data table has a unique (account_id, terminal_id) constraint and retains only the latest row, so a one-shot SQL count of multiple historical market-data sequences cannot work. The old macOS smoke query incorrectly required two distinct sequences from this latest-row table. The active worker also holds the EA's single socket connection, so a direct smoke probe cannot compete for the same EA connection.
+- **Impact:** The prior smoke/restart sequence could not reliably pass against the actual intended deployment topology.
+- **Evidence:** migrations/20261027000004_mt5_market_data_snapshots.sql defines the latest-row uniqueness constraint; the macOS smoke script queried distinct sequences from that table and the EA protocol has one active connection.
+- **Rule that failed:** No safety rule violation is established; this is a test-harness correctness gap.
+- **Rule update made in RULES.md:** None; existing rules require tests to match real persistence semantics and avoid unsupported conformance claims.
+- **Code/docs/tests changed:** The macOS smoke now verifies current market/reconciliation sequence agreement and provider source identity. Restart verification uses persisted-only mode while the worker is active; restart recovery separately checks that the post-restart sequence advanced beyond the pre-stop value. The MQL5 EA safety surface is checked by a static unit test.
+- **Regression/real-use check added:** Exact-head Python CI is pending. Real MetaEditor compile and demo-account smoke remain mandatory.
+- **Verification result:** Source/migration inspection supports the correction; no real terminal or CI pass is claimed yet.
+- **Remaining risk:** Real socket behavior, MetaEditor compiler compatibility, reconnect timing, and target-host evidence remain unverified.
