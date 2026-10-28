@@ -155,7 +155,7 @@ class MacOsProviderTests(unittest.TestCase):
 
         def fake_ea():
             try:
-                with socket.create_connection(("127.0.0.1", port), timeout=3) as peer:
+                with connect_retry(port) as peer:
                     peer.sendall(f"HELLO\t{token}\n".encode())
                     reader = peer.makefile("rb")
                     reader.readline()
