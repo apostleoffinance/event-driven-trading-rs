@@ -72,10 +72,9 @@ def certificate_fingerprint(client_cert: Path) -> str:
         ["openssl", "x509", "-in", str(client_cert), "-outform", "DER"],
         check=True, capture_output=True,
     )
-    digest = subprocess.run(
-        ["shasum", "-a", "256"], input=result.stdout,
-        check=True, capture_output=True, text=True,
-    ).stdout.split()[0].lower()
+    import hashlib
+
+    digest = hashlib.sha256(result.stdout).hexdigest()
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise RuntimeError("could not calculate the client certificate fingerprint")
     return digest
