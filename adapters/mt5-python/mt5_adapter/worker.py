@@ -247,8 +247,7 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
         raise AdapterError("MT5 account identity changed; refusing to emit a reconciliation snapshot")
 
     orders = []
-    for order in terminal.orders():
-        order_type = _order_type(mt5_constants, order.type)
+    for order in terminal.orders():        order_type = _order_type(mt5_constants, order.type)
         side = "buy" if "buy" in order_type else "sell" if "sell" in order_type else "unknown"
         orders.append({
             "venue_order_id": required_text(order.ticket, "order ticket"),
@@ -317,7 +316,35 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
         tick = terminal.symbol_info_tick(symbol)
         if info is None or tick is None:
             raise AdapterError(f"MT5 metadata or quote is unavailable for configured symbol: {symbol}")
-        tick_time = datetime.fromtimestamp(int(tick.time), timezone.utc)
+        raw_tick_epoch = int(tick.time)
+        tick_epoch = raw_tick_epoch
+        # Native MQL5 exposes broker/server quote time. Normalize it against
+        # the host's trusted UTC clock using TimeCurrent(), not TimeGMT():
+        # MetaQuotes documents TimeGMT() as derived from the terminal computer's
+        # local clock and timezone configuration.
+        if getattr(terminal, "source", "") == "mt5_macos_mql5_socket_v1":
+            server_epoch_value = getattr(tick, "server_time", None)
+            if server_epoch_value is None:
+                raise AdapterError("MT5 native quote omitted its server-time reference")
+            server_epoch = int(server_epoch_value)
+            server_tick_delta = server_epoch - raw_tick_epoch
+            if abs(server_tick_delta) > 60:
+                raise AdapterError(
+                    f"MT5 quote and server clock differ by {server_tick_delta}s for symbol {symbol}; "
+                    "refusing unsafe timestamp normalization"
+                )
+            server_offset = server_epoch - int(now)
+            if abs(server_offset) > 14 * 3600:
+                raise AdapterError("MT5 server clock offset exceeds the supported timezone range")
+            quarter_hour_offset = round(server_offset / 900) * 900
+            if abs(server_offset - quarter_hour_offset) > 300:
+                raise AdapterError(
+                    f"MT5 server clock offset is not timezone-like ({server_offset}s) for symbol {symbol}; "
+                    "refusing unsafe timestamp normalization"
+                )
+            tick_epoch = raw_tick_epoch - quarter_hour_offset
+
+        tick_time = datetime.fromtimestamp(tick_epoch, timezone.utc)
         tick_age_seconds = now - tick_time.timestamp()
         if tick_age_seconds < -5:
             raise AdapterError(
