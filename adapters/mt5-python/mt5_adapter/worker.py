@@ -11,6 +11,7 @@ import os
 import socket
 import ssl
 import sys
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -412,12 +413,16 @@ def send_frame(connection: Any, frame: dict[str, Any]) -> None:
 
 def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any = None) -> None:
     """Connect and stream heartbeat/snapshot pairs; never submit or cancel orders."""
-    terminal.connect(config)
     sequence_store = SequenceStore(config.sequence_file)
     backoff = 1.0
     try:
         while stop is None or not stop.is_set():
             try:
+                # Include the initial provider handshake in the retry boundary.
+                # Previously terminal.connect() ran before this try block, so
+                # a transient native-MT5 handshake failure exited the process
+                # and relied on launchd to restart it.
+                terminal.connect(config)
                 if not terminal.connected():
                     terminal.shutdown()
                     terminal.connect(config)
@@ -434,8 +439,14 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
                                 return
                             if stop is None:
                                 time.sleep(config.poll_seconds)
-            except (OSError, ssl.SSLError, AdapterError):
+            except (OSError, ssl.SSLError, AdapterError) as exc:
                 # Never log credentials, terminal responses, or full frame contents.
+                print(
+                    f"MT5 worker connection/poll attempt failed ({type(exc).__name__}); "
+                    f"retrying after {backoff:.1f}s.",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 if stop is not None and stop.wait(backoff):
                     return
                 if stop is None:
