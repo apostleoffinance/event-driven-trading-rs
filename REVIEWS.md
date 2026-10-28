@@ -781,3 +781,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Exact-head Python CI is pending. Real MetaEditor compile and demo-account smoke remain mandatory.
 - **Verification result:** Source/migration inspection supports the correction; no real terminal or CI pass is claimed yet.
 - **Remaining risk:** Real socket behavior, MetaEditor compiler compatibility, reconnect timing, and target-host evidence remain unverified.
+
+
+## REV-041 — Socket fixture startup race caught by macOS CI
+- **Date:** 2026-10-28
+- **Context:** Exact-head GitHub Actions run 40653817712 for PR #40.
+- **Finding/correction:** The macOS preflight found one test error: the mismatched-login fixture attempted a single TCP connect before the provider listener was bound, so it could fail with ConnectionRefusedError instead of exercising identity rejection. The separate adapter contract-test job passed.
+- **Impact:** The failure was test orchestration, not evidence of a production provider failure, but the preflight correctly blocked the change until deterministic test synchronization was added.
+- **Evidence:** macOS job 122699936784 in workflow run 40653817712; test_macos_socket_provider.py.
+- **Rule that failed:** Test reliability requirement; no production safety rule violation established.
+- **Rule update made in RULES.md:** None. Existing testing rules require reproducible failure-path tests.
+- **Code/docs/tests changed:** Added a bounded retry helper to both socket-fixture connection paths. No runtime behavior changed for this correction.
+- **Regression/real-use check added:** Re-run the full macOS preflight and exact-head CI on the updated commit.
+- **Verification result:** Fix committed; rerun status is pending. Do not claim the failing job is resolved until new CI confirms it.
+- **Remaining risk:** Real MetaEditor compilation and demo-terminal acceptance remain unverified independently of CI.
