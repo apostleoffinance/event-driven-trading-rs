@@ -41,13 +41,12 @@ def main() -> int:
 
     out = Path(args.output_dir).expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
-    out.chmod(0o700)
     existing = sorted(path.name for path in out.iterdir())
     if existing:
         print("BLOCKED: output directory is not empty; refusing to overwrite: " + ", ".join(existing), file=sys.stderr)
         print("Choose a new empty directory or securely move the existing files first.", file=sys.stderr)
         return 2
-
+    out.chmod(0o700)
     issued = out / "issued"
     issued.mkdir(mode=0o700)
     for name, value in (("index.txt", ""), ("serial", "1000\n"), ("crlnumber", "1000\n")):
