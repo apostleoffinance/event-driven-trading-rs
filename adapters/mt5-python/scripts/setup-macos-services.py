@@ -13,12 +13,10 @@ import plistlib
 import re
 import secrets
 import shlex
-import shutil
 import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Mapping
 
 PROVIDER = "mt5_adapter.macos_socket_provider:create_terminal_provider"
 SERVICE_ROOT = Path.home() / "Library" / "Application Support" / "QuantOS"
@@ -48,7 +46,7 @@ def shell_quote(value: str) -> str:
     return shlex.quote(value)
 
 
-def build_plist(label: str, wrapper: Path, env_file: Path, repo: Path,
+def build_plist(label: str, wrapper: Path, env_file: Path,
                 executable_args: list[str], working_directory: Path,
                 stdout_path: Path, stderr_path: Path) -> bytes:
     return plistlib.dumps({
@@ -206,12 +204,12 @@ def main() -> int:
         token_file.chmod(0o600)
 
         bridge_bytes = build_plist(
-            BRIDGE_LABEL, wrapper, env_file, repo, [str(daemon)], repo,
+            BRIDGE_LABEL, wrapper, env_file, [str(daemon)], repo,
             SERVICE_ROOT / "logs" / "mt5-bridge.stdout.log",
             SERVICE_ROOT / "logs" / "mt5-bridge.stderr.log",
         )
         worker_bytes = build_plist(
-            WORKER_LABEL, wrapper, env_file, repo,
+            WORKER_LABEL, wrapper, env_file,
             [str(python_exe), "-m", "mt5_adapter.worker"], adapter,
             SERVICE_ROOT / "logs" / "mt5-worker.stdout.log",
             SERVICE_ROOT / "logs" / "mt5-worker.stderr.log",
