@@ -39,7 +39,7 @@ class MacOsProviderTests(unittest.TestCase):
         with patch.dict(os.environ, {
             "MT5_MACOS_PROVIDER_TOKEN": "too-short",
             "MT5_MACOS_PROVIDER_PORT": "18765",
-        }, clear=False):
+        }, clear=True):
             with self.assertRaises(AdapterError):
                 create_terminal_provider(config())
 
@@ -47,7 +47,7 @@ class MacOsProviderTests(unittest.TestCase):
             "MT5_MACOS_PROVIDER_TOKEN": "x" * 48,
             "MT5_MACOS_PROVIDER_HOST": "0.0.0.0",
             "MT5_MACOS_PROVIDER_PORT": "18765",
-        }, clear=False):
+        }, clear=True):
             with self.assertRaises(AdapterError):
                 create_terminal_provider(config())
 
@@ -57,7 +57,7 @@ class MacOsProviderTests(unittest.TestCase):
             "MT5_MACOS_PROVIDER_HOST": "127.0.0.1",
             "MT5_MACOS_PROVIDER_PORT": "18765",
             "MT5_MACOS_PROVIDER_CONNECT_TIMEOUT_SECONDS": "10",
-        }, clear=False):
+        }, clear=True):
             terminal, constants = create_terminal_provider(config())
         self.assertIsInstance(terminal, MacOsMql5Terminal)
         self.assertIs(constants, Mql5Constants)
