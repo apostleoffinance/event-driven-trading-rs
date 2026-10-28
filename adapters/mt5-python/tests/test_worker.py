@@ -143,6 +143,29 @@ class AdapterContractTests(unittest.TestCase):
         with self.assertRaises(AdapterError):
             build_market_data_snapshot(config("unused"), terminal, 13)
 
+    def test_native_provider_normalizes_server_timezone_offset_against_host_utc(self):
+        terminal = FakeTerminal()
+        terminal.source = "mt5_macos_mql5_socket_v1"
+        now = int(datetime.now(timezone.utc).timestamp())
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08450, ask=1.08462,
+            time=now + 7200, server_time=now + 7201
+        )
+        payload = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        quote_time = datetime.fromisoformat(payload["quotes"][0]["tick_time"].replace("Z", "+00:00"))
+        self.assertLessEqual(abs(quote_time.timestamp() - now), 2)
+
+    def test_native_provider_rejects_tick_server_clock_mismatch(self):
+        terminal = FakeTerminal()
+        terminal.source = "mt5_macos_mql5_socket_v1"
+        now = int(datetime.now(timezone.utc).timestamp())
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08450, ask=1.08462,
+            time=now + 7200, server_time=now + 7000
+        )
+        with self.assertRaisesRegex(AdapterError, "server clock differ"):
+            build_market_data_snapshot(config("unused"), terminal, 13)
+
     def test_market_data_snapshot_reports_stale_quote_age(self):
         import time
 
