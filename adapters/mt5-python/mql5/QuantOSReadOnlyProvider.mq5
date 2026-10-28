@@ -39,14 +39,30 @@ string JsonNumber(double value, int digits = 8)
 bool SendText(const string value)
 {
    if(g_socket < 0 || !SocketIsConnected(g_socket))
+   {
+      PrintFormat("QuantOS socket send skipped: socket disconnected (handle=%d)", g_socket);
       return false;
+   }
 
    uchar bytes[];
    int count = StringToCharArray(value, bytes, 0, WHOLE_ARRAY, CP_UTF8);
    if(count <= 1)
+   {
+      Print("QuantOS socket send failed: UTF-8 frame encoded to zero bytes.");
       return false;
-   int sent = SocketSend(g_socket, bytes, (uint)(count - 1));
-   return (sent == count - 1);
+   }
+
+   ResetLastError();
+   int expected = count - 1;
+   int sent = SocketSend(g_socket, bytes, (uint)expected);
+   if(sent != expected)
+   {
+      int error = GetLastError();
+      PrintFormat("QuantOS socket send failed: sent=%d expected=%d error=%d",
+                  sent, expected, error);
+      return false;
+   }
+   return true;
 }
 
 void CloseSocket()
@@ -65,21 +81,32 @@ bool ConnectProvider()
       return true;
 
    CloseSocket();
+   ResetLastError();
    g_socket = SocketCreate();
    if(g_socket < 0)
+   {
+      PrintFormat("QuantOS socket create failed: error=%d", GetLastError());
       return false;
+   }
 
+   ResetLastError();
    if(!SocketConnect(g_socket, InpHost, InpPort, 1000))
    {
+      int error = GetLastError();
+      PrintFormat("QuantOS socket connect failed: host=%s port=%d error=%d",
+                  InpHost, InpPort, error);
       CloseSocket();
       return false;
    }
 
+   PrintFormat("QuantOS socket connected to %s:%d; sending handshake.", InpHost, InpPort);
    if(!SendText("HELLO\t" + InpSharedToken + "\n"))
    {
+      Print("QuantOS socket handshake send failed; reconnecting.");
       CloseSocket();
       return false;
    }
+   Print("QuantOS socket handshake sent.");
    return true;
 }
 
@@ -227,7 +254,10 @@ void Respond(const bool ok, const string data)
       response = "{\"ok\":false,\"error\":\"read-only request unavailable\"}\n";
 
    if(!SendText(response))
+   {
+      PrintFormat("QuantOS socket response send failed: ok=%s", ok ? "true" : "false");
       CloseSocket();
+   }
 }
 
 void ProcessRequest(const string line)
@@ -298,15 +328,40 @@ void ProcessRequest(const string line)
 
 void DrainSocket()
 {
-   if(g_socket < 0 || !SocketIsConnected(g_socket) || !SocketIsReadable(g_socket))
+   if(g_socket < 0)
       return;
 
+   // SocketIsReadable returns the number of bytes available. Pass that exact
+   // count to SocketRead instead of asking it to read an unrelated 8 KiB.
+   // This follows the MQL5 socket API pattern and avoids platform-specific
+   // read failures with Wine/CrossOver MT5 builds.
+   ResetLastError();
+   uint available = SocketIsReadable(g_socket);
+   int readable_error = GetLastError();
+   if(available == 0)
+   {
+      if(readable_error != 0)
+      {
+         PrintFormat("QuantOS socket readability check failed: error=%d", readable_error);
+         CloseSocket();
+      }
+      return;
+   }
+
    uchar bytes[];
-   ArrayResize(bytes, 8192);
-   int received = SocketRead(g_socket, bytes, (uint)ArraySize(bytes), 50);
+   ResetLastError();
+   int received = SocketRead(g_socket, bytes, available, 50);
+   int read_error = GetLastError();
    if(received <= 0)
    {
-      if(!SocketIsConnected(g_socket))
+      // A timeout may return -1 even while the connection remains alive.
+      // Only discard the socket when MQL5 reports a disconnected peer or an
+      // actual socket I/O error; keep the diagnostic free of payload/secrets.
+      bool still_connected = SocketIsConnected(g_socket);
+      if(read_error != 0 || !still_connected)
+         PrintFormat("QuantOS socket read failed: available=%u received=%d error=%d connected=%s",
+                     available, received, read_error, still_connected ? "true" : "false");
+      if(!still_connected || read_error == 5273)
          CloseSocket();
       return;
    }
@@ -330,6 +385,7 @@ void DrainSocket()
          CloseSocket();
          return;
       }
+      PrintFormat("QuantOS socket request received: command=%s", StringSubstr(line, 0, StringFind(line, "\t") >= 0 ? StringFind(line, "\t") : StringLen(line)));
       ProcessRequest(line);
       if(g_socket < 0)
          return;
@@ -377,8 +433,15 @@ int OnInit()
 
 void OnTimer()
 {
-   if(g_socket < 0 || !SocketIsConnected(g_socket))
+   if(g_socket < 0)
    {
+      ConnectProvider();
+      return;
+   }
+   if(!SocketIsConnected(g_socket))
+   {
+      Print("QuantOS socket peer disconnected; reconnecting.");
+      CloseSocket();
       ConnectProvider();
       return;
    }
