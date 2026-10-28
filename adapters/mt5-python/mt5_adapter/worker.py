@@ -281,7 +281,7 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
             "type": "reconciliation_snapshot",
             "terminal_id": config.terminal_id,
             "server": config.server,
-            "source": "mt5_python_readonly_v1",
+            "source": getattr(terminal, "source", "mt5_python_readonly_v1"),
             "sequence": sequence,
             "captured_at": captured_at,
             "account_state": {
