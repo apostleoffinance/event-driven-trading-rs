@@ -68,6 +68,8 @@ def create_terminal_provider(config: Config) -> tuple["MacOsMql5Terminal", type[
 class MacOsMql5Terminal:
     """Synchronous read-only client for the terminal-attached MQL5 EA."""
 
+    source = "mt5_macos_mql5_socket_v1"
+
     def __init__(self, config: Config, host: str, port: int, token: str, connect_timeout: int) -> None:
         self.config = config
         self.host = host
