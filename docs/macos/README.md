@@ -21,7 +21,37 @@ Install/build the project:
 
 The Python provider ships with the repository. The terminal-side MQL5 EA must be copied into the terminal data folder, compiled in MetaEditor, attached to a chart, and configured with the same loopback port, shared token, and exact symbol allowlist as the worker.
 
-## 2. Create protected configuration and log directories
+## 2. Create local-development mTLS certificates (development only)
+
+The repository includes a bootstrap helper for local development. It creates a private local CA, a TLS server certificate with `localhost` and `127.0.0.1` SANs, a client certificate with the correct EKU, and a CA CRL. It verifies certificate/key pairing, both certificate chains and CRL status, the server SAN, and certificate purpose before printing the client certificate's SHA-256 DER fingerprint.
+
+**This creates a local development CA, not production-issued certificates.** Use it only for the loopback demo setup on this Mac. For a production or shared environment, use the organization's approved certificate issuance, storage, revocation, rotation, and recovery process. Never copy the CA private key to another host or commit any generated key.
+
+From the repository root, run:
+
+    python3 adapters/mt5-python/scripts/mt5-macos-dev-pki.py
+
+The default output is the protected `~/Library/Application Support/QuantOS/certs` directory. The helper refuses to write into a non-empty output directory. Its private keys are owner-only (`0600`) and the directory is owner-only (`0700`). It prints the client fingerprint; keep that value private to the local configuration and set it as `MT5_BRIDGE_PRINCIPAL_SHA256`.
+
+For this **local-only** certificate set, configure the protected `quantos.env` with these paths (keep quotes around paths containing spaces):
+
+- `MT5_BRIDGE_SERVER_CERT="$HOME/Library/Application Support/QuantOS/certs/server.pem"`
+- `MT5_BRIDGE_SERVER_KEY="$HOME/Library/Application Support/QuantOS/certs/server.key.pem"`
+- `MT5_BRIDGE_CLIENT_CA="$HOME/Library/Application Support/QuantOS/certs/dev-ca.pem"`
+- `MT5_BRIDGE_CA_FILE="$HOME/Library/Application Support/QuantOS/certs/dev-ca.pem"`
+- `MT5_BRIDGE_CLIENT_CERT="$HOME/Library/Application Support/QuantOS/certs/client.pem"`
+- `MT5_BRIDGE_CLIENT_KEY="$HOME/Library/Application Support/QuantOS/certs/client.key.pem"`
+- `MT5_BRIDGE_PRINCIPAL_SHA256` = the exact fingerprint printed by the helper (64 hex characters, no separators).
+
+The same public CA certificate is used to validate the server and client certificate in this isolated development setup. Keep `MT5_BRIDGE_BIND=127.0.0.1:9443` and `MT5_BRIDGE_ALLOW_REMOTE_BIND=false`.
+
+Run the certificate review helper with the generated CRL after configuring the fingerprint:
+
+    python3 adapters/mt5-python/scripts/mt5-macos-certificate-review.py --client-cert "$HOME/Library/Application Support/QuantOS/certs/client.pem" --client-key "$HOME/Library/Application Support/QuantOS/certs/client.key.pem" --server-cert "$HOME/Library/Application Support/QuantOS/certs/server.pem" --server-key "$HOME/Library/Application Support/QuantOS/certs/server.key.pem" --ca-file "$HOME/Library/Application Support/QuantOS/certs/dev-ca.pem" --expected-client-sha256 "$MT5_BRIDGE_PRINCIPAL_SHA256" --crl-file "$HOME/Library/Application Support/QuantOS/certs/dev-ca.crl.pem" --evidence-out "$HOME/Library/Application Support/QuantOS/certificate-review.json"
+
+The expected result is a file-level `PARTIAL PASS`; the release gate intentionally remains `BLOCKED` until runtime revocation enforcement, rotation/rollback, real-terminal smoke and independent review are evidenced. The helper is exercised by the adapter unit tests.
+
+## 3. Create protected configuration and log directories
 
 Use a directory outside the Git checkout for runtime configuration, sequence state, evidence, and logs:
 
