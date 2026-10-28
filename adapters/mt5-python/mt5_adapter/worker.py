@@ -94,10 +94,15 @@ class Config:
             or len(set(symbols)) != len(symbols)
         ):
             raise AdapterError("MT5_SYMBOLS must contain 1–64 unique, exact broker symbol names")
+        provider_spec = os.environ.get("MT5_TERMINAL_PROVIDER", "").strip()
+        password = os.environ.get("MT5_PASSWORD", "")
+        if provider_spec != "mt5_adapter.macos_socket_provider:create_terminal_provider":
+            password = need("MT5_PASSWORD")
+
         return cls(
             terminal_path=need("MT5_TERMINAL_PATH"),
             login=login,
-            password=need("MT5_PASSWORD"),
+            password=password,
             server=need("MT5_SERVER"),
             account_id=account_id,
             terminal_id=need("MT5_TERMINAL_ID"),
