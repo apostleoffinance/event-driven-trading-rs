@@ -103,6 +103,30 @@ class MacOsProviderTests(unittest.TestCase):
         for command in ('"ACCOUNT"', '"ORDERS"', '"POSITIONS"', '"SYMBOL_INFO"', '"TICK"'):
             self.assertIn(command, source)
 
+    def test_mql5_ea_is_loopback_only_and_exposes_only_read_commands(self):
+        ea_path = Path(__file__).resolve().parents[1] / "mql5" / "QuantOSReadOnlyProvider.mq5"
+        source = ea_path.read_text(encoding="utf-8")
+        # This static guard complements, but does not replace, MetaEditor compilation
+        # and a real demo-terminal run. Any future trading API must be reviewed
+        # explicitly rather than silently entering the read-only provider.
+        forbidden = (
+            "OrderSend(", "OrderSendAsync(", "OrderDelete(", "OrderModify(",
+            "PositionClose(", "PositionOpen(", "PositionModify(",
+            "PositionClosePartial(", "MqlTradeRequest", "MqlTradeResult",
+            "TRADE_ACTION_", "CTrade",
+        )
+        for api in forbidden:
+            self.assertNotIn(api, source)
+        self.assertIn('InpHost != "127.0.0.1"', source)
+        self.assertIn('StringLen(InpSharedToken) < 32', source)
+        for command in (
+            '"PING"', '"ACCOUNT"', '"ORDERS"', '"POSITIONS"',
+            '"SELECT_SYMBOL"', '"SYMBOL_INFO"', '"TICK"',
+        ):
+            self.assertIn(command, source)
+        self.assertNotIn('"EXECUTE_ORDER"', source)
+        self.assertNotIn('"CANCEL_ORDER"', source)
+
     def test_provider_rejects_non_allowlisted_symbol_before_socket_io(self):
         terminal = MacOsMql5Terminal(config(), "127.0.0.1", 18765, "t" * 48, 5)
         with self.assertRaises(AdapterError):
