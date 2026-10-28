@@ -35,6 +35,24 @@ def config(path="unused"):
 
 
 class MacOsProviderTests(unittest.TestCase):
+    def test_config_does_not_require_broker_password_for_native_mql5_provider(self):
+        env = {
+            "MT5_TERMINAL_PROVIDER": "mt5_adapter.macos_socket_provider:create_terminal_provider",
+            "MT5_TERMINAL_PATH": "/Applications/MetaTrader 5.app",
+            "MT5_LOGIN": "123456",
+            "MT5_SERVER": "Broker-Demo",
+            "MT5_TERMINAL_ID": "mac-demo-01",
+            "MT5_BRIDGE_HOST": "127.0.0.1",
+            "MT5_SYMBOLS": "EURUSD.a",
+            "MT5_BRIDGE_CA_FILE": "ca.pem",
+            "MT5_BRIDGE_CLIENT_CERT": "client.pem",
+            "MT5_BRIDGE_CLIENT_KEY": "client.key",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            parsed = Config.from_env()
+        self.assertEqual(parsed.password, "")
+        self.assertEqual(parsed.symbols, ("EURUSD.a",))
+
     def test_factory_requires_long_token_and_loopback_only(self):
         with patch.dict(os.environ, {
             "MT5_MACOS_PROVIDER_TOKEN": "too-short",
