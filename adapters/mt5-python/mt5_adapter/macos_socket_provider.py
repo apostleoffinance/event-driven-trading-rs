@@ -94,12 +94,14 @@ class MacOsMql5Terminal:
             listener.settimeout(self._connect_timeout)
             self._listener = listener
             try:
-                connection, _peer = listener.accept()
+                connection, peer = listener.accept()
             except (OSError, TimeoutError) as exc:
                 raise AdapterError("timed out waiting for the MT5 MQL5 provider EA on loopback") from exc
+            if not peer or peer[0] != "127.0.0.1":
+                connection.close()
+                raise AdapterError("MQL5 provider peer is not loopback")
             connection.settimeout(5.0)
             reader = connection.makefile("rb")
-            peer_host = listener.getsockname()[0]
             hello = self._read_line(reader)
             expected = f"HELLO\t{self._token}".encode("utf-8")
             if not hmac.compare_digest(hello, expected):
