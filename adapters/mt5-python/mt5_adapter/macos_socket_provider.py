@@ -220,7 +220,7 @@ class MacOsMql5Terminal:
 
     def symbol_info_tick(self, symbol: str) -> Any:
         data = self._request("TICK", symbol)
-        required = ("symbol", "bid", "ask", "time")
+        required = ("symbol", "bid", "ask", "time", "server_time")
         if not isinstance(data, dict) or any(key not in data for key in required):
             raise AdapterError("MQL5 provider tick response is incomplete")
         return SimpleNamespace(**data)
