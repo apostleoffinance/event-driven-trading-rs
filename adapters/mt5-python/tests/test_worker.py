@@ -1,14 +1,23 @@
 import tempfile
 import unittest
+import os
+import sys
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 
-from mt5_adapter.worker import AdapterError, Config, SequenceStore, build_heartbeat, build_market_data_snapshot, build_snapshot, decimal_text, send_frame
+from mt5_adapter.worker import AdapterError, Config, SequenceStore, build_heartbeat, build_market_data_snapshot, build_snapshot, decimal_text, load_terminal_runtime, send_frame
 
 
 class FakeTerminal:
     def __init__(self):
         self.is_connected = True
+
+    def connect(self, config):
+        self.is_connected = True
+
+    def shutdown(self):
+        self.is_connected = False
 
     def connected(self):
         return self.is_connected
@@ -58,6 +67,32 @@ def config(path):
 
 
 class AdapterContractTests(unittest.TestCase):
+    def test_explicit_terminal_provider_returns_read_only_protocol(self):
+        import types
+
+        provider = types.ModuleType("quant_os_test_provider")
+        provider.create = lambda cfg: (FakeTerminal(), FakeConstants)
+        with patch.dict(sys.modules, {"quant_os_test_provider": provider}):
+            with patch.dict(os.environ, {"MT5_TERMINAL_PROVIDER": "quant_os_test_provider:create"}):
+                terminal, constants = load_terminal_runtime(config("unused"))
+        self.assertIsInstance(terminal, FakeTerminal)
+        self.assertIs(constants, FakeConstants)
+
+    def test_terminal_provider_rejects_invalid_specification(self):
+        with patch.dict(os.environ, {"MT5_TERMINAL_PROVIDER": "missing-separator"}):
+            with self.assertRaises(AdapterError):
+                load_terminal_runtime(config("unused"))
+
+    def test_terminal_provider_rejects_incomplete_terminal_protocol(self):
+        import types
+
+        provider = types.ModuleType("quant_os_bad_provider")
+        provider.create = lambda cfg: (object(), FakeConstants)
+        with patch.dict(sys.modules, {"quant_os_bad_provider": provider}):
+            with patch.dict(os.environ, {"MT5_TERMINAL_PROVIDER": "quant_os_bad_provider:create"}):
+                with self.assertRaises(AdapterError):
+                    load_terminal_runtime(config("unused"))
+
     def test_decimal_text_never_uses_exponent_notation(self):
         self.assertEqual(decimal_text(1e-7, "price"), "0.0000001")
         self.assertEqual(decimal_text(1000.0, "balance"), "1000.0")

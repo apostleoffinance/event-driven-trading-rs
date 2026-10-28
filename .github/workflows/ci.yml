@@ -87,3 +87,16 @@ jobs:
         run: npm run typecheck
       - name: Production build
         run: npm run build
+
+  macos-developer-preflight:
+    name: macOS portable MT5 adapter preflight
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run macOS portable checks
+        run: bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --skip-rust
