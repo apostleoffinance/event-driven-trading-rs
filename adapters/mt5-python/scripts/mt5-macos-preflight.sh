@@ -12,8 +12,8 @@ and unit tests do not establish real-terminal conformance.
 
 Options:
   --skip-rust             Skip cargo fmt/check/test/clippy checks.
-  --require-real-terminal Fail closed unless the native provider is configured;
-                          real-terminal smoke and release gates remain separate.
+  --require-real-terminal Fail closed if real-terminal conformance is not verified;
+                          provider configuration alone never satisfies this gate.
   -h, --help              Show this help.
 
 Required for Rust integration tests: a reachable PostgreSQL test database if
