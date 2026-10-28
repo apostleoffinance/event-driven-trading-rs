@@ -318,8 +318,17 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
         if info is None or tick is None:
             raise AdapterError(f"MT5 metadata or quote is unavailable for configured symbol: {symbol}")
         tick_time = datetime.fromtimestamp(int(tick.time), timezone.utc)
-        if now - tick_time.timestamp() < -5 or now - tick_time.timestamp() > 60:
-            raise AdapterError(f"MT5 quote is stale or timestamped in the future for symbol: {symbol}")
+        tick_age_seconds = now - tick_time.timestamp()
+        if tick_age_seconds < -5:
+            raise AdapterError(
+                f"MT5 quote timestamp is {abs(tick_age_seconds):.1f}s in the future "
+                f"for symbol {symbol} (tick_time={tick_time.isoformat(timespec='seconds')})"
+            )
+        if tick_age_seconds > 60:
+            raise AdapterError(
+                f"MT5 quote is stale by {tick_age_seconds:.1f}s for symbol {symbol} "
+                f"(tick_time={tick_time.isoformat(timespec='seconds')})"
+            )
         bid = Decimal(decimal_text(tick.bid, f"{symbol} bid"))
         ask = Decimal(decimal_text(tick.ask, f"{symbol} ask"))
         if bid <= 0 or ask < bid:
