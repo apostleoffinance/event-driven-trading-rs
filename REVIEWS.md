@@ -753,3 +753,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Change:** PR #36 adds a default-BLOCKED release manifest and fail-closed validator that requires all listed gates to be explicitly PASS, evidence references to be provided, the reviewer to differ from the operator, and the reviewed manifest SHA-256 to be recorded. Tests cover missing/false gates, same-person review, execution-enabled manifest, and malformed input.
 - **Verification boundary:** The validator only validates manifest assertions and references; reviewers must inspect referenced artifacts and verify the digest. Actual Windows/VPS and security testing has not been performed by this change.
 - **Safety:** `venue_execution_enabled` must remain false. No venue execution implementation or authorization is added. Any missing/unknown evidence remains BLOCKED.
+
+
+## REV-039 — Native macOS provider added; terminal conformance remains unverified
+- **Date:** 2026-10-28
+- **Context:** User requested implementation of QOS-015A native macOS MT5 terminal provider after PR #39 merged.
+- **Finding/correction:** The existing provider seam was only an extension point; the official MetaTrader5 Python API is Windows-only, and a macOS MT5 app alone did not make the Windows API available. A terminal-side MQL5 EA plus a native Python loopback client is now added as a concrete provider path.
+- **Impact:** macOS worker integration can be attempted without the Windows-only Python package, but it depends on the EA compiling/running inside the installed MT5 terminal and on real terminal behavior that CI cannot validate.
+- **Evidence:** Branch `feat/qos015a-macos-mt5-provider`; files `adapters/mt5-python/mt5_adapter/macos_socket_provider.py`, `adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5`, and `adapters/mt5-python/tests/test_macos_socket_provider.py`.
+- **Rule that failed:** No safety rule violation is established. The missing provider was an implementation gap; the key risk is avoiding a claim of real-terminal support based only on code or mocked tests.
+- **Rule update made in RULES.md:** None; existing rules require source-backed claims, fail-closed handling, contract tests, and no live execution from unrelated work.
+- **Code/docs/tests changed:** Added the read-only MQL5 command surface and Python provider, optional password handling for this exact provider, provider contract tests, README/conformance docs, preflight recognition, and task/progress tracking.
+- **Regression/real-use check added:** Python tests cover token and loopback constraints, account/server identity, symbol allowlisting, request mapping, and the absence of unsupported command names. CI is required before merge; terminal compilation and real demo smoke remain manual acceptance gates.
+- **Verification result:** Not yet verified by CI or real terminal. The local clone attempt failed because this environment could not resolve GitHub; no tests are claimed to have passed.
+- **Remaining risk:** MQL5 compiler/API compatibility, terminal socket permissions, real-account data mapping, stale/reconnect behavior, and restart/persistence/certificate gates remain open. Venue execution stays disabled.
