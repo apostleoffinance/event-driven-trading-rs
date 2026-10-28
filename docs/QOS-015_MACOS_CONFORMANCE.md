@@ -1,6 +1,6 @@
 # QOS-015 macOS developer and conformance support
 
-**Current status: portable macOS checks are supported by this change; real macOS MT5 terminal conformance remains BLOCKED until a supported terminal provider is implemented and independently verified.**
+**Current status: a native macOS MQL5 socket provider and terminal-side read-only EA are implemented; real macOS MT5 terminal conformance remains BLOCKED until the EA is compiled and verified against a real demo terminal.**
 
 This document separates operating-system support from terminal API support. The Rust bridge and protocol checks can run natively on macOS. The existing MetaTraderTerminal implementation in adapters/mt5-python/mt5_adapter/worker.py uses the official MetaTrader5 Python package and intentionally rejects non-Windows platforms. Installing the MetaTrader 5 macOS application alone does not make that Windows Python API available to native macOS Python.
 
@@ -13,7 +13,7 @@ This document separates operating-system support from terminal API support. The 
 
 ## Not yet a real-terminal PASS
 
-The macOS preflight reports the real terminal integration as NOT_RUN unless a provider is configured, and still blocks release approval when --require-real-terminal is used. A provider variable is not itself proof that a provider works. A real implementation must establish all of the following against the designated demo account:
+The macOS preflight reports the real terminal integration as NOT_RUN unless a provider is configured, and still blocks release approval when --require-real-terminal is used. A provider variable or passing unit tests are not proof that the EA works. The native provider uses `adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5` plus `mt5_adapter.macos_socket_provider`; follow `adapters/mt5-python/README.md` for terminal setup. A real implementation must establish all of the following against the designated demo account:
 
 1. Authenticated terminal login matches the configured account and exact server.
 2. Account currency, exact broker symbols, bid/ask, timestamps, and instrument specifications come from the actual terminal.
@@ -53,7 +53,7 @@ Omit --crl-file only when you explicitly accept that the report will be blocked 
 
 macOS uses launchd, not Windows Services. Service supervision can be implemented with per-user LaunchAgents or system LaunchDaemons, but the service definitions must not contain broker passwords, private-key contents, or database credentials in plaintext. Use a protected configuration mechanism and ensure the service identity can read only the required key files.
 
-A restart test must stop/restart only the worker and must not reset or delete the durable sequence checkpoint or database snapshots. It must verify the daemon remained running, the market-data sequence advanced, and fresh market-data plus reconciliation snapshots were persisted after the worker stopped. The provider-backed smoke and LaunchAgent restart scripts now exist, but no native macOS MT5 provider is bundled. Until a trusted provider is implemented and verified against a real terminal, these commands cannot establish a real-terminal PASS.
+A restart test must stop/restart only the worker and must not reset or delete the durable sequence checkpoint or database snapshots. It must verify the daemon remained running, the market-data sequence advanced, and fresh market-data plus reconciliation snapshots were persisted after the worker stopped. The provider-backed smoke and LaunchAgent restart scripts now exist, but no native macOS MT5 provider is bundled. The native provider and restart tooling are now present, but until the EA is compiled and verified against a real terminal, these commands cannot establish a real-terminal PASS.
 
 ## Release policy
 
