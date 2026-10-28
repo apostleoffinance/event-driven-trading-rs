@@ -323,3 +323,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - The new validator is a structural gate over operator-provided evidence references. It cannot authenticate referenced files or execute Windows/MT5/certificate lifecycle tests.
 - **Not verified here:** access to the target Windows VPS, real demo terminal/account, revocation enforcement, ACL effective access, rotation/rollback, QOS-015B runtime persistence on that host, and QOS-013 trusted sizing inputs/audit in deployment.
 - **Current release decision: BLOCKED.** No venue execution is authorized or enabled. Only change this status after the referenced evidence is inspected and the exact commit and manifest digest are independently reviewed.
+
+
+## Work log — QOS-015A native macOS provider — 2026-10-28
+- Read `RULES.md`, the existing MT5 worker/provider seam, QOS-015 macOS conformance requirements, README, tests, and task status before implementation.
+- Added `mt5_adapter.macos_socket_provider`, a loopback-only authenticated TCP client for the MQL5 EA, account/server identity checks, configured-symbol allowlisting, and mappings for account state, open orders, positions, instrument metadata, and ticks. The native provider does not require a broker password because login remains in the terminal UI.
+- Added `mql5/QuantOSReadOnlyProvider.mq5` with a restricted read-only command surface; no order submission/modification/cancellation calls are included.
+- Added Python tests and updated macOS preflight/docs. Changes are on branch `feat/qos015a-macos-mt5-provider`; remote CI is not yet verified and local tests could not be run because this environment cannot resolve GitHub for a clone.
+- Verification boundary: EA compilation in MetaEditor, real demo account connectivity, PostgreSQL persistence, worker restart recovery, and certificate lifecycle review remain outstanding. This work is not a QOS-015A conformance PASS. Venue execution remains disabled.
