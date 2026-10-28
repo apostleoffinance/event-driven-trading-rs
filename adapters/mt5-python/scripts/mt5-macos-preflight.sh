@@ -6,15 +6,14 @@ usage() {
   cat <<'USAGE'
 Usage: mt5-macos-preflight.sh [--skip-rust] [--require-real-terminal]
 
-Runs portable Quant OS checks on macOS. The current MetaTrader5 Python API
-integration in this repository is Windows-only. Therefore this script will
-never claim real MT5 terminal conformance on macOS unless a supported native
-terminal provider is implemented and explicitly verified.
+Runs portable Quant OS checks on macOS. The official MetaTrader5 Python API is
+Windows-only; this branch adds a loopback MQL5 EA provider. Provider configuration
+and unit tests do not establish real-terminal conformance.
 
 Options:
   --skip-rust             Skip cargo fmt/check/test/clippy checks.
-  --require-real-terminal Fail closed unless a supported macOS terminal provider
-                          is explicitly configured and available.
+  --require-real-terminal Fail closed if real-terminal conformance is not verified;
+                          provider configuration alone never satisfies this gate.
   -h, --help              Show this help.
 
 Required for Rust integration tests: a reachable PostgreSQL test database if
@@ -87,17 +86,32 @@ if ((skip_rust == 0)); then
   run_check "Rust Clippy" cargo clippy --workspace --all-targets
 fi
 
-# The current terminal provider deliberately rejects non-Windows platforms.
-# Never convert this into a PASS just because the macOS MT5 application exists.
-if [[ "${MT5_MACOS_TERMINAL_PROVIDER:-}" == "" ]]; then
-  echo "NOT_RUN: real MT5 terminal API is not configured for macOS."
+# Provider presence is not terminal conformance; real demo evidence is a separate gate.
+provider_spec="${MT5_TERMINAL_PROVIDER:-}"
+if [[ "$provider_spec" == "" ]]; then
+  echo "NOT_RUN: no MT5_TERMINAL_PROVIDER is configured for macOS."
   if ((require_real_terminal)); then
-    echo "BLOCKED: --require-real-terminal requested, but MT5_MACOS_TERMINAL_PROVIDER is unset." >&2
+    echo "BLOCKED: --require-real-terminal requested, but MT5_TERMINAL_PROVIDER is unset." >&2
     exit 2
   fi
+elif [[ "$provider_spec" == "mt5_adapter.macos_socket_provider:create_terminal_provider" ]]; then
+  provider_token="${MT5_MACOS_PROVIDER_TOKEN:-}"
+  if [[ "$provider_token" == "" || "${#provider_token}" -lt 32 ]]; then
+    echo "BLOCKED: native provider selected but MT5_MACOS_PROVIDER_TOKEN is missing or too short." >&2
+    if ((require_real_terminal)); then exit 2; fi
+  elif ! PYTHONPATH="$ADAPTER_DIR" python3 -c 'from mt5_adapter.macos_socket_provider import create_terminal_provider'; then
+    echo "BLOCKED: native MQL5 provider module could not be imported." >&2
+    if ((require_real_terminal)); then exit 2; fi
+  else
+    echo "PASS: native MQL5 provider module imports and its token is configured."
+    echo "NOT_RUN: real demo terminal, persisted snapshots, restart recovery, and certificate lifecycle evidence."
+    if ((require_real_terminal)); then
+      echo "BLOCKED: provider configuration alone is not real-terminal conformance evidence." >&2
+      exit 2
+    fi
+  fi
 else
-  echo "BLOCKED: MT5_MACOS_TERMINAL_PROVIDER is set, but this preflight does not certify third-party providers."
-  echo "A provider-specific authenticated demo smoke test and independent review are required." >&2
+  echo "BLOCKED: unrecognized MT5_TERMINAL_PROVIDER; do not treat an arbitrary plugin as a supported native provider." >&2
   if ((require_real_terminal)); then exit 2; fi
 fi
 

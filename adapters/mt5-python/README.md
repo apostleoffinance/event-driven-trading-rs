@@ -1,16 +1,17 @@
 # Quant OS MT5 read-only adapter (QOS-015A)
 
-This package connects a Windows-hosted MetaTrader 5 terminal to the Rust MT5 bridge using TLS 1.3 mutual authentication. It is deliberately read-only: there is no order submission, order modification, or cancellation code path. Execution is a separate follow-up after demo reconciliation acceptance.
+This package supports a Windows-hosted MetaTrader 5 terminal through the official Python API and an experimental native macOS path through a read-only MQL5 EA plus loopback Python provider. Both connect to the Rust MT5 bridge using TLS 1.3 mutual authentication. Neither path exposes order submission, order modification, or cancellation. Execution is a separate follow-up after real demo reconciliation acceptance.
 
 ## Runtime placement
 
-- Run this process on the same Windows VPS/host as the self-hosted MT5 terminal.
+- Windows default provider: run the Python worker beside the self-hosted Windows MT5 terminal.
+- Native macOS provider: run the Python worker on macOS and attach the repository's read-only MQL5 EA to the MT5 terminal; the EA connects to the worker over loopback TCP.
 - Run the Rust bridge daemon on the same host for the default loopback binding, or deliberately configure a protected remote endpoint.
-- PostgreSQL may be hosted separately, but the Windows daemon must have private network access to it.
-- Vercel is for the Next.js frontend, not the MT5 process. A standard Linux Render service cannot host this Windows-only terminal worker.
+- PostgreSQL may be hosted separately, but the daemon must have private network access to it.
+- Vercel is for the Next.js frontend, not the MT5 process. A standard Linux Render service cannot host the Windows terminal or macOS terminal UI.
 - Never put broker passwords or client private keys in frontend variables, browser storage, logs, or source control.
 
-## Install the Python worker
+## Install the Python worker (Windows default provider)
 
 PowerShell on the Windows VPS, with MT5 installed and logged into the intended demo account:
 
@@ -23,9 +24,9 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
 
 | Variable | Purpose |
 |---|---|
-| MT5_TERMINAL_PATH | Absolute path to terminal64.exe |
+| MT5_TERMINAL_PATH | Windows: absolute path to terminal64.exe. Native macOS provider: installed MT5 app path/label (not used to launch or authenticate the terminal). |
 | MT5_LOGIN | Expected numeric demo login |
-| MT5_PASSWORD | Demo account password; never logged |
+| MT5_PASSWORD | Windows default provider only; never logged. The native macOS provider uses the account already logged into the terminal UI and does not need or transmit this value. |
 | MT5_SERVER | Exact broker demo server name |
 | MT5_TERMINAL_ID | Stable host-assigned terminal identity |
 | MT5_BRIDGE_HOST | Rust listener host; use 127.0.0.1 when colocated |
@@ -89,7 +90,7 @@ After applying migrations and starting the Rust daemon and Python worker in sepa
 .\adapters\mt5-python\scripts\mt5-demo-smoke.ps1
 ```
 
-The script is read-only. It verifies the MT5 login/server/currency, exact configured symbols, fresh ticks and sizing metadata, the worker certificate DER fingerprint against `MT5_BRIDGE_PRINCIPAL_SHA256`, the local daemon listener, required PostgreSQL tables, fresh persisted market data and reconciliation, and at least two distinct market-data sequences. It never submits, modifies, or cancels orders. It intentionally fails if snapshots are stale, identities differ, symbols mismatch, or data is not persisted before the timeout.
+The script is read-only. It verifies the MT5 login/server/currency, exact configured symbols, fresh ticks and sizing metadata, the worker certificate DER fingerprint against `MT5_BRIDGE_PRINCIPAL_SHA256`, the local daemon listener, required PostgreSQL tables, fresh persisted market data and reconciliation, and repeated sequence advancement across polling intervals. The market-data table retains only the latest row per account/terminal, so the smoke observes sequence changes across polling rather than expecting historical rows in that table. It never submits, modifies, or cancels orders. It intentionally fails if snapshots are stale, identities differ, symbols mismatch, or data is not persisted before the timeout.
 
 Run this on the target Windows VPS with a demo account only. Capture the timestamped console output and redacted daemon/worker logs. After a passing first run, restart the worker and rerun the script to verify reconnect and reconciliation recovery. Separately review server/client private-key filesystem ACLs, certificate expiry, revocation, rotation procedure, and the exact pinned worker fingerprint. Do not paste passwords, private keys, full connection strings, or unredacted logs into tickets.
 
@@ -121,3 +122,52 @@ The worker now supports an explicit trusted provider module through MT5_TERMINAL
 A provider intended for real demo use must be separately tested against the actual terminal and account, use the same read-only protocol contract, preserve sequence state across restarts, and produce authenticated persisted snapshots. The current macOS preflight deliberately reports terminal conformance as NOT_RUN and never promotes local contract tests to release evidence.
 
 See docs/QOS-015_MACOS_CONFORMANCE.md for the current platform boundary, certificate review helper, and acceptance requirements. Keep venue execution disabled.
+
+
+## Native macOS MT5 terminal provider (QOS-015A)
+
+**Implementation status: provider and MQL5 EA added; real-terminal verification is still pending.** The official \`MetaTrader5\` Python package remains Windows-only. On macOS, this provider uses a read-only MQL5 Expert Advisor inside the MetaTrader terminal and a native Python client over a loopback TCP socket. The EA reads terminal/account state and returns it to the existing worker; it does not expose any order submission, modification, or cancellation operation.
+
+### Install and configure the terminal-side EA
+
+1. Open the installed MetaTrader 5 macOS application and log in manually to the designated **demo** account. The provider does not log in to the broker or transmit the broker password.
+2. In the terminal, open **File → Open Data Folder** (menu wording may vary) and copy \`adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5\` into \`MQL5/Experts/\`.
+3. Open the file in MetaEditor, compile it, and attach \`QuantOSReadOnlyProvider\` to a chart. Configure \`InpHost=127.0.0.1\`, \`InpPort=8765\`, \`InpSharedToken\` to the same secret as \`MT5_MACOS_PROVIDER_TOKEN\`, and \`InpAllowedSymbols\` to the exact comma-separated broker symbols in \`MT5_SYMBOLS\`.
+4. Keep the terminal open and connected. The EA retries the loopback connection. It uses socket APIs only; it contains no trading calls. Do not enable order execution to use this read-only provider.
+
+Generate a random local shared token and store it in a protected environment file (do not commit it):
+
+    python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+
+The shared token must be at least 32 characters with no whitespace. The Python listener binds only to \`127.0.0.1\`, checks the connecting peer is loopback, and authenticates the EA before issuing read requests.
+
+### Provider environment
+
+Set these variables in the protected environment used by the Python worker:
+
+| Variable | Value / purpose |
+|---|---|
+| \`MT5_TERMINAL_PROVIDER\` | \`mt5_adapter.macos_socket_provider:create_terminal_provider\` |
+| \`MT5_MACOS_PROVIDER_TOKEN\` | The same random token configured in the EA |
+| \`MT5_MACOS_PROVIDER_HOST\` | Optional; must be \`127.0.0.1\` |
+| \`MT5_MACOS_PROVIDER_PORT\` | Optional; defaults to \`8765\`, and must match \`InpPort\` |
+| \`MT5_MACOS_PROVIDER_CONNECT_TIMEOUT_SECONDS\` | Optional; defaults to 60 seconds, range 5–300 |
+| \`MT5_TERMINAL_PATH\` | Path/label for the installed MT5 app; retained as required worker configuration |
+| \`MT5_LOGIN\`, \`MT5_SERVER\` | Expected login and exact broker server; checked against the connected terminal |
+| \`MT5_SYMBOLS\` | 1–64 unique exact broker symbol names, matching \`InpAllowedSymbols\` |
+| \`MT5_TERMINAL_ID\` | Stable deployment-assigned terminal identity |
+| \`MT5_BRIDGE_HOST\`, \`MT5_BRIDGE_PORT\` | Rust bridge endpoint |
+| \`MT5_BRIDGE_SERVER_NAME\`, \`MT5_BRIDGE_CA_FILE\` | TLS server name and CA bundle |
+| \`MT5_BRIDGE_CLIENT_CERT\`, \`MT5_BRIDGE_CLIENT_KEY\` | Worker mTLS certificate and protected private key |
+| \`MT5_SEQUENCE_FILE\` | Optional durable sequence checkpoint |
+| \`MT5_POLL_INTERVAL_SECONDS\` | Optional snapshot interval, 1–300 seconds |
+
+For this exact native provider, \`MT5_PASSWORD\` is not required because the user logs into MT5 inside the terminal UI. The Python provider never reads, stores, or transmits that password. Other provider configurations retain the existing password requirement.
+
+Start the worker only after compiling/attaching the EA, or start it first and let the EA reconnect. The worker listens on loopback; the EA initiates the connection. If the EA does not connect, confirm the terminal is online, the EA is attached and enabled, the port/token match, and no local process occupies the port. Never expose this socket on a LAN interface.
+
+### Protocol and release boundary
+
+The local protocol uses newline-delimited UTF-8 requests and JSON responses. The only commands are \`PING\`, \`ACCOUNT\`, \`ORDERS\`, \`POSITIONS\`, \`SELECT_SYMBOL\`, \`SYMBOL_INFO\`, and \`TICK\`; there is no order placement, modification, or deletion command. Symbol requests are restricted by both the Python configured-symbol allowlist and the EA allowlist. The bridge traffic from Python to Rust continues to use the existing TLS 1.3 mutual-authentication configuration.
+
+The MQL5 source is not compiled by the repository's Python/Rust CI. Unit tests cover the Python provider handshake, token and identity checks, protocol mappings, symbol allowlisting, and failure paths, but they do not prove that MetaTrader runs the EA correctly. Before treating the provider as operational, compile it in MetaEditor and run \`mt5-macos-demo-smoke.py\` against the real demo terminal and persisted Rust/PostgreSQL snapshots, then complete restart recovery and certificate lifecycle review. **The provider implementation is not itself a conformance PASS. Venue execution must remain disabled, and this does not replace Windows-specific release evidence.**

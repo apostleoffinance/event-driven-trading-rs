@@ -51,7 +51,7 @@ def job_loaded(domain: str, label: str) -> bool:
 
 def run_smoke(timeout_seconds: int) -> None:
     result = subprocess.run(
-        [sys.executable, str(SMOKE_PATH), "--timeout-seconds", str(timeout_seconds)],
+        [sys.executable, str(SMOKE_PATH), "--timeout-seconds", str(timeout_seconds), "--persisted-only"],
         check=False,
         capture_output=True,
         text=True,

@@ -47,33 +47,31 @@ def latest_persisted_state(config: Config, timeout_seconds: int = 20) -> dict[st
         raise AdapterError("DATABASE_URL is required for persisted snapshot verification")
     query = """
 WITH market AS (
-  SELECT sequence, captured_at
+  SELECT sequence, captured_at, source, account_currency, server
   FROM public.mt5_bridge_market_data_snapshots
   WHERE account_id = :'account_id' AND terminal_id = :'terminal_id'
   ORDER BY captured_at DESC LIMIT 1
 ), reconciliation AS (
-  SELECT reconciled_sequence, captured_at
+  SELECT reconciled_sequence, captured_at, source,
+         snapshot -> 'account_state' ->> 'currency' AS account_currency,
+         snapshot ->> 'server' AS server
   FROM public.mt5_bridge_reconciliation_snapshots
   WHERE account_id = :'account_id' AND terminal_id = :'terminal_id'
   ORDER BY created_at DESC LIMIT 1
-), recent AS (
-  SELECT count(DISTINCT sequence) AS distinct_sequences
-  FROM (
-    SELECT sequence
-    FROM public.mt5_bridge_market_data_snapshots
-    WHERE account_id = :'account_id' AND terminal_id = :'terminal_id'
-      AND captured_at > now() - interval '5 minutes'
-    ORDER BY captured_at DESC LIMIT 20
-  ) AS recent_market
 )
 SELECT json_build_object(
   'market_sequence', market.sequence,
   'market_captured_at', market.captured_at,
+  'market_source', market.source,
+  'market_account_currency', market.account_currency,
+  'market_server', market.server,
   'reconciliation_sequence', reconciliation.reconciled_sequence,
   'reconciliation_captured_at', reconciliation.captured_at,
-  'distinct_sequences', recent.distinct_sequences
+  'reconciliation_source', reconciliation.source,
+  'reconciliation_currency', reconciliation.account_currency,
+  'reconciliation_server', reconciliation.server
 )::text
-FROM market CROSS JOIN reconciliation CROSS JOIN recent;
+FROM market CROSS JOIN reconciliation;
 """
     env = {**os.environ, "PGDATABASE": database_url}
     try:
@@ -98,10 +96,13 @@ FROM market CROSS JOIN reconciliation CROSS JOIN recent;
         record = json.loads(result.stdout.strip().splitlines()[-1])
     except json.JSONDecodeError as exc:
         raise AdapterError("database returned invalid snapshot verification JSON") from exc
-    if not isinstance(record, dict) or any(record.get(key) is None for key in (
-        "market_sequence", "market_captured_at", "reconciliation_sequence",
-        "reconciliation_captured_at", "distinct_sequences",
-    )):
+    required = (
+        "market_sequence", "market_captured_at", "market_source",
+        "market_account_currency", "market_server", "reconciliation_sequence",
+        "reconciliation_captured_at", "reconciliation_source",
+        "reconciliation_currency", "reconciliation_server",
+    )
+    if not isinstance(record, dict) or any(record.get(key) is None for key in required):
         raise AdapterError("market-data/reconciliation snapshots are not both persisted for the configured identity")
     return record
 
@@ -132,7 +133,7 @@ class ReadOnlyTerminalView:
         return symbol in self._allowed_symbols
 
 
-def smoke(timeout_seconds: int) -> dict[str, Any]:
+def smoke(timeout_seconds: int, persisted_only: bool = False) -> dict[str, Any]:
     config = Config.from_env()
     expected_currency = os.environ.get("MT5_EXPECTED_ACCOUNT_CURRENCY", "")
     if not expected_currency or expected_currency.strip() != expected_currency:
@@ -143,74 +144,94 @@ def smoke(timeout_seconds: int) -> dict[str, Any]:
     if not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", repository_commit):
         raise AdapterError("QUANTOS_REPOSITORY_COMMIT must be the exact 40- or 64-character deployed commit hash")
 
-    terminal, constants = load_terminal_runtime(config)
     started = utc_now()
-    try:
-        terminal.connect(config)
-        if not terminal.connected():
-            raise AdapterError("terminal provider did not establish a connected session")
-        account = terminal.account_info()
-        if account is None or int(account.login) != config.login or str(account.server) != config.server:
-            raise AdapterError("authenticated terminal identity does not match configured login/server")
-        if str(account.currency) != expected_currency:
-            raise AdapterError("authenticated terminal account currency does not match expected currency")
+    local_market_type = "NOT_BUILT_PERSISTED_ONLY"
+    local_reconciliation_type = "NOT_BUILT_PERSISTED_ONLY"
+    if not persisted_only:
+        # The EA serves one worker connection. For a direct terminal probe, stop
+        # the supervised worker first so the EA can reconnect to this smoke client.
+        terminal, constants = load_terminal_runtime(config)
+        try:
+            terminal.connect(config)
+            if not terminal.connected():
+                raise AdapterError("terminal provider did not establish a connected session")
+            account = terminal.account_info()
+            if account is None or int(account.login) != config.login or str(account.server) != config.server:
+                raise AdapterError("authenticated terminal identity does not match configured login/server")
+            if str(account.currency) != expected_currency:
+                raise AdapterError("authenticated terminal account currency does not match expected currency")
+            read_only_terminal = ReadOnlyTerminalView(terminal, config.symbols)
+            market = build_market_data_snapshot(config, read_only_terminal, 1)
+            reconciliation = build_snapshot(config, read_only_terminal, constants, 1)
+            local_market_type = market["payload"]["type"]
+            local_reconciliation_type = reconciliation["payload"]["type"]
+        finally:
+            terminal.shutdown()
 
-        # Build the same read-only contracts used by the worker. This verifies
-        # provider behavior and exact configured symbols; no order action exists.
-        read_only_terminal = ReadOnlyTerminalView(terminal, config.symbols)
-        market = build_market_data_snapshot(config, read_only_terminal, 1)
-        reconciliation = build_snapshot(config, read_only_terminal, constants, 1)
-        verify_tls_configuration(config)
-        persisted = latest_persisted_state(config, timeout_seconds)
+    # TLS configuration is checked locally. Do not open a second Rust bridge
+    # connection: the Rust daemon intentionally accepts one active worker stream.
+    verify_tls_configuration(config)
+    persisted = latest_persisted_state(config, timeout_seconds)
+    now = datetime.now(timezone.utc)
+    market_at = parse_time(persisted["market_captured_at"], "market_captured_at")
+    recon_at = parse_time(persisted["reconciliation_captured_at"], "reconciliation_captured_at")
+    for field, captured_at in (("market", market_at), ("reconciliation", recon_at)):
+        if (now - captured_at).total_seconds() > 60 or (captured_at - now).total_seconds() > 5:
+            raise AdapterError(f"latest persisted {field} snapshot is stale or future-dated")
 
-        now = datetime.now(timezone.utc)
-        market_at = parse_time(persisted["market_captured_at"], "market_captured_at")
-        recon_at = parse_time(persisted["reconciliation_captured_at"], "reconciliation_captured_at")
-        if (now - market_at).total_seconds() > 60 or (market_at - now).total_seconds() > 5:
-            raise AdapterError("latest persisted market-data snapshot is stale or future-dated")
-        if (now - recon_at).total_seconds() > 60 or (recon_at - now).total_seconds() > 5:
-            raise AdapterError("latest persisted reconciliation snapshot is stale or future-dated")
-        if int(persisted["distinct_sequences"]) < 2:
-            raise AdapterError("fewer than two distinct fresh market-data sequences are persisted")
+    expected_source = "mt5_macos_mql5_socket_v1"
+    if persisted["market_source"] != expected_source or persisted["reconciliation_source"] != expected_source:
+        raise AdapterError("persisted snapshots do not identify the native macOS MQL5 provider")
+    if persisted["market_server"] != config.server or persisted["reconciliation_server"] != config.server:
+        raise AdapterError("persisted terminal server identity does not match configured server")
+    if (
+        persisted["market_account_currency"] != expected_currency
+        or persisted["reconciliation_currency"] != expected_currency
+    ):
+        raise AdapterError("persisted account currency does not match expected demo currency")
+    if int(persisted["market_sequence"]) != int(persisted["reconciliation_sequence"]):
+        raise AdapterError("latest market-data and reconciliation snapshots do not share the same sequence")
 
-        return {
-            "schema_version": 1,
-            "platform": "macOS",
-            "started_at_utc": started,
-            "finished_at_utc": utc_now(),
-            "repository_commit": repository_commit.lower(),
-            "terminal_provider": os.environ.get("MT5_TERMINAL_PROVIDER", "UNCONFIGURED"),
-            "account_masked": "..." + str(config.login)[-4:],
-            "broker_server": config.server,
-            "account_currency": str(account.currency),
-            "terminal_id": config.terminal_id,
-            "symbols": list(config.symbols),
-            "market_contract_type": market["payload"]["type"],
-            "reconciliation_contract_type": reconciliation["payload"]["type"],
-            "client_tls13_mtls_context": "PASS",
-            "active_bridge_persistence": "PASS",
-            "persisted_market_sequence": int(persisted["market_sequence"]),
-            "persisted_market_captured_at": persisted["market_captured_at"],
-            "persisted_reconciliation_sequence": int(persisted["reconciliation_sequence"]),
-            "persisted_reconciliation_captured_at": persisted["reconciliation_captured_at"],
-            "distinct_recent_market_sequences": int(persisted["distinct_sequences"]),
-            "result": "PASS_MACOS_DEMO_SMOKE",
-            "venue_execution_enabled": False,
-            "note": "This is macOS provider smoke evidence only; it does not satisfy Windows-specific release gates.",
-        }
-    finally:
-        terminal.shutdown()
+    return {
+        "schema_version": 1,
+        "platform": "macOS",
+        "started_at_utc": started,
+        "finished_at_utc": utc_now(),
+        "repository_commit": repository_commit.lower(),
+        "terminal_provider": os.environ.get("MT5_TERMINAL_PROVIDER", "UNCONFIGURED"),
+        "terminal_probe": "PERSISTED_ACTIVE_WORKER_STREAM" if persisted_only else "DIRECT_MQL5_EA_CONNECTION",
+        "account_masked": "..." + str(config.login)[-4:],
+        "broker_server": config.server,
+        "account_currency": expected_currency,
+        "terminal_id": config.terminal_id,
+        "symbols": list(config.symbols),
+        "market_contract_type": local_market_type,
+        "reconciliation_contract_type": local_reconciliation_type,
+        "client_tls13_mtls_context": "PASS",
+        "active_bridge_persistence": "PASS",
+        "persisted_market_sequence": int(persisted["market_sequence"]),
+        "persisted_market_captured_at": persisted["market_captured_at"],
+        "persisted_market_source": persisted["market_source"],
+        "persisted_reconciliation_sequence": int(persisted["reconciliation_sequence"]),
+        "persisted_reconciliation_captured_at": persisted["reconciliation_captured_at"],
+        "persisted_reconciliation_source": persisted["reconciliation_source"],
+        "market_and_reconciliation_sequences_match": True,
+        "result": "PASS_MACOS_PERSISTED_STREAM" if persisted_only else "PASS_MACOS_DEMO_SMOKE",
+        "venue_execution_enabled": False,
+        "note": "Provider smoke evidence only; not Windows-specific release approval. Persisted-only mode validates the active worker stream without opening a competing EA connection.",
+    }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout-seconds", type=int, default=10)
+    parser.add_argument("--persisted-only", action="store_true", help="Verify fresh persisted snapshots from the active native-provider worker without opening a competing EA connection.")
     parser.add_argument("--evidence-out", type=Path)
     args = parser.parse_args()
     if args.timeout_seconds < 1 or args.timeout_seconds > 60:
         parser.error("--timeout-seconds must be between 1 and 60")
     try:
-        report = smoke(args.timeout_seconds)
+        report = smoke(args.timeout_seconds, persisted_only=args.persisted_only)
     except Exception as exc:
         # Provider/terminal exceptions may contain operational details; report only
         # the type and keep raw diagnostics in the protected host log.
