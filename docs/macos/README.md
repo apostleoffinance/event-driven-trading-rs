@@ -7,7 +7,7 @@ This is the native macOS service-management path for the Quant OS read-only brid
 - macOS with a supported Python 3 version, stable Rust toolchain, OpenSSL, and PostgreSQL client tools (psql).
 - A reachable PostgreSQL database with the Quant OS migrations applied.
 - A designated broker demo account only.
-- Issued bridge certificates and a trusted CA bundle, with private keys stored outside the repository.
+- For production/shared deployments, issued bridge certificates and a trusted CA bundle; for local-only development, use section 2's explicitly non-production development CA. Keep private keys outside the repository.
 - The MetaTrader 5 macOS terminal, logged in to a designated demo account, with the repository's read-only MQL5 EA compiled and attached to a chart. See `adapters/mt5-python/README.md` for the provider protocol and setup.
 
 Install/build the project:
@@ -21,7 +21,37 @@ Install/build the project:
 
 The Python provider ships with the repository. The terminal-side MQL5 EA must be copied into the terminal data folder, compiled in MetaEditor, attached to a chart, and configured with the same loopback port, shared token, and exact symbol allowlist as the worker.
 
-## 2. Create protected configuration and log directories
+## 2. Create local-development mTLS certificates (development only)
+
+The repository includes a bootstrap helper for local development. It creates a private local CA, a TLS server certificate with `localhost` and `127.0.0.1` SANs, a client certificate with the correct EKU, and a CA CRL. It verifies certificate/key pairing, both certificate chains and CRL status, the server SAN, and certificate purpose before printing the client certificate's SHA-256 DER fingerprint.
+
+**This creates a local development CA, not production-issued certificates.** Use it only for the loopback demo setup on this Mac. For a production or shared environment, use the organization's approved certificate issuance, storage, revocation, rotation, and recovery process. Never copy the CA private key to another host or commit any generated key.
+
+From the repository root, run:
+
+    python3 adapters/mt5-python/scripts/mt5-macos-dev-pki.py
+
+The default output is the protected `~/Library/Application Support/QuantOS/certs` directory. The helper refuses to write into a non-empty output directory. Its private keys are owner-only (`0600`) and the directory is owner-only (`0700`). It prints the client fingerprint; keep that value private to the local configuration and set it as `MT5_BRIDGE_PRINCIPAL_SHA256`.
+
+For this **local-only** certificate set, configure the protected `quantos.env` with these paths (keep quotes around paths containing spaces):
+
+- `MT5_BRIDGE_SERVER_CERT="$HOME/Library/Application Support/QuantOS/certs/server.pem"`
+- `MT5_BRIDGE_SERVER_KEY="$HOME/Library/Application Support/QuantOS/certs/server.key.pem"`
+- `MT5_BRIDGE_CLIENT_CA="$HOME/Library/Application Support/QuantOS/certs/dev-ca.pem"`
+- `MT5_BRIDGE_CA_FILE="$HOME/Library/Application Support/QuantOS/certs/dev-ca.pem"`
+- `MT5_BRIDGE_CLIENT_CERT="$HOME/Library/Application Support/QuantOS/certs/client.pem"`
+- `MT5_BRIDGE_CLIENT_KEY="$HOME/Library/Application Support/QuantOS/certs/client.key.pem"`
+- `MT5_BRIDGE_PRINCIPAL_SHA256` = the exact fingerprint printed by the helper (64 hex characters, no separators).
+
+The same public CA certificate is used to validate the server and client certificate in this isolated development setup. Keep `MT5_BRIDGE_BIND=127.0.0.1:9443` and `MT5_BRIDGE_ALLOW_REMOTE_BIND=false`.
+
+Run the certificate review helper with the generated CRL after configuring the fingerprint:
+
+    python3 adapters/mt5-python/scripts/mt5-macos-certificate-review.py --client-cert "$HOME/Library/Application Support/QuantOS/certs/client.pem" --client-key "$HOME/Library/Application Support/QuantOS/certs/client.key.pem" --server-cert "$HOME/Library/Application Support/QuantOS/certs/server.pem" --server-key "$HOME/Library/Application Support/QuantOS/certs/server.key.pem" --ca-file "$HOME/Library/Application Support/QuantOS/certs/dev-ca.pem" --expected-client-sha256 "$MT5_BRIDGE_PRINCIPAL_SHA256" --crl-file "$HOME/Library/Application Support/QuantOS/certs/dev-ca.crl.pem" --evidence-out "$HOME/Library/Application Support/QuantOS/certificate-review.json"
+
+The expected result is a file-level `PARTIAL PASS`; the release gate intentionally remains `BLOCKED` until runtime revocation enforcement, rotation/rollback, real-terminal smoke and independent review are evidenced. The helper is exercised by the adapter unit tests.
+
+## 3. Create protected configuration and log directories
 
 Use a directory outside the Git checkout for runtime configuration, sequence state, evidence, and logs:
 
@@ -47,7 +77,7 @@ The file is shell-format configuration sourced by the launch wrapper. Quote valu
 
 Never use the sequence checkpoint path inside a temporary directory. Do not set MT5_SEQUENCE_FILE to a path that can be reset during restart testing. Keep the environment file owner-only (0600); the launch wrapper refuses broader permissions.
 
-## 3. Prepare LaunchAgents
+## 4. Prepare LaunchAgents
 
 Copy the examples into your user LaunchAgents directory and replace every /REPLACE_WITH_... path with an actual absolute path. Do not change the service labels unless you also pass the new exact labels to the restart verifier.
 
@@ -71,7 +101,7 @@ Confirm both labels are loaded:
 
 Do not paste full launchctl output into tickets; retain it in the protected operations record and redact before sharing.
 
-## 4. Run real demo smoke
+## 5. Run real demo smoke
 
 In a terminal session, load the same protected environment without printing it:
 
@@ -88,7 +118,7 @@ The default smoke test directly connects to the MQL5 EA and checks authenticated
 
 If no verified provider exists, the smoke test must fail closed. Do not replace it with fixture data or declare a pass because the MetaTrader app window is open.
 
-## 5. Verify worker-only restart recovery
+## 6. Verify worker-only restart recovery
 
 With the same protected environment loaded in the current shell, run:
 
@@ -102,13 +132,13 @@ Validate the restart JSON using the existing structural validator:
 
 A structural PASS does not authenticate the evidence or replace independent review.
 
-## 6. Review certificates and permissions
+## 7. Review certificates and permissions
 
 Run the certificate helper with the protected paths and approved client fingerprint. If the current CRL is available, include --crl-file. The helper checks key pairing, certificate validity, CA-chain verification, pin equality, CRL verification when supplied, and local private-key/parent-directory permissions. It deliberately leaves runtime revocation enforcement, rotation/rollback, and the release gate unverified.
 
 The macOS helper is not a substitute for Windows certificate/ACL review when the target deployment is Windows.
 
-## 7. Acceptance and limitations
+## 8. Acceptance and limitations
 
 - A provider-backed smoke and restart pass is evidence for that exact macOS host, provider, account identity, repository commit, and configuration only.
 - The worker/daemon remain read-only. Venue execution must remain disabled.
