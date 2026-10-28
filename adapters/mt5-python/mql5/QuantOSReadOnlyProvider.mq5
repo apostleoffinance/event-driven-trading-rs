@@ -239,6 +239,16 @@ string TickJson(const string symbol)
    if(!SymbolInfoTick(symbol, tick) || tick.time <= 0)
       return "";
 
+   // Diagnostic only: compare the quote epoch with MT5's clock functions.
+   // This logs no account credentials, tokens, prices, or other sensitive data.
+   long tick_epoch = (long)tick.time;
+   long utc_epoch = (long)TimeGMT();
+   long current_epoch = (long)TimeCurrent();
+   long server_epoch = (long)TimeTradeServer();
+   PrintFormat("QuantOS time diagnostic: symbol=%s tick_epoch=%I64d utc_epoch=%I64d current_epoch=%I64d server_epoch=%I64d tick_minus_utc_seconds=%I64d",
+               symbol, tick_epoch, utc_epoch, current_epoch, server_epoch,
+               tick_epoch - utc_epoch);
+
    return "{\"symbol\":" + JsonString(symbol) +
           ",\"bid\":" + JsonNumber(tick.bid, 16) +
           ",\"ask\":" + JsonNumber(tick.ask, 16) +
