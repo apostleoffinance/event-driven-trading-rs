@@ -95,7 +95,8 @@ if [[ "$provider_spec" == "" ]]; then
     exit 2
   fi
 elif [[ "$provider_spec" == "mt5_adapter.macos_socket_provider:create_terminal_provider" ]]; then
-  if [[ "${MT5_MACOS_PROVIDER_TOKEN:-}" == "" || "${#MT5_MACOS_PROVIDER_TOKEN}" -lt 32 ]]; then
+  provider_token="${MT5_MACOS_PROVIDER_TOKEN:-}"
+  if [[ "$provider_token" == "" || "${#provider_token}" -lt 32 ]]; then
     echo "BLOCKED: native provider selected but MT5_MACOS_PROVIDER_TOKEN is missing or too short." >&2
     if ((require_real_terminal)); then exit 2; fi
   elif ! PYTHONPATH="$ADAPTER_DIR" python3 -c 'from mt5_adapter.macos_socket_provider import create_terminal_provider'; then
