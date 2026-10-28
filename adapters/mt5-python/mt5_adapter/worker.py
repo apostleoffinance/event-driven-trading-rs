@@ -247,7 +247,8 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
         raise AdapterError("MT5 account identity changed; refusing to emit a reconciliation snapshot")
 
     orders = []
-    for order in terminal.orders():        order_type = _order_type(mt5_constants, order.type)
+    for order in terminal.orders():
+        order_type = _order_type(mt5_constants, order.type)
         side = "buy" if "buy" in order_type else "sell" if "sell" in order_type else "unknown"
         orders.append({
             "venue_order_id": required_text(order.ticket, "order ticket"),
