@@ -4,6 +4,7 @@ import os
 import sys
 from unittest.mock import patch
 from pathlib import Path
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from mt5_adapter.worker import AdapterError, Config, SequenceStore, build_heartbeat, build_market_data_snapshot, build_snapshot, decimal_text, load_terminal_runtime, send_frame
