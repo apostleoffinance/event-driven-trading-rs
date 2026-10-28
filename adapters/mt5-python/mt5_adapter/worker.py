@@ -355,7 +355,7 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
             "type": "market_data_snapshot",
             "terminal_id": config.terminal_id,
             "server": config.server,
-            "source": "mt5_python_readonly_v1",
+            "source": getattr(terminal, "source", "mt5_python_readonly_v1"),
             "sequence": sequence,
             "captured_at": captured_at,
             "account_currency": required_text(account.currency, "account currency"),
