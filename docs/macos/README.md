@@ -77,7 +77,7 @@ The file is shell-format configuration sourced by the launch wrapper. Quote valu
 
 Never use the sequence checkpoint path inside a temporary directory. Do not set MT5_SEQUENCE_FILE to a path that can be reset during restart testing. Keep the environment file owner-only (0600); the launch wrapper refuses broader permissions.
 
-## 3. Prepare LaunchAgents
+## 4. Prepare LaunchAgents
 
 Copy the examples into your user LaunchAgents directory and replace every /REPLACE_WITH_... path with an actual absolute path. Do not change the service labels unless you also pass the new exact labels to the restart verifier.
 
@@ -101,7 +101,7 @@ Confirm both labels are loaded:
 
 Do not paste full launchctl output into tickets; retain it in the protected operations record and redact before sharing.
 
-## 4. Run real demo smoke
+## 5. Run real demo smoke
 
 In a terminal session, load the same protected environment without printing it:
 
@@ -118,7 +118,7 @@ The default smoke test directly connects to the MQL5 EA and checks authenticated
 
 If no verified provider exists, the smoke test must fail closed. Do not replace it with fixture data or declare a pass because the MetaTrader app window is open.
 
-## 5. Verify worker-only restart recovery
+## 6. Verify worker-only restart recovery
 
 With the same protected environment loaded in the current shell, run:
 
@@ -132,13 +132,13 @@ Validate the restart JSON using the existing structural validator:
 
 A structural PASS does not authenticate the evidence or replace independent review.
 
-## 6. Review certificates and permissions
+## 7. Review certificates and permissions
 
 Run the certificate helper with the protected paths and approved client fingerprint. If the current CRL is available, include --crl-file. The helper checks key pairing, certificate validity, CA-chain verification, pin equality, CRL verification when supplied, and local private-key/parent-directory permissions. It deliberately leaves runtime revocation enforcement, rotation/rollback, and the release gate unverified.
 
 The macOS helper is not a substitute for Windows certificate/ACL review when the target deployment is Windows.
 
-## 7. Acceptance and limitations
+## 8. Acceptance and limitations
 
 - A provider-backed smoke and restart pass is evidence for that exact macOS host, provider, account identity, repository commit, and configuration only.
 - The worker/daemon remain read-only. Venue execution must remain disabled.
