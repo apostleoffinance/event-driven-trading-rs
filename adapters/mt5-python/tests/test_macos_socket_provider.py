@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,17 @@ from mt5_adapter.macos_socket_provider import (
     create_terminal_provider,
 )
 from mt5_adapter.worker import AdapterError, Config
+
+
+def connect_retry(port):
+    deadline = time.monotonic() + 3
+    while True:
+        try:
+            return socket.create_connection(("127.0.0.1", port), timeout=1)
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
 
 
 def config(path="unused"):
@@ -109,7 +121,7 @@ class MacOsProviderTests(unittest.TestCase):
 
         def fake_ea():
             try:
-                with socket.create_connection(("127.0.0.1", port), timeout=3) as peer:
+                with connect_retry(port) as peer:
                     peer.sendall(f"HELLO\t{token}\n".encode())
                     reader = peer.makefile("rb")
                     while True:
