@@ -7,7 +7,7 @@ This is the native macOS service-management path for the Quant OS read-only brid
 - macOS with a supported Python 3 version, stable Rust toolchain, OpenSSL, and PostgreSQL client tools (psql).
 - A reachable PostgreSQL database with the Quant OS migrations applied.
 - A designated broker demo account only.
-- Issued bridge certificates and a trusted CA bundle, with private keys stored outside the repository.
+- For production/shared deployments, issued bridge certificates and a trusted CA bundle; for local-only development, use section 2's explicitly non-production development CA. Keep private keys outside the repository.
 - The MetaTrader 5 macOS terminal, logged in to a designated demo account, with the repository's read-only MQL5 EA compiled and attached to a chart. See `adapters/mt5-python/README.md` for the provider protocol and setup.
 
 Install/build the project:
