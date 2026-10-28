@@ -117,7 +117,7 @@ To fail closed when a real terminal provider is unavailable:
 
     bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --require-real-terminal
 
-The worker now supports an explicit trusted provider module through MT5_TERMINAL_PROVIDER=module:function. The factory receives the validated Config and must return (terminal, constants), where terminal implements connect, connected, account_info, orders, positions, select_symbol, symbol_info, symbol_info_tick, and shutdown. Do not configure an unreviewed provider. This is an extension interface only: no native macOS MetaTrader provider is bundled, and setting this variable does not prove that a provider works or establish conformance.
+The worker supports an explicit trusted provider module through MT5_TERMINAL_PROVIDER=module:function. The bundled native macOS provider is mt5_adapter.macos_socket_provider:create_terminal_provider; its factory receives the validated Config and returns (terminal, constants), where terminal implements connect, connected, account_info, orders, positions, select_symbol, symbol_info, symbol_info_tick, and shutdown. Do not configure an unreviewed provider. Provider presence and configuration do not prove that it works against a real terminal or establish conformance.
 
 A provider intended for real demo use must be separately tested against the actual terminal and account, use the same read-only protocol contract, preserve sequence state across restarts, and produce authenticated persisted snapshots. The current macOS preflight deliberately reports terminal conformance as NOT_RUN and never promotes local contract tests to release evidence.
 
