@@ -441,9 +441,15 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
                                 time.sleep(config.poll_seconds)
             except (OSError, ssl.SSLError, AdapterError) as exc:
                 # Never log credentials, terminal responses, or full frame contents.
+                # AdapterError messages are authored locally and intentionally
+                # omit credentials, raw provider frames, and account balances. Include
+                # them so operators can identify which read-only stage is failing.
+                # For OS/TLS exceptions, log only the class to avoid leaking paths
+                # or transport details that may contain local configuration.
+                detail = f": {exc}" if isinstance(exc, AdapterError) else ""
                 print(
-                    f"MT5 worker connection/poll attempt failed ({type(exc).__name__}); "
-                    f"retrying after {backoff:.1f}s.",
+                    f"MT5 worker connection/poll attempt failed "
+                    f"({type(exc).__name__}){detail}; retrying after {backoff:.1f}s.",
                     file=sys.stderr,
                     flush=True,
                 )
