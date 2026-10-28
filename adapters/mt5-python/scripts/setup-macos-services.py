@@ -92,7 +92,7 @@ def main() -> int:
     adapter = repo / "adapters" / "mt5-python"
     wrapper = adapter / "scripts" / "mt5-macos-launch-wrapper.sh"
     daemon = repo / "target" / "release" / "mt5-bridge-daemon"
-    python_exe = Path(sys.executable).resolve()
+    python_exe = Path(sys.executable).absolute()  # Preserve the venv path; resolve() can escape the venv symlink.
     env_file = SERVICE_ROOT / "quantos.env"
     bridge_plist = LAUNCH_AGENTS / f"{BRIDGE_LABEL}.plist"
     worker_plist = LAUNCH_AGENTS / f"{WORKER_LABEL}.plist"
