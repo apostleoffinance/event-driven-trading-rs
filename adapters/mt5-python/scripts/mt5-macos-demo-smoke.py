@@ -17,6 +17,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, unquote, urlparse
 
 from mt5_adapter.worker import (
     AdapterError,
@@ -73,7 +74,24 @@ SELECT json_build_object(
 )::text
 FROM market CROSS JOIN reconciliation;
 """
-    env = {**os.environ, "PGDATABASE": database_url}
+    # PGDATABASE accepts a database name, not a PostgreSQL connection URI.
+    # Parse DATABASE_URL into libpq's individual environment variables so psql
+    # does not ignore the embedded credentials and unexpectedly prompt on stdin.
+    parsed = urlparse(database_url)
+    if parsed.scheme not in {"postgres", "postgresql"} or not parsed.path.lstrip("/"):
+        raise AdapterError("DATABASE_URL must be a PostgreSQL URI with a database name")
+    env = os.environ.copy()
+    env["PGHOST"] = parsed.hostname or "localhost"
+    env["PGPORT"] = str(parsed.port or 5432)
+    env["PGDATABASE"] = unquote(parsed.path.lstrip("/"))
+    if parsed.username is not None:
+        env["PGUSER"] = unquote(parsed.username)
+    if parsed.password is not None:
+        env["PGPASSWORD"] = unquote(parsed.password)
+    options = parse_qs(parsed.query)
+    for key in ("sslmode", "application_name", "connect_timeout"):
+        if options.get(key):
+            env[{"sslmode": "PGSSLMODE", "application_name": "PGAPPNAME", "connect_timeout": "PGCONNECT_TIMEOUT"}[key]] = options[key][-1]
     try:
         result = subprocess.run(
             [
