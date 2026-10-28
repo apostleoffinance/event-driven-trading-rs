@@ -98,8 +98,11 @@ FROM market CROSS JOIN reconciliation;
                 "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
                 "-v", f"account_id={config.account_id}",
                 "-v", f"terminal_id={config.terminal_id}",
-                "-c", query,
             ],
+            # psql does not interpolate SQL variables when the query is passed
+            # with -c. Feed the query on stdin so psql safely quotes variables
+            # before PostgreSQL parses the statement.
+            input=query,
             check=False,
             capture_output=True,
             text=True,
