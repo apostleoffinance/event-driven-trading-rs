@@ -793,5 +793,5 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule update made in RULES.md:** None. Existing testing rules require reproducible failure-path tests.
 - **Code/docs/tests changed:** Added a bounded retry helper to both socket-fixture connection paths. No runtime behavior changed for this correction.
 - **Regression/real-use check added:** Re-run the full macOS preflight and exact-head CI on the updated commit.
-- **Verification result:** Fix committed; rerun status is pending. Do not claim the failing job is resolved until new CI confirms it.
+- **Verification result:** Exact-head run 40653937982 passed all four jobs, including the macOS portable preflight and MT5 Python adapter contract tests. The startup-race correction is verified by CI.
 - **Remaining risk:** Real MetaEditor compilation and demo-terminal acceptance remain unverified independently of CI.
