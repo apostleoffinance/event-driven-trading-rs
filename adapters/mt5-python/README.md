@@ -1,16 +1,17 @@
 # Quant OS MT5 read-only adapter (QOS-015A)
 
-This package connects a Windows-hosted MetaTrader 5 terminal to the Rust MT5 bridge using TLS 1.3 mutual authentication. It is deliberately read-only: there is no order submission, order modification, or cancellation code path. Execution is a separate follow-up after demo reconciliation acceptance.
+This package supports a Windows-hosted MetaTrader 5 terminal through the official Python API and an experimental native macOS path through a read-only MQL5 EA plus loopback Python provider. Both connect to the Rust MT5 bridge using TLS 1.3 mutual authentication. Neither path exposes order submission, order modification, or cancellation. Execution is a separate follow-up after real demo reconciliation acceptance.
 
 ## Runtime placement
 
-- Run this process on the same Windows VPS/host as the self-hosted MT5 terminal.
+- Windows default provider: run the Python worker beside the self-hosted Windows MT5 terminal.
+- Native macOS provider: run the Python worker on macOS and attach the repository's read-only MQL5 EA to the MT5 terminal; the EA connects to the worker over loopback TCP.
 - Run the Rust bridge daemon on the same host for the default loopback binding, or deliberately configure a protected remote endpoint.
-- PostgreSQL may be hosted separately, but the Windows daemon must have private network access to it.
-- Vercel is for the Next.js frontend, not the MT5 process. A standard Linux Render service cannot host this Windows-only terminal worker.
+- PostgreSQL may be hosted separately, but the daemon must have private network access to it.
+- Vercel is for the Next.js frontend, not the MT5 process. A standard Linux Render service cannot host the Windows terminal or macOS terminal UI.
 - Never put broker passwords or client private keys in frontend variables, browser storage, logs, or source control.
 
-## Install the Python worker
+## Install the Python worker (Windows default provider)
 
 PowerShell on the Windows VPS, with MT5 installed and logged into the intended demo account:
 
@@ -23,9 +24,9 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
 
 | Variable | Purpose |
 |---|---|
-| MT5_TERMINAL_PATH | Absolute path to terminal64.exe |
+| MT5_TERMINAL_PATH | Windows: absolute path to terminal64.exe. Native macOS provider: installed MT5 app path/label (not used to launch or authenticate the terminal). |
 | MT5_LOGIN | Expected numeric demo login |
-| MT5_PASSWORD | Demo account password; never logged |
+| MT5_PASSWORD | Windows default provider only; never logged. The native macOS provider uses the account already logged into the terminal UI and does not need or transmit this value. |
 | MT5_SERVER | Exact broker demo server name |
 | MT5_TERMINAL_ID | Stable host-assigned terminal identity |
 | MT5_BRIDGE_HOST | Rust listener host; use 127.0.0.1 when colocated |
