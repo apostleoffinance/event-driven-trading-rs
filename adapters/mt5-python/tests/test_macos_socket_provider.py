@@ -83,6 +83,14 @@ class MacOsProviderTests(unittest.TestCase):
         self.assertEqual(constants.POSITION_TYPE_BUY, 0)
         terminal.shutdown()
 
+    def test_mql5_ea_has_no_order_execution_api_calls(self):
+        ea_path = Path(__file__).resolve().parents[1] / "mql5" / "QuantOSReadOnlyProvider.mq5"
+        source = ea_path.read_text(encoding="utf-8")
+        for forbidden in ("OrderSend(", "OrderSendAsync(", "OrderDelete(", "OrderModify(", "PositionClose("):
+            self.assertNotIn(forbidden, source)
+        for command in ('"ACCOUNT"', '"ORDERS"', '"POSITIONS"', '"SYMBOL_INFO"', '"TICK"'):
+            self.assertIn(command, source)
+
     def test_provider_rejects_non_allowlisted_symbol_before_socket_io(self):
         terminal = MacOsMql5Terminal(config(), "127.0.0.1", 18765, "t" * 48, 5)
         with self.assertRaises(AdapterError):
