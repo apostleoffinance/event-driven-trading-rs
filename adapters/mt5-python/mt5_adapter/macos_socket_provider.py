@@ -57,7 +57,7 @@ def _required_token() -> str:
 def create_terminal_provider(config: Config) -> tuple["MacOsMql5Terminal", type[Mql5Constants]]:
     """Factory loaded by MT5_TERMINAL_PROVIDER=module:function."""
     host = os.environ.get("MT5_MACOS_PROVIDER_HOST", "127.0.0.1")
-    if host not in {"127.0.0.1", "::1", "localhost"}:
+    if host != "127.0.0.1":
         raise AdapterError("macOS MQL5 provider must bind to loopback only")
     port = _positive_int_env("MT5_MACOS_PROVIDER_PORT", _DEFAULT_PORT, 1024, 65535)
     token = _required_token()
@@ -233,5 +233,5 @@ class MacOsMql5Terminal:
             if item is not None:
                 try:
                     item.close()
-                except OSError:
+                except (OSError, ValueError):
                     pass
