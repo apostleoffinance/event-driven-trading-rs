@@ -89,5 +89,5 @@ Branch `feat/qos-013-mt5-runtime-integration` composes persisted MT5 snapshots w
 ## QOS-015A native macOS provider follow-up — 2026-10-28
 - Added a native Python provider that connects to a read-only MQL5 Expert Advisor over authenticated loopback TCP, with configured-symbol allowlisting, account/server identity validation, and read-only account/order/position/instrument/quote mappings.
 - Added `adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5`; MetaEditor compilation and real-terminal execution are not available in repository CI and remain unverified.
-- Added Python contract tests for provider factory validation, handshake, identity mismatch, protocol mapping, and fail-closed symbol/command handling. Exact-head CI is pending.
+- Added Python contract tests for provider factory validation, handshake, identity mismatch, protocol mapping, and fail-closed symbol/command handling. Exact-head GitHub Actions run 40653937982 passed Rust format/check/tests/Clippy, frontend lint/typecheck/build, macOS portable preflight, and MT5 Python adapter contract tests.
 - Status remains IN PROGRESS. No real MT5 demo smoke, persisted snapshot/restart test, or certificate lifecycle evidence is claimed. Keep venue execution disabled.
