@@ -26,7 +26,6 @@ class MacOSServiceSetupTests(unittest.TestCase):
             SETUP.WORKER_LABEL,
             wrapper,
             env_file,
-            repo,
             ["/repo/.venv/bin/python", "-m", "mt5_adapter.worker"],
             repo / "adapters/mt5-python",
             Path("/Users/demo/Library/Application Support/QuantOS/logs/worker.out"),
