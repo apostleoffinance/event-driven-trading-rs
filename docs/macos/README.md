@@ -60,7 +60,15 @@ Use a directory outside the Git checkout for runtime configuration, sequence sta
     chmod 700 "$HOME/Library/Application Support/QuantOS"
     chmod 700 "$HOME/Library/Application Support/QuantOS/logs"
 
-Create the environment file with a text editor. Do not put secrets directly in shell commands or commit this file:
+**Recommended: use the local setup helper** after generating the development certificates and building the daemon:
+
+    python3 adapters/mt5-python/scripts/setup-macos-services.py
+
+Run it with the Python interpreter/virtual environment where the adapter was installed. It prompts for the demo terminal identity and database URL if DATABASE_URL is not already exported, then creates the protected `quantos.env` and both LaunchAgent plist files with absolute paths. It calculates the client certificate fingerprint locally and generates a fresh provider token; it does not print the token or start either service. It refuses to overwrite existing configuration files.
+
+The helper copies the new provider token to the clipboard when `pbcopy` is available and stores a private backup at `~/Library/Application Support/QuantOS/certs/provider-token.txt` with mode 0600. Paste the token into the EA's `InpSharedToken` input in MetaTrader and apply the EA inputs before starting the worker. Never share the token or commit the backup.
+
+For manual configuration instead, create the environment file with a text editor and do not put secrets directly in shell commands or commit this file:
 
     nano "$HOME/Library/Application Support/QuantOS/quantos.env"
     chmod 600 "$HOME/Library/Application Support/QuantOS/quantos.env"
@@ -77,15 +85,17 @@ The file is shell-format configuration sourced by the launch wrapper. Quote valu
 
 Never use the sequence checkpoint path inside a temporary directory. Do not set MT5_SEQUENCE_FILE to a path that can be reset during restart testing. Keep the environment file owner-only (0600); the launch wrapper refuses broader permissions.
 
-## 4. Prepare LaunchAgents
+## 4. Prepare and load LaunchAgents
 
-Copy the examples into your user LaunchAgents directory and replace every /REPLACE_WITH_... path with an actual absolute path. Do not change the service labels unless you also pass the new exact labels to the restart verifier.
+If you used `setup-macos-services.py`, it has already generated both plist files with absolute paths and run `plutil -lint` on them. Otherwise, copy the examples into your user LaunchAgents directory and replace every /REPLACE_WITH_... path with an actual absolute path:
 
     mkdir -p "$HOME/Library/LaunchAgents"
     cp docs/macos/com.quantos.mt5-bridge.plist.example "$HOME/Library/LaunchAgents/com.quantos.mt5-bridge.plist"
     cp docs/macos/com.quantos.mt5-worker.plist.example "$HOME/Library/LaunchAgents/com.quantos.mt5-worker.plist"
     plutil -lint "$HOME/Library/LaunchAgents/com.quantos.mt5-bridge.plist"
     plutil -lint "$HOME/Library/LaunchAgents/com.quantos.mt5-worker.plist"
+
+Before loading either job, verify the generated environment values and make sure the EA has the matching fresh token. Do not change service labels unless you also pass the new exact labels to the restart verifier.
 
 Create the log files' parent directory before loading the jobs. The plist files must not contain passwords, database URLs, or private-key bytes. The environment file path is not itself a secret; its contents are protected separately.
 
