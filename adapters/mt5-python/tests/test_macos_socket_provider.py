@@ -86,14 +86,15 @@ class MacOsProviderTests(unittest.TestCase):
                 with socket.create_connection(("127.0.0.1", port), timeout=3) as peer:
                     peer.sendall(f"HELLO\t{token}\n".encode())
                     reader = peer.makefile("rb")
-                    request = reader.readline().decode().strip()
-                    self.assertEqual(request, "PING")
-                    peer.sendall((json.dumps({
-                        "ok": True,
-                        "data": {"connected": True, "login": 123456, "server": "Broker-Demo"},
-                    }) + "\n").encode())
-                    # Keep the socket alive until the test shuts the provider down.
-                    reader.readline()
+                    while True:
+                        request = reader.readline().decode().strip()
+                        if not request:
+                            break
+                        self.assertEqual(request, "PING")
+                        peer.sendall((json.dumps({
+                            "ok": True,
+                            "data": {"connected": True, "login": 123456, "server": "Broker-Demo"},
+                        }) + "\n").encode())
             except Exception as exc:  # propagate thread assertion failures
                 failures.append(exc)
 
