@@ -121,3 +121,52 @@ The worker now supports an explicit trusted provider module through MT5_TERMINAL
 A provider intended for real demo use must be separately tested against the actual terminal and account, use the same read-only protocol contract, preserve sequence state across restarts, and produce authenticated persisted snapshots. The current macOS preflight deliberately reports terminal conformance as NOT_RUN and never promotes local contract tests to release evidence.
 
 See docs/QOS-015_MACOS_CONFORMANCE.md for the current platform boundary, certificate review helper, and acceptance requirements. Keep venue execution disabled.
+
+
+## Native macOS MT5 terminal provider (QOS-015A)
+
+**Implementation status: provider and MQL5 EA added; real-terminal verification is still pending.** The official \`MetaTrader5\` Python package remains Windows-only. On macOS, this provider uses a read-only MQL5 Expert Advisor inside the MetaTrader terminal and a native Python client over a loopback TCP socket. The EA reads terminal/account state and returns it to the existing worker; it does not expose any order submission, modification, or cancellation operation.
+
+### Install and configure the terminal-side EA
+
+1. Open the installed MetaTrader 5 macOS application and log in manually to the designated **demo** account. The provider does not log in to the broker or transmit the broker password.
+2. In the terminal, open **File → Open Data Folder** (menu wording may vary) and copy \`adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5\` into \`MQL5/Experts/\`.
+3. Open the file in MetaEditor, compile it, and attach \`QuantOSReadOnlyProvider\` to a chart. Configure \`InpHost=127.0.0.1\`, \`InpPort=8765\`, \`InpSharedToken\` to the same secret as \`MT5_MACOS_PROVIDER_TOKEN\`, and \`InpAllowedSymbols\` to the exact comma-separated broker symbols in \`MT5_SYMBOLS\`.
+4. Keep the terminal open and connected. The EA retries the loopback connection. It uses socket APIs only; it contains no trading calls. Do not enable order execution to use this read-only provider.
+
+Generate a random local shared token and store it in a protected environment file (do not commit it):
+
+    python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+
+The shared token must be at least 32 characters with no whitespace. The Python listener binds only to \`127.0.0.1\`, checks the connecting peer is loopback, and authenticates the EA before issuing read requests.
+
+### Provider environment
+
+Set these variables in the protected environment used by the Python worker:
+
+| Variable | Value / purpose |
+|---|---|
+| \`MT5_TERMINAL_PROVIDER\` | \`mt5_adapter.macos_socket_provider:create_terminal_provider\` |
+| \`MT5_MACOS_PROVIDER_TOKEN\` | The same random token configured in the EA |
+| \`MT5_MACOS_PROVIDER_HOST\` | Optional; must be \`127.0.0.1\` |
+| \`MT5_MACOS_PROVIDER_PORT\` | Optional; defaults to \`8765\`, and must match \`InpPort\` |
+| \`MT5_MACOS_PROVIDER_CONNECT_TIMEOUT_SECONDS\` | Optional; defaults to 60 seconds, range 5–300 |
+| \`MT5_TERMINAL_PATH\` | Path/label for the installed MT5 app; retained as required worker configuration |
+| \`MT5_LOGIN\`, \`MT5_SERVER\` | Expected login and exact broker server; checked against the connected terminal |
+| \`MT5_SYMBOLS\` | 1–64 unique exact broker symbol names, matching \`InpAllowedSymbols\` |
+| \`MT5_TERMINAL_ID\` | Stable deployment-assigned terminal identity |
+| \`MT5_BRIDGE_HOST\`, \`MT5_BRIDGE_PORT\` | Rust bridge endpoint |
+| \`MT5_BRIDGE_SERVER_NAME\`, \`MT5_BRIDGE_CA_FILE\` | TLS server name and CA bundle |
+| \`MT5_BRIDGE_CLIENT_CERT\`, \`MT5_BRIDGE_CLIENT_KEY\` | Worker mTLS certificate and protected private key |
+| \`MT5_SEQUENCE_FILE\` | Optional durable sequence checkpoint |
+| \`MT5_POLL_INTERVAL_SECONDS\` | Optional snapshot interval, 1–300 seconds |
+
+For this exact native provider, \`MT5_PASSWORD\` is not required because the user logs into MT5 inside the terminal UI. The Python provider never reads, stores, or transmits that password. Other provider configurations retain the existing password requirement.
+
+Start the worker only after compiling/attaching the EA, or start it first and let the EA reconnect. The worker listens on loopback; the EA initiates the connection. If the EA does not connect, confirm the terminal is online, the EA is attached and enabled, the port/token match, and no local process occupies the port. Never expose this socket on a LAN interface.
+
+### Protocol and release boundary
+
+The local protocol uses newline-delimited UTF-8 requests and JSON responses. The only commands are \`PING\`, \`ACCOUNT\`, \`ORDERS\`, \`POSITIONS\`, \`SELECT_SYMBOL\`, \`SYMBOL_INFO\`, and \`TICK\`; there is no order placement, modification, or deletion command. Symbol requests are restricted by both the Python configured-symbol allowlist and the EA allowlist. The bridge traffic from Python to Rust continues to use the existing TLS 1.3 mutual-authentication configuration.
+
+The MQL5 source is not compiled by the repository's Python/Rust CI. Unit tests cover the Python provider handshake, token and identity checks, protocol mappings, symbol allowlisting, and failure paths, but they do not prove that MetaTrader runs the EA correctly. Before treating the provider as operational, compile it in MetaEditor and run \`mt5-macos-demo-smoke.py\` against the real demo terminal and persisted Rust/PostgreSQL snapshots, then complete restart recovery and certificate lifecycle review. **The provider implementation is not itself a conformance PASS. Venue execution must remain disabled, and this does not replace Windows-specific release evidence.**
