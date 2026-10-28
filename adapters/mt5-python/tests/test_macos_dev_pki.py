@@ -16,8 +16,10 @@ REVIEW_SCRIPT = SCRIPT.with_name("mt5-macos-certificate-review.py")
 @unittest.skipUnless(shutil.which("openssl"), "OpenSSL is required for PKI integration test")
 class MacOsDevelopmentPkiTests(unittest.TestCase):
     def test_generates_and_verifies_local_mtls_pki_without_overwriting(self) -> None:
+        self.assertTrue(REVIEW_SCRIPT.is_file(), "repository certificate-review helper must exist")
         with tempfile.TemporaryDirectory(prefix="quantos-mt5-pki-") as temporary:
-            output = Path(temporary) / "certs"
+            # A path with spaces mirrors the actual macOS Application Support path.
+            output = Path(temporary) / "certs with spaces"
             result = subprocess.run(
                 [sys.executable, str(SCRIPT), "--output-dir", str(output)],
                 text=True, capture_output=True, timeout=90, check=False,
@@ -49,23 +51,22 @@ class MacOsDevelopmentPkiTests(unittest.TestCase):
             fingerprint = hashlib.sha256(der).hexdigest()
             self.assertIn(fingerprint, result.stdout)
 
-            if REVIEW_SCRIPT.exists():
-                review = subprocess.run(
-                    [sys.executable, str(REVIEW_SCRIPT),
-                     "--client-cert", str(output / "client.pem"),
-                     "--client-key", str(output / "client.key.pem"),
-                     "--server-cert", str(output / "server.pem"),
-                     "--server-key", str(output / "server.key.pem"),
-                     "--ca-file", str(output / "dev-ca.pem"),
-                     "--expected-client-sha256", fingerprint,
-                     "--crl-file", str(output / "dev-ca.crl.pem"),
-                     "--evidence-out", str(Path(temporary) / "certificate-review.json")],
-                    text=True, capture_output=True, timeout=30, check=False,
-                )
-                self.assertEqual(review.returncode, 0, msg=review.stdout + review.stderr)
-                self.assertIn("PARTIAL PASS", review.stdout)
-                self.assertIn('"release_gate": "BLOCKED"', review.stdout)
-                self.assertIn('"revocation_checked_for_both": true', review.stdout)
+            review = subprocess.run(
+                [sys.executable, str(REVIEW_SCRIPT),
+                 "--client-cert", str(output / "client.pem"),
+                 "--client-key", str(output / "client.key.pem"),
+                 "--server-cert", str(output / "server.pem"),
+                 "--server-key", str(output / "server.key.pem"),
+                 "--ca-file", str(output / "dev-ca.pem"),
+                 "--expected-client-sha256", fingerprint,
+                 "--crl-file", str(output / "dev-ca.crl.pem"),
+                 "--evidence-out", str(Path(temporary) / "certificate-review.json")],
+                text=True, capture_output=True, timeout=30, check=False,
+            )
+            self.assertEqual(review.returncode, 0, msg=review.stdout + review.stderr)
+            self.assertIn("PARTIAL PASS", review.stdout)
+            self.assertIn('"release_gate": "BLOCKED"', review.stdout)
+            self.assertIn('"revocation_checked_for_both": true', review.stdout)
 
             second = subprocess.run(
                 [sys.executable, str(SCRIPT), "--output-dir", str(output)],

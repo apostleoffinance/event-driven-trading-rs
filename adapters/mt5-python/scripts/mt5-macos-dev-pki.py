@@ -47,8 +47,7 @@ def main() -> int:
         print("Choose a new empty directory or securely move the existing files first.", file=sys.stderr)
         return 2
     out.chmod(0o700)
-    issued = out / "issued"
-    issued.mkdir(mode=0o700)
+    (out / "issued").mkdir(mode=0o700)
     for name, value in (("index.txt", ""), ("serial", "1000\n"), ("crlnumber", "1000\n")):
         path = out / name
         path.write_text(value, encoding="ascii")
@@ -131,7 +130,6 @@ authorityKeyIdentifier = keyid,issuer
         run("ca", "-gencrl", "-config", str(config_path), "-out", str(out / "dev-ca.crl.pem"))
         (out / "dev-ca.crl.pem").chmod(0o644)
 
-        # Validate chain + CRL, certificate/key pairing, hostname/IP SAN, and EKU.
         for role in ("server", "client"):
             run("verify", "-crl_check", "-CRLfile", str(out / "dev-ca.crl.pem"),
                 "-CAfile", str(out / "dev-ca.pem"), str(out / f"{role}.pem"))
@@ -167,6 +165,16 @@ authorityKeyIdentifier = keyid,issuer
         print("Do not copy, upload, or commit the CA private key.")
         return 0
     except (OSError, subprocess.CalledProcessError, RuntimeError) as exc:
+        # The output directory was confirmed empty above, so removing partial
+        # artifacts cannot delete pre-existing user files.
+        for child in out.iterdir():
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                try:
+                    child.unlink()
+                except OSError:
+                    pass
         print(f"BLOCKED: certificate generation/verification failed ({type(exc).__name__}): {exc}", file=sys.stderr)
         return 2
 
