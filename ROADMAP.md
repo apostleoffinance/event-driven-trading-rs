@@ -45,3 +45,14 @@ Connectivity: supported broker/server coverage, provisioning success, account id
 
 ## Dependency rule
 Shared infrastructure is reusable, but execution remains venue-aware. Vault contracts are not required to validate SaaS products and cannot replace off-chain reconciliation.
+
+## Cross-product architecture rule
+
+All existing and future EdgeNest products must build on the same connectivity, account, risk, execution, event, persistence and reconciliation foundation. **This is not a change to product definitions or roadmap scope.** Product-specific features remain in their existing milestones; this section establishes the shared dependency and integration rule only.
+
+- Prioritize the MT5 gateway-to-broker lifecycle and prove it end to end before broad product integrations.
+- Products must use shared versioned contracts and shared account/event data; no product-specific broker connection stack or financial source of truth.
+- All exposure-changing workflows pass through shared eligibility, Rust risk authorization, OMS/idempotency, adapter dispatch and reconciliation.
+- Read-only workflows may consume shared normalized events without execution permissions.
+- Keep managed gateway provisioning, public API endpoints and product integrations marked planned until implemented and verified. Existing QOS-013/014/015 gates remain mandatory; documentation does not enable live execution.
+

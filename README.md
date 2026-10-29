@@ -90,3 +90,8 @@ See also `docs/frontend-api-contract.md`.
 ## License
 
 MIT
+
+### Shared infrastructure across EdgeNest products
+
+All EdgeNest products reuse one shared platform foundation for account connectivity, managed MT5 gateways, tenant security, account and event data, risk authorization, order management, venue adapters, persistence and reconciliation. Product definitions and scope remain unchanged; this is an architectural rule that prevents each product from building its own broker connection or execution backend. Read-only products consume shared account/trade events, while any product that can create exposure must use the same risk and OMS boundary. The target user experience does not require attaching an EA to a chart or managing a personal terminal host. This is target architecture, not a claim that gateway provisioning or every product integration is already complete. See docs/EDGENEST_PLATFORM.md.
+
