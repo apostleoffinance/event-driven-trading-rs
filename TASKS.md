@@ -94,3 +94,8 @@ Branch `feat/qos-013-mt5-runtime-integration` composes persisted MT5 snapshots w
 - Added `adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5`; MetaEditor compilation and real-terminal execution are not available in repository CI and remain unverified.
 - Added Python contract tests for provider factory validation, handshake, identity mismatch, protocol mapping, and fail-closed symbol/command handling. Exact-head GitHub Actions run 40653937982 passed Rust format/check/tests/Clippy, frontend lint/typecheck/build, macOS portable preflight, and MT5 Python adapter contract tests.
 - Status remains IN PROGRESS. No real MT5 demo smoke, persisted snapshot/restart test, or certificate lifecycle evidence is claimed. Keep venue execution disabled.
+
+## Cross-product architecture requirement — documentation only
+
+All EdgeNest products must reuse the same connectivity, account registry, tenant/security model, risk authorization, OMS/execution, venue adapters, account/event services, persistence and reconciliation. Product definitions and existing milestone scope remain unchanged. Product-specific broker connectivity and execution bypasses are prohibited. The target UX must not require users to attach an EA to charts; EdgeNest operates the managed gateway fleet. Real MT5 demo lifecycle evidence and existing QOS-013/014/015 release gates remain prerequisites. This statement is architecture guidance only and does not mark any implementation DONE or authorize live trading.
+
