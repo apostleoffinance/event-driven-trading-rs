@@ -1,9 +1,17 @@
-# Quant OS — Frontend API Contract (proposed)
+# EdgeNest — Shared Platform API Contract (proposed)
 
-These endpoints are **integration contracts** for a future Rust HTTP/SSE layer.
-They are **not** implemented in the Rust workspace yet. The Next.js app uses mock repositories today.
+These endpoints are **proposed contracts**, not proof of an implemented Rust HTTP service. The Next.js app uses mock repositories today. The same API is intended to serve both the EdgeNest Trader Dashboard and external developer applications; neither client may bypass Rust risk authorization, OMS, adapter capability checks or reconciliation.
 
 Base URL: `NEXT_PUBLIC_API_URL`
+
+## Product boundary
+- First-party dashboard and third-party developers use the same versioned service contracts.
+- Tenant identity comes from authenticated server-side claims, never from a trusted client-supplied tenant ID.
+- Public account identifiers are opaque and tenant-scoped.
+- Demo, paper and live environments are explicit and cannot be confused.
+- Account provisioning/connectivity is a separate lifecycle from execution eligibility.
+- Do not expose broker passwords, terminal credentials, private keys, certificates or internal host details.
+- Live write endpoints remain unavailable until the corresponding venue and platform release gates are approved.
 
 ## REST
 
@@ -24,9 +32,23 @@ Base URL: `NEXT_PUBLIC_API_URL`
 | GET | `/api/reconciliation` | Latest recon report |
 | GET | `/api/system/health` | Component health |
 
+## Proposed developer API additions
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/v1/accounts/connections` | Start a tenant-scoped account connection/provisioning request |
+| GET | `/api/v1/accounts/connections/:id` | Read provisioning and connectivity state |
+| POST | `/api/v1/accounts/connections/:id/disconnect` | Request account disconnection |
+| GET | `/api/v1/developer/usage` | Read current usage/quota summary |
+| GET | `/api/v1/developer/api-keys` | List API-key metadata (never key secrets) |
+| POST | `/api/v1/developer/api-keys` | Create a scoped key and return its secret once |
+| POST | `/api/v1/developer/api-keys/:id/revoke` | Revoke a key |
+
+These are proposals only. They must not be described as implemented endpoints until the HTTP service, authorization and tests exist. Account connection must use a secure provider-specific credential flow; never place credentials in URLs, logs or frontend telemetry.
+
 ## Events
 
-`NEXT_PUBLIC_EVENT_STREAM_URL` — WebSocket or SSE stream of `TradingEvent` JSON matching `crates/events`.
+`NEXT_PUBLIC_EVENT_STREAM_URL` — WebSocket or SSE stream of `TradingEvent` JSON matching `crates/events`. The production contract must define tenant-scoped subscriptions, sequence/cursor behavior, reconnect recovery, backpressure and authorization renewal.
 
 ## Money
 
