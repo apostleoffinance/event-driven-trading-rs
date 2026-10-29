@@ -803,3 +803,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule/documentation change:** PRD, architecture, roadmap, README, frontend API contract and task queue now distinguish the shared platform from its first-party clients. The target is EdgeNest-owned managed MT5 gateway/orchestration with replaceable platform adapters; third-party hosted APIs remain evaluation tools or temporary dependencies, not an assumed permanent core.
 - **Safety boundary:** The documentation does not claim public APIs or managed gateway provisioning are implemented. Existing QOS-013/014/015 and Windows demo conformance gates remain in force; venue execution remains disabled until their acceptance evidence is verified.
 - **Rationale:** Align implementation sequencing, developer-platform requirements and cost decisions with the intended product.
+
+## REV-067 — Shared infrastructure across all EdgeNest products
+
+- Clarification: all EdgeNest products must reuse the shared account connectivity, managed gateway, tenant/security, risk, OMS/execution, event, persistence and reconciliation foundation wherever applicable.
+- Product definitions and scope are unchanged; this is an architecture and implementation rule only.
+- Exposure-changing products must not bypass shared risk authorization and OMS. Read-only products may consume authorized normalized events.
+- Customer-facing connectivity should not require users to attach EAs to charts; EdgeNest manages the terminal/gateway fleet.
+- Documentation-only change. No code behavior, broker execution capability, production readiness or live-trading authorization is implied.
+
