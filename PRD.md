@@ -65,3 +65,12 @@ Unit/invariant tests → simulator integration → failure injection → paper f
 First live venue; MT5 transport/topology; cTrader eligibility/auth; instrument scope; tenancy/auth/billing; enforcement capability by venue; vault chain/custody/jurisdiction.
 
 Before editing, check `RULES.md`; log corrections and rule failures in `REVIEWS.md`.
+
+## Shared platform architecture requirement (product definitions unchanged)
+
+All EdgeNest products must use one shared infrastructure foundation wherever their capabilities overlap. This requirement does not rename, replace, add, remove or otherwise change any product definition or product scope in this PRD. Product-specific workflows remain distinct, while account connectivity, tenant isolation, permissions, risk authorization, order management, venue adapters, account/event data, persistence, audit and reconciliation are shared services.
+
+No product may create an independent MT5 connectivity path or bypass the shared Rust risk engine and OMS. Read-only products such as journal/analytics workflows consume normalized account and trading events. Any product that can create or modify trading exposure must use the shared eligibility, per-account risk, idempotent execution and reconciliation path. The customer experience should not require attaching an EA to a chart or managing a personal terminal host; EdgeNest owns and operates the managed gateway layer.
+
+The shared gateway lifecycle is a prerequisite, not an assumed capability: real MT5 demo identity binding, data freshness, secure credential lifecycle, restart/reconnect recovery and authoritative reconciliation must be evidenced before controlled demo execution. Existing QOS-013/014/015 release gates remain in force. This architecture requirement alone does not authorize live execution or establish that any product integration is implemented.
+
