@@ -795,3 +795,11 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Re-run the full macOS preflight and exact-head CI on the updated commit.
 - **Verification result:** Exact-head run 40653937982 passed all four jobs, including the macOS portable preflight and MT5 Python adapter contract tests. The startup-race correction is verified by CI.
 - **Remaining risk:** Real MetaEditor compilation and demo-terminal acceptance remain unverified independently of CI.
+
+
+## REV-066 — Product framing correction: EdgeNest is an infrastructure platform
+
+- **Correction:** Earlier planning framed MT5 hosted connectivity primarily as a third-party dependency used by the trader dashboard. The product direction is broader: EdgeNest must provide both a trader-facing dashboard and a developer-facing API over shared account connectivity, risk, OMS, streaming, security and reconciliation infrastructure.
+- **Rule/documentation change:** PRD, architecture, roadmap, README, frontend API contract and task queue now distinguish the shared platform from its first-party clients. The target is EdgeNest-owned managed MT5 gateway/orchestration with replaceable platform adapters; third-party hosted APIs remain evaluation tools or temporary dependencies, not an assumed permanent core.
+- **Safety boundary:** The documentation does not claim public APIs or managed gateway provisioning are implemented. Existing QOS-013/014/015 and Windows demo conformance gates remain in force; venue execution remains disabled until their acceptance evidence is verified.
+- **Rationale:** Align implementation sequencing, developer-platform requirements and cost decisions with the intended product.

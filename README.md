@@ -1,6 +1,6 @@
-# Event Trading / Quant Trading Engine
+# EdgeNest / Quant OS — Trading Infrastructure Platform
 
-Rust modular monolith for systematic / prop trading infrastructure.
+Rust modular monolith for systematic trading infrastructure. EdgeNest is being built as both a trader-facing dashboard and a developer-facing trading API, sharing account connectivity, risk authorization, order management, venue adapters and reconciliation. The dashboard is one client of the platform, not the execution authority.
 
 > Migrating from a paper-trading demo into production-oriented quantitative infrastructure.  
 > Baseline tag: `v0.1-paper-engine` · Branch: `refactor/trading-infrastructure`
@@ -68,6 +68,14 @@ docker compose up -d
 export DATABASE_URL=postgres://trading:trading@127.0.0.1:15432/trading
 cargo test -p persistence
 ```
+
+## EdgeNest Platform Direction
+
+- **Trader product:** connect eligible accounts, submit one trade request, and inspect independently evaluated and reconciled account outcomes.
+- **Developer product:** expose versioned, tenant-scoped REST and event-stream APIs so external applications can use EdgeNest without using its frontend.
+- **Connectivity infrastructure:** build EdgeNest-managed MT5 terminal/gateway operations first; evaluate cTrader and other adapters later.
+- **Shared safety boundary:** the Rust risk engine, OMS, adapter capability checks and reconciliation remain authoritative. A successful API response or socket write is not proof of a broker fill.
+- **Current status:** the developer API and managed gateway are target architecture, not a claim that public API endpoints or production connectivity are already implemented. See [`docs/EDGENEST_PLATFORM.md`](./docs/EDGENEST_PLATFORM.md) for the platform build guide, plus [`PRD.md`](./PRD.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), and [`ROADMAP.md`](./ROADMAP.md).
 
 ## Quant OS Frontend
 

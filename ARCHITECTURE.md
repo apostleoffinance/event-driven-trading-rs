@@ -4,6 +4,19 @@ Last updated: 2026-10-27. `RULES.md` overrides conflicts. Target design is not a
 ## Existing baseline (source must be re-verified before code changes)
 Repository documentation describes a Rust/Tokio workspace, Python strategies emitting `TradeIntent`, `rust_decimal`, PostgreSQL/SQLx, and a Next.js/TypeScript frontend documented as mock-first. It documents `VenueAdapter`, `SimulatedVenue`, and a prop-paper path; prop live mode is documented as `NotImplemented`; vault accounts are reserved. These are baseline notes, not proof of live capability.
 
+## EdgeNest platform boundary
+EdgeNest is both a trader-facing application and a developer-facing trading infrastructure API. Both clients must call the same backend services; the frontend is not the execution engine.
+
+Target platform layers:
+- **Public API layer:** versioned REST endpoints, authenticated WebSocket/SSE events, tenant-scoped authorization, quotas/rate limits, idempotency keys, and stable error contracts.
+- **Account/connectivity control plane:** account registry, platform/broker metadata, explicit account-to-terminal binding, provisioning lifecycle, compatibility/policy status, connection health, and terminal fleet scheduling.
+- **Execution data plane:** per-account risk authorization, OMS, adapter dispatch, venue acknowledgements/events, durable order state and reconciliation.
+- **MT5 gateway fleet:** managed Windows hosts with separately isolated terminal sessions for concurrently active accounts unless a supported broker-side API removes that requirement. A gateway worker uses a versioned authenticated protocol; host-side supervision handles process health, restart, reconnect and provisioning.
+- **Developer experience:** API docs, SDKs, demo sandbox, webhooks/event streams, usage metering and future billing.
+- **First-party dashboard:** a client of the same API and event contracts available to developers; it must not have privileged execution shortcuts.
+
+The target is to build EdgeNest-owned core orchestration and gateway control while allowing replaceable platform adapters. Third-party hosted MT5 APIs may be used for comparison or temporary experiments, but must not become an unexamined permanent dependency.
+
 ## Component boundaries
 - `crates/domain`: canonical types, IDs, policies, instrument specs, state machines.
 - `crates/events`: immutable typed events and correlation metadata.
@@ -30,13 +43,23 @@ Model capabilities explicitly: submit/cancel, stable client IDs, typed acknowled
 Check account eligibility and fresh state; compute remaining risk budget after existing exposure; derive risk/unit from stop distance and instrument contract/tick/FX conversion rules; bound by account, strategy, portfolio, leverage/margin, concentration, and venue constraints; round down to valid volume increments; reject below-minimum or missing/stale inputs; persist policy version, inputs, decision, and reason. Use exact decimal arithmetic.
 
 ## Venue bridges
-**MT5:** versioned EA/terminal protocol; request/correlation/client-order IDs, account identity, timestamps/units, acknowledgement, heartbeat, reconnect, and reconciliation. ZeroMQ is a candidate, not a settled decision.
-**cTrader:** isolate OAuth/token lifecycle and Protobuf/API details; least privilege and rate-limit handling.
+**MT5:** EdgeNest-managed connectivity is the first infrastructure milestone. Evaluate two implementation paths behind the same adapter contract: (A) official MetaTrader5 Python integration against a supervised running terminal; (B) a managed MQL5 EA bridge using an authenticated, versioned protocol. Choose after real demo-terminal conformance, failure testing, security review and operating-cost measurement. A customer must not have to attach an EA or keep a personal computer running; if the EA path is chosen, EdgeNest provisions and manages the EA inside its own terminal fleet. ZeroMQ is a candidate, not a settled decision.
+**cTrader:** later adapter; isolate OAuth/token lifecycle and Protobuf/API details, with least privilege and rate-limit handling.
+**Hosted gateway operations:** account identity must be bound to an immutable tenant/account/terminal/server mapping. Provisioning and reconnect must not silently switch account identity. A successful bridge write is not a venue acknowledgement or fill. After a timeout, mark the outcome unknown and reconcile before retrying.
 **CEX:** integrate one provider first; handle exchange filters, precision, fees/funding, rate limits, sequence gaps, and ambiguous submits.
 **On-chain later:** model signing, nonce, pending, revert, and finality; reconcile wallet/protocol state; signing keys never enter strategy/frontend.
 
 ## Security and frontend
 No secrets in source, logs, events, frontend, or strategy payloads. Tenant isolation and least privilege gate SaaS. Live mode must be explicit. Frontend labels mock/paper/live and shows unknown/stale/partial states; money wire values are strings. Never show success before venue confirmation.
 
+## Public API contract principles
+- REST and streaming contracts are versioned and shared by the dashboard and third-party developers.
+- Money and quantity values that require exactness use decimal strings on the wire.
+- Every write request carries tenant-scoped authorization, an idempotency key, correlation ID and explicit account identity.
+- WebSocket/SSE streams must expose sequence/cursor semantics, reconnect behavior and replay or snapshot recovery rules.
+- External developers never supply trusted tenant IDs as authorization; tenant identity comes from authenticated claims.
+- Rate limits, quotas, error codes, API version support and deprecation policy are explicit.
+- Public API operations cannot bypass risk authorization, OMS lifecycle rules, adapter capability gates or reconciliation latches.
+
 ## Verification
-Unit/property/invariant tests; adapter contract tests; simulator/failure injection; restart/replay/reconciliation tests; paper forward run; controlled live pilot. Green CI alone does not prove financial correctness.
+Unit/property/invariant tests; adapter contract tests; simulator/failure injection; restart/replay/reconciliation tests; paper forward run; controlled live pilot. Green CI alone does not prove financial correctness. Platform release additionally requires tenant-isolation/security tests, API contract tests, stream recovery tests, provisioning/revocation tests and documented operational runbooks.
