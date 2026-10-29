@@ -136,3 +136,26 @@ A green CI run alone does not establish terminal, broker, risk, security or prod
 ## 11. Success criteria
 
 The alpha succeeds when two distinct demo broker environments can be independently identified, monitored and reconciled on EdgeNest-managed infrastructure; reconnect and restart do not lose account identity or financial state; all failures are explicit; and the same internal service boundary can later serve the dashboard and public developer API without a redesign.
+
+## 12. Shared infrastructure across all EdgeNest products
+
+**Architecture rule: all EdgeNest products use one shared platform foundation. Product definitions and product scope remain unchanged by this rule.** The Trader Dashboard, Developer Platform, Risk Router / multi-account copier, Risk Co-Pilot, strategy products and any future EdgeNest products must reuse the same account registry, connectivity control plane, tenant and permission model, risk authorization, OMS/execution boundary, venue adapters, event stream, persistence, audit and reconciliation services wherever those capabilities apply.
+
+Products are separate user experiences and workflows, not separate trading backends. A product must not create its own MT5 connection mechanism, keep a parallel source of financial truth, bypass the Rust risk engine, or dispatch broker orders outside the shared OMS/adapter path. The dashboard and developer API are clients of this platform; other products integrate as first-party clients or controlled internal services through versioned contracts.
+
+### Shared service responsibilities
+
+- **Connectivity control plane:** connect/disconnect lifecycle, tenant/account ownership, broker/server metadata, immutable account-to-terminal identity binding, provisioning, health and capacity.
+- **Managed gateway data plane:** EdgeNest-operated terminal sessions and authenticated bridges. Customer-facing flows must not require customers to attach an EA to a chart or manage a personal VPS; if an EA bridge is selected, EdgeNest installs and operates it within its own managed terminal fleet.
+- **Execution boundary:** one authenticated, idempotent order path through eligibility checks, per-account risk authorization, OMS, adapter dispatch, typed outcomes and reconciliation.
+- **Event and account data services:** normalized account snapshots, orders, deals, positions, market/instrument data, connection health and auditable event delivery.
+- **Shared policy and tenancy:** scoped product permissions, per-account and portfolio controls, tenant isolation, environment separation and consistent audit records.
+
+### Product integration rule
+
+Each product declares the shared capabilities it needs and its permissions; it does not own a second broker connection or execution implementation. The Journal may operate read-only; strategy, copier, Risk Router and Agent workflows that create exposure must use the shared risk and execution boundary. Agents and strategies cannot bypass policy checks. Account fan-out remains non-atomic, with independent authorization and explicit per-account outcomes.
+
+### Implementation priority
+
+Prove the gateway-to-broker lifecycle end to end before treating this platform as production-ready: real target-host MT5 demo identity binding, fresh data, secure credentials/certificates, reconnect/restart recovery, authoritative reconciliation, then controlled demo execution only after existing QOS-013/014/015 gates pass. Public APIs, automated gateway provisioning and product integrations remain planned until implemented and evidenced.
+
