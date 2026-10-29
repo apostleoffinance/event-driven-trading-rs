@@ -60,3 +60,10 @@ All monetary fields are **decimal strings** (e.g. `"100482.31"`), matching Rust 
 - Order status: domain state machine (`Created` … `Filled`)
 - Intent events: prefer `TradeIntentCreated`
 - Never expose credentials or signing keys to the client
+
+## Shared contract rule across EdgeNest products
+
+This contract is the common integration boundary for EdgeNest products; it is not a product-definition change. The dashboard and Developer Platform are clients of shared services, and other EdgeNest products should reuse the same account, event, risk and execution contracts where applicable rather than creating separate broker connectivity or financial-state implementations.
+
+Read-only products may consume authorized account/trade events. Any product that can create or modify exposure must submit through the shared risk authorization and OMS path; the frontend, strategy runtime, Risk Router or Agent must not call a broker gateway directly. Account and event data must remain tenant-scoped, and all multi-account outcomes are independent and reconciled. These endpoints remain proposed until server implementation and tests exist.
+
