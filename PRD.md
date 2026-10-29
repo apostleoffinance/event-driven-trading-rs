@@ -2,16 +2,36 @@
 Last updated: 2026-10-27. `RULES.md` is authoritative. This document describes intended behavior, not proof of implementation.
 
 ## Vision
-Quant OS is a multi-strategy quantitative trading platform separating strategy research/signals from deterministic risk authorization, order management, venue connectivity, and auditable financial state.
+EdgeNest is a trading infrastructure platform with two first-party product surfaces sharing one execution foundation:
+1. **Trader Dashboard:** a user-facing control plane for connecting eligible accounts, configuring risk, submitting a single trade request, and monitoring independent account outcomes.
+2. **Developer Platform:** a multi-tenant API and connectivity service that lets external developers build trading applications, bots, analytics, and execution workflows without using the EdgeNest frontend or operating MT5 terminals themselves.
+
+The shared platform owns account connectivity, tenant/security boundaries, risk authorization, order management, venue adapters, streaming events, persistence, and reconciliation. The frontend is one client of the platform, not the source of financial truth. This is the target product direction, not a claim that the developer API or hosted gateway is already implemented.
 
 ## Product sequence
-1. **Product B — Smart Multi-Account Risk Copier (first):** fan one master `TradeIntent` to independently evaluated accounts with account-specific sizing and independent order outcomes.
-2. **Product A — Risk Co-Pilot:** monitor account risk, alert on breaches, and request only venue-supported enforcement actions.
-3. **Product C — Hosted Quant Strategies:** isolated, versioned Python strategies emitting `TradeIntent` only, with strategy-level risk budgets and forward-performance reporting.
-4. **EdgeNest Vault Protocol (later):** on-chain deposits/withdrawals, share/NAV accounting, fees, access controls, audits, and reconciliation.
+1. **EdgeNest MT5 Connectivity Alpha:** prove managed MT5 connectivity across two distinct broker demo environments, with account-bound snapshots, secure gateway transport, and read-only reconciliation before enabling order submission.
+2. **Product B — Smart Multi-Account Risk Copier:** expose one parent trade request that is independently authorized and sized per eligible account, with account-scoped order identities and non-atomic, independently reconciled outcomes.
+3. **Developer API Beta:** provide tenant-scoped account provisioning, REST operations, real-time event streams, idempotency, rate limits, a demo sandbox, documentation and initial SDK examples on the same core used by the dashboard.
+4. **Trader Dashboard:** build the first-party UI as a client of the same backend contracts and execution services.
+5. **Product A — Risk Co-Pilot:** monitor account risk, alert on breaches, and request only venue-supported enforcement actions.
+6. **Product C — Hosted Quant Strategies:** isolated, versioned strategies emitting `TradeIntent` only, with strategy-level risk budgets and forward-performance reporting.
+7. **EdgeNest Vault Protocol (later):** on-chain deposits/withdrawals, share/NAV accounting, fees, access controls, audits, and reconciliation.
 
 ## Users
-Retail and prop traders managing multiple accounts; quantitative researchers deploying strategies; later, users of supported vault products subject to legal and technical readiness.
+- Traders managing multiple eligible broker/platform accounts through the EdgeNest dashboard.
+- External developers and SaaS teams using EdgeNest APIs to connect accounts and build their own trading experiences.
+- Quantitative researchers deploying strategies through controlled runtime interfaces.
+- Later, users of supported vault products subject to legal and technical readiness.
+
+## Platform product requirements
+- Treat the developer API as a first-class product, not merely an internal frontend backend.
+- The trader dashboard and external clients must use shared, versioned service contracts and the same account, risk, OMS, adapter, event, and reconciliation services.
+- Provide tenant-scoped authentication/authorization, scoped API credentials, rate limits, usage metering, auditability, and isolation before external developer access.
+- Provide a demo/sandbox mode that is explicitly separate from paper and live modes.
+- Public API and SDKs must never expose MT5 passwords, bridge certificates, private keys, or other provider credentials.
+- Account connectivity should be provider-independent at the product boundary. MT5 is the first target; future platform adapters must not require rewriting the public API or risk engine.
+- A connected account is not automatically eligible for automated trading or copying. Enforce account/program compatibility and permission checks before execution.
+- Hosted terminal provisioning, health monitoring, restart/reconnect and terminal/account binding are EdgeNest infrastructure responsibilities in the target design; these capabilities remain unverified until tested on real broker demo environments.
 
 ## Product B MVP
 - Register accounts and venue capabilities.
