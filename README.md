@@ -75,7 +75,7 @@ cargo test -p persistence
 - **Developer product:** expose versioned, tenant-scoped REST and event-stream APIs so external applications can use EdgeNest without using its frontend.
 - **Connectivity infrastructure:** build EdgeNest-managed MT5 terminal/gateway operations first; evaluate cTrader and other adapters later.
 - **Shared safety boundary:** the Rust risk engine, OMS, adapter capability checks and reconciliation remain authoritative. A successful API response or socket write is not proof of a broker fill.
-- **Current status:** the developer API and managed gateway are target architecture, not a claim that public API endpoints or production connectivity are already implemented. See [`PRD.md`](./PRD.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), and [`ROADMAP.md`](./ROADMAP.md).
+- **Current status:** the developer API and managed gateway are target architecture, not a claim that public API endpoints or production connectivity are already implemented. See [`docs/EDGENEST_PLATFORM.md`](./docs/EDGENEST_PLATFORM.md) for the platform build guide, plus [`PRD.md`](./PRD.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), and [`ROADMAP.md`](./ROADMAP.md).
 
 ## Quant OS Frontend
 
