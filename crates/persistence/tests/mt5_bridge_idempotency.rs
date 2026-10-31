@@ -21,7 +21,7 @@ async fn persist_reconciliation_snapshot(
             terminal_id,
             sequence,
             "mt5_authoritative_snapshot_v1",
-            captured_at.clone(),
+            captured_at,
             json!({
                 "account_id": account_id,
                 "terminal_id": terminal_id,
@@ -382,6 +382,7 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
         "source": "mt5_python_readonly_v1",
         "sequence": 12,
         "captured_at": captured_at,
+        "status": "fresh",
         "account_currency": "USD",
         "instruments": [{
             "symbol": "EURUSD.a",
@@ -399,9 +400,11 @@ async fn market_data_snapshot_is_persisted_without_marking_stream_ready(pool: Pg
         }],
         "quotes": [{
             "symbol": "EURUSD.a",
+            "status": "fresh",
             "bid": "1.0845",
             "ask": "1.08462",
-            "tick_time": captured_at
+            "tick_time": captured_at,
+            "reason_code": null
         }]
     });
 

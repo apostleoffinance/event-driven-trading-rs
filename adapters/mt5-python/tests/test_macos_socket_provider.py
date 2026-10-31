@@ -9,11 +9,18 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from mt5_adapter.macos_socket_provider import (
+    MQL5_PROVIDER_BUILD_VERSION,
+    MQL5_PROVIDER_PROTOCOL_VERSION,
     MacOsMql5Terminal,
     Mql5Constants,
     create_terminal_provider,
 )
-from mt5_adapter.worker import AdapterError, Config
+from mt5_adapter.worker import (
+    AdapterError,
+    Config,
+    ProviderProtocolError,
+    ProviderTransportError,
+)
 
 
 def connect_retry(port):
@@ -102,6 +109,8 @@ class MacOsProviderTests(unittest.TestCase):
             self.assertNotIn(forbidden, source)
         for command in ('"ACCOUNT"', '"ORDERS"', '"POSITIONS"', '"SYMBOL_INFO"', '"TICK"'):
             self.assertIn(command, source)
+        self.assertIn("QUANTOS_PROVIDER_PROTOCOL_VERSION = 1", source)
+        self.assertIn('#property version   "2.00"', source)
         tick_json = source.split("string TickJson(", 1)[1].split("\nvoid Respond(", 1)[0]
         self.assertIn('IntegerToString((long)TimeTradeServer())', tick_json)
         self.assertNotIn('"server_time\\":" + IntegerToString((long)TimeCurrent())', tick_json)
@@ -134,7 +143,13 @@ class MacOsProviderTests(unittest.TestCase):
                         self.assertEqual(request, "PING")
                         peer.sendall((json.dumps({
                             "ok": True,
-                            "data": {"connected": True, "login": 123456, "server": "Broker-Demo"},
+                            "data": {
+                                "connected": True,
+                                "login": 123456,
+                                "server": "Broker-Demo",
+                                "provider_protocol_version": MQL5_PROVIDER_PROTOCOL_VERSION,
+                                "provider_build_version": MQL5_PROVIDER_BUILD_VERSION,
+                            },
                         }) + "\n").encode())
             except Exception as exc:  # propagate thread assertion failures
                 failures.append(exc)
@@ -164,7 +179,13 @@ class MacOsProviderTests(unittest.TestCase):
                     reader.readline()
                     peer.sendall((json.dumps({
                         "ok": True,
-                        "data": {"connected": True, "login": 999999, "server": "Broker-Demo"},
+                        "data": {
+                            "connected": True,
+                            "login": 999999,
+                            "server": "Broker-Demo",
+                            "provider_protocol_version": MQL5_PROVIDER_PROTOCOL_VERSION,
+                            "provider_build_version": MQL5_PROVIDER_BUILD_VERSION,
+                        },
                     }) + "\n").encode())
             except Exception as exc:
                 failures.append(exc)
@@ -172,6 +193,78 @@ class MacOsProviderTests(unittest.TestCase):
         thread = threading.Thread(target=fake_ea, daemon=True)
         thread.start()
         with self.assertRaises(AdapterError):
+            terminal.connect(config())
+        terminal.shutdown()
+        thread.join(timeout=2)
+        if failures:
+            raise failures[0]
+
+    def test_connect_rejects_mismatched_mql5_provider_protocol_version(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reserve:
+            reserve.bind(("127.0.0.1", 0))
+            port = reserve.getsockname()[1]
+        token = "z" * 48
+        terminal = MacOsMql5Terminal(config(), "127.0.0.1", port, token, 5)
+        failures = []
+
+        def fake_ea():
+            try:
+                with connect_retry(port) as peer:
+                    peer.sendall(f"HELLO\t{token}\n".encode())
+                    reader = peer.makefile("rb")
+                    reader.readline()
+                    peer.sendall((json.dumps({
+                        "ok": True,
+                        "data": {
+                            "connected": True,
+                            "login": 123456,
+                            "server": "Broker-Demo",
+                            "provider_protocol_version": MQL5_PROVIDER_PROTOCOL_VERSION + 1,
+                            "provider_build_version": MQL5_PROVIDER_BUILD_VERSION,
+                        },
+                    }) + "\n").encode())
+            except Exception as exc:
+                failures.append(exc)
+
+        thread = threading.Thread(target=fake_ea, daemon=True)
+        thread.start()
+        with self.assertRaisesRegex(AdapterError, "protocol version"):
+            terminal.connect(config())
+        terminal.shutdown()
+        thread.join(timeout=2)
+        if failures:
+            raise failures[0]
+
+    def test_connect_rejects_mismatched_mql5_provider_build_version(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reserve:
+            reserve.bind(("127.0.0.1", 0))
+            port = reserve.getsockname()[1]
+        token = "y" * 48
+        terminal = MacOsMql5Terminal(config(), "127.0.0.1", port, token, 5)
+        failures = []
+
+        def fake_ea():
+            try:
+                with connect_retry(port) as peer:
+                    peer.sendall(f"HELLO\t{token}\n".encode())
+                    reader = peer.makefile("rb")
+                    reader.readline()
+                    peer.sendall((json.dumps({
+                        "ok": True,
+                        "data": {
+                            "connected": True,
+                            "login": 123456,
+                            "server": "Broker-Demo",
+                            "provider_protocol_version": MQL5_PROVIDER_PROTOCOL_VERSION,
+                            "provider_build_version": "1.00",
+                        },
+                    }) + "\n").encode())
+            except Exception as exc:
+                failures.append(exc)
+
+        thread = threading.Thread(target=fake_ea, daemon=True)
+        thread.start()
+        with self.assertRaisesRegex(AdapterError, "build version"):
             terminal.connect(config())
         terminal.shutdown()
         thread.join(timeout=2)
@@ -187,7 +280,13 @@ class MacOsProviderTests(unittest.TestCase):
         seen = []
 
         responses = {
-            "PING": {"connected": True, "login": 123456, "server": "Broker-Demo"},
+            "PING": {
+                "connected": True,
+                "login": 123456,
+                "server": "Broker-Demo",
+                "provider_protocol_version": MQL5_PROVIDER_PROTOCOL_VERSION,
+                "provider_build_version": MQL5_PROVIDER_BUILD_VERSION,
+            },
             "ACCOUNT": {
                 "login": 123456, "server": "Broker-Demo", "currency": "USD",
                 "balance": 10000.0, "equity": 9990.0, "margin": 100.0, "margin_free": 9890.0,
@@ -232,6 +331,58 @@ class MacOsProviderTests(unittest.TestCase):
             terminal.shutdown()
             right.close()
             thread.join(timeout=2)
+
+    def test_missing_tick_is_unavailable_without_poisoning_provider_requests(self):
+        terminal = MacOsMql5Terminal(config(), "127.0.0.1", 18765, "d" * 48, 5)
+        left, right = socket.socketpair()
+        terminal._connection = left
+        terminal._reader = left.makefile("rb")
+        terminal._closed = False
+
+        def fake_ea():
+            reader = right.makefile("rb")
+            for expected, data in (
+                ("TICK\tEURUSD.a", None),
+                ("ACCOUNT", {
+                    "login": 123456, "server": "Broker-Demo", "currency": "USD",
+                    "balance": 10000.0, "equity": 9990.0, "margin": 100.0,
+                    "margin_free": 9890.0,
+                }),
+            ):
+                self.assertEqual(reader.readline().decode().strip(), expected)
+                right.sendall((json.dumps({"ok": True, "data": data}) + "\n").encode())
+
+        thread = threading.Thread(target=fake_ea, daemon=True)
+        thread.start()
+        try:
+            self.assertIsNone(terminal.symbol_info_tick("EURUSD.a"))
+            self.assertEqual(terminal.account_info().currency, "USD")
+        finally:
+            terminal.shutdown()
+            right.close()
+            thread.join(timeout=2)
+
+    def test_protocol_errors_and_socket_eof_have_distinct_error_types(self):
+        terminal = MacOsMql5Terminal(config(), "127.0.0.1", 18765, "e" * 48, 5)
+        left, right = socket.socketpair()
+        terminal._connection = left
+        terminal._reader = left.makefile("rb")
+        terminal._closed = False
+        right.sendall(b"{bad-json}\n")
+        with self.assertRaises(ProviderProtocolError):
+            terminal.account_info()
+        terminal.shutdown()
+        right.close()
+
+        terminal = MacOsMql5Terminal(config(), "127.0.0.1", 18765, "f" * 48, 5)
+        left, right = socket.socketpair()
+        terminal._connection = left
+        terminal._reader = left.makefile("rb")
+        terminal._closed = False
+        right.close()
+        with self.assertRaises(ProviderTransportError):
+            terminal.account_info()
+        terminal.shutdown()
 
 
 if __name__ == "__main__":

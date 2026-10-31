@@ -24,6 +24,14 @@ class AdapterError(RuntimeError):
     """Terminal or bridge state is unavailable or inconsistent."""
 
 
+class ProviderProtocolError(AdapterError):
+    """The terminal provider returned a malformed or rejected protocol frame."""
+
+
+class ProviderTransportError(AdapterError):
+    """The terminal-provider socket closed or failed during I/O."""
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -194,7 +202,7 @@ class MetaTraderTerminal:
     def symbol_info_tick(self, symbol: str) -> Any:
         result = self.mt5.symbol_info_tick(symbol)
         if result is None:
-            raise AdapterError(f"MT5 symbol_info_tick failed for configured symbol (code={self.mt5.last_error()[0]})")
+            return None
         return result
 
     def shutdown(self) -> None:
@@ -272,7 +280,7 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
 
     captured_at = utc_now()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "message_id": str(uuid.uuid4()),
         "correlation_id": str(uuid.uuid4()),
         "account_id": config.account_id,
@@ -298,7 +306,7 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
 
 
 def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int) -> dict[str, Any]:
-    """Capture exact broker symbol specifications and current bid/ask quotes."""
+    """Capture broker metadata and explicit per-symbol quote freshness."""
     if not terminal.connected():
         raise AdapterError("MT5 terminal disconnected; refusing to emit market data")
     account = terminal.account_info()
@@ -308,57 +316,33 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
     instruments = []
     quotes = []
     captured_at = utc_now()
-    now = datetime.now(timezone.utc).timestamp()
+    now = datetime.fromisoformat(captured_at.replace("Z", "+00:00")).timestamp()
     for symbol in config.symbols:
         if not terminal.select_symbol(symbol):
             raise AdapterError(f"MT5 could not select configured symbol: {symbol}")
         info = terminal.symbol_info(symbol)
         tick = terminal.symbol_info_tick(symbol)
-        if info is None or tick is None:
-            raise AdapterError(f"MT5 metadata or quote is unavailable for configured symbol: {symbol}")
-        raw_tick_epoch = int(tick.time)
-        tick_epoch = raw_tick_epoch
+        if info is None:
+            raise AdapterError(f"MT5 metadata is unavailable for configured symbol: {symbol}")
         # Native MQL5 exposes broker/server quote time. Normalize it against
         # the host's trusted UTC clock using the EA's advancing server-time
         # reference; the quote-time clock can freeze between ticks.
-        if getattr(terminal, "source", "") == "mt5_macos_mql5_socket_v1":
+        quarter_hour_offset = 0
+        invalid_reason = None
+        if tick is not None and getattr(terminal, "source", "") == "mt5_macos_mql5_socket_v1":
             server_epoch_value = getattr(tick, "server_time", None)
-            if server_epoch_value is None:
-                raise AdapterError("MT5 native quote omitted its server-time reference")
-            server_epoch = int(server_epoch_value)
-            server_tick_delta = server_epoch - raw_tick_epoch
-            if abs(server_tick_delta) > 60:
-                raise AdapterError(
-                    f"MT5 quote and server clock differ by {server_tick_delta}s for symbol {symbol}; "
-                    "refusing unsafe timestamp normalization"
-                )
-            server_offset = server_epoch - int(now)
-            if abs(server_offset) > 14 * 3600:
-                raise AdapterError("MT5 server clock offset exceeds the supported timezone range")
-            quarter_hour_offset = round(server_offset / 900) * 900
-            if abs(server_offset - quarter_hour_offset) > 300:
-                raise AdapterError(
-                    f"MT5 server clock offset is not timezone-like ({server_offset}s) for symbol {symbol}; "
-                    "refusing unsafe timestamp normalization"
-                )
-            tick_epoch = raw_tick_epoch - quarter_hour_offset
-
-        tick_time = datetime.fromtimestamp(tick_epoch, timezone.utc)
-        tick_age_seconds = now - tick_time.timestamp()
-        if tick_age_seconds < -5:
-            raise AdapterError(
-                f"MT5 quote timestamp is {abs(tick_age_seconds):.1f}s in the future "
-                f"for symbol {symbol} (tick_time={tick_time.isoformat(timespec='seconds')})"
-            )
-        if tick_age_seconds > 60:
-            raise AdapterError(
-                f"MT5 quote is stale by {tick_age_seconds:.1f}s for symbol {symbol} "
-                f"(tick_time={tick_time.isoformat(timespec='seconds')})"
-            )
-        bid = Decimal(decimal_text(tick.bid, f"{symbol} bid"))
-        ask = Decimal(decimal_text(tick.ask, f"{symbol} ask"))
-        if bid <= 0 or ask < bid:
-            raise AdapterError(f"MT5 quote has invalid bid/ask for symbol: {symbol}")
+            try:
+                server_epoch = int(server_epoch_value)
+            except (TypeError, ValueError, OverflowError):
+                invalid_reason = "invalid_server_time_reference"
+            else:
+                server_offset = server_epoch - int(now)
+                if abs(server_offset) > 14 * 3600:
+                    invalid_reason = "server_time_offset_out_of_range"
+                else:
+                    quarter_hour_offset = round(server_offset / 900) * 900
+                    if abs(server_offset - quarter_hour_offset) > 300:
+                        invalid_reason = "invalid_server_time_offset"
 
         instruments.append({
             "symbol": required_text(info.name, "instrument symbol"),
@@ -374,15 +358,101 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
             "volume_step": decimal_text(info.volume_step, "volume step"),
             "trade_mode": str(info.trade_mode),
         })
+        if tick is None:
+            quotes.append({
+                "symbol": symbol,
+                "status": "unavailable",
+                "bid": None,
+                "ask": None,
+                "tick_time": None,
+                "reason_code": "no_tick",
+            })
+            continue
+
+        if invalid_reason is not None:
+            quotes.append({
+                "symbol": symbol,
+                "status": "invalid",
+                "bid": None,
+                "ask": None,
+                "tick_time": None,
+                "reason_code": invalid_reason,
+            })
+            continue
+        quote_symbol = required_text(
+            tick.symbol if hasattr(tick, "symbol") else symbol, "quote symbol"
+        )
+        if quote_symbol != symbol:
+            raise AdapterError("MT5 provider returned a quote for a different symbol")
+        try:
+            tick_time = datetime.fromtimestamp(
+                int(tick.time) - quarter_hour_offset, timezone.utc
+            )
+        except (TypeError, ValueError, OverflowError, OSError):
+            quotes.append({
+                "symbol": symbol,
+                "status": "invalid",
+                "bid": None,
+                "ask": None,
+                "tick_time": None,
+                "reason_code": "invalid_timestamp",
+            })
+            continue
+        tick_age_seconds = now - tick_time.timestamp()
+        if tick_age_seconds < -5:
+            quotes.append({
+                "symbol": symbol,
+                "status": "invalid",
+                "bid": None,
+                "ask": None,
+                "tick_time": None,
+                "reason_code": "future_timestamp",
+            })
+            continue
+        try:
+            bid_text = decimal_text(tick.bid, f"{symbol} bid")
+            ask_text = decimal_text(tick.ask, f"{symbol} ask")
+            bid = Decimal(bid_text)
+            ask = Decimal(ask_text)
+        except AdapterError:
+            quotes.append({
+                "symbol": symbol,
+                "status": "invalid",
+                "bid": None,
+                "ask": None,
+                "tick_time": None,
+                "reason_code": "invalid_numeric_quote",
+            })
+            continue
+        if bid <= 0 or ask < bid:
+            quotes.append({
+                "symbol": symbol,
+                "status": "invalid",
+                "bid": None,
+                "ask": None,
+                "tick_time": None,
+                "reason_code": "invalid_bid_ask",
+            })
+            continue
         quotes.append({
-            "symbol": required_text(tick.symbol if hasattr(tick, "symbol") else symbol, "quote symbol"),
-            "bid": decimal_text(tick.bid, "bid"),
-            "ask": decimal_text(tick.ask, "ask"),
+            "symbol": symbol,
+            "status": "stale" if tick_age_seconds > 60 else "fresh",
+            "bid": bid_text,
+            "ask": ask_text,
             "tick_time": tick_time.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            "reason_code": None,
         })
 
+    statuses = {quote["status"] for quote in quotes}
+    freshness = (
+        "invalid" if "invalid" in statuses
+        else "unavailable" if "unavailable" in statuses
+        else "stale" if "stale" in statuses
+        else "fresh"
+    )
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "message_id": str(uuid.uuid4()),
         "correlation_id": str(uuid.uuid4()),
         "account_id": config.account_id,
@@ -394,6 +464,7 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
             "source": getattr(terminal, "source", "mt5_python_readonly_v1"),
             "sequence": sequence,
             "captured_at": captured_at,
+            "status": freshness,
             "account_currency": required_text(account.currency, "account currency"),
             "instruments": instruments,
             "quotes": quotes,
@@ -404,7 +475,7 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
 def build_heartbeat(config: Config, sequence: int) -> dict[str, Any]:
     now = utc_now()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "message_id": str(uuid.uuid4()),
         "correlation_id": str(uuid.uuid4()),
         "account_id": config.account_id,

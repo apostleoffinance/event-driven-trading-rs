@@ -27,8 +27,9 @@ use intent_bridge::mt5_transport::{
     Mt5TransportPrincipal,
 };
 use intent_bridge::mt5_v1::{
-    BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat, OrderSide,
-    OrderType, SubmitOrder, SubmitOutcome, SubmitState, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
+    BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat,
+    InstrumentMarketDataWire, MarketDataSnapshotWire, MarketDataStatus, OrderSide, OrderType,
+    QuoteWire, SubmitOrder, SubmitOutcome, SubmitState, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
 };
 use persistence::{Mt5DurableOrderState, Mt5OrderClaim, Mt5StreamReadiness, TradingStore};
 use sqlx::PgPool;
@@ -228,6 +229,90 @@ async fn write_frame(
     Ok(())
 }
 
+fn market_data_frame(
+    status: MarketDataStatus,
+    sequence: u64,
+    now: chrono::DateTime<Utc>,
+) -> BridgeFrame {
+    let tick_time = match status {
+        MarketDataStatus::Fresh => Some(now),
+        MarketDataStatus::Stale => Some(now - Duration::seconds(61)),
+        _ => None,
+    };
+    let quote_status = status;
+    let priced = matches!(status, MarketDataStatus::Fresh | MarketDataStatus::Stale);
+    BridgeFrame {
+        schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+        message_id: format!("market-data-{sequence}"),
+        correlation_id: format!("market-data-correlation-{sequence}"),
+        account_id: "account-001".into(),
+        sent_at: now,
+        payload: BridgePayload::MarketDataSnapshot(MarketDataSnapshotWire {
+            terminal_id: "terminal-01".into(),
+            server: "broker-demo".into(),
+            source: "mt5_python_readonly_v1".into(),
+            sequence,
+            captured_at: now,
+            status,
+            account_currency: "USD".into(),
+            instruments: vec![InstrumentMarketDataWire {
+                symbol: "EURUSD.a".into(),
+                base_currency: "EUR".into(),
+                quote_currency: "USD".into(),
+                digits: 5,
+                point: "0.00001".into(),
+                tick_size: "0.00001".into(),
+                tick_value_account_currency: "1.0".into(),
+                contract_size: "100000".into(),
+                volume_min: "0.01".into(),
+                volume_max: "100".into(),
+                volume_step: "0.01".into(),
+                trade_mode: "4".into(),
+            }],
+            quotes: vec![QuoteWire {
+                symbol: "EURUSD.a".into(),
+                status: quote_status,
+                bid: priced.then(|| "1.0845".into()),
+                ask: priced.then(|| "1.08462".into()),
+                tick_time,
+                reason_code: if status == MarketDataStatus::Unavailable {
+                    Some("no_tick".into())
+                } else {
+                    None
+                },
+            }],
+        }),
+    }
+}
+
+fn reconciliation_frame(sequence: u64, now: chrono::DateTime<Utc>) -> BridgeFrame {
+    BridgeFrame {
+        schema_version: MT5_BRIDGE_SCHEMA_VERSION,
+        message_id: format!("reconciliation-{sequence}"),
+        correlation_id: format!("reconciliation-correlation-{sequence}"),
+        account_id: "account-001".into(),
+        sent_at: now,
+        payload: BridgePayload::ReconciliationSnapshot(
+            intent_bridge::mt5_v1::ReconciliationSnapshotWire {
+                terminal_id: "terminal-01".into(),
+                server: "broker-demo".into(),
+                source: "mt5_python_readonly_v1".into(),
+                sequence,
+                captured_at: now,
+                account_state: intent_bridge::mt5_v1::ReconciliationAccountStateWire {
+                    currency: "USD".into(),
+                    balance: "10000".into(),
+                    equity: "10000".into(),
+                    margin_used: "0".into(),
+                    free_margin: "10000".into(),
+                },
+                open_orders: Vec::new(),
+                positions: Vec::new(),
+            },
+        ),
+    }
+}
+
 #[tokio::test]
 async fn trusted_mtls_peer_and_matching_identity_are_accepted() -> Result<(), Box<dyn Error>> {
     let pki = make_pki()?;
@@ -238,6 +323,66 @@ async fn trusted_mtls_peer_and_matching_identity_are_accepted() -> Result<(), Bo
     let decoded = server.read_frame(Utc::now(), Duration::seconds(5)).await?;
     assert_eq!(decoded.account_id, "account-001");
     assert_eq!(server.principal().terminal_id, "terminal-01");
+    Ok(())
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn stale_market_data_keeps_mtls_session_and_fresh_data_restores_readiness(
+    pool: PgPool,
+) -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+    let config = server_config(&pki, pki.client_fingerprint.clone())?;
+    let (server, mut client, _) = establish(config, pki.client_config.clone()).await?;
+    let store = TradingStore::new(pool);
+    let session =
+        Mt5SessionGate::after_transport_authentication(Mt5SessionPolicy::new(["account-001"])?);
+    let runtime =
+        Mt5BridgeRuntime::new(store.clone(), server, session, StdDuration::from_secs(30))?;
+
+    let mut stale_heartbeat = heartbeat_frame("account-001", "terminal-01", "broker-demo");
+    stale_heartbeat.message_id = "heartbeat-stale".into();
+    write_frame(&mut client, &stale_heartbeat).await?;
+    let stale_at = Utc::now();
+    write_frame(
+        &mut client,
+        &market_data_frame(MarketDataStatus::Stale, 1, stale_at),
+    )
+    .await?;
+    write_frame(&mut client, &reconciliation_frame(1, stale_at)).await?;
+    runtime
+        .reconcile_from_next_frame(Duration::seconds(5), Duration::seconds(30))
+        .await?;
+    assert_eq!(runtime.session_state().await, Mt5SessionState::Degraded);
+    assert_eq!(
+        store
+            .mt5_stream_readiness("account-001", "terminal-01")
+            .await?,
+        Mt5StreamReadiness::Degraded
+    );
+
+    let mut fresh_heartbeat = heartbeat_frame("account-001", "terminal-01", "broker-demo");
+    fresh_heartbeat.message_id = "heartbeat-fresh".into();
+    if let BridgePayload::Heartbeat(heartbeat) = &mut fresh_heartbeat.payload {
+        heartbeat.sequence = 2;
+    }
+    write_frame(&mut client, &fresh_heartbeat).await?;
+    let fresh_at = Utc::now();
+    write_frame(
+        &mut client,
+        &market_data_frame(MarketDataStatus::Fresh, 2, fresh_at),
+    )
+    .await?;
+    write_frame(&mut client, &reconciliation_frame(2, fresh_at)).await?;
+    runtime
+        .reconcile_from_next_frame(Duration::seconds(5), Duration::seconds(30))
+        .await?;
+    assert_eq!(runtime.session_state().await, Mt5SessionState::Ready);
+    assert_eq!(
+        store
+            .mt5_stream_readiness("account-001", "terminal-01")
+            .await?,
+        Mt5StreamReadiness::Ready
+    );
     Ok(())
 }
 

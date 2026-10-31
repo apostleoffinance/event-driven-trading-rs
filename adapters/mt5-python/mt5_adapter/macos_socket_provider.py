@@ -15,7 +15,7 @@ import threading
 from types import SimpleNamespace
 from typing import Any
 
-from .worker import AdapterError, Config
+from .worker import AdapterError, Config, ProviderProtocolError, ProviderTransportError
 
 
 class Mql5Constants:
@@ -34,6 +34,8 @@ class Mql5Constants:
 
 _MAX_LINE_BYTES = 64 * 1024
 _DEFAULT_PORT = 8765
+MQL5_PROVIDER_PROTOCOL_VERSION = 1
+MQL5_PROVIDER_BUILD_VERSION = "2.00"
 
 
 def _positive_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
@@ -115,6 +117,10 @@ class MacOsMql5Terminal:
             state = self._request("PING")
             if not isinstance(state, dict) or state.get("connected") is not True:
                 raise AdapterError("MQL5 provider reports the terminal disconnected")
+            if state.get("provider_protocol_version") != MQL5_PROVIDER_PROTOCOL_VERSION:
+                raise AdapterError("MQL5 provider protocol version is unsupported")
+            if state.get("provider_build_version") != MQL5_PROVIDER_BUILD_VERSION:
+                raise AdapterError("MQL5 provider build version is unsupported")
             if int(state.get("login", -1)) != config.login or str(state.get("server", "")) != config.server:
                 raise AdapterError("connected MT5 account/server does not match configured identity")
         except Exception:
@@ -130,9 +136,11 @@ class MacOsMql5Terminal:
     @staticmethod
     def _read_line(reader: Any) -> bytes:
         line = reader.readline(_MAX_LINE_BYTES + 1)
-        if not line or len(line) > _MAX_LINE_BYTES or not line.endswith(b"\n"):
-            raise AdapterError("MQL5 provider sent an empty, oversized, or unterminated frame")
-        return line[:-1].removesuffix(b"\r")
+        if not line:
+            raise ProviderTransportError("MQL5 provider closed the read-only connection")
+        if len(line) > _MAX_LINE_BYTES or not line.endswith(b"\n"):
+            raise ProviderProtocolError("MQL5 provider sent an empty, oversized, or unterminated frame")
+        return line[:-2] if line.endswith(b"\r\n") else line[:-1]
 
     def _request(self, command: str, argument: str | None = None) -> Any:
         if command not in {"PING", "ACCOUNT", "ORDERS", "POSITIONS", "SYMBOL_INFO", "TICK", "SELECT_SYMBOL"}:
@@ -154,14 +162,14 @@ class MacOsMql5Terminal:
                 connection.sendall(encoded)
                 raw = self._read_line(reader)
             except (OSError, TimeoutError, ValueError) as exc:
-                raise AdapterError("MQL5 provider connection failed during a read-only request") from exc
+                raise ProviderTransportError("MQL5 provider connection failed during a read-only request") from exc
         try:
             response = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise AdapterError("MQL5 provider returned invalid JSON") from exc
+            raise ProviderProtocolError("MQL5 provider returned invalid JSON") from exc
         if not isinstance(response, dict) or response.get("ok") is not True or "data" not in response:
             # Do not include provider-supplied error text in logs/exceptions.
-            raise AdapterError("MQL5 provider rejected or failed a read-only request")
+            raise ProviderProtocolError("MQL5 provider rejected or failed a read-only request")
         return response["data"]
 
     def connected(self) -> bool:
@@ -170,6 +178,8 @@ class MacOsMql5Terminal:
             return (
                 isinstance(state, dict)
                 and state.get("connected") is True
+                and state.get("provider_protocol_version") == MQL5_PROVIDER_PROTOCOL_VERSION
+                and state.get("provider_build_version") == MQL5_PROVIDER_BUILD_VERSION
                 and int(state.get("login", -1)) == self.config.login
                 and str(state.get("server", "")) == self.config.server
             )
@@ -180,25 +190,25 @@ class MacOsMql5Terminal:
         data = self._request("ACCOUNT")
         required = ("login", "server", "currency", "balance", "equity", "margin", "margin_free")
         if not isinstance(data, dict) or any(key not in data for key in required):
-            raise AdapterError("MQL5 provider account response is incomplete")
+            raise ProviderProtocolError("MQL5 provider account response is incomplete")
         return SimpleNamespace(**data)
 
     def orders(self) -> list[Any]:
         data = self._request("ORDERS")
         if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
-            raise AdapterError("MQL5 provider order response is invalid")
+            raise ProviderProtocolError("MQL5 provider order response is invalid")
         required = ("ticket", "type", "symbol", "volume_current", "state")
         if any(any(key not in item for key in required) for item in data):
-            raise AdapterError("MQL5 provider order response is incomplete")
+            raise ProviderProtocolError("MQL5 provider order response is incomplete")
         return [SimpleNamespace(**item) for item in data]
 
     def positions(self) -> list[Any]:
         data = self._request("POSITIONS")
         if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
-            raise AdapterError("MQL5 provider position response is invalid")
+            raise ProviderProtocolError("MQL5 provider position response is invalid")
         required = ("ticket", "type", "symbol", "volume", "price_open", "profit")
         if any(any(key not in item for key in required) for item in data):
-            raise AdapterError("MQL5 provider position response is incomplete")
+            raise ProviderProtocolError("MQL5 provider position response is incomplete")
         return [SimpleNamespace(**item) for item in data]
 
     def select_symbol(self, symbol: str) -> bool:
@@ -215,14 +225,16 @@ class MacOsMql5Terminal:
             "volume_min", "volume_max", "volume_step", "trade_mode",
         )
         if not isinstance(data, dict) or any(key not in data for key in required):
-            raise AdapterError("MQL5 provider symbol metadata is incomplete")
+            raise ProviderProtocolError("MQL5 provider symbol metadata is incomplete")
         return SimpleNamespace(**data)
 
     def symbol_info_tick(self, symbol: str) -> Any:
         data = self._request("TICK", symbol)
+        if data is None:
+            return None
         required = ("symbol", "bid", "ask", "time", "server_time")
         if not isinstance(data, dict) or any(key not in data for key in required):
-            raise AdapterError("MQL5 provider tick response is incomplete")
+            raise ProviderProtocolError("MQL5 provider tick response is incomplete")
         return SimpleNamespace(**data)
 
     def shutdown(self) -> None:

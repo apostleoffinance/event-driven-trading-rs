@@ -58,6 +58,7 @@ async fn seed_snapshot(store: &TradingStore, captured_at: chrono::DateTime<chron
         "source": "mt5_python_readonly_v1",
         "sequence": 12,
         "captured_at": captured_at.to_rfc3339(),
+        "status": "fresh",
         "account_currency": "USD",
         "instruments": [{
             "symbol": "EURUSD.a",
@@ -72,9 +73,11 @@ async fn seed_snapshot(store: &TradingStore, captured_at: chrono::DateTime<chron
         }],
         "quotes": [{
             "symbol": "EURUSD.a",
+            "status": "fresh",
             "bid": "1.10000",
             "ask": "1.10010",
-            "tick_time": captured_at.to_rfc3339()
+            "tick_time": captured_at.to_rfc3339(),
+            "reason_code": null
         }]
     });
     store

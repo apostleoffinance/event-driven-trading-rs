@@ -93,9 +93,7 @@ fn timestamp(value: &Value, key: &str) -> Result<DateTime<Utc>, Mt5SizingDataErr
 }
 
 fn fresh(time: &DateTime<Utc>, now: &DateTime<Utc>, max_age: Duration) -> bool {
-    max_age >= Duration::zero()
-        && time <= now
-        && now.clone().signed_duration_since(time.clone()) <= max_age
+    max_age >= Duration::zero() && time <= now && now.signed_duration_since(*time) <= max_age
 }
 
 fn parse_instruments(snapshot: &Value) -> Result<Vec<Instrument>, Mt5SizingDataError> {
@@ -169,6 +167,9 @@ fn parse_quotes(
         .ok_or(Mt5SizingDataError::Malformed)?;
     let mut result = Vec::new();
     for value in rows {
+        if text(value, "status")? != "fresh" {
+            return Err(Mt5SizingDataError::Stale);
+        }
         let quote = Quote {
             symbol: text(value, "symbol")?.into(),
             bid: decimal(value.get("bid").ok_or(Mt5SizingDataError::Malformed)?)?,
@@ -263,6 +264,9 @@ pub fn prepare_mt5_sizing(
     if text(snapshot, "account_currency")? != account_currency {
         return Err(Mt5SizingDataError::AccountCurrencyMismatch);
     }
+    if text(snapshot, "status")? != "fresh" {
+        return Err(Mt5SizingDataError::Stale);
+    }
     let captured_at = timestamp(snapshot, "captured_at")?;
     if !fresh(&captured_at, &now, max_age) {
         return Err(Mt5SizingDataError::Stale);
@@ -299,7 +303,7 @@ pub fn prepare_mt5_sizing(
         .ok_or(Mt5SizingDataError::InstrumentUnavailable)?;
     let oldest_quote_time = quotes
         .iter()
-        .map(|quote| quote.time.clone())
+        .map(|quote| quote.time)
         .min()
         .ok_or(Mt5SizingDataError::Malformed)?;
     let conversion = fx_rate(&instrument.quote, account_currency, &instruments, &quotes)?;
@@ -330,7 +334,7 @@ pub fn prepare_mt5_sizing(
             margin_per_quantity: Some(supplement.margin_per_quantity),
         },
         snapshot_captured_at: captured_at,
-        quote_time: quote.time.clone(),
+        quote_time: quote.time,
         oldest_quote_time,
         source: text(snapshot, "source")?.into(),
         sequence: snapshot
@@ -349,6 +353,7 @@ mod tests {
     fn snapshot(now: DateTime<Utc>) -> Value {
         json!({
             "captured_at": now.to_rfc3339(),
+            "status": "fresh",
             "account_currency": "USD",
             "source": "mt5_python_readonly_v1",
             "sequence": 8,
@@ -358,9 +363,9 @@ mod tests {
                 {"symbol":"GBPUSD.a","base_currency":"GBP","quote_currency":"USD","contract_size":"100000","tick_size":"0.00001","tick_value_account_currency":"1.50","volume_min":"0.01","volume_max":"100.00","volume_step":"0.01"}
             ],
             "quotes": [
-                {"symbol":"EURUSD.a","bid":"1.10000","ask":"1.10010","tick_time":now.to_rfc3339()},
-                {"symbol":"EURGBP.a","bid":"0.85000","ask":"0.85010","tick_time":now.to_rfc3339()},
-                {"symbol":"GBPUSD.a","bid":"1.25000","ask":"1.25010","tick_time":now.to_rfc3339()}
+                {"symbol":"EURUSD.a","status":"fresh","bid":"1.10000","ask":"1.10010","tick_time":now.to_rfc3339()},
+                {"symbol":"EURGBP.a","status":"fresh","bid":"0.85000","ask":"0.85010","tick_time":now.to_rfc3339()},
+                {"symbol":"GBPUSD.a","status":"fresh","bid":"1.25000","ask":"1.25010","tick_time":now.to_rfc3339()}
             ]
         })
     }
@@ -380,7 +385,7 @@ mod tests {
     #[test]
     fn uses_ask_and_broker_steps_and_tick_value() {
         let now = Utc::now();
-        let snapshot = snapshot(now.clone());
+        let snapshot = snapshot(now);
         let result = prepare_mt5_sizing(
             &snapshot,
             "EURUSD.a",
@@ -403,7 +408,7 @@ mod tests {
     #[test]
     fn derives_cross_currency_conversion_from_fresh_quotes() {
         let now = Utc::now();
-        let snapshot = snapshot(now.clone());
+        let snapshot = snapshot(now);
         let result = prepare_mt5_sizing(
             &snapshot,
             "EURGBP.a",
@@ -420,21 +425,21 @@ mod tests {
     #[test]
     fn stale_and_mismatched_account_fail_closed() {
         let now = Utc::now();
-        let stale = snapshot(now.clone() - Duration::seconds(60));
+        let stale = snapshot(now - Duration::seconds(60));
         assert_eq!(
             prepare_mt5_sizing(
                 &stale,
                 "EURUSD.a",
                 "USD",
                 true,
-                now.clone(),
+                now,
                 Duration::seconds(30),
                 &supplement()
             )
             .unwrap_err(),
             Mt5SizingDataError::Stale
         );
-        let current = snapshot(now.clone());
+        let current = snapshot(now);
         assert_eq!(
             prepare_mt5_sizing(
                 &current,
@@ -451,9 +456,49 @@ mod tests {
     }
 
     #[test]
+    fn explicitly_stale_or_unavailable_market_data_blocks_sizing() {
+        let now = Utc::now();
+        let mut stale = snapshot(now);
+        stale["status"] = serde_json::Value::String("stale".into());
+        assert_eq!(
+            prepare_mt5_sizing(
+                &stale,
+                "EURUSD.a",
+                "USD",
+                true,
+                now,
+                Duration::seconds(30),
+                &supplement()
+            )
+            .unwrap_err(),
+            Mt5SizingDataError::Stale
+        );
+
+        let mut unavailable = snapshot(now);
+        unavailable["status"] = serde_json::Value::String("unavailable".into());
+        unavailable["quotes"][0]["status"] = serde_json::Value::String("unavailable".into());
+        unavailable["quotes"][0]["bid"] = serde_json::Value::Null;
+        unavailable["quotes"][0]["ask"] = serde_json::Value::Null;
+        unavailable["quotes"][0]["tick_time"] = serde_json::Value::Null;
+        assert_eq!(
+            prepare_mt5_sizing(
+                &unavailable,
+                "EURUSD.a",
+                "USD",
+                true,
+                now,
+                Duration::seconds(30),
+                &supplement()
+            )
+            .unwrap_err(),
+            Mt5SizingDataError::Stale
+        );
+    }
+
+    #[test]
     fn missing_fx_path_fails_closed() {
         let now = Utc::now();
-        let mut value = snapshot(now.clone());
+        let mut value = snapshot(now);
         value["quotes"] = json!([
             {"symbol":"EURUSD.a","bid":"1.1","ask":"1.1001","tick_time":now.to_rfc3339()}
         ]);

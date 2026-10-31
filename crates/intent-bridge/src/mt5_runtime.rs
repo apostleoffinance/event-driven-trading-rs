@@ -16,11 +16,12 @@ use tokio::task::JoinHandle;
 
 use crate::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
 use crate::mt5_reconciliation::{
-    persist_and_confirm_reconciliation, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
+    persist_and_confirm_reconciliation, persist_reconciliation_without_confirmation,
+    Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
 };
 use crate::mt5_session::{Mt5SessionGate, Mt5SessionState};
 use crate::mt5_transport::{spawn_heartbeat_watchdog, AuthenticatedMt5Connection};
-use crate::mt5_v1::{BridgeFrame, BridgePayload};
+use crate::mt5_v1::{BridgeFrame, BridgePayload, MarketDataStatus};
 use crate::{BridgeError, BridgeResult};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,12 +154,14 @@ impl Mt5BridgeRuntime {
         allowed_clock_skew: Duration,
         max_age: Duration,
     ) -> BridgeResult<()> {
+        let mut market_data_fresh = false;
         let frame = loop {
             let frame = self.read_next_frame(Utc::now(), allowed_clock_skew).await?;
             if matches!(&frame.payload, BridgePayload::Heartbeat(_)) {
                 continue;
             }
             if let BridgePayload::MarketDataSnapshot(snapshot) = &frame.payload {
+                market_data_fresh = snapshot.status == MarketDataStatus::Fresh;
                 let bound_identity = {
                     let session = self.session.lock().await;
                     (
@@ -195,7 +198,7 @@ impl Mt5BridgeRuntime {
                         snapshot.sequence,
                         &snapshot.source,
                         &snapshot.account_currency,
-                        snapshot.captured_at.clone(),
+                        snapshot.captured_at,
                         serialized,
                     )
                     .await
@@ -211,6 +214,18 @@ impl Mt5BridgeRuntime {
                         )
                         .await;
                     return Err(BridgeError::from(error));
+                }
+                if !market_data_fresh {
+                    let mut session = self.session.lock().await;
+                    session.degrade();
+                    self.store
+                        .mark_mt5_stream_degraded(
+                            &frame.account_id,
+                            &snapshot.terminal_id,
+                            snapshot.sequence,
+                        )
+                        .await
+                        .map_err(BridgeError::from)?;
                 }
                 continue;
             }
@@ -280,7 +295,26 @@ impl Mt5BridgeRuntime {
                 })
                 .collect(),
         };
-        self.reconcile(&snapshot, Utc::now(), max_age).await
+        let mut session = self.session.lock().await;
+        if market_data_fresh {
+            persist_and_confirm_reconciliation(
+                &self.store,
+                &mut session,
+                &snapshot,
+                Utc::now(),
+                max_age,
+            )
+            .await
+        } else {
+            persist_reconciliation_without_confirmation(
+                &self.store,
+                &mut session,
+                &snapshot,
+                Utc::now(),
+                max_age,
+            )
+            .await
+        }
     }
 
     /// Fetch and persist an authoritative external snapshot after reconnect or

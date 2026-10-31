@@ -424,7 +424,7 @@ pub async fn persist_reconciliation_snapshot(
             .and_then(Value::as_str)
             .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
             .map(|value| value.with_timezone(&Utc))
-            != Some(captured_at.clone())
+            != Some(captured_at)
         || !snapshot.get("account_state").is_some_and(Value::is_object)
         || !snapshot.get("open_orders").is_some_and(Value::is_array)
         || !snapshot.get("positions").is_some_and(Value::is_array)
@@ -489,9 +489,9 @@ pub async fn persist_reconciliation_snapshot(
     Ok(())
 }
 
-/// Persist broker-authoritative MT5 instrument metadata and fresh bid/ask quotes.
-/// This table is separate from reconciliation readiness so market data cannot mark
-/// an order/account stream ready by itself.
+/// Persist broker-authoritative MT5 instrument metadata and quote freshness states.
+/// Non-fresh data never marks a stream ready by itself, and unavailable updates
+/// preserve the prior actual quote separately as explicitly stale.
 pub async fn persist_market_data_snapshot(
     pool: &PgPool,
     account_id: &str,
@@ -501,7 +501,7 @@ pub async fn persist_market_data_snapshot(
     source: &str,
     account_currency: &str,
     captured_at: DateTime<Utc>,
-    snapshot: Value,
+    mut snapshot: Value,
 ) -> PersistenceResult<()> {
     let sequence = i64::try_from(sequence).map_err(|_| {
         PersistenceError::Other("MT5 market-data sequence exceeds PostgreSQL BIGINT range".into())
@@ -522,7 +522,7 @@ pub async fn persist_market_data_snapshot(
         || snapshot.get("source").and_then(Value::as_str) != Some(source)
         || snapshot.get("sequence").and_then(Value::as_i64) != Some(sequence)
         || snapshot.get("account_currency").and_then(Value::as_str) != Some(account_currency)
-        || snapshot_timestamp != Some(captured_at.clone())
+        || snapshot_timestamp != Some(captured_at)
         || !snapshot.get("instruments").is_some_and(Value::is_array)
         || !snapshot.get("quotes").is_some_and(Value::is_array)
         || snapshot
@@ -541,6 +541,57 @@ pub async fn persist_market_data_snapshot(
         return Err(PersistenceError::Other(
             "MT5 market-data snapshot requires matching identity and paired instrument/quote arrays".into(),
         ));
+    }
+
+    let mut tx = pool.begin().await?;
+    let previous = sqlx::query_scalar::<_, Json<Value>>(
+        r#"
+        SELECT snapshot
+        FROM mt5_bridge_market_data_snapshots
+        WHERE account_id = $1 AND terminal_id = $2
+        FOR UPDATE
+        "#,
+    )
+    .bind(account_id)
+    .bind(terminal_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .map(|Json(value)| value);
+    match snapshot.get("status").and_then(Value::as_str) {
+        Some("unavailable" | "invalid") => {
+            let prior_quotes = previous.as_ref().and_then(|value| {
+                value
+                    .get("last_known_quotes")
+                    .and_then(Value::as_array)
+                    .or_else(|| value.get("quotes").and_then(Value::as_array))
+            });
+            let last_known_quotes = prior_quotes
+                .into_iter()
+                .flatten()
+                .filter(|quote| {
+                    quote.get("bid").is_some_and(Value::is_string)
+                        && quote.get("ask").is_some_and(Value::is_string)
+                        && quote.get("tick_time").is_some_and(Value::is_string)
+                })
+                .map(|quote| {
+                    let mut quote = quote.clone();
+                    quote["status"] = Value::String("stale".into());
+                    quote["reason_code"] = Value::Null;
+                    quote
+                })
+                .collect();
+            snapshot["last_known_quotes"] = Value::Array(last_known_quotes);
+        }
+        Some("fresh" | "stale") => {
+            if let Some(object) = snapshot.as_object_mut() {
+                object.remove("last_known_quotes");
+            }
+        }
+        _ => {
+            return Err(PersistenceError::Other(
+                "MT5 market-data snapshot has no recognized freshness status".into(),
+            ));
+        }
     }
 
     let persisted = sqlx::query_scalar::<_, i64>(
@@ -568,12 +619,13 @@ pub async fn persist_market_data_snapshot(
     .bind(account_currency)
     .bind(captured_at)
     .bind(Json(snapshot))
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
     if persisted.is_none() {
         return Err(PersistenceError::Other(
             "stale MT5 market-data sequence cannot overwrite the latest snapshot".into(),
         ));
     }
+    tx.commit().await?;
     Ok(())
 }

@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 import os
@@ -137,12 +138,14 @@ class AdapterContractTests(unittest.TestCase):
     def test_market_data_snapshot_contains_exact_specs_and_fresh_bid_ask(self):
         payload = build_market_data_snapshot(config("unused"), FakeTerminal(), 13)["payload"]
         self.assertEqual(payload["type"], "market_data_snapshot")
+        self.assertEqual(payload["status"], "fresh")
         self.assertEqual(payload["account_currency"], "USD")
         self.assertEqual(payload["instruments"][0]["symbol"], "EURUSD.a")
         self.assertEqual(payload["instruments"][0]["tick_size"], "0.00001")
         self.assertEqual(payload["instruments"][0]["volume_step"], "0.01")
         self.assertEqual(payload["quotes"][0]["bid"], "1.0845")
         self.assertEqual(payload["quotes"][0]["ask"], "1.08462")
+        self.assertEqual(payload["quotes"][0]["status"], "fresh")
         self.assertTrue(payload["quotes"][0]["tick_time"].endswith("Z"))
 
     def test_market_data_snapshot_fails_closed_when_symbol_or_quote_unavailable(self):
@@ -152,8 +155,12 @@ class AdapterContractTests(unittest.TestCase):
             build_market_data_snapshot(config("unused"), terminal, 13)
         terminal = FakeTerminal()
         terminal.symbol_info_tick = lambda symbol: None
-        with self.assertRaises(AdapterError):
-            build_market_data_snapshot(config("unused"), terminal, 13)
+        payload = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        self.assertEqual(payload["status"], "unavailable")
+        self.assertEqual(payload["quotes"][0]["status"], "unavailable")
+        self.assertIsNone(payload["quotes"][0]["bid"])
+        self.assertIsNone(payload["quotes"][0]["ask"])
+        self.assertIsNone(payload["quotes"][0]["tick_time"])
 
     def test_native_provider_normalizes_server_timezone_offset_against_host_utc(self):
         terminal = FakeTerminal()
@@ -167,18 +174,21 @@ class AdapterContractTests(unittest.TestCase):
         quote_time = datetime.fromisoformat(payload["quotes"][0]["tick_time"].replace("Z", "+00:00"))
         self.assertLessEqual(abs(quote_time.timestamp() - now), 2)
 
-    def test_native_provider_rejects_tick_server_clock_mismatch(self):
+    def test_native_provider_marks_non_timezone_server_offset_invalid(self):
         terminal = FakeTerminal()
         terminal.source = "mt5_macos_mql5_socket_v1"
         now = int(datetime.now(timezone.utc).timestamp())
         terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
             symbol=symbol, bid=1.08450, ask=1.08462,
-            time=now + 7200, server_time=now + 7000
+            time=now + 7200, server_time=now + 7650
         )
-        with self.assertRaisesRegex(AdapterError, "server clock differ"):
-            build_market_data_snapshot(config("unused"), terminal, 13)
+        payload = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        self.assertEqual(payload["status"], "invalid")
+        self.assertEqual(
+            payload["quotes"][0]["reason_code"], "invalid_server_time_offset"
+        )
 
-    def test_native_provider_rejects_frozen_quote_against_advancing_server_clock(self):
+    def test_native_provider_marks_frozen_quote_stale_against_advancing_server_clock(self):
         terminal = FakeTerminal()
         terminal.source = "mt5_macos_mql5_socket_v1"
         now = int(datetime.now(timezone.utc).timestamp())
@@ -189,18 +199,43 @@ class AdapterContractTests(unittest.TestCase):
             time=now - 10_000,
             server_time=now + 7200,
         )
-        with self.assertRaisesRegex(AdapterError, "server clock differ"):
-            build_market_data_snapshot(config("unused"), terminal, 13)
+        payload = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        quote = payload["quotes"][0]
+        self.assertEqual(payload["status"], "stale")
+        self.assertEqual(quote["status"], "stale")
+        self.assertEqual(quote["bid"], "1.0845")
+        self.assertEqual(quote["ask"], "1.08462")
+        self.assertLess(datetime.fromisoformat(quote["tick_time"].replace("Z", "+00:00")).timestamp(), now)
 
-    def test_market_data_snapshot_reports_stale_quote_age(self):
+    def test_market_data_snapshot_marks_stale_quote_without_rejecting_it(self):
         import time
 
         terminal = FakeTerminal()
         terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
             symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()) - 120
         )
-        with self.assertRaisesRegex(AdapterError, r"quote is stale by .*s.*tick_time="):
-            build_market_data_snapshot(config("unused"), terminal, 13)
+        payload = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        self.assertEqual(payload["status"], "stale")
+        self.assertEqual(payload["quotes"][0]["status"], "stale")
+        self.assertEqual(payload["quotes"][0]["bid"], "1.0845")
+        self.assertEqual(payload["quotes"][0]["ask"], "1.08462")
+
+    def test_subsequent_fresh_quote_recovers_market_data_status(self):
+        import time
+
+        terminal = FakeTerminal()
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()) - 120
+        )
+        stale = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08455, ask=1.08467, time=int(time.time())
+        )
+        fresh = build_market_data_snapshot(config("unused"), terminal, 14)["payload"]
+        self.assertEqual(stale["status"], "stale")
+        self.assertEqual(fresh["status"], "fresh")
+        self.assertEqual(fresh["quotes"][0]["status"], "fresh")
+        self.assertEqual(fresh["quotes"][0]["bid"], "1.08455")
 
     def test_market_data_snapshot_reports_future_quote_timestamp(self):
         import time
@@ -209,8 +244,80 @@ class AdapterContractTests(unittest.TestCase):
         terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
             symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()) + 30
         )
-        with self.assertRaisesRegex(AdapterError, r"timestamp is .*s in the future.*tick_time="):
-            build_market_data_snapshot(config("unused"), terminal, 13)
+        payload = build_market_data_snapshot(config("unused"), terminal, 13)["payload"]
+        self.assertEqual(payload["status"], "invalid")
+        self.assertEqual(payload["quotes"][0]["reason_code"], "future_timestamp")
+        self.assertIsNone(payload["quotes"][0]["bid"])
+
+    def test_stale_quote_keeps_worker_connection_and_reconciliation_running(self):
+        class StopAfterOnePoll:
+            def is_set(self):
+                return False
+
+            def wait(self, seconds):
+                return True
+
+        class FakeConnection:
+            def __init__(self):
+                self.frames = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def sendall(self, data):
+                self.frames.append(json.loads(data))
+
+        class FakeTlsContext:
+            def __init__(self, connection):
+                self.connection = connection
+
+            def wrap_socket(self, raw, server_hostname):
+                return self.connection
+
+        class FakeRaw:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        import time
+
+        terminal = FakeTerminal()
+        terminal.connect_count = 0
+        original_connect = terminal.connect
+
+        def connect(cfg):
+            terminal.connect_count += 1
+            original_connect(cfg)
+
+        terminal.connect = connect
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol, bid=1.08450, ask=1.08462, time=int(time.time()) - 120
+        )
+        connection = FakeConnection()
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("mt5_adapter.worker.tls_context", return_value=FakeTlsContext(connection)):
+                with patch("mt5_adapter.worker.socket.create_connection", return_value=FakeRaw()):
+                    run_worker(
+                        config(Path(directory) / "sequence.json"),
+                        terminal,
+                        FakeConstants,
+                        stop=StopAfterOnePoll(),
+                    )
+
+        self.assertEqual(terminal.connect_count, 1)
+        self.assertFalse(terminal.is_connected)
+        self.assertEqual([frame["payload"]["type"] for frame in connection.frames], [
+            "heartbeat", "market_data_snapshot", "reconciliation_snapshot"
+        ])
+        self.assertEqual(connection.frames[1]["payload"]["status"], "stale")
+        self.assertEqual(connection.frames[2]["payload"]["account_state"]["currency"], "USD")
+        self.assertEqual(len(connection.frames[2]["payload"]["open_orders"]), 1)
+        self.assertEqual(len(connection.frames[2]["payload"]["positions"]), 1)
 
     def test_snapshot_rejects_disconnect_or_account_switch(self):
         terminal = FakeTerminal()

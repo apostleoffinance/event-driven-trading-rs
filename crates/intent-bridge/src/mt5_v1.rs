@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BridgeError, BridgeResult};
 
-pub const MT5_BRIDGE_SCHEMA_VERSION: u16 = 1;
+pub const MT5_BRIDGE_SCHEMA_VERSION: u16 = 2;
 pub const MAX_MT5_BRIDGE_FRAME_BYTES: usize = 64 * 1024;
 
 /// Incremental NDJSON decoder for arbitrarily chunked byte streams.
@@ -441,9 +441,19 @@ pub struct MarketDataSnapshotWire {
     pub source: String,
     pub sequence: u64,
     pub captured_at: DateTime<Utc>,
+    pub status: MarketDataStatus,
     pub account_currency: String,
     pub instruments: Vec<InstrumentMarketDataWire>,
     pub quotes: Vec<QuoteWire>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MarketDataStatus {
+    Fresh,
+    Stale,
+    Unavailable,
+    Invalid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -467,9 +477,23 @@ pub struct InstrumentMarketDataWire {
 #[serde(deny_unknown_fields)]
 pub struct QuoteWire {
     pub symbol: String,
-    pub bid: String,
-    pub ask: String,
-    pub tick_time: DateTime<Utc>,
+    pub status: MarketDataStatus,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub bid: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub ask: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub tick_time: Option<DateTime<Utc>>,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub reason_code: Option<String>,
+}
+
+fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -680,20 +704,117 @@ impl BridgeFrame {
                                 .into(),
                         ));
                     }
-                    let bid = decimal(&quote.bid, "bid")?;
-                    let ask = decimal(&quote.ask, "ask")?;
-                    if bid <= Decimal::ZERO || ask < bid {
-                        return Err(BridgeError::Invalid(
-                            "quote bid must be positive and ask must be greater than or equal to bid".into(),
-                        ));
+                    match quote.status {
+                        MarketDataStatus::Fresh | MarketDataStatus::Stale => {
+                            let bid = decimal(
+                                quote.bid.as_deref().ok_or_else(|| {
+                                    BridgeError::Invalid("priced quote is missing bid".into())
+                                })?,
+                                "bid",
+                            )?;
+                            let ask = decimal(
+                                quote.ask.as_deref().ok_or_else(|| {
+                                    BridgeError::Invalid("priced quote is missing ask".into())
+                                })?,
+                                "ask",
+                            )?;
+                            let tick_time = quote.tick_time.as_ref().ok_or_else(|| {
+                                BridgeError::Invalid("priced quote is missing tick_time".into())
+                            })?;
+                            if bid <= Decimal::ZERO || ask < bid {
+                                return Err(BridgeError::Invalid(
+                                    "quote bid must be positive and ask must be greater than or equal to bid".into(),
+                                ));
+                            }
+                            if quote.reason_code.is_some()
+                                || tick_time > &(now + allowed_clock_skew)
+                            {
+                                return Err(BridgeError::Invalid(
+                                    "priced quote has invalid freshness metadata".into(),
+                                ));
+                            }
+                            let age = snapshot.captured_at.signed_duration_since(*tick_time);
+                            match quote.status {
+                                MarketDataStatus::Fresh
+                                    if age < Duration::seconds(-5)
+                                        || age > Duration::seconds(60) =>
+                                {
+                                    return Err(BridgeError::Invalid(
+                                        "fresh market-data quote is future-dated or older than 60 seconds"
+                                            .into(),
+                                    ));
+                                }
+                                MarketDataStatus::Stale if age <= Duration::seconds(60) => {
+                                    return Err(BridgeError::Invalid(
+                                        "stale market-data quote is not older than 60 seconds"
+                                            .into(),
+                                    ));
+                                }
+                                _ => {}
+                            }
+                        }
+                        MarketDataStatus::Unavailable => {
+                            if quote.bid.is_some()
+                                || quote.ask.is_some()
+                                || quote.tick_time.is_some()
+                                || quote.reason_code.as_deref() != Some("no_tick")
+                            {
+                                return Err(BridgeError::Invalid(
+                                    "unavailable quote must not contain prices or a timestamp"
+                                        .into(),
+                                ));
+                            }
+                        }
+                        MarketDataStatus::Invalid => {
+                            if quote.bid.is_some()
+                                || quote.ask.is_some()
+                                || quote.tick_time.is_some()
+                                || !matches!(
+                                    quote.reason_code.as_deref(),
+                                    Some(
+                                        "future_timestamp"
+                                            | "invalid_bid_ask"
+                                            | "invalid_numeric_quote"
+                                            | "invalid_timestamp"
+                                            | "invalid_server_time_reference"
+                                            | "invalid_server_time_offset"
+                                            | "server_time_offset_out_of_range"
+                                    )
+                                )
+                            {
+                                return Err(BridgeError::Invalid(
+                                    "invalid quote must omit prices and identify a validation reason"
+                                        .into(),
+                                ));
+                            }
+                        }
                     }
-                    if quote.tick_time > now + allowed_clock_skew
-                        || now.signed_duration_since(quote.tick_time) > Duration::seconds(60)
-                    {
-                        return Err(BridgeError::Invalid(
-                            "market-data quote is stale or timestamped in the future".into(),
-                        ));
-                    }
+                }
+                let aggregate_status = if snapshot
+                    .quotes
+                    .iter()
+                    .any(|quote| quote.status == MarketDataStatus::Invalid)
+                {
+                    MarketDataStatus::Invalid
+                } else if snapshot
+                    .quotes
+                    .iter()
+                    .any(|quote| quote.status == MarketDataStatus::Unavailable)
+                {
+                    MarketDataStatus::Unavailable
+                } else if snapshot
+                    .quotes
+                    .iter()
+                    .any(|quote| quote.status == MarketDataStatus::Stale)
+                {
+                    MarketDataStatus::Stale
+                } else {
+                    MarketDataStatus::Fresh
+                };
+                if snapshot.status != aggregate_status {
+                    return Err(BridgeError::Invalid(
+                        "market-data status does not match per-symbol quote states".into(),
+                    ));
                 }
             }
             BridgePayload::ReconciliationSnapshot(snapshot) => {
@@ -811,7 +932,7 @@ mod tests {
     }
 
     #[test]
-    fn market_data_snapshot_requires_matching_symbols_and_fresh_valid_quotes() {
+    fn market_data_snapshot_validates_fresh_stale_and_unavailable_quotes() {
         let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
         let instrument = InstrumentMarketDataWire {
             symbol: "EURUSD.a".into(),
@@ -829,35 +950,76 @@ mod tests {
         };
         let quote = QuoteWire {
             symbol: "EURUSD.a".into(),
-            bid: "1.0845".into(),
-            ask: "1.08462".into(),
-            tick_time: now.clone(),
+            status: MarketDataStatus::Fresh,
+            bid: Some("1.0845".into()),
+            ask: Some("1.08462".into()),
+            tick_time: Some(now),
+            reason_code: None,
         };
         let payload = MarketDataSnapshotWire {
             terminal_id: "terminal-1".into(),
             server: "Broker-Demo".into(),
             source: "mt5_python_readonly_v1".into(),
             sequence: 7,
-            captured_at: now.clone(),
+            captured_at: now,
+            status: MarketDataStatus::Fresh,
             account_currency: "USD".into(),
             instruments: vec![instrument],
             quotes: vec![quote],
         };
         assert!(frame(BridgePayload::MarketDataSnapshot(payload.clone()))
-            .validate_at(now.clone(), Duration::zero())
+            .validate_at(now, Duration::zero())
             .is_ok());
+        let mut missing_null_field =
+            serde_json::to_value(frame(BridgePayload::MarketDataSnapshot(payload.clone())))
+                .unwrap();
+        missing_null_field["payload"]["quotes"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("reason_code");
+        assert!(serde_json::from_value::<BridgeFrame>(missing_null_field).is_err());
 
         let mut stale = payload.clone();
-        stale.quotes[0].tick_time = now.clone() - Duration::seconds(61);
-        assert!(frame(BridgePayload::MarketDataSnapshot(stale))
-            .validate_at(now.clone(), Duration::zero())
-            .is_err());
+        stale.status = MarketDataStatus::Stale;
+        stale.quotes[0].status = MarketDataStatus::Stale;
+        stale.quotes[0].tick_time = Some(now - Duration::seconds(61));
+        assert!(frame(BridgePayload::MarketDataSnapshot(stale.clone()))
+            .validate_at(now, Duration::zero())
+            .is_ok());
 
         let mut crossed = payload.clone();
-        crossed.quotes[0].ask = "1.0844".into();
+        crossed.quotes[0].ask = Some("1.0844".into());
         assert!(frame(BridgePayload::MarketDataSnapshot(crossed))
-            .validate_at(now.clone(), Duration::zero())
+            .validate_at(now, Duration::zero())
             .is_err());
+
+        let mut unavailable = stale;
+        unavailable.status = MarketDataStatus::Unavailable;
+        unavailable.quotes[0] = QuoteWire {
+            symbol: "EURUSD.a".into(),
+            status: MarketDataStatus::Unavailable,
+            bid: None,
+            ask: None,
+            tick_time: None,
+            reason_code: Some("no_tick".into()),
+        };
+        assert!(frame(BridgePayload::MarketDataSnapshot(unavailable))
+            .validate_at(now, Duration::zero())
+            .is_ok());
+
+        let mut invalid = payload.clone();
+        invalid.status = MarketDataStatus::Invalid;
+        invalid.quotes[0] = QuoteWire {
+            symbol: "EURUSD.a".into(),
+            status: MarketDataStatus::Invalid,
+            bid: None,
+            ask: None,
+            tick_time: None,
+            reason_code: Some("future_timestamp".into()),
+        };
+        assert!(frame(BridgePayload::MarketDataSnapshot(invalid))
+            .validate_at(now, Duration::zero())
+            .is_ok());
 
         let mut unmatched = payload;
         unmatched.quotes[0].symbol = "EURUSD".into();
@@ -1003,7 +1165,7 @@ mod tests {
     fn rejects_unsupported_version_and_future_timestamp() {
         let now = Utc.with_ymd_and_hms(2026, 10, 27, 12, 0, 0).unwrap();
         let mut unsupported = frame(BridgePayload::SubmitOrder(valid_order()));
-        unsupported.schema_version = 2;
+        unsupported.schema_version = 1;
         assert!(unsupported.validate_at(now, Duration::zero()).is_err());
 
         let mut future = frame(BridgePayload::SubmitOrder(valid_order()));

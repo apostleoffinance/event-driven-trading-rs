@@ -4,13 +4,16 @@
 //| No order-send, order-modify, or order-delete functions exist.    |
 //+------------------------------------------------------------------+
 #property strict
-#property version   "1.00"
+#property version   "2.00"
 #property description "Read-only Quant OS terminal data provider"
 
 input string InpHost = "127.0.0.1";
 input ushort InpPort = 8765;
 input string InpSharedToken = "";
 input string InpAllowedSymbols = "EURUSD";
+
+const int QUANTOS_PROVIDER_PROTOCOL_VERSION = 1;
+const string QUANTOS_PROVIDER_BUILD_VERSION = "2.00";
 
 int g_socket = -1;
 string g_rx_buffer = "";
@@ -232,12 +235,14 @@ string SymbolInfoJson(const string symbol)
 
 string TickJson(const string symbol)
 {
-   if(!IsAllowedSymbol(symbol) || !SymbolSelect(symbol, true))
+   if(!IsAllowedSymbol(symbol))
       return "";
+   if(!SymbolSelect(symbol, true))
+      return "null";
 
    MqlTick tick;
    if(!SymbolInfoTick(symbol, tick) || tick.time <= 0)
-      return "";
+      return "null";
 
    // Diagnostic only: compare the quote epoch with MT5's clock functions.
    // This logs no account credentials, tokens, prices, or other sensitive data.
@@ -300,7 +305,11 @@ void ProcessRequest(const string line)
       long login = AccountInfoInteger(ACCOUNT_LOGIN);
       string server = AccountInfoString(ACCOUNT_SERVER);
       Respond(true, "{\"connected\":true,\"login\":" + IntegerToString(login) +
-                    ",\"server\":" + JsonString(server) + "}");
+                    ",\"server\":" + JsonString(server) +
+                    ",\"provider_protocol_version\":" +
+                    IntegerToString(QUANTOS_PROVIDER_PROTOCOL_VERSION) +
+                    ",\"provider_build_version\":" +
+                    JsonString(QUANTOS_PROVIDER_BUILD_VERSION) + "}");
       return;
    }
 
@@ -443,7 +452,8 @@ int OnInit()
    }
 
    EventSetMillisecondTimer(100);
-   Print("QuantOS read-only provider initialized. Order execution is not supported.");
+   PrintFormat("QuantOS read-only provider initialized: build=%s provider_protocol=%d; order execution is not supported.",
+               QUANTOS_PROVIDER_BUILD_VERSION, QUANTOS_PROVIDER_PROTOCOL_VERSION);
    return INIT_SUCCEEDED;
 }
 

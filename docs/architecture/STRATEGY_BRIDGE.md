@@ -51,7 +51,7 @@ python -m trading_strategies.mean_reversion --prices 100,100,100,90 \
 
 ## MT5 terminal bridge
 
-The separate terminal-facing protocol boundary is specified in [`docs/MT5_BRIDGE_V1.md`](../MT5_BRIDGE_V1.md), with JSON Schema at [`docs/contracts/mt5_bridge_v1.schema.json`](../contracts/mt5_bridge_v1.schema.json) and Rust validation types in `crates/intent-bridge/src/mt5_v1.rs`. This is a versioned message contract only; it does not imply an MT5 transport, Expert Advisor, or live connector exists.
+The separate terminal-facing protocol boundary is specified in [`docs/MT5_BRIDGE_V2.md`](../MT5_BRIDGE_V2.md), with JSON Schema at [`docs/contracts/mt5_bridge_v2.schema.json`](../contracts/mt5_bridge_v2.schema.json), the immutable v1 contract at [`docs/contracts/mt5_bridge_v1.schema.json`](../contracts/mt5_bridge_v1.schema.json), and Rust validation types in `crates/intent-bridge/src/mt5_v1.rs`. Real terminal conformance remains an independent acceptance gate.
 
 ## Legacy
 
