@@ -102,6 +102,9 @@ class MacOsProviderTests(unittest.TestCase):
             self.assertNotIn(forbidden, source)
         for command in ('"ACCOUNT"', '"ORDERS"', '"POSITIONS"', '"SYMBOL_INFO"', '"TICK"'):
             self.assertIn(command, source)
+        tick_json = source.split("string TickJson(", 1)[1].split("\nvoid Respond(", 1)[0]
+        self.assertIn('IntegerToString((long)TimeTradeServer())', tick_json)
+        self.assertNotIn('"server_time\\":" + IntegerToString((long)TimeCurrent())', tick_json)
 
     def test_provider_rejects_non_allowlisted_symbol_before_socket_io(self):
         terminal = MacOsMql5Terminal(config(), "127.0.0.1", 18765, "t" * 48, 5)

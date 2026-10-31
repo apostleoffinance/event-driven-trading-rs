@@ -2,12 +2,23 @@ import tempfile
 import unittest
 import os
 import sys
-from unittest.mock import patch
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
-from mt5_adapter.worker import AdapterError, Config, SequenceStore, build_heartbeat, build_market_data_snapshot, build_snapshot, decimal_text, load_terminal_runtime, send_frame
+from mt5_adapter.worker import (
+    AdapterError,
+    Config,
+    SequenceStore,
+    build_heartbeat,
+    build_market_data_snapshot,
+    build_snapshot,
+    decimal_text,
+    load_terminal_runtime,
+    run_worker,
+    send_frame,
+)
 
 
 class FakeTerminal:
@@ -167,6 +178,20 @@ class AdapterContractTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "server clock differ"):
             build_market_data_snapshot(config("unused"), terminal, 13)
 
+    def test_native_provider_rejects_frozen_quote_against_advancing_server_clock(self):
+        terminal = FakeTerminal()
+        terminal.source = "mt5_macos_mql5_socket_v1"
+        now = int(datetime.now(timezone.utc).timestamp())
+        terminal.symbol_info_tick = lambda symbol: SimpleNamespace(
+            symbol=symbol,
+            bid=1.08450,
+            ask=1.08462,
+            time=now - 10_000,
+            server_time=now + 7200,
+        )
+        with self.assertRaisesRegex(AdapterError, "server clock differ"):
+            build_market_data_snapshot(config("unused"), terminal, 13)
+
     def test_market_data_snapshot_reports_stale_quote_age(self):
         import time
 
@@ -207,6 +232,36 @@ class AdapterContractTests(unittest.TestCase):
         send_frame(sink, build_heartbeat(config("unused"), 1))
         self.assertTrue(sink.data.endswith(b"\n"))
         self.assertLessEqual(len(sink.data), 64 * 1024)
+
+    def test_worker_retry_log_has_utc_stage_and_safe_os_error(self):
+        class FailingTerminal(FakeTerminal):
+            def connect(self, cfg):
+                raise OSError(111, "sensitive-host-path")
+
+        class StopAfterRetry:
+            def is_set(self):
+                return False
+
+            def wait(self, seconds):
+                return True
+
+        with tempfile.TemporaryDirectory() as directory:
+            with tempfile.TemporaryFile(mode="w+t") as output:
+                with patch("sys.stderr", output):
+                    run_worker(
+                        config(Path(directory) / "sequence.json"),
+                        FailingTerminal(),
+                        FakeConstants,
+                        stop=StopAfterRetry(),
+                    )
+                output.seek(0)
+                log = output.read()
+
+        timestamp = log.split(" ", 1)[0]
+        self.assertEqual(datetime.fromisoformat(timestamp.replace("Z", "+00:00")).utcoffset(), timezone.utc.utcoffset(None))
+        self.assertIn("stage=provider_connect", log)
+        self.assertIn("(OSError errno=111)", log)
+        self.assertNotIn("sensitive-host-path", log)
 
 
 if __name__ == "__main__":

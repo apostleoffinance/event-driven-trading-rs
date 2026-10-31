@@ -12,6 +12,16 @@ QOS-001 source audit is complete. The repository is a 13-member Rust workspace w
 
 **Not established by this audit:** that the workspace compiles, tests pass, lint/build passes, database migrations run, or any venue integration works end-to-end. Those require executable checks under QOS-002 and integration-specific evidence.
 
+## Follow-up baseline refresh — 2026-10-31
+
+The original QOS-001 findings below describe the repository at the 2026-10-27 audited ref and are retained as history. This refresh records the current checkout and verified repository/CI state:
+
+- Local `main` and `origin/main` both point to `3e1259063d3194e5b26cf93766ba50306c13fec1`. The local worktree has a pre-existing, uncommitted `Cargo.lock` modification; it was preserved and is not included in the remote CI result.
+- GitHub Actions run [40858852429](https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/40858852429) completed successfully on that exact commit. The Rust format/check/test/Clippy job used PostgreSQL; the MT5 Python adapter contract tests, frontend lint/typecheck/build, and macOS portable preflight also passed.
+- Current source includes the MT5 v1 protocol, durable idempotency/sequence/reconciliation persistence, authenticated mTLS transport, watchdog/runtime coordinator, and `mt5-bridge-daemon`. The daemon remains read-only and has no order-submit or cancel command.
+- Current source also includes the Windows Python MT5 worker, a native macOS MQL5 read-only provider/EA, quote/instrument validation and persistence paths, and smoke/restart evidence tooling.
+- Source and CI checks do **not** establish real-terminal compatibility. No real macOS or managed-host demo conformance, post-restart broker snapshot evidence, protected credential lifecycle review, or independent release-evidence approval is recorded here. QOS-013/014/015A/015B remain in progress; venue execution remains disabled.
+
 ## 1. Repository and branch baseline
 
 - Default branch: `main`.

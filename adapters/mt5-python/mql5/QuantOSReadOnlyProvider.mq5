@@ -251,13 +251,14 @@ string TickJson(const string symbol)
                symbol, tick_epoch, utc_epoch, local_epoch, current_epoch, server_epoch,
                gmt_offset, tick_epoch - utc_epoch);
 
-   // MqlTick.time is server quote time. Send TimeCurrent separately so the
-   // host worker can normalize server-clock epochs against its trusted UTC clock.
+   // TimeCurrent is only the last received quote time and can freeze while
+   // the market is closed. TimeTradeServer advances using the terminal's
+   // synchronized host clock and is the reference for normalizing quote time.
    return "{\"symbol\":" + JsonString(symbol) +
           ",\"bid\":" + JsonNumber(tick.bid, 16) +
           ",\"ask\":" + JsonNumber(tick.ask, 16) +
           ",\"time\":" + IntegerToString((long)tick.time) +
-          ",\"server_time\":" + IntegerToString((long)TimeCurrent()) + "}";
+          ",\"server_time\":" + IntegerToString((long)TimeTradeServer()) + "}";
 }
 
 void Respond(const bool ok, const string data)

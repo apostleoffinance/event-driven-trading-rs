@@ -1,10 +1,10 @@
 # MT5 Bridge Transport Security Contract — QOS-014
 
-Status: **mTLS transport boundary implemented; integration remains incomplete**. The Rust bridge now has a TLS 1.3 mutual-authentication/configuration boundary and certificate-fingerprint-to-principal allow-list. No MT5 Expert Advisor, broker mapping, order-dispatch wiring, or live execution is implemented.
+Status: **TLS 1.3 mTLS transport and read-only daemon integration implemented; real terminal conformance remains incomplete**. The Rust bridge authenticates the worker and binds its certificate to a configured principal. A read-only MQL5 EA/provider is present, but real terminal compatibility, broker mapping, order-dispatch wiring, and live execution are not established.
 
 ## Goal and trust boundary
 
-The MT5 v1 JSON protocol and `Mt5SessionGate` assume that a transport has authenticated its peer. The future transport must establish peer authenticity and confidentiality before it creates a session gate or accepts any heartbeat, submit outcome, order snapshot, or reconciliation response. A terminal-provided `account_id`, `terminal_id`, or `server` is an assertion, not proof of identity.
+The MT5 v1 JSON protocol and `Mt5SessionGate` require an authenticated peer before session creation. The implemented transport establishes peer authenticity and confidentiality before accepting any heartbeat, submit outcome, order snapshot, or reconciliation response. Any alternative or replacement transport must preserve these guarantees. A terminal-provided `account_id`, `terminal_id`, or `server` is an assertion, not proof of identity.
 
 ## Required transport properties
 

@@ -1,6 +1,6 @@
 # MT5 Bridge v1 Protocol — QOS-014
 
-Status: **protocol + durable idempotency/checkpoints + transport-independent session gate implemented; authenticated transport integration pending**. This is not an MT5 terminal connector and is not evidence of live execution support.
+Status: **protocol, durable idempotency/checkpoints, session gate, TLS 1.3 mTLS transport, read-only runtime coordinator, and daemon implemented; real terminal conformance pending**. This is not evidence of a verified broker connection or live execution support.
 
 ## Transport and framing
 
@@ -23,7 +23,7 @@ Status: **protocol + durable idempotency/checkpoints + transport-independent ses
 
 ## Identity, precision and units
 
-- `account_id` is the trading account identity; `terminal_id` and `server` identify the terminal connection only. `Mt5SessionGate` binds one post-authentication session to an allow-listed account/terminal/server tuple and closes on identity changes. The future transport must authenticate its peer before constructing this gate; the gate itself does not authenticate a socket.
+- `account_id` is the trading account identity; `terminal_id` and `server` identify the terminal connection only. `Mt5SessionGate` binds one post-authentication session to an allow-listed account/terminal/server tuple and closes on identity changes. The host must authenticate its peer before constructing this gate; the gate itself does not authenticate a socket.
 - `instrument_id` is the broker's exact symbol (including suffixes); do not silently normalize `EURUSD`, `EURUSD.a`, and `EURUSDm` as identical.
 - All quantity, price, stop, fill and average-fill values are base-10 decimal **strings**. JSON numeric values and exponent notation are prohibited. The adapter must map broker lot/contract/tick units explicitly; the protocol does not infer pip value or account-currency conversion.
 - Quantity is positive for submit and non-negative for filled quantity. Price/stop values, when supplied, must be positive. Market orders omit price; limit/stop/stop-limit orders require the applicable trigger/limit prices. Instrument tick/volume/minimum constraints must be validated against fresh broker metadata before submission.
@@ -46,7 +46,7 @@ A new session or a degraded session remains blocked until the host has reconcile
 
 The permit exposes the exact validated request frame for the future transport's single initial send. Outcome persistence consumes the permit and verifies the response account, correlation ID, client-order ID, schema/timestamp and unknown-reason requirements before writing the durable state. A transport failure after the permit is issued must be recorded as `unknown`, consumes the permit, and degrades the session. A persistence failure while recording an outcome also degrades the session because venue execution may already have happened. Callers must reconcile before any subsequent submit; this API does not retry, does not perform network I/O, and does not replace strategy risk authorization or OMS lifecycle checks.
 
-The coordinator is a safety boundary, not a transport. It does not implement the authenticated handshake, sockets, Expert Advisor, broker symbol mapping, or actual venue send/reconciliation queries. Transport integration must use this coordinator rather than calling raw persistence helpers ad hoc.
+The dispatch coordinator is a safety boundary, not itself a transport. The concrete mTLS transport and read-only daemon are implemented separately in `mt5_transport.rs` and `mt5-bridge-daemon.rs`. Real terminal interoperability, broker symbol mapping, and authoritative broker send/reconciliation queries remain unverified; any future dispatch integration must use the coordinator rather than calling raw persistence helpers ad hoc.
 
 ## Read-only market-data snapshots (QOS-015B)
 
@@ -64,7 +64,8 @@ This is still a read-only feed. It does not authorize or submit orders, and it d
 - Configure an explicit account allow-list and paper-only default. Secrets stay in the Rust service/terminal secret store, never in strategy payloads, logs or frontend code.
 - Validate message size, JSON shape, timestamps, IDs, enums and decimal lexemes before acting. Rate-limit inbound messages and redact broker diagnostics.
 - Strategies produce intents only. Rust risk authorization and OMS lifecycle checks must precede any terminal submit. The MT5 side must not independently decide to execute an unauthorised intent.
-- This PR does **not** implement an Expert Advisor, socket transport, authenticated handshake, broker order mapping, end-to-end account reconciliation, or live venue adapter. Persistence APIs and protocol helpers exist, but the actual transport must invoke them before and after real sends. Those belong to follow-on work and require simulated contract tests before any live-mode review.
+- The repository now includes a TLS 1.3 mTLS transport, host-side runtime coordinator, read-only daemon, and a read-only MQL5 EA/provider path. Real terminal interoperability, broker-specific mapping, and target-host reconciliation/restart evidence are still unverified.
+- The daemon intentionally does not expose order submission or cancellation. Durable dispatch types provide a safety foundation, not a production order-send path. Any future execution work must add and verify the terminal-side mapping, authenticated dispatch, authoritative outcomes, reconciliation, and all release gates before enabling it.
 
 ## Acceptance checks for QOS-014
 
@@ -80,10 +81,12 @@ This is still a read-only feed. It does not authorize or submit orders, and it d
 - [x] Durable account-scoped idempotency ledger, canonical-payload conflict detection, ambiguous prepared/unknown recovery boundary, and persistent sequence checkpoint/readiness API implemented.
 - [x] Transport-independent session gate for account allow-list, immutable session identity, capability checks and explicit reconciliation latch.
 - [x] Transport-independent durable dispatch coordinator for session authorization, pre-send claim, no-resend on existing claims, response binding, and ambiguous-outcome persistence.
-- [ ] Authenticated transport implementation, real send/reconnect orchestration, and cross-language conformance against an MT5-side implementation.
+- [x] TLS 1.3 mutual-authenticated transport, read-only daemon/runtime orchestration, heartbeat watchdog, durable snapshot/reconciliation persistence, and reconnect-required behavior are implemented and covered by repository tests.
+- [ ] Real macOS and managed-host MT5 terminal conformance, cross-language golden fixtures against the terminal-side implementation, and authoritative broker-state recovery evidence.
+- [ ] Production order-send/cancel orchestration and terminal outcome mapping. This remains deferred; the read-only daemon must continue to expose no such command until separately approved.
 - [x] DB-backed persistence tests cover prepared-claim replay after store restart, same-ID/different-payload rejection, unknown-to-accepted recovery, conflicting terminal outcome rejection, sequence gap degradation, explicit recovery, and sequence overflow.
 - [ ] End-to-end transport integration around actual send/response paths and concurrent duplicate-claim stress tests.
-- [x] Full workspace CI passed on the dispatch implementation head; rerun after final verification-document updates is pending.
+- [x] Full workspace CI passed on current code commit `3e1259063d3194e5b26cf93766ba50306c13fec1` (GitHub Actions run `40858852429`). Documentation-only follow-up edits do not change that code verification; no real-terminal conformance is implied.
 
 
 ## Read-only reconciliation snapshot extension (QOS-015A)

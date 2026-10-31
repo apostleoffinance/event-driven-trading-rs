@@ -1,8 +1,23 @@
 # Quant OS — Task Queue
-Last updated: 2026-10-27. Follow `RULES.md`. One task at a time; only mark DONE with evidence.
+Last updated: 2026-10-31. Follow `RULES.md`. One task at a time; only mark DONE with evidence.
 
 ## Status definitions
 READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acceptance passed; DEFERRED = intentionally postponed.
+
+## Execution sequence (task order; product roadmap unchanged)
+
+This sequence is the agreed implementation order. It does not replace product definitions or milestones in `PRD.md` and `ROADMAP.md`.
+
+0. **Implementation baseline and task reconciliation** — verify repository sync, review authoritative rules and project status, reconcile current task states, and record evidence-based acceptance criteria.
+1. **MT5 Connectivity Alpha** — complete read-only MT5 demo connectivity and data verification, first in the macOS development environment and then on the intended managed host. QOS-013, QOS-014, QOS-015A, and QOS-015B are dependencies. No order execution is included.
+2. **Risk Router and execution core** — complete shared risk authorization, OMS, idempotency, execution outcomes, and reconciliation before exposure-changing workflows.
+3. **Trader Dashboard and Journal** — consume real shared account, position, order, market, and risk data through backend contracts; no frontend execution authority.
+4. **Shared connectivity platform** — operationalize terminal provisioning, account management, health, recovery, and credential lifecycle.
+5. **Developer Platform** — implement tenant-scoped APIs, credentials, usage controls, streams/webhooks, and developer access.
+6. **Integrate remaining EdgeNest products** — reuse shared services without duplicating connectivity, execution, or financial truth.
+7. **Production readiness** — complete security, resilience, operations, backup/recovery, and controlled rollout gates.
+
+The sequence does not authorize live trading or change the existing product roadmap.
 
 ## Milestone 0 — Baseline
 - [x] **QOS-001 [DONE]** Audit source, branch/commit, workspace, tests, venue status, frontend status.
@@ -13,24 +28,39 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
 - [x] **QOS-003 [DONE]** Inspect frontend scripts/dependencies/tokens before UI changes.
   - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
 
+## Current execution status — 2026-10-31
+
+- **Phase 0 — baseline and task reconciliation [DONE].** Local `main` and `origin/main` are both `3e1259063d3194e5b26cf93766ba50306c13fec1`. Current-head workflow run 40858852429 passed all four CI jobs: Rust format/check/test/Clippy (with PostgreSQL), MT5 Python adapter contract tests, frontend lint/typecheck/build, and macOS portable preflight. The local worktree still has an uncommitted `Cargo.lock` modification; it is preserved and was not part of that CI run. See the 2026-10-31 entry in `PROGRESS.md` and the refresh in `BASELINE_AUDIT.md`.
+- **Phase 1 — MT5 Connectivity Alpha [IN PROGRESS; QOS-013/014/015A/015B IN PROGRESS].** Source includes the Rust mTLS bridge and read-only daemon, durable sequence/reconciliation persistence, a Windows Python-terminal worker, and a native macOS MQL5 read-only provider. Contract/CI tests exist, but neither a real macOS nor managed-host demo conformance PASS is recorded. QOS-014 describes implemented protocol/transport foundations, not proof of terminal connectivity or order execution.
+- **QOS-013 [IN PROGRESS].** Instrument-aware sizing and the persisted-snapshot consumer are present. Real broker data and configured conversion, costs, margin/exposure inputs, volume rounding, final modeled-loss audit, and fail-closed behavior still need target-environment verification.
+- **QOS-014 [IN PROGRESS — implementation foundations present; integration evidence pending].** The typed protocol, durable idempotency/checkpoints, session gate, mTLS transport, watchdog, runtime coordinator, and read-only daemon exist. Cross-language terminal conformance, restart/reconciliation against real terminal state, and protected credential lifecycle evidence remain outstanding. Order dispatch is not exposed by the read-only daemon.
+- **QOS-015A/015B [IN PROGRESS — real-terminal evidence pending].** Windows and macOS adapter/provider code, smoke/restart tooling, data validation, and persistence paths exist. Real demo identity/data, persistence, reconnect/restart, certificate lifecycle, and independent evidence review have not been verified.
+- **Latest operator observation (2026-10-31):** A fresh isolated local PostgreSQL container was started without reusing or deleting existing stopped containers/volumes; all six SQLx migrations applied and the daemon began listening on `127.0.0.1:9443`. Timestamp-correlated MT5 diagnostics established that `TimeCurrent()` remains frozen at the last quote while `TimeTradeServer()` advances; host NTP offset was about 0.45 seconds. The EA now sends `TimeTradeServer()` as `server_time`; the adapter rejects a quote whose timestamp differs from that advancing clock, preserving the stale-data fail-closed behavior. The updated EA compiled with zero errors/warnings and its source/binary were installed in the active terminal's Experts folder with the previous pair backed up. The running chart still exhibits the old frozen-reference failure, so it must reload/re-attach the EA before validating the fix. Its configured EURUSD quote remains stale; no fresh market-data or reconciliation snapshots have been recorded, and the stream remains degraded. This diagnosis/fix is not a QOS-015 conformance PASS. The supervised services run from a separate checkout at `3e12590`, while the protected configuration pins `0097d4b`; exact-commit conformance remains unproven.
+
+### Phase 1 acceptance gate
+
+Use the real designated demo terminal and the exact repository commit. Require all of the following before marking connectivity acceptance complete:
+
+1. Verify broker/server, account identity, and account currency from the terminal; reject mismatches.
+2. Verify configured exact symbols, fresh bid/ask quotes, and broker instrument specifications from the terminal (not fixtures).
+3. Persist identity-bound account/order/position reconciliation and market-data snapshots to PostgreSQL; verify they survive daemon/worker restart.
+4. Verify sequence continuity, worker-only restart while the daemon remains available, and fresh post-restart market-data and reconciliation snapshots.
+5. Demonstrate and report healthy, disconnected, stale, and degraded/reconciliation-required states; fail closed on stale data, identity mismatch, gaps, or failed reconciliation.
+6. Review certificate trust/pinning/revocation, private-key permissions, rotation, rollback, and rejection of an untrusted/retired identity.
+7. Capture redacted evidence tied to the exact commit and obtain independent review.
+
+CI and portable tests are required but cannot substitute for real-terminal evidence. Keep venue order submission/cancellation disabled throughout this phase.
+
 ## Platform direction update — planned work, not implementation evidence
 - **QOS-018 [READY — architecture/product definition]:** Define EdgeNest as a shared trading infrastructure platform with (1) Trader Dashboard and (2) Developer API as first-party clients of the same services. Build EdgeNest-owned MT5 connectivity and orchestration rather than treating a hosted API vendor as a permanent core dependency. Initial acceptance: documented API/tenant boundary, managed-terminal lifecycle, provider/adapter seam, target-host demo gates, and explicit distinction between current implementation and target design. This documentation change does not complete QOS-013/014/015 and does not authorize order execution.
-
-## Current recommended task
-- **QOS-015A [IN PROGRESS — Windows demo verification pending; native macOS provider added in current branch]** PRs #27–#28 merged the Python worker and read-only `mt5-bridge-daemon`. This branch adds `adapters/mt5-python/scripts/mt5-demo-smoke.ps1` and `docs/MT5_DEMO_SMOKE_TEST.md` to validate the real demo login/server/currency, exact symbols and fresh quotes, client certificate fingerprint/key pairs, listener, PostgreSQL persistence, repeated market-data sequence, and fresh reconciliation. CI validates repository checks, but only a run on the target Windows VPS can establish terminal conformance; reconnect recovery and protected certificate/key ACL/rotation review remain release gates.
-- **QOS-013 [IN PROGRESS — runtime consumer integration merged; acceptance gates remain]** PRs #30 and #31 merged the persisted MT5 snapshot reader, strict sizing adapter, side-aware runtime provider, account/instrument-bound fresh trusted supplements, and broker entry-price propagation through risk evaluation and the downstream order request. PR #31 exact-head CI run `40510378186` passed Rust format/check/tests/Clippy, frontend lint/typecheck/build, and MT5 Python contract tests. QOS-013 still requires real Windows MT5 quote/metadata conformance and the configured trusted margin/cost/exposure source to be validated in deployment.
-- **QOS-015B [IN PROGRESS — market data feed and QOS-013 consumer merged; target Windows smoke test pending]** Branch `feat/qos-015b-mt5-market-data` adds typed market-data frames, exact configured broker symbols, tick/contract/volume constraints, fresh bid/ask validation, and latest-snapshot PostgreSQL persistence with stale-sequence protection. CI run `40502267045` passed Rust format/check/workspace tests/Clippy, Python adapter contract tests, frontend lint/typecheck/build, and the DB persistence/readiness-isolation test on code commit `15cf0554987bd6cf52cc8da426b08172b0bf71c5`. The Windows MT5 demo smoke test remains outstanding. Branch feat/qos-013-mt5-sizing-feed adds persisted snapshot retrieval and a strict risk-engine adapter; PR #30 is merged. Runtime integration is tracked separately. Order execution stays deferred.
-- QOS-015 order execution stays deferred until QOS-015A Windows conformance and QOS-015B market-data persistence/consumer tests pass, then QOS-013 must consume the data with account-currency conversion, costs, margin/exposure controls, and broker-specific volume rounding.
-- **QOS-011 [DONE — merged]** PR #7 merged on 2026-10-27 at merge commit `324d327f035ca5ccb573404cc8e446b816990ada`. The PR adds same-client-ID/same-payload replay semantics, typed conflicts, concurrent duplicate protection in paper connectors, and confirmed cancellation checks. Event-stream deduplication remains limited by the current trait having no event-stream surface.
 
 ## Milestone 1 — Product B
 - [x] **QOS-010 [DONE]** Specify the existing `VenueAdapter` contract and gaps. Evidence: `VENUE_ADAPTER_CONTRACT.md` documents capabilities, health/readiness, instrument constraints, async events, idempotency, ambiguity, cancel confirmation, reconnect/reconciliation, and 18 test scenarios. Spec-only; no runtime behavior changed.
 - [x] **QOS-011 [DONE — merged]** Enforce same-client-ID/same-payload idempotency and reject changed payloads in simulated and prop venues; close concurrent-submit race; require authoritative terminal cancellation confirmation in OMS bridge. Tests cover simulator replay/conflict and cancel-ack-with-open-order; existing ambiguous-submit test retained. PR #7 merged 2026-10-27 at `324d327f035ca5ccb573404cc8e446b816990ada`. See REV-009–REV-015 for implementation, CI history, and merge-status correction. Event-stream deduplication is not implemented because no event stream is exposed today.
 - [x] **QOS-012 [DONE]** Specify per-account sizing inputs/outputs and loss models. Evidence: `INSTRUMENT_AWARE_SIZING.md` covers account-currency risk budget, tick-value and linear models, FX conversion, costs, exposure/margin/pending-order reserves, volume-step rounding, fail-closed behavior, and 26 acceptance scenarios. Specification only; no risk code changed.
 - [ ] **QOS-013 [IN PROGRESS — core merged; acceptance gaps remain]** Implemented explicit linear/tick-value sizing, timestamped runtime snapshot cache, source/conversion-path validation, account/instrument identity and account-state freshness checks, fail-closed venue-capability and netting/hedging-semantics gates, pending-order exposure/margin reserves, volume-step and min/max/min-notional controls, final modeled-loss checks, and append-only structured sizing audit with exact decimal strings plus the complete policy snapshot. Instrument-aware execution requires persistent audit storage; missing storage blocks new exposure. CI run 40445467228 passed Rust format/check/test/Clippy and frontend lint/typecheck/build. QOS-014/015 must provide real venue/account/quote/instrument data before any live use; no live mode is enabled.
-- [ ] **QOS-014 [IN PROGRESS — safety foundation merged; live release gates remain]** PRs #14 and #18–#26 deliver the versioned protocol, durable order claims/checkpoints, account-bound readiness, one-shot dispatch, mTLS, watchdog, runtime coordinator and reconciliation persistence. Remaining gates are production daemon wiring, protected credential lifecycle, real terminal conformance, broker-specific mapping and end-to-end demo verification.
-- [ ] **QOS-015 [DEFERRED — demo order execution is a later task]** Implement order submission/cancellation only after QOS-015A read-only reconciliation passes CI and a Windows demo smoke test. Live execution remains disabled.
-- [ ] **QOS-014 [IN PROGRESS — protocol and safety foundation merged]** PR #26 merged at `3f7c3a213e7777ccae2f723aca01d496afac2ab6`. Remaining live release gates include production host daemon wiring, protected certificate provisioning/rotation, broker mapping, terminal-side conformance, and end-to-end demo verification.
+- [ ] **QOS-014 [IN PROGRESS — protocol and read-only daemon implemented; conformance pending]** The versioned protocol, durable order claims/checkpoints, account-bound readiness, one-shot dispatch foundation, mTLS transport, watchdog, runtime coordinator, reconciliation persistence, and read-only daemon exist. Remaining gates include real terminal conformance, broker-specific mapping, restart/reconciliation evidence, and protected credential lifecycle review.
+- [ ] **QOS-015 [DEFERRED — demo order execution is a later task]** Consider order submission/cancellation only after read-only conformance passes first on the macOS development terminal and then on the intended managed host, all QOS-013/014/015 acceptance evidence is independently reviewed, and a separate demo-execution scope is approved. Live execution remains disabled.
 - [x] **QOS-016 [DONE — initial deterministic failure-injection suite merged]** PR #15 merged at `0555e365e647d188528a364f51e16a147afc4c96`. Tests cover definite disconnect before submit, ambiguous response loss after venue commit with no blind OMS retry, delayed acknowledgement preserving order identity, and truncated fill acknowledgement exposing a venue/OMS reconciliation mismatch. Multi-account fan-out is QOS-017; additional venue-specific cancel/reconciliation cases remain follow-up coverage.
 - [x] **QOS-017 [DONE — merged]** PR #17 merged at `5865020df31b5c64fddd7a189ddf6f0895e924e7`. Sequential non-atomic fan-out, account-scoped client order IDs, per-account sizing-provider requirement, preflight validation, independent results, and failure isolation passed latest-head CI run `40451323267`.
 
@@ -59,11 +89,13 @@ READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acc
 - [ ] Documentation work has not enabled live money movement
 
 
-- **QOS-014 heartbeat/session follow-up (PRs #25–#26):** PR #25 added heartbeat freshness checks; merged PR #26 adds autonomous watchdog scheduling, mTLS integration tests, runtime orchestration, dispatch persistence and reconciliation snapshot storage. A production daemon, protected certificate lifecycle, real MT5 client conformance and broker mapping remain open.
+- **QOS-014 heartbeat/session follow-up (PRs #25–#26):** PR #25 added heartbeat freshness checks; merged PR #26 adds autonomous watchdog scheduling, mTLS integration tests, runtime orchestration, dispatch persistence and reconciliation snapshot storage. The read-only daemon was added later; protected certificate lifecycle, real MT5 client conformance and broker mapping remain open.
 
 
 - **QOS-014 implementation follow-up (PR #26):** PR #26 merged on 2026-10-27. It adds end-to-end generated-certificate TLS tests, autonomous heartbeat watchdog, runtime orchestration, durable heartbeat checkpoints, one-shot dispatch/outcome persistence, typed reconciliation snapshots, append-only PostgreSQL snapshot storage, and restart tests. Live readiness still requires a production host daemon, protected credential lifecycle, real MT5 adapter conformance, broker mapping and end-to-end demo verification.
 
+
+**Status correction (2026-10-31):** The production read-only daemon is now present. Real terminal conformance, protected certificate lifecycle, broker mapping, and end-to-end demo verification remain open.
 
 ## QOS-015A implementation note — 2026-10-27
 
@@ -98,4 +130,3 @@ Branch `feat/qos-013-mt5-runtime-integration` composes persisted MT5 snapshots w
 ## Cross-product architecture requirement — documentation only
 
 All EdgeNest products must reuse the same connectivity, account registry, tenant/security model, risk authorization, OMS/execution, venue adapters, account/event services, persistence and reconciliation. Product definitions and existing milestone scope remain unchanged. Product-specific broker connectivity and execution bypasses are prohibited. The target UX must not require users to attach an EA to charts; EdgeNest operates the managed gateway fleet. Real MT5 demo lifecycle evidence and existing QOS-013/014/015 release gates remain prerequisites. This statement is architecture guidance only and does not mark any implementation DONE or authorize live trading.
-

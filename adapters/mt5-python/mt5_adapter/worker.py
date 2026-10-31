@@ -11,7 +11,6 @@ import os
 import socket
 import ssl
 import sys
-import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -320,9 +319,8 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
         raw_tick_epoch = int(tick.time)
         tick_epoch = raw_tick_epoch
         # Native MQL5 exposes broker/server quote time. Normalize it against
-        # the host's trusted UTC clock using TimeCurrent(), not TimeGMT():
-        # MetaQuotes documents TimeGMT() as derived from the terminal computer's
-        # local clock and timezone configuration.
+        # the host's trusted UTC clock using the EA's advancing server-time
+        # reference; the quote-time clock can freeze between ticks.
         if getattr(terminal, "source", "") == "mt5_macos_mql5_socket_v1":
             server_epoch_value = getattr(tick, "server_time", None)
             if server_epoch_value is None:
@@ -454,6 +452,7 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
     backoff = 1.0
     try:
         while stop is None or not stop.is_set():
+            stage = "provider_connect"
             try:
                 # Include the initial provider handshake in the retry boundary.
                 # Previously terminal.connect() ran before this try block, so
@@ -463,10 +462,14 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
                 if not terminal.connected():
                     terminal.shutdown()
                     terminal.connect(config)
+                stage = "tls_context"
                 context = tls_context(config)
+                stage = "bridge_tcp_connect"
                 with socket.create_connection((config.bridge_host, config.bridge_port), timeout=10) as raw:
+                    stage = "bridge_tls_handshake"
                     with context.wrap_socket(raw, server_hostname=config.bridge_server_name) as connection:
                         while stop is None or not stop.is_set():
+                            stage = "snapshot_poll"
                             sequence = sequence_store.next()
                             send_frame(connection, build_heartbeat(config, sequence))
                             send_frame(connection, build_market_data_snapshot(config, terminal, sequence))
@@ -478,15 +481,12 @@ def run_worker(config: Config, terminal: Terminal, mt5_constants: Any, stop: Any
                                 time.sleep(config.poll_seconds)
             except (OSError, ssl.SSLError, AdapterError) as exc:
                 # Never log credentials, terminal responses, or full frame contents.
-                # AdapterError messages are authored locally and intentionally
-                # omit credentials, raw provider frames, and account balances. Include
-                # them so operators can identify which read-only stage is failing.
-                # For OS/TLS exceptions, log only the class to avoid leaking paths
-                # or transport details that may contain local configuration.
                 detail = f": {exc}" if isinstance(exc, AdapterError) else ""
+                errno = getattr(exc, "errno", None)
+                safe_errno = f" errno={errno}" if isinstance(errno, int) else ""
                 print(
-                    f"MT5 worker connection/poll attempt failed "
-                    f"({type(exc).__name__}){detail}; retrying after {backoff:.1f}s.",
+                    f"{utc_now()} stage={stage} MT5 worker attempt failed "
+                    f"({type(exc).__name__}{safe_errno}){detail}; retrying after {backoff:.1f}s.",
                     file=sys.stderr,
                     flush=True,
                 )

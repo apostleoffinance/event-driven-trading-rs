@@ -812,3 +812,71 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - Customer-facing connectivity should not require users to attach EAs to charts; EdgeNest manages the terminal/gateway fleet.
 - Documentation-only change. No code behavior, broker execution capability, production readiness or live-trading authorization is implied.
 
+## REV-068 — Phase 0 status reconciliation and MT5 implementation baseline
+
+- **Date:** 2026-10-31
+- **Context:** The user supplied a revised implementation sequence and confirmed it should be used as execution order while preserving the existing product roadmap and product definitions.
+- **Finding/correction:** Current-status text in the task/progress and MT5 conformance docs had become stale or contradictory. The repository already contains an mTLS transport, read-only daemon/runtime, Windows worker, and native macOS MQL5 provider/EA. These source artifacts and CI results do not prove real-terminal connectivity or release readiness.
+- **Impact:** Stale claims could direct work toward already-implemented code, misstate the next blocker, or suggest terminal verification that has not occurred.
+- **Evidence:** Local `main` and `origin/main` both resolve to `3e1259063d3194e5b26cf93766ba50306c13fec1`; GitHub Actions run `40858852429` completed successfully on that exact commit. Inspected `mt5-bridge-daemon.rs`, `mt5_runtime.rs`, `mt5_transport.rs`, `mt5_session.rs`, the Windows worker, macOS provider, relevant tests, and current conformance docs.
+- **Rule that failed:** Documentation freshness and verified-status accuracy (workflow rules 6–7); no trading-safety rule or live behavior violation is claimed.
+- **Rule update made in RULES.md:** None. Existing rules require evidence-based status and distinguish code/CI from integration readiness.
+- **Code/docs/tests changed:** Updated current execution/status records in `TASKS.md`, `PROGRESS.md`, and `BASELINE_AUDIT.md`; corrected stale implementation-status claims in the adapter README and `docs/MT5_BRIDGE_V1.md`, `docs/MT5_TRANSPORT_SECURITY.md`, and `docs/QOS-015_MACOS_CONFORMANCE.md`. The user-provided phase sequence is labeled execution order and leaves `ROADMAP.md` product milestones unchanged.
+- **Regression/real-use check added:** `TASKS.md` now records testable Phase 1 acceptance for identity/currency, live quotes/specifications, persisted snapshots, restart recovery, explicit health/degraded states, credential lifecycle, and independent evidence review.
+- **Verification result:** Current-main GitHub CI run passed Rust format/check/test/Clippy with PostgreSQL, MT5 Python adapter contract tests, frontend lint/typecheck/build, and macOS portable preflight. This run predates the documentation-only edits. No real MT5 demo or host security test was run.
+- **Remaining risk:** Real macOS and managed-host MT5 demo conformance, broker-state restart/reconciliation, credential lifecycle review, QOS-013 target-environment sizing evidence, and independent release review remain outstanding. Venue execution remains disabled.
+
+## REV-069 — Operator-observed macOS EA/provider handshake
+
+- **Date:** 2026-10-31
+- **Context:** User reported attaching the native read-only MQL5 EA to a chart and shared its MT5 Toolbox expert log.
+- **Finding:** The screenshot shows a connection to `127.0.0.1:8765`, handshake sent, and `PING` requests received. It then shows `SocketRead` returning `-1` with error `5273` and `SocketIsConnected=false`, followed by reconnection attempts.
+- **Impact:** This is evidence of activity across the local EA/provider handshake and PING path, but not stable connectivity or account/market-data delivery. It does not show that the Rust mTLS daemon received or persisted snapshots.
+- **Evidence:** User-provided Toolbox screenshot and accompanying task text; MQL5 EA source in `adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5`. The screenshot reports `SocketRead` returning -1 with error 5273 and the peer disconnected at that check; the EA source closes its local socket after detecting this state. This does not identify who initiated the initial disconnect.
+- **Rule that failed:** No code or trading-safety rule violation is established. This is partial integration evidence with an unresolved reconnect.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Added a dated partial-observation note to `TASKS.md` and `PROGRESS.md`. No runtime/socket behavior was changed.
+- **Regression/real-use check added:** Require sanitized Python worker stderr and Rust daemon logs from the same time window to locate whether the close follows a worker-side TLS, snapshot, or provider error. Do not treat PING-only logs as connectivity acceptance.
+- **Verification result:** The screenshot was reviewed; no real account/quote snapshot or persistence evidence was supplied. No tests were run for this documentation-only record.
+- **Remaining risk:** Root cause of the peer close is unknown. Need worker and daemon logs around the screenshot timestamps, with credentials, account identifiers, certificate/private-key contents, and sensitive filesystem/config values redacted. Keep the release gate blocked and venue execution disabled.
+
+## REV-070 — Stage-labeled MT5 worker retry diagnostics
+
+- **Date:** 2026-10-31
+- **Context:** The Toolbox excerpt showed a loopback handshake and PING requests followed by `SocketRead` error 5273 and a disconnected peer, but no worker or daemon logs were available to identify the failing stage.
+- **Finding:** Added UTC timestamps and fixed stage labels to Python worker retry logs for provider connection, TLS context creation, daemon TCP connection, TLS handshake, and snapshot polling. OS/TLS exception messages remain suppressed; only numeric errno is logged when available.
+- **Impact:** A synchronized reproduction can now distinguish provider, TLS setup, daemon transport, and polling failures without logging raw OS/TLS details. This is diagnostic instrumentation only and does not change reconnection or socket behavior.
+- **Evidence:** MQL5 source closes its local socket after `SocketRead` returns -1 with error 5273 or `SocketIsConnected` reports false. The worker's provider connect path validates HELLO before issuing PING and uses synchronous request/response calls. Neither the EA excerpt nor the source alone proves which peer initiated the initial disconnect or that PING replies succeeded.
+- **Rule that failed:** No code or trading-safety rule violation is established. Real-terminal connectivity acceptance remains unproven.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Added stage/timestamp diagnostics and a test asserting UTC format, stage, safe errno, and suppression of the OS error message; documented synchronized daemon, worker, and Toolbox log capture and the limits of the current evidence.
+- **Regression/real-use check added:** `test_worker_retry_log_has_utc_stage_and_safe_os_error`.
+- **Verification result:** Targeted `test_worker.py` suite passed (16 tests); `git diff --check` passed.
+- **Remaining risk:** The deployed supervised worker uses an older checkout without stage labels; synchronized capture is needed to identify the exact failure stage. Keep read-only scope, release gate, and venue-execution block unchanged.
+
+## REV-071 — macOS worker-to-daemon timestamp failure
+
+- **Date:** 2026-10-31
+- **Context:** User approved starting Docker Desktop, creating a fresh local PostgreSQL database, and applying the project schema before resuming the read-only MT5 connectivity check.
+- **Finding:** Verified the Compose service maps local port 15433 and declares no named volume. Two pre-existing stopped PostgreSQL containers had existing volumes, so they were left untouched; a uniquely named Compose project created a new container and fresh anonymous data volume. PostgreSQL health and a read-only `SELECT 1` succeeded, and all six repository SQLx migrations reported installed. The supervised daemon then bound to loopback port 9443 and logged an authenticated worker connection.
+- **Impact:** The original daemon startup failure was caused by the unavailable local PostgreSQL endpoint. Once database connectivity was restored, the EA/provider loopback connection and mTLS worker-to-daemon authentication succeeded, but the worker rejected market data before sending snapshots. The daemon closed the worker stream after that exception, explaining the observed disconnect/reconnect cycle.
+- **Evidence:** Timestamped sanitized captures are in `~/mt5-diagnostics/worker-capture.log` and `~/mt5-diagnostics/daemon-capture.log`. The worker first reported server-time offsets of -9559 and -9590 seconds as not timezone-like, then reported normalized quote timestamps 278.4, 247.2, 216.3, and 185.4 seconds in the future at a fixed tick timestamp. Daemon logs show authenticated connections followed by stream failure at matching retry times. Database verification returned zero market-data rows, zero reconciliation rows, and one degraded stream checkpoint (sequence 5239). The EA-to-provider loopback socket was established during verification.
+- **Rule that failed:** No trading-safety rule failed. Fail-closed timestamp validation prevented questionable quotes from being persisted.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** Updated current task, progress, and review evidence. No timestamp validation, socket behavior, execution capability, or service configuration was weakened or changed.
+- **Regression/real-use check added:** Fresh local database health, all six migration states, read-only SQL connectivity, daemon listener, authenticated worker log event, timestamp-correlated failure logs, and persisted snapshot/checkpoint counts.
+- **Verification result:** Database/schema readiness passed; transport/authentication passed; market-data and reconciliation acceptance failed closed due to future/non-timezone-like quote times. QOS-015 remains IN PROGRESS.
+- **Remaining risk:** At review time the terminal/server-time discrepancy was unresolved; see REV-072 for the confirmed frozen-quote-time diagnosis and follow-up fix. The supervised services run from checkout `3e12590`, whereas the protected runtime configuration pins `0097d4b`; the migration tree matches but exact-commit conformance is not demonstrated. Keep venue execution disabled.
+
+## REV-072 — MT5 frozen quote clock diagnosis and fix
+
+- **Date:** 2026-10-31
+- **Finding:** MQL5 diagnostics show `TimeCurrent()` equal to the last `MqlTick.time` and frozen during the no-tick interval, while `TimeTradeServer()` advances. A separate NTP query showed the Mac host clock offset was approximately 0.45 seconds. Using the frozen quote time as the EA's `server_time` made the worker infer a non-timezone-like offset and then a future normalized quote; this was not evidence that the quote itself was fresh.
+- **Impact:** Updated `QuantOSReadOnlyProvider.mq5` to send `TimeTradeServer()` as the current server-time reference. Strict timestamp and quote/server consistency checks remain in place, so a genuinely stale quote is rejected rather than normalized into freshness.
+- **Evidence:** MQL5 clock diagnostic log for the active terminal; timestamp-correlated worker errors; regression tests for frozen quote time against an advancing server clock; MetaEditor compilation log with zero errors/warnings; deployed source/binary comparison against the repository/compiled artifacts. Previous terminal EA files were backed up before replacement. The running chart continues to emit the old offset failure, so it has not yet been verified to reload the installed binary.
+- **Rule that failed:** No trading-safety rule failed; fail-closed quote validation prevented stale/future data from being persisted.
+- **Rule update made in RULES.md:** None.
+- **Code/docs/tests changed:** EA now uses `TimeTradeServer()` for `server_time`; worker comment clarified; regression and conformance/status docs updated.
+- **Regression/real-use check added:** Frozen-quote/advancing-server worker test; MQL5 source-contract assertion that `TickJson` uses `TimeTradeServer()`.
+- **Verification result:** Full MT5 Python adapter suite passed (59 tests); focused worker and EA contract tests passed (17 and 8); MQL5 compiler log reported zero errors/warnings; deployed source and binary match the tested artifacts. Real snapshot persistence is still BLOCKED because the active chart has not adopted the binary and the configured quote is stale.
+- **Remaining risk:** Re-attach/reload the read-only EA, then verify the new `server_time` behavior on a fresh market quote. Verify persisted market-data and reconciliation snapshots, worker-only restart/sequence continuity, exact commit/config alignment, managed Windows-host evidence, certificate lifecycle, and independent review before any Phase 1 PASS. Keep venue execution disabled.
