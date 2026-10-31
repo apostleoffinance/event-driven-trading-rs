@@ -162,14 +162,41 @@ pub async fn persist_and_confirm_reconciliation(
     now: DateTime<Utc>,
     max_age: Duration,
 ) -> BridgeResult<()> {
+    persist_reconciliation(store, session, snapshot, now, max_age, true).await
+}
+
+/// Persist complete broker state while keeping stream readiness degraded until
+/// market data is fresh. This keeps read-only reconciliation useful during market
+/// closure without releasing the exposure/readiness latch.
+pub async fn persist_reconciliation_without_confirmation(
+    store: &TradingStore,
+    session: &mut Mt5SessionGate,
+    snapshot: &Mt5ReconciliationSnapshot,
+    now: DateTime<Utc>,
+    max_age: Duration,
+) -> BridgeResult<()> {
+    persist_reconciliation(store, session, snapshot, now, max_age, false).await
+}
+
+async fn persist_reconciliation(
+    store: &TradingStore,
+    session: &mut Mt5SessionGate,
+    snapshot: &Mt5ReconciliationSnapshot,
+    now: DateTime<Utc>,
+    max_age: Duration,
+    confirm_readiness: bool,
+) -> BridgeResult<()> {
     if let Err(error) = snapshot.validate(now, max_age) {
         degrade_session_and_stream(store, session).await;
         return Err(error);
     }
-    if !matches!(
-        session.state(),
-        Mt5SessionState::ReconciliationRequired | Mt5SessionState::Ready
-    ) || session.account_id() != Some(snapshot.account_id.as_str())
+    let session_state_allowed = match session.state() {
+        Mt5SessionState::ReconciliationRequired | Mt5SessionState::Ready => true,
+        Mt5SessionState::Degraded => !confirm_readiness,
+        Mt5SessionState::AwaitingHeartbeat | Mt5SessionState::Closed => false,
+    };
+    if !session_state_allowed
+        || session.account_id() != Some(snapshot.account_id.as_str())
         || session.terminal_id() != Some(snapshot.terminal_id.as_str())
         || session.server() != Some(snapshot.server.as_str())
         || !session
@@ -205,9 +232,23 @@ pub async fn persist_and_confirm_reconciliation(
         return Err(BridgeError::from(error));
     }
 
-    if let Err(error) = session.confirm_reconciled(Mt5StreamReadiness::Ready) {
-        degrade_session_and_stream(store, session).await;
-        return Err(error);
+    if confirm_readiness {
+        if let Err(error) = session.confirm_reconciled(Mt5StreamReadiness::Ready) {
+            degrade_session_and_stream(store, session).await;
+            return Err(error);
+        }
+    } else {
+        session.degrade();
+        if let Err(error) = store
+            .mark_mt5_stream_degraded(
+                &snapshot.account_id,
+                &snapshot.terminal_id,
+                snapshot.sequence,
+            )
+            .await
+        {
+            return Err(BridgeError::from(error));
+        }
     }
     Ok(())
 }

@@ -15,6 +15,7 @@ async fn latest_market_snapshot_is_loaded_for_exact_account_and_terminal(pool: P
         "source": "mt5_python_readonly_v1",
         "sequence": 9,
         "captured_at": now.to_rfc3339(),
+        "status": "fresh",
         "account_currency": "USD",
         "instruments": [{
             "symbol": "EURUSD.a",
@@ -29,9 +30,11 @@ async fn latest_market_snapshot_is_loaded_for_exact_account_and_terminal(pool: P
         }],
         "quotes": [{
             "symbol": "EURUSD.a",
+            "status": "fresh",
             "bid": "1.10000",
             "ask": "1.10010",
-            "tick_time": now.to_rfc3339()
+            "tick_time": now.to_rfc3339(),
+            "reason_code": null
         }]
     });
     store
@@ -62,6 +65,42 @@ async fn latest_market_snapshot_is_loaded_for_exact_account_and_terminal(pool: P
             .await
             .unwrap()
             .is_none()
+    );
+
+    let unavailable_at = now + chrono::Duration::seconds(10);
+    let mut unavailable = snapshot;
+    unavailable["sequence"] = json!(10);
+    unavailable["captured_at"] = json!(unavailable_at.to_rfc3339());
+    unavailable["status"] = json!("unavailable");
+    unavailable["quotes"][0]["status"] = json!("unavailable");
+    unavailable["quotes"][0]["bid"] = serde_json::Value::Null;
+    unavailable["quotes"][0]["ask"] = serde_json::Value::Null;
+    unavailable["quotes"][0]["tick_time"] = serde_json::Value::Null;
+    unavailable["quotes"][0]["reason_code"] = json!("no_tick");
+    store
+        .persist_mt5_market_data_snapshot(
+            "account-sizing-01",
+            "terminal-sizing-01",
+            "broker-demo",
+            10,
+            "mt5_python_readonly_v1",
+            "USD",
+            unavailable_at,
+            unavailable,
+        )
+        .await
+        .unwrap();
+    let record = mt5_market_data::load_latest(&pool, "account-sizing-01", "terminal-sizing-01")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.snapshot["status"], "unavailable");
+    assert_eq!(record.snapshot["quotes"][0]["bid"], serde_json::Value::Null);
+    assert_eq!(record.snapshot["last_known_quotes"][0]["status"], "stale");
+    assert_eq!(record.snapshot["last_known_quotes"][0]["bid"], "1.10000");
+    assert_eq!(
+        record.snapshot["last_known_quotes"][0]["tick_time"],
+        now.to_rfc3339()
     );
 }
 

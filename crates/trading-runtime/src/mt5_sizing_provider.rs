@@ -35,8 +35,8 @@ pub trait Mt5SizingSupplementProvider: Send + Sync {
 }
 
 fn timestamps_match(left: &DateTime<Utc>, right: &DateTime<Utc>) -> bool {
-    left.clone()
-        .signed_duration_since(right.clone())
+    (*left)
+        .signed_duration_since(*right)
         .num_microseconds()
         .is_some_and(|delta| delta.unsigned_abs() <= 1)
 }
@@ -139,7 +139,7 @@ impl Mt5PersistedSizingProvider {
                 .is_none_or(|captured| {
                     captured
                         .with_timezone(&Utc)
-                        .signed_duration_since(record.captured_at.clone())
+                        .signed_duration_since(record.captured_at)
                         .num_microseconds()
                         .is_none_or(|delta| delta.unsigned_abs() > 1)
                 })
@@ -189,8 +189,7 @@ impl Mt5PersistedSizingProvider {
         }
         let captured_at = prepared
             .snapshot_captured_at
-            .clone()
-            .min(prepared.oldest_quote_time.clone())
+            .min(prepared.oldest_quote_time)
             .min(supplement.captured_at);
 
         Ok(RuntimeInstrumentSizingContext {

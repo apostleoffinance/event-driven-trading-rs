@@ -1,6 +1,8 @@
-# MT5 Bridge v1 Protocol — QOS-014
+# MT5 Bridge v1 Protocol — historical QOS-014 contract
 
 Status: **protocol, durable idempotency/checkpoints, session gate, TLS 1.3 mTLS transport, read-only runtime coordinator, and daemon implemented; real terminal conformance pending**. This is not evidence of a verified broker connection or live execution support.
+
+This schema is retained unchanged for compatibility history. The current worker and daemon contract is v2, documented in [`MT5_BRIDGE_V2.md`](MT5_BRIDGE_V2.md); v2 adds explicit freshness states and must be deployed on both sides together.
 
 ## Transport and framing
 

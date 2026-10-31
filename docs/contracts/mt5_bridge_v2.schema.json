@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://event-trading.local/contracts/mt5_bridge_v2.schema.json",
+  "title": "MT5 Bridge v2 Frame",
+  "description": "MT5 Bridge v2 adds explicit per-symbol market-data freshness. Other payload definitions are reused from the immutable v1 contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "message_id",
+    "correlation_id",
+    "account_id",
+    "sent_at",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "oneOf": [
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/heartbeat" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/submit_order" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/submit_outcome" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/cancel_order" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/cancel_outcome" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/order_snapshot" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/reconcile_request" },
+        { "$ref": "./mt5_bridge_v1.schema.json#/$defs/reconciliation_snapshot" },
+        { "$ref": "#/$defs/market_data_snapshot" }
+      ]
+    }
+  },
+  "$defs": {
+    "freshness_status": {
+      "enum": ["fresh", "stale", "unavailable", "invalid"]
+    },
+    "market_data_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "terminal_id",
+        "server",
+        "source",
+        "sequence",
+        "captured_at",
+        "status",
+        "account_currency",
+        "instruments",
+        "quotes"
+      ],
+      "properties": {
+        "type": { "const": "market_data_snapshot" },
+        "terminal_id": { "type": "string", "minLength": 1 },
+        "server": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "status": { "$ref": "#/$defs/freshness_status" },
+        "account_currency": { "type": "string", "minLength": 1 },
+        "instruments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "./mt5_bridge_v1.schema.json#/$defs/instrument_market_data"
+          }
+        },
+        "quotes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/quote" }
+        }
+      }
+    },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbol",
+        "status",
+        "bid",
+        "ask",
+        "tick_time",
+        "reason_code"
+      ],
+      "properties": {
+        "symbol": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/freshness_status" },
+        "bid": {
+          "anyOf": [
+            { "$ref": "./mt5_bridge_v1.schema.json#/$defs/decimal" },
+            { "type": "null" }
+          ]
+        },
+        "ask": {
+          "anyOf": [
+            { "$ref": "./mt5_bridge_v1.schema.json#/$defs/decimal" },
+            { "type": "null" }
+          ]
+        },
+        "tick_time": {
+          "anyOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "no_tick",
+                "future_timestamp",
+                "invalid_bid_ask",
+                "invalid_numeric_quote",
+                "invalid_timestamp",
+                "invalid_server_time_reference",
+                "invalid_server_time_offset",
+                "server_time_offset_out_of_range"
+              ]
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    }
+  }
+}
