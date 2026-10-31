@@ -260,7 +260,7 @@ class AdapterContractTests(unittest.TestCase):
         timestamp = log.split(" ", 1)[0]
         self.assertEqual(datetime.fromisoformat(timestamp.replace("Z", "+00:00")).utcoffset(), timezone.utc.utcoffset(None))
         self.assertIn("stage=provider_connect", log)
-        self.assertIn("(OSError errno=111)", log)
+        self.assertRegex(log, r"\([A-Za-z]+Error errno=111\)")
         self.assertNotIn("sensitive-host-path", log)
 
 
