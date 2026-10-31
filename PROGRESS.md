@@ -34,6 +34,19 @@ Full audit: [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md).
 - Active services: Python worker and Rust daemon run from `~/rust-trading-engine/event-trading` at `3e1259063d3194e5b26cf93766ba50306c13fec1`; their source contracts remain v1. The checkout has unrelated local changes to `Cargo.lock`, the macOS launch wrapper, and `docker-compose.yml`, all preserved. It is not compatible with the v2 source here; no live v2 runtime scenario was attempted. A controlled test matrix is prepared in `docs/QOS-015_MACOS_CONFORMANCE.md`.
 - Limits: actual stale-market continuity, fresh-quote acceptance, current-cycle persistence/reconciliation, worker/daemon/terminal restarts, actual socket recovery, and authentication/version mismatch remain unverified against the live demo terminal. A matching staged v2 pair, confirmed active EA path, and genuine fresh broker tick are prerequisites. Phase 1 remains **IN PROGRESS** and order execution remains disabled.
 
+## Work log — QOS-015A-RC evidence closure (2026-10-31)
+
+- RC commit `76006c1` verified on `origin/release/mt5-bridge-v2-rc1` (26 files, parent `aa0cc3d`); manifest, `target/` and EX5 files are not in it. The RC contains the freshness fix absent from `main` (`d9c448f`); no merge performed.
+- Isolated PostgreSQL 17.10 (port 55439, data dir under the session `rc-verification/pgdata`): 9 persistence integration tests passed; instance then verified by PID/data directory and stopped; port no longer listening. Other PostgreSQL instances untouched.
+- `cargo test --workspace`: 201 passed. `cargo fmt --check` passed. `cargo clippy --workspace --all-targets`: exit 0, 22 baseline warnings. `cargo check --workspace` passed.
+- macOS preflight (`--skip-rust`): exit 0, 67 Python tests; provider NOT_RUN. Frontend `npm ci`/lint/typecheck/build all exit 0 (npm audit: 20 vulnerabilities, untouched).
+- Artifact preflight: PASS with daemon `179eac93…`, EA source `f43bbf5c…`, EX5 `60c66148…` (hash match only); a wrong EA hash is rejected (exit 2). The tool requires the daemon inside the staged repo, so the remapped `bbc9e103…` build was not preflight-checked.
+- Daemon builds with `--remap-path-prefix` are byte-identical (`bbc9e103…`); without remapping they differ because absolute paths are embedded.
+- MetaEditor `/compile` exits 1 on success and 0 on failure here (probe). EX5 output varies between compiles of identical source (e.g. `a98fb2eb…`/42122 vs `5496ea69…`/41136 bytes), so the EX5 stays unaccepted pending a runtime build/protocol check after an approved reload.
+- Candidate MT5 data folder `…/drive_c/users/user/AppData/Roaming/MetaQuotes/Terminal/D0E8209F…` (origin.txt points to the install tree; portable.txt present) awaits operator confirmation. MT5 was not running.
+- Main-workspace daemon `14ef1871…` is NON-RC (provenance inferred) and preserved.
+- Not run: real-terminal, Windows, restart and failure-injection conformance. No service, EA or terminal was installed, restarted or deployed; order execution remains disabled. **MT5 CONNECTIVITY ALPHA: NOT ACCEPTED — REAL-TERMINAL VERIFICATION PENDING.**
+
 ## Work log — QOS-015A protocol v2 staging readiness (2026-10-31)
 
 - Created an isolated detached Git worktree based on `aa0cc3da3258067f46da4485c54f6f0427f67013` and overlaid the current v2 source snapshot. Source-only fingerprint: `7a5924f59c0cede1980ba9ea925c051850ee297ad95494ca77d06657d2d70761` (excludes docs, status trackers, build outputs, Python caches, `.git`, and the manifest itself). There is no commit yet containing this implementation; deployment must wait for an approved/reviewed commit and a rebuild from it.

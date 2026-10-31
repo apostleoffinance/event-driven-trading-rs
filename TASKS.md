@@ -57,7 +57,27 @@ The sequence does not authorize live trading or change the existing product road
 
 **QOS-015A-RC — protocol v2 candidate (2026-10-31):** Created branch `release/mt5-bridge-v2-rc1` from agreed base `aa0cc3da3258067f46da4485c54f6f0427f67013`. Candidate source-only fingerprint is `75680f72e4048811b3f413cad451ba8ebe8f8c9573582c187352eae8d92bc99c`; it remains uncommitted pending approval of the proposed file list and diff. Review found and fixed freshness validation that trusted the frame's `captured_at`; Rust now checks quote age against the trusted validation clock. Regression test passes. Current checks: 31 `intent-bridge` library tests, 67 Python adapter tests, Rust formatting, JSON parsing, and `git diff --check` pass. The previously built daemon and compatibility preflight predate this review correction and must be rebuilt/rerun from the approved commit. Protocols remain Python/Rust Bridge v2 and Python/EA provider v1, EA build 2.00. The session-local build manifest records provisional evidence; it is excluded from the source commit and must be completed from the post-approval build.
 
-**Outstanding acceptance gates:** No Git commit yet contains the reviewed implementation, so the exact release commit requirement is not met. MetaEditor generated a hash-recorded EX5 with 0 errors/0 warnings, but Wine returned exit code 1; cause is unresolved. The active terminal's install-tree EA source/binary hashes are recorded, but the exact chart-loaded binary and authoritative data directory remain unverified. No v2 service was started, no terminal EA was installed/reloaded, and no active v1 service was restarted. The existing active checkout's three local modifications and terminal backups remain untouched. QOS-015A is **IN PROGRESS**, not done.
+**QOS-015A-RC evidence closure (2026-10-31, supersedes the gate text above):** Original RC commit `76006c1601ad017002e64907712872bcb78de128` (parent `aa0cc3d`, 26 files) is on `origin/release/mt5-bridge-v2-rc1` and unchanged; a separate docs-only evidence commit follows it. The RC branch contains the quote-freshness fix (age measured against the trusted clock) that GitHub `main` (`d9c448f`) lacks; not merged.
+
+| Gate | Result |
+|---|---|
+| Persistence integration (isolated PostgreSQL 17.10, port 55439, since stopped) | PASS, 9 tests |
+| `cargo test --workspace` | PASS, 201 passed |
+| `cargo fmt --all -- --check` | PASS |
+| `cargo clippy --workspace --all-targets` | exit 0, 22 documented baseline warnings |
+| `cargo check --workspace` | PASS |
+| Python adapter tests / macOS preflight (`--skip-rust`) | PASS, 67 tests; provider run NOT_RUN; not release approval |
+| Frontend `npm ci`, lint, typecheck, build | exit 0 each (npm audit reports 20 vulnerabilities, not addressed) |
+| Artifact preflight (daemon `179eac93…`, EA source `f43bbf5c…`, EX5 `60c66148…`) | PASS (hash match only); wrong-hash control exits 2 BLOCKED |
+| Daemon reproducibility | PASS with path remapping (`bbc9e103…`, two builds identical); not reproducible without remapping (absolute paths embedded) |
+| MetaEditor exit code | Resolved: exit 1 = successful compile, exit 0 = failure |
+| EX5 | NOT ACCEPTED: output is nondeterministic for identical source; acceptance pending runtime check after an approved reload |
+| Main-workspace daemon `14ef1871…` | NON-RC, provenance inferred only; preserved |
+| Real-terminal, Windows, restart/failure conformance | NOT RUN |
+
+Remaining blockers: operator confirmation of MT5 data folder, account, broker, server and currency; deployment/rollback plan approval; real-terminal evidence. No service, EA or terminal was installed, restarted or deployed. **QOS-015A is IN PROGRESS; MT5 Connectivity Alpha is NOT ACCEPTED.**
+
+(Historical, pre-commit) Outstanding acceptance gates at the time: no Git commit contained the reviewed implementation and the MetaEditor exit code was unexplained; both are now resolved as shown above. The exact chart-loaded binary and authoritative data directory remain unverified.
 
 ### Phase 1 acceptance gate
 
