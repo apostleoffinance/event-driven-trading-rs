@@ -52,11 +52,11 @@ Automated PASS results are not real-terminal PASS evidence. Do not enable order 
 
 ## QOS-015A — protocol v2 staging and deployment readiness
 
-**Staging status:** The candidate is on branch `release/mt5-bridge-v2-rc1`, based on `aa0cc3da3258067f46da4485c54f6f0427f67013`; it remains uncommitted pending approval of the final proposed diff. Source-only fingerprint: `75680f72e4048811b3f413cad451ba8ebe8f8c9573582c187352eae8d92bc99c`, excluding docs, status trackers, build outputs, Python caches, `.git`, and the session-local manifest. Review fixed a freshness check to compare tick age against the trusted Rust validation clock; 31 Rust library tests and 67 Python adapter tests pass. The prior release daemon and compatibility preflight predate that correction and must be rebuilt/rerun from the approved commit. The isolated EA compiler log reports 0 errors/warnings, but the Wine launcher exit 1 remains unexplained; its artifact is not accepted as deployment-valid until the exit or a successful runtime version check is resolved. Current terminal logs indicate the installation tree is the active data path, but the File → Open Data Folder path and exact chart-loaded EX5 remain unconfirmed. This branch is a review candidate only: no v2 services or terminal files have been switched.
+**Staging status:** The v2 source has been overlaid onto a detached worktree at base commit `aa0cc3da3258067f46da4485c54f6f0427f67013`; the release daemon was built from that final staged tree and the Python contract suite passed (67 tests). The source snapshot fingerprint is `7a5924f59c0cede1980ba9ea925c051850ee297ad95494ca77d06657d2d70761`, computed over sorted file SHA-256 values excluding docs, status trackers, target outputs, Python caches, `.git`, and the manifest itself. The implementation is still uncommitted in the main checkout, so there is not yet a commit containing the reviewed v2 implementation. The staging worktree is an exact source snapshot for preparation, not a substitute for the release commit. Do not promote this snapshot until it is committed, reviewed, and rebuilt from that commit.
 
 The bridge protocol and terminal-provider protocol are separate layers. The Python worker and Rust daemon speak MT5 Bridge **v2** (`schema_version: 2`). The MQL5 EA speaks the local loopback provider protocol **v1**; it does not emit bridge frames. The EA build is version `2.00` and now reports both `provider_build_version` and `provider_protocol_version` in its authenticated-by-token PING response. The Python worker rejects missing or mismatched values. This permits checking the loaded EA build without incorrectly labeling its local socket protocol as bridge v2.
 
-The new `adapters/mt5-python/scripts/mt5_protocol_preflight.py` fails closed unless the worker and Rust sources declare bridge v2, the Python and MQL5 provider agree on provider protocol v1/build 2.00, and the explicitly supplied daemon artifact is a regular executable with the expected SHA-256 and byte size. The worker, provider, daemon, EA source, and EA binary must match the reviewed build manifest. The daemon may be stored outside the staged checkout; its location does not establish its identity. Run this preflight before **each** staged service start. The MQL5 response check provides a second, live rejection if an older EA is loaded. Hashes and sizes belong in the protected deployment manifest/evidence file, not in this guide.
+The new `adapters/mt5-python/scripts/mt5_protocol_preflight.py` fails closed unless the worker and Rust sources declare bridge v2, the Python and MQL5 provider agree on provider protocol v1/build 2.00, the daemon binary is inside the staged checkout, and the worker, daemon, EA source, and EA binary match hashes from the reviewed build manifest. Run this preflight before **each** staged service start. The MQL5 response check provides a second, live rejection if an older EA is loaded. Hash values belong in a protected deployment manifest/evidence file, not in this guide.
 
 ### Current terminal/process evidence and limits
 
@@ -74,7 +74,7 @@ Use an immutable staging checkout and dedicated staging ports, not the active v1
 
 Deploy only these reviewed artifacts:
 
-1. The daemon artifact at the explicit path in the reviewed manifest, built from the same committed staging revision as the worker.
+1. `target/release/mt5-bridge-daemon` built from the same committed staging revision as the worker.
 2. The complete `adapters/mt5-python/mt5_adapter/` package, its declared runtime dependencies, and `scripts/mt5_protocol_preflight.py`.
 3. `mql5/QuantOSReadOnlyProvider.mq5` for audit and its hash-matched compiled `.ex5` for the approved terminal data directory.
 4. The v2 schema/docs and the redacted build manifest containing source commit, worker/daemon/source/binary SHA-256 hashes, compiler log result, and build timestamp.
@@ -86,19 +86,18 @@ With the staged checkout and manifest values assigned through the protected depl
 ```sh
 python3 "$STAGE/adapters/mt5-python/scripts/mt5_protocol_preflight.py" \
   --repo-root "$STAGE" \
-  --daemon-binary "$RC_DAEMON" \
+  --daemon-binary "$STAGE/target/release/mt5-bridge-daemon" \
   --ea-source "$STAGE/adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5" \
   --ea-binary "$STAGED_EA_EX5" \
   --expected-worker-sha256 "$EXPECTED_WORKER_SHA256" \
   --expected-provider-sha256 "$EXPECTED_PROVIDER_SHA256" \
   --expected-daemon-sha256 "$EXPECTED_DAEMON_SHA256" \
-  --expected-daemon-size-bytes "$EXPECTED_DAEMON_SIZE_BYTES" \
   --expected-ea-source-sha256 "$EXPECTED_EA_SOURCE_SHA256" \
   --expected-ea-binary-sha256 "$EXPECTED_EA_BINARY_SHA256" \
-&& "$RC_DAEMON"
+&& "$STAGE/target/release/mt5-bridge-daemon"
 ```
 
-In the separate service environment, run the same preflight command first, then start `PYTHONPATH="$STAGE/adapters/mt5-python" python3 -m mt5_adapter.worker`. The two `&&`-guarded startup commands must use the same immutable stage, manifest, and explicitly verified daemon artifact. Before changing the active chart, verify the daemon process executable/cwd and worker command/cwd resolve to the reviewed artifacts, and that runtime PING reports provider build `2.00` / local protocol `1`. Confirm the daemon logs a v2 authenticated session and that persistence sequence advances only in the intended staging data scope. A matching hash and size do not prove that the daemon is running, that the EA loaded, or that the broker/database path is healthy.
+In the separate service environment, run the same preflight command first, then start `PYTHONPATH="$STAGE/adapters/mt5-python" python3 -m mt5_adapter.worker`. The two `&&`-guarded startup commands must use the same immutable stage and manifest. Before changing the active chart, verify the daemon process executable/cwd resolves under `$STAGE` (`ps` plus `lsof -a -p <pid> -d cwd,txt`), the worker command and cwd resolve under `$STAGE`, and its runtime PING reports provider build `2.00` / local protocol `1`. Confirm the daemon logs a v2 authenticated session and that persistence sequence advances only in the intended staging data scope.
 
 **Rollback:** Before copying the EA, record hashes of the existing `.mq5`/`.ex5` and make a separately named, non-overwriting backup in the confirmed data directory. Copy the new EX5 to a temporary filename there, verify its hash, then rename into place only after explicit approval and with the chart detached. If any check fails, detach the new EA, restore the original files from the verified backup (never overwrite a backup), stop only staged processes, and resume the unchanged v1 services from their original checkout/configuration. Preserve PostgreSQL checkpoints and sequence files; do not roll them back or reset them as part of EA rollback.
 

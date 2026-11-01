@@ -15,8 +15,8 @@ Each `market_data_snapshot` has an aggregate `status`, and each quote has its ow
 
 | Status | Wire requirements | Meaning |
 |---|---|---|
-| `fresh` | Positive decimal-string bid/ask and actual `tick_time`; `reason_code: null` | Actual broker quote is no more than 60 seconds old at bridge validation time. |
-| `stale` | Actual bid/ask and original `tick_time`; `reason_code: null` | Quote is older than 60 seconds at bridge validation time. Its prices and timestamp remain visible, but it is never fresh. |
+| `fresh` | Positive decimal-string bid/ask and actual `tick_time`; `reason_code: null` | Actual broker quote is no more than 60 seconds old at capture time. |
+| `stale` | Actual bid/ask and original `tick_time`; `reason_code: null` | Quote is older than 60 seconds. Its prices and timestamp remain visible, but it is never fresh. |
 | `unavailable` | `bid`, `ask`, and `tick_time` are `null`; `reason_code: "no_tick"` | The provider has no quote. No zero/default price is synthesized. |
 | `invalid` | Quote values and timestamp are `null`; a validation `reason_code` is required | A future timestamp, invalid bid/ask, or unusable server-time reference failed quote validation. |
 

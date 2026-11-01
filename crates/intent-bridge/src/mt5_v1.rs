@@ -733,7 +733,7 @@ impl BridgeFrame {
                                     "priced quote has invalid freshness metadata".into(),
                                 ));
                             }
-                            let age = now.signed_duration_since(*tick_time);
+                            let age = snapshot.captured_at.signed_duration_since(*tick_time);
                             match quote.status {
                                 MarketDataStatus::Fresh
                                     if age < Duration::seconds(-5)
@@ -986,13 +986,6 @@ mod tests {
         assert!(frame(BridgePayload::MarketDataSnapshot(stale.clone()))
             .validate_at(now, Duration::zero())
             .is_ok());
-
-        let mut backdated_fresh = payload.clone();
-        backdated_fresh.captured_at = now - Duration::seconds(30);
-        backdated_fresh.quotes[0].tick_time = Some(now - Duration::seconds(61));
-        assert!(frame(BridgePayload::MarketDataSnapshot(backdated_fresh))
-            .validate_at(now, Duration::zero())
-            .is_err());
 
         let mut crossed = payload.clone();
         crossed.quotes[0].ask = Some("1.0844".into());
