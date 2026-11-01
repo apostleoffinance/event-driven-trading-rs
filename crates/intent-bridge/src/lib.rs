@@ -9,6 +9,7 @@
 pub mod error;
 pub mod ingest;
 pub mod mt5_dispatch;
+pub mod mt5_health;
 pub mod mt5_reconciliation;
 pub mod mt5_runtime;
 pub mod mt5_session;

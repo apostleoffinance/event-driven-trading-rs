@@ -111,7 +111,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         bind = %args.bind,
         terminal_id = %terminal_id,
         server = %server,
-        account_id = %account_id,
         "read-only MT5 bridge listening; order execution is not exposed"
     );
 

@@ -1,0 +1,22 @@
+name: mt5-v2-staging-isolated
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mt5_v2_staging
+      POSTGRES_USER: ${MT5_V2_STAGING_ADMIN_USER:?set MT5_V2_STAGING_ADMIN_USER outside the repository}
+      POSTGRES_PASSWORD: ${MT5_V2_STAGING_ADMIN_PASSWORD:?set MT5_V2_STAGING_ADMIN_PASSWORD outside the repository}
+    ports:
+      - "127.0.0.1:55439:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    restart: "no"
+    volumes:
+      - mt5_v2_staging_pgdata:/var/lib/postgresql/data
+
+volumes:
+  mt5_v2_staging_pgdata: {}

@@ -1,0 +1,173 @@
+{
+  "status": "RC_SOURCE_VERIFIED_DAEMON_PREFLIGHT_PASS_EX5_RUNTIME_AND_DEPLOYMENT_BLOCKED",
+  "created_at": "2026-10-31T04:49:24+01:00",
+  "updated_at": "2026-11-01T21:34:52+01:00",
+  "verification_snapshot_at": "2026-11-01T21:34:52+01:00",
+  "verification_levels": {
+    "source": "PASS for committed RC implementation 76006c1 and evidence commit 7bfd435; subsequent local hardening/staging-helper changes are recorded in this worktree but are not included in the reviewed daemon artifact.",
+    "build": "PASS from prior RC evidence; no new build was run in this snapshot",
+    "daemon_artifact": "PASS for recorded SHA-256, byte size, executable metadata, and static protocol compatibility",
+    "ea_binary": "NOT_ACCEPTED; compiler output exists, but EX5 acceptance requires approved runtime load and PING build/protocol verification",
+    "runtime": "NOT_VERIFIED; no real-terminal conformance run",
+    "deployment": "NOT_APPROVED_OR_EXECUTED"
+  },
+  "source": {
+    "base_commit": "aa0cc3da3258067f46da4485c54f6f0427f67013",
+    "candidate_branch": "release/mt5-bridge-v2-rc1",
+    "implementation_commit": "76006c1601ad017002e64907712872bcb78de128",
+    "evidence_commit": "7bfd4358a3dcf840829a809a38108c09220f5d41",
+    "candidate_head": "7bfd4358a3dcf840829a809a38108c09220f5d41",
+    "main_commit_at_review": "d9c448f00a92f50aeaa5a5df18cc80ad042722f1",
+    "source_snapshot_sha256": "d9dcf5c5034dcd39a740f25ad71a5c44d63218db79bee6ad748f98f5f48bf760",
+    "snapshot_hash_scope": "SHA-256 of sorted per-file SHA-256 records for tracked source/package/test files; excludes docs/, TASKS.md, PROGRESS.md, REVIEWS.md, build-manifest.json, target/, Python __pycache__, and .git. The adapter README is included.",
+    "main_freshness_fix": "Absent from main; RC mt5_v1.rs uses trusted validation time rather than client-provided captured_at",
+    "staging": "Isolated worktree on release/mt5-bridge-v2-rc1, committed from the agreed base. Active protocol-v1 checkout and its changes were preserved.",
+    "current_worktree": "Subsequent candidate changes include protocol preflight/tests, daemon startup log redaction, status/deployment documentation, internal eight-signal health model, persistence health probe/test, explicit migration CLI, isolated staging Compose config, and app-role initializer. These changes are not included in the recorded daemon build."
+  },
+  "protocols": {
+    "python_worker_to_rust_daemon": {
+      "name": "MT5 Bridge",
+      "version": 2,
+      "schema_version": 2
+    },
+    "python_worker_to_mql5_ea": {
+      "name": "QuantOS loopback provider",
+      "version": 1,
+      "ea_build_version": "2.00"
+    }
+  },
+  "artifacts": {
+    "python_worker_source": {
+      "path": "adapters/mt5-python/mt5_adapter/worker.py",
+      "source_commit": "76006c1601ad017002e64907712872bcb78de128",
+      "sha256": "3f0e71348ab8919bc72f439273eab5eb1e3dcfc2d459542d23d2a586c4c3db97"
+    },
+    "python_provider_source": {
+      "path": "adapters/mt5-python/mt5_adapter/macos_socket_provider.py",
+      "source_commit": "76006c1601ad017002e64907712872bcb78de128",
+      "sha256": "fd9dfd87babe68ae66d59c27462f0626ad464331a7c5bf45a9d98bc20ae5477f"
+    },
+    "rust_daemon": {
+      "path": "target/release/mt5-bridge-daemon",
+      "sha256": "179eac934d06aa599f3f61d4527d8408324fd252445e719281749ebc66930f38",
+      "size_bytes": 7824576,
+      "built_at": "2026-10-31T05:28:51+01:00",
+      "build_profile": "release, debug info stripped",
+      "build_commit": "76006c1601ad017002e64907712872bcb78de128",
+      "build_status": "release build succeeded in the isolated RC worktree from the committed source"
+    },
+    "ea_source": {
+      "path": "adapters/mt5-python/mql5/QuantOSReadOnlyProvider.mq5",
+      "source_commit": "76006c1601ad017002e64907712872bcb78de128",
+      "sha256": "f43bbf5c4f834f2763689066e6d57c15af789c533c14397f75f1122b0a8e002c",
+      "build_version": "2.00",
+      "provider_protocol_version": 1
+    },
+    "ea_binary": {
+      "path": "../mt5-v2-artifacts/QuantOSReadOnlyProvider.ex5",
+      "sha256": "60c66148efef6acd1b6b8bdf0adc496aa19b440491495a56d927d24f9a41aa45",
+      "built_at": "2026-10-31T04:43:18+01:00",
+      "compiler_version": "MetaEditor version not recorded in retained evidence",
+      "compiler_log": "0 errors, 0 warnings; X64 Regular; 2118 ms; code generated",
+      "size_bytes": 41036,
+      "metaeditor_process_exit_code": 1,
+      "metaeditor_exit_code_meaning": "Verified by probe: in this environment /compile exits 1 on successful compilation (EX5 produced) and 0 on failure (no EX5 produced).",
+      "nondeterminism": "Identical source recompiled from the same path produced differing EX5 files: a98fb2eb... (42122 bytes) and 5496ea69... (41136 bytes); earlier compiles gave 60c66148... (41036) and 9467c3e1... (41742). EA source hash was constant.",
+      "artifact_assessment": "NOT ACCEPTED. Compile succeeded with 0 errors, but EX5 bytes are not reproducible, so acceptance is pending runtime verification (EA PING build/protocol reply after an approved reload). Not installed.",
+      "wine_diagnostics": "fixme messages only"
+    },
+    "main_workspace_daemon_NON_RC": {
+      "path": "~/event-driven-trading-rs/target/release/mt5-bridge-daemon",
+      "sha256": "14ef1871da8f67869f87bb3c2fdd92abe439304bd0faa192cdacb9945091535b",
+      "label": "NON-RC. Provenance inferred only (likely built from the dirty main checkout); preserved, not deleted, not to be deployed."
+    },
+    "rust_daemon_reproducible_remapped": {
+      "path": "../rc-verification/build-1/release/mt5-bridge-daemon",
+      "sha256": "bbc9e1033cf14f45ad43984c123bdc61ea0124c7505129f859f3adf8156f5d36",
+      "size_bytes": 7808064,
+      "source_commit": "76006c1601ad017002e64907712872bcb78de128",
+      "second_build_path": "../rc-verification/build-2/release/mt5-bridge-daemon",
+      "second_build_sha256": "bbc9e1033cf14f45ad43984c123bdc61ea0124c7505129f859f3adf8156f5d36",
+      "second_build_size_bytes": 7808064,
+      "build_command": "cargo build --release --locked -p intent-bridge --bin mt5-bridge-daemon",
+      "build_configuration": {
+        "target": "release binary mt5-bridge-daemon",
+        "locked_dependencies": true,
+        "cargo_target_dir": "set to each isolated rc-verification build directory",
+        "path_remapping_roots": ["RC worktree", "~/.cargo", "~/.rustup"],
+        "path_remapping_replacement_values": "not retained in prior evidence; exact independent reproduction is blocked until recorded",
+        "toolchain": {
+          "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+          "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)"
+        }
+      },
+      "reproducibility_result": "The two existing outputs were re-hashed during this review and are byte-identical. No new builds were run because free disk space is below the 5 GB preparation target.",
+      "unremapped_difference": "Without path remapping, the prior builds differ because absolute build paths are embedded (179eac93... versus bac221ae...)."
+    }
+  },
+  "verification": {
+    "python_adapter_tests": "Current RC package-root invocation: 81 passed with PYTEST_DISABLE_PLUGIN_AUTOLOAD=1. Earlier committed-source run: 67 passed. An initial repository-root invocation failed collection because the adapter package root was not on sys.path; corrected package-root run passed.",
+    "python_source_compile": "Python worker, provider, and preflight source compileall passed",
+    "intent_bridge_library_tests": "31 passed from the committed source, including the backdated-capture stale-quote regression",
+    "risk_engine_library_tests": "41 passed from committed source",
+    "trading_runtime_library_tests": "8 passed from committed source",
+    "persistence_library_tests": "0 tests defined; library target compiled and passed",
+    "mt5_transport_mtls_no_database_tests": "4 passed; 3 SQLx/PostgreSQL cases were excluded from this run",
+    "persistence_integration_tests": "PASS: 9 passed (mt5_bridge_idempotency 6, mt5_market_data 2, survive_restart 1) against an isolated temporary PostgreSQL 17.10 on 127.0.0.1:55439; instance stopped afterwards",
+    "rust_workspace_tests": "Committed RC source: cargo test --workspace --no-fail-fast passed, 201 tests. Current worktree: intent-bridge lib 35 passed; earlier same-turn daemon 2, python-ingest 3, and non-database mTLS 4 passed. Persistence lib defines 0 unit tests; the new pool_health SQLx integration target compiled with --no-run but was not executed because DATABASE_URL is unset. PostgreSQL-backed mTLS and reconciliation/recovery tests were not run.",
+    "clippy": "Committed workspace Clippy passed with 22 baseline warnings. Current cargo clippy --locked -p intent-bridge -p persistence --all-targets exits 0 with existing warnings.",
+    "cargo_check_workspace": "Current cargo check --locked -p intent-bridge -p persistence --all-targets passed.",
+    "frontend": "npm ci exit 0 (npm reports 20 vulnerabilities: 14 moderate, 5 high, 1 critical; not addressed, out of scope); npm run lint exit 0; npm run typecheck exit 0; npm run build exit 0",
+    "macos_preflight": "bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --skip-rust exit 0: 67 adapter tests passed; provider run NOT_RUN (no MT5_TERMINAL_PROVIDER); explicitly not release approval",
+    "artifact_preflight": "PASS exit 0 with explicitly supplied remapped daemon bbc9e103... (7,808,064 bytes), EA source f43bbf5c..., and EX5 60c66148...; wrong daemon hash negative control exit 2 BLOCKED. This proves recorded file identity/size and static protocol compatibility only; EX5 remains unaccepted.",
+    "main_branch_gap": "GitHub main (d9c448f) contains v2 without the freshness fix (quote age against trusted clock, mt5_v1.rs); the RC branch contains it. Not merged.",
+    "windows_verification": "not run",
+    "rust_format": "Current cargo fmt --all -- --check passed.",
+    "json_validation": "protocol schema and manifest parsed successfully",
+    "diff_check": "git diff --check passed on current unstaged worktree",
+    "cargo_build_release": "passed from implementation commit 76006c1601ad017002e64907712872bcb78de128",
+    "independent_reproducibility_build": "PASS with path remapping (two isolated builds byte-identical); not byte-reproducible without remapping.",
+    "non_rc_workspace_build": "An initial release build command ran from the main workspace before the staging path was explicitly set. No service was started; its ignored target output is not RC evidence and was left untouched because its pre-existing state could not be established.",
+    "compatibility_preflight": "PASS: 16 focused tests and 81 full Python adapter tests; real remapped daemon/EA bundle CLI check exit 0; wrong daemon hash negative control exit 2/BLOCKED",
+    "rc_readiness_hardening_tests": "Python adapter suite 81 passed with PYTEST_DISABLE_PLUGIN_AUTOLOAD=1. Current Rust tests/checks/lints and staging-helper static checks passed as recorded above; DB-backed tests remain unrun because DATABASE_URL and psql are unavailable.",
+    "staging_helper_checks": "Compose YAML parsed; role script bash -n passed; non-staging URL rejection passed without printing credentials; valid staging URL reached the psql prerequisite check, but psql is unavailable. Migration CLI rejected missing DATABASE_URL. No staging service or database operation was performed.",
+    "v1_database_diagnostic": "Read-only DATABASE_URL target 127.0.0.1:15433/trading connection refused; a different listener on 5433 rejected the configured role; no v1 config/service changed",
+    "available_disk_at_snapshot": "4.0 GiB at 2026-11-01T21:34+01:00 after targeted Rust builds/tests; below the 5 GiB preparation target",
+    "real_terminal_conformance": "not run",
+    "active_v1_worker_or_daemon_restarted": false,
+    "active_terminal_ea_replaced": false,
+    "order_execution_enabled": false
+  },
+  "active_terminal": {
+    "application": "/Applications/MetaTrader 5.app",
+    "terminal_process_pid": null,
+    "previously_observed_terminal_process_pid": 27335,
+    "last_observed_data_path": "Wine prefix drive_c/Program Files/MetaTrader 5 (historical MQL5 logs were written here)",
+    "observed_install_tree": "Wine prefix drive_c/Program Files/MetaTrader 5",
+    "installed_ea_source_sha256": "eed359d586fe54e395b640497f3efd17236a7fbfcef8d1dbf6793b61850953cd",
+    "installed_ea_binary_sha256": "0eed63bf6f27ea81be6401f7f1b4b6f8d118bad11e2c45170c7ebac86ee94296",
+    "candidate_data_directory": "Wine prefix drive_c/users/user/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075 (origin.txt -> C:\\Program Files\\MetaTrader 5; portable.txt present). Not confirmed by the operator.",
+    "terminal_running_at_2026-10-31T20:26": false,
+    "terminal64_process_observed_at_2026-11-01T19:48": false,
+    "operator_confirmation_pending": "File > Open Data Folder, account, broker, server, currency",
+    "active_data_directory_confirmed": false,
+    "chart_loaded_binary_confirmed": false,
+    "chart_log_evidence": "EA loaded at 03:25:08 and continued handling requests; no 2.00 runtime marker observed",
+    "installed_source_version": "1.00",
+    "loaded_ea_build_version": null
+  },
+  "deployment_preparation_2026-11-01": {
+    "plan": "docs/QOS-015A_V2_DEPLOYMENT_PLAN.md",
+    "status": "PREPARED_NOT_APPROVED_OR_EXECUTED",
+    "remapped_daemon_preflight": "PASS for expected hash and size using explicit --daemon-binary path; wrong-hash control BLOCKED",
+    "mt5_terminal_process_observed_at_2026-11-01T19:48": false,
+    "installed_mq5_is_v1": true,
+    "v1_daemon_db_pool_timeout": true,
+    "v1_configured_database": "127.0.0.1:15433/trading",
+    "v1_database_read_only_connectivity": "connection refused; alternate 5433 listener does not accept configured role",
+    "disk_free_gib": 4.0,
+    "backup_created": false,
+    "services_modified_or_restarted": false,
+    "deployment_approved_or_executed": false
+  }
+}

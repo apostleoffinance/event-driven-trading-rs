@@ -25,3 +25,11 @@ pub async fn migrate(pool: &PgPool) -> PersistenceResult<()> {
     tracing::info!("database migrations applied");
     Ok(())
 }
+
+/// Verify that the pool can execute a round-trip query against PostgreSQL.
+pub async fn check_database_health(pool: &PgPool) -> PersistenceResult<()> {
+    sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(pool)
+        .await?;
+    Ok(())
+}
