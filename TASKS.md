@@ -1,5 +1,5 @@
 # Quant OS — Task Queue
-Last updated: 2026-10-31. Follow `RULES.md`. One task at a time; only mark DONE with evidence.
+Last updated: 2026-11-01. Follow `RULES.md`. One task at a time; only mark DONE with evidence.
 
 ## Status definitions
 READY = scoped; IN PROGRESS = active; BLOCKED = prerequisite missing; DONE = acceptance passed; DEFERRED = intentionally postponed.
@@ -28,10 +28,12 @@ The sequence does not authorize live trading or change the existing product road
 - [x] **QOS-003 [DONE]** Inspect frontend scripts/dependencies/tokens before UI changes.
   - Evidence: `FRONTEND_AUDIT.md`; source inspection covered scripts/dependencies, environment/data modes, theme tokens, mock/synthetic data, and operational status presentation. CI run 40425954540 passed frontend lint, typecheck, and production build. No UI or runtime behavior changed.
 
-## Current execution status — 2026-10-31
+## Current execution status — 2026-11-01
 
 - **Phase 0 — baseline and task reconciliation [DONE].** Local `main` and `origin/main` were both `aa0cc3da3258067f46da4485c54f6f0427f67013`. GitHub Actions run 41159296295 passed all four CI jobs on that commit: Rust format/check/test/Clippy (with PostgreSQL), MT5 Python adapter contract tests, frontend lint/typecheck/build, and macOS portable preflight. The worktree was clean at that baseline check; the current MT5 v2 implementation and evidence updates are uncommitted. See the 2026-10-31 baseline entry in `PROGRESS.md` and the refresh in `BASELINE_AUDIT.md`.
 - **Phase 1 — MT5 Connectivity Alpha [IN PROGRESS; QOS-013/014/015A/015B IN PROGRESS].** Source includes the Rust mTLS bridge and read-only daemon, durable sequence/reconciliation persistence, a Windows Python-terminal worker, and a native macOS MQL5 read-only provider. Contract/CI tests exist, but neither a real macOS nor managed-host demo conformance PASS is recorded. QOS-014 describes implemented protocol/transport foundations, not proof of terminal connectivity or order execution.
+- **Release candidate:** `release/mt5-bridge-v2-rc1` is preserved at `7bfd4358a3dcf840829a809a38108c09220f5d41`, parent `76006c1601ad017002e64907712872bcb78de128`. It remains separate from `main`; `main` does not contain the trusted-clock quote-freshness fix. The RC worktree is intentionally dirty and has no staged changes. Preserve all pre-existing and current modifications/untracked evidence; do not switch to `main`, reset, clean, merge, or rebase.
+- **RC worktree readiness:** Initial state had modified `TASKS.md`, `PROGRESS.md`, `REVIEWS.md`, the protocol preflight and its tests, plus untracked `build-manifest.json` and `docs/QOS-015A_V2_DEPLOYMENT_PLAN.md`. The artifact preflight and daemon log redaction are now further unstaged changes. See the current manifest and review entry; the current working tree is not a new committed RC.
 - **QOS-013 [IN PROGRESS].** Instrument-aware sizing and the persisted-snapshot consumer are present. Real broker data and configured conversion, costs, margin/exposure inputs, volume rounding, final modeled-loss audit, and fail-closed behavior still need target-environment verification.
 - **QOS-014 [IN PROGRESS — implementation foundations present; integration evidence pending].** The typed protocol, durable idempotency/checkpoints, session gate, mTLS transport, watchdog, runtime coordinator, and read-only daemon exist. Cross-language terminal conformance, restart/reconciliation against real terminal state, and protected credential lifecycle evidence remain outstanding. Order dispatch is not exposed by the read-only daemon.
 - **QOS-015A/015B [IN PROGRESS — real-terminal evidence pending].** Windows and macOS adapter/provider code, smoke/restart tooling, data validation, and persistence paths exist. Real demo identity/data, persistence, reconnect/restart, certificate lifecycle, and independent evidence review have not been verified.

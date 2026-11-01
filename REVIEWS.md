@@ -1,5 +1,4 @@
 # Quant OS — Correction and Feedback Register
-Last updated: 2026-10-31. Every correction, real-use failure, test mismatch, or rule violation must be logged here. See `RULES.md`.
 
 ## Required fields
 Date/context; finding and impact; evidence; failed/missing rule; rule update; artifacts/code/tests changed; regression or real-use check; verification result; remaining risk. Never invent a correction or claim a real-use test happened when it did not.

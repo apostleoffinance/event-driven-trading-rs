@@ -1,16 +1,13 @@
 # Quant OS — Progress
 
-Last updated: 2026-10-31. Only verified facts belong here; see `RULES.md`.
+Last updated: 2026-11-01. Only verified facts belong here; see `RULES.md`.
 
-## Current status — 2026-10-31
+## Current status — 2026-11-01
 
-- **Repository:** at the Phase 0 baseline, local `main` and `origin/main` were both `aa0cc3da3258067f46da4485c54f6f0427f67013` and the worktree was clean. The current v2 source and evidence updates are uncommitted changes on top of that baseline.
-- **Code CI:** GitHub Actions run 41159296295 completed successfully on this exact commit. Rust format/check/test/Clippy (with PostgreSQL), MT5 Python adapter contract tests, frontend lint/typecheck/build, and macOS portable preflight all passed. This does not prove real MT5 terminal compatibility or release readiness.
 - **Phase 0 — implementation baseline and task reconciliation:** complete for repository sync, source/status review, current acceptance criteria, and CI evidence capture. Historical audit content below remains historical and is not the current implementation snapshot.
 - **Phase 1 — MT5 Connectivity Alpha:** in progress. QOS-013, QOS-014, QOS-015A, and QOS-015B have substantial code and contract tests, but real-terminal demo conformance, persisted data/restart evidence, and independent credential-lifecycle review remain outstanding.
 - **QOS-013:** instrument-aware sizing and the persisted-snapshot consumer are implemented. Real broker input validation for conversion, costs/slippage, margin/exposure, volume rounding, final modeled loss, and audit/fail-closed behavior remains part of target-environment acceptance.
 - **QOS-014:** typed protocol, durable idempotency/checkpoints, session gate, mTLS transport, watchdog/runtime coordinator, and read-only daemon are present. Real terminal/cross-language conformance, recovery/reconciliation against broker state, and protected credential lifecycle evidence remain outstanding. The read-only daemon exposes no order execution.
-- **QOS-015A/015B:** Windows worker and native macOS read-only provider/EA, validation, persistence paths, and smoke/restart tooling exist. A v2 staging worktree now contains the worker/provider, built release daemon, compiled EA artifact, and a passing compatibility preflight. The source remains uncommitted; active terminal and managed-host demo conformance are not recorded.
 - **Latest operator observation (2026-10-31):** The active chart has now reloaded the fixed EA. Its timestamp diagnostics establish that `current_epoch` is `TimeCurrent()` and `server_epoch` is `TimeTradeServer()`: at local 03:27:00, the quote/current epoch was fixed at 1793401185 while UTC (1793413620) and server (1793420820) epochs advanced on later samples. The configured quote was 12,435 seconds old relative to UTC and 19,635 seconds behind the advancing server clock; the worker correctly rejects it under strict stale/mismatch checks.
 
   The EA reports receipt of PING, ACCOUNT, SELECT_SYMBOL, SYMBOL_INFO, and TICK requests. The Python provider parses and validates account and symbol responses, then parses the TICK response and rejects the time mismatch. This is not merely inferred from request logs: the worker reaches the specific post-TICK timestamp rejection. The EA log alone does not confirm response transmission. Because market-data construction fails before completion, no market-data frame or subsequent orders/positions reconciliation request is emitted for these attempts.
