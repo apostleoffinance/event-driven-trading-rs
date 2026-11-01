@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+STAGING_PORT=15543
+
 fail() {
     printf 'ERROR: %s\n' "$1" >&2
     exit 2
@@ -19,6 +21,7 @@ fail() {
 
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
+export STAGING_PORT
 python3 - <<'PY'
 import os
 import re
@@ -32,7 +35,7 @@ try:
     valid = (
         url.scheme in {"postgres", "postgresql"}
         and url.hostname == "127.0.0.1"
-        and url.port == 55439
+        and url.port == int(os.environ["STAGING_PORT"])
         and url.path == "/mt5_v2_staging"
         and re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", username)
         and password
@@ -46,14 +49,15 @@ except ValueError:
 if not valid:
     sys.exit(
         "ERROR: DATABASE_ADMIN_URL must target "
-        "127.0.0.1:55439/mt5_v2_staging and include admin credentials"
+        "127.0.0.1:" + os.environ["STAGING_PORT"] + "/mt5_v2_staging "
+        "and include admin credentials"
     )
 PY
 
 command -v psql >/dev/null 2>&1 || fail "psql is required"
 
 export PGHOST=127.0.0.1
-export PGPORT=55439
+export PGPORT="$STAGING_PORT"
 export PGDATABASE=mt5_v2_staging
 export PGUSER
 export PGPASSWORD

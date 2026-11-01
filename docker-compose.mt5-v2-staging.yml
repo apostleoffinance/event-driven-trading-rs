@@ -1,22 +1,64 @@
-name: mt5-v2-staging-isolated
+# MT5 Bridge v2 staging PostgreSQL (isolated from v1).
+#
+# This file describes the staging deployment that already exists:
+# project edgenest-mt5-bridge-v2-staging, 127.0.0.1:15543, database
+# mt5_v2_staging, bootstrap role mt5_v2_bootstrap, app role mt5_v2_app.
+#
+# The data volume is PRE-EXISTING and intentionally `external`: Compose must
+# never create a fresh, empty volume under this name. If the volume is missing,
+# `docker compose up` fails instead of silently initializing a new database.
+# POSTGRES_* initialization only runs on an empty data directory, so roles are
+# NOT re-created from this file on the existing volume.
+#
+# Secrets are file-based and live outside the repository and Copilot
+# session-state. Override the directory with MT5_V2_STAGING_SECRETS_DIR.
+# Required files (mode 600, directory mode 700): bootstrap-password, app-password.
+#
+# Role/privilege note: the live database still has the previously verified
+# arrangement (mt5_v2_app owns the application tables and sequences; no
+# migrator role exists). Any separate migrator role or reduced app privileges
+# are a pending, unapplied design that needs its own reviewed migration plan and
+# approval. This file does not provision or change roles.
+#
+# Origin note: the currently running container was created from an earlier
+# Copilot session-state copy of this file. Running `docker compose up` with this
+# file would recreate that container (data persists on the external volume) and
+# needs explicit approval first.
+name: edgenest-mt5-bridge-v2-staging
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: mt5_v2_staging
-      POSTGRES_USER: ${MT5_V2_STAGING_ADMIN_USER:?set MT5_V2_STAGING_ADMIN_USER outside the repository}
-      POSTGRES_PASSWORD: ${MT5_V2_STAGING_ADMIN_PASSWORD:?set MT5_V2_STAGING_ADMIN_PASSWORD outside the repository}
+      POSTGRES_USER: mt5_v2_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_bootstrap_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets:
+      - postgres_bootstrap_password
+      - mt5_v2_app_password
     ports:
-      - "127.0.0.1:55439:5432"
+      - "127.0.0.1:15543:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      test:
+        - CMD-SHELL
+        - >-
+          export PGPASSWORD="$$(cat /run/secrets/mt5_v2_app_password)";
+          test "$$(psql -h 127.0.0.1 -U mt5_v2_app -d mt5_v2_staging -Atqc 'SELECT 1' 2>/dev/null)" = 1
       interval: 2s
       timeout: 5s
       retries: 15
-    restart: "no"
+    restart: unless-stopped
     volumes:
-      - mt5_v2_staging_pgdata:/var/lib/postgresql/data
+      - mt5_v2_staging_data:/var/lib/postgresql/data
+
+secrets:
+  postgres_bootstrap_password:
+    file: ${MT5_V2_STAGING_SECRETS_DIR:-${HOME}/.config/edgenest/mt5-v2-staging/secrets}/bootstrap-password
+  mt5_v2_app_password:
+    file: ${MT5_V2_STAGING_SECRETS_DIR:-${HOME}/.config/edgenest/mt5-v2-staging/secrets}/app-password
 
 volumes:
-  mt5_v2_staging_pgdata: {}
+  mt5_v2_staging_data:
+    external: true
+    name: edgenest_mt5_bridge_v2_staging_data
