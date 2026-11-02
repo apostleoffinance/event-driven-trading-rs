@@ -13,6 +13,7 @@ members = [
     "crates/reconciliation",
     "crates/intent-bridge",
     "crates/event-trading",
+    "crates/market-data",
     "strategies/mean-reversion",
 ]
 

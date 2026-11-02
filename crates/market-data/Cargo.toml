@@ -1,0 +1,31 @@
+[package]
+name = "market-data"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Read-only market-data service: candle history API behind provider adapters (no trading, no order execution)"
+
+[[bin]]
+name = "market-data-api"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = { workspace = true }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+chrono = { workspace = true }
+persistence = { path = "../persistence" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tower-http = { version = "0.6", default-features = false, features = ["cors"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
