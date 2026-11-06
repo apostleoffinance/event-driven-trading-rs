@@ -45,7 +45,7 @@ async fn main() {
         .ok()
         .filter(|value| !value.trim().is_empty());
     let bind: SocketAddr = env::var("JOURNAL_API_BIND")
-        .unwrap_or_else(|_| "0.0.0.0:8080".into())
+        .unwrap_or_else(|_| "0.0.0.0:8082".into())
         .parse()
         .unwrap_or_else(|e| {
             eprintln!("invalid JOURNAL_API_BIND: {e}");
