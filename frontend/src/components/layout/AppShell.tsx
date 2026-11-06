@@ -6,20 +6,21 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { ThemeProvider } from "@/features/theme/ThemeProvider";
 import { QueryProvider } from "@/features/query/QueryProvider";
-import { EventStreamProvider, useEventStream } from "@/features/events/EventStreamProvider";
+import { EventStreamProvider, useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { SimulationProvider } from "@/features/simulation/SimulationProvider";
 import { AuthGate, AuthProvider } from "@/features/auth/AuthProvider";
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
-  const stream = useEventStream();
+  const stream = useSharedEventStream();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("quant-os-sidebar");
     if (stored === "collapsed") setCollapsed(true);
   }, []);
 
-  const toggleSidebar = () => {
+  const toggleCollapse = () => {
     setCollapsed((previous) => {
       const next = !previous;
       localStorage.setItem("quant-os-sidebar", next ? "collapsed" : "expanded");
@@ -30,9 +31,14 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   return (
     <SimulationProvider pushEvent={stream.push} resetEvents={stream.reset}>
       <div className={`app-shell${collapsed ? " collapsed" : ""}`}>
-        <Sidebar collapsed={collapsed} onToggle={toggleSidebar} />
+        <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onNavigate={() => setMobileOpen(false)} />
         <div className="app-main">
-          <Topbar onToggleSidebar={toggleSidebar} />
+          <Topbar
+            collapsed={collapsed}
+            eventConnected={stream.connected}
+            onToggleCollapse={toggleCollapse}
+            onToggleMobile={() => setMobileOpen((open) => !open)}
+          />
           <main className="app-content">{children}</main>
         </div>
       </div>
