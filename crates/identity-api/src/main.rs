@@ -79,6 +79,10 @@ async fn main() {
         .filter(|s| !s.is_empty())
         .filter_map(|s| s.parse::<HeaderValue>().ok())
         .collect::<Vec<_>>();
+    if origins.is_empty() {
+        eprintln!("CORS origin allowlist is required; configure the service-specific CORS origins env var");
+        std::process::exit(2);
+    }
 
     let pool = persistence::connect(&database_url)
         .await
