@@ -494,3 +494,183 @@ mod tests {
         assert!(!verify_password("incorrect password", &hash));
     }
 }
+
+
+fn set_refresh_cookie(mut response: Response, token: &str, ttl_days: i64) -> Response {
+    let cookie = format!("__Host-edgenest_refresh={token}; Path=/; Max-Age={}; HttpOnly; Secure; SameSite=None", ttl_days.max(1) * 86400);
+    if let Ok(value) = cookie.parse() { response.headers_mut().insert(axum::http::header::SET_COOKIE, value); }
+    response
+}
+fn clear_refresh_cookie(mut response: Response) -> Response {
+    if let Ok(value) = "__Host-edgenest_refresh=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None".parse() {
+        response.headers_mut().insert(axum::http::header::SET_COOKIE, value);
+    }
+    response
+}
+fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers.get(axum::http::header::COOKIE)?.to_str().ok()?.split(';')
+        .map(str::trim).find_map(|part| part.strip_prefix(&format!("{name}=")).map(str::to_owned))
+}
+fn random_token() -> String { new_refresh_token() }
+
+async fn send_email(state: &AppState, to: &str, subject: &str, html: &str) -> Result<(), ()> {
+    let Some(api_key) = state.resend_api_key.as_deref() else { return Err(()); };
+    let response = reqwest::Client::new().post("https://api.resend.com/emails")
+        .bearer_auth(api_key)
+        .json(&serde_json::json!({"from":state.email_from,"to":[to],"subject":subject,"html":html}))
+        .send().await.map_err(|_| ())?;
+    if response.status().is_success() { Ok(()) } else { Err(()) }
+}
+async fn create_verification_token(state: &AppState, user_id: &str) -> Result<String, ()> {
+    let raw = random_token();
+    sqlx::query("INSERT INTO identity_email_verification_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)")
+        .bind(uuid::Uuid::new_v4().to_string()).bind(user_id).bind(token_hash(&raw)).bind(Utc::now()+Duration::hours(24))
+        .execute(&state.pool).await.map_err(|_| ())?;
+    Ok(raw)
+}
+async fn create_password_reset_token(state: &AppState, user_id: &str) -> Result<String, ()> {
+    let raw = random_token();
+    sqlx::query("INSERT INTO identity_password_reset_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)")
+        .bind(uuid::Uuid::new_v4().to_string()).bind(user_id).bind(token_hash(&raw)).bind(Utc::now()+Duration::minutes(30))
+        .execute(&state.pool).await.map_err(|_| ())?;
+    Ok(raw)
+}
+fn base32_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8;32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let mut out = String::new(); let mut buffer: u32 = 0; let mut bits = 0;
+    for byte in bytes { buffer=(buffer<<8)|(*byte as u32); bits+=8; while bits>=5 { bits-=5; out.push(ALPHABET[((buffer>>bits)&31) as usize] as char); } }
+    if bits>0 { out.push(ALPHABET[((buffer<<(5-bits))&31) as usize] as char); }
+    out
+}
+fn totp_code(secret: &[u8], timestamp: u64) -> String {
+    let counter=(timestamp/30).to_be_bytes();
+    let mut mac=Hmac::<Sha1>::new_from_slice(secret).expect("HMAC accepts all key sizes");
+    mac.update(&counter); let digest=mac.finalize().into_bytes(); let offset=(digest[19]&0x0f) as usize;
+    let binary=((digest[offset]&0x7f) as u32)<<24 | (digest[offset+1] as u32)<<16 | (digest[offset+2] as u32)<<8 | digest[offset+3] as u32;
+    format!("{:06}", binary%1_000_000)
+}
+fn verify_totp(secret: &[u8], code: &str) -> bool {
+    if code.len()!=6 || !code.bytes().all(|b| b.is_ascii_digit()) { return false; }
+    let now=Utc::now().timestamp().max(0) as u64;
+    (-1i64..=1).any(|offset| totp_code(secret, (now as i64 + offset*30).max(0) as u64)==code)
+}
+fn encrypt_mfa_secret(state: &AppState, secret: &[u8]) -> Result<Vec<u8>, ()> {
+    let key=Sha256::digest(state.mfa_encryption_key.as_bytes());
+    let cipher=Aes256Gcm::new_from_slice(&key).map_err(|_| ())?;
+    let mut nonce=[0u8;12]; OsRng.fill_bytes(&mut nonce);
+    let encrypted=cipher.encrypt(Nonce::from_slice(&nonce), secret).map_err(|_| ())?;
+    Ok([nonce.as_slice(), encrypted.as_slice()].concat())
+}
+fn decrypt_mfa_secret(state: &AppState, data: &[u8]) -> Result<Vec<u8>, ()> {
+    if data.len()<13 { return Err(()); }
+    let key=Sha256::digest(state.mfa_encryption_key.as_bytes());
+    let cipher=Aes256Gcm::new_from_slice(&key).map_err(|_| ())?;
+    cipher.decrypt(Nonce::from_slice(&data[..12]), &data[12..]).map_err(|_| ())
+}
+
+pub async fn verify_email(State(state): State<AppState>, Json(input): Json<OneTimeTokenRequest>) -> Response {
+    if input.token.len()<32 || input.token.len()>256 { return invalid(); }
+    let mut tx=match state.pool.begin().await { Ok(tx)=>tx, Err(_)=>return internal() };
+    let user_id=sqlx::query_scalar::<_,String>("UPDATE identity_email_verification_tokens SET consumed_at=NOW() WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>NOW() RETURNING user_id")
+        .bind(token_hash(&input.token)).fetch_optional(&mut *tx).await;
+    let user_id=match user_id { Ok(Some(id))=>id, _=>{let _=tx.rollback().await;return api_error(StatusCode::BAD_REQUEST,"invalid_token","Verification link is invalid or expired");}};
+    if sqlx::query("UPDATE identity_users SET email_verified_at=NOW(),updated_at=NOW() WHERE id=$1").bind(user_id).execute(&mut *tx).await.is_err() { let _=tx.rollback().await; return internal(); }
+    if tx.commit().await.is_err() { return internal(); }
+    Json(serde_json::json!({"status":"email_verified","message":"Email verified. You can now sign in."})).into_response()
+}
+pub async fn resend_verification(State(state): State<AppState>, Json(input): Json<PasswordResetRequest>) -> Response {
+    let email=normalize_email(&input.email);
+    if let Ok(Some((id,verified)))=sqlx::query_as::<_,(String,bool)>("SELECT id,email_verified_at IS NOT NULL FROM identity_users WHERE email=$1").bind(email.clone()).fetch_optional(&state.pool).await {
+        if !verified {
+            if let Ok(token)=create_verification_token(&state,&id).await {
+                let url=format!("{}/verify-email?token={}",state.public_app_url.trim_end_matches('/'),token);
+                let _=send_email(&state,&email,"Verify your EdgeNest email",&format!("<p>Verify your EdgeNest email:</p><p><a href=\"{url}\">Verify email</a></p><p>This link expires in 24 hours.</p>")).await;
+            }
+        }
+    }
+    (StatusCode::ACCEPTED,Json(serde_json::json!({"message":"If this account needs verification, instructions have been sent."}))).into_response()
+}
+pub async fn request_password_reset(State(state): State<AppState>, Json(input): Json<PasswordResetRequest>) -> Response {
+    let email=normalize_email(&input.email);
+    if let Ok(Some((id,active)))=sqlx::query_as::<_,(String,bool)>("SELECT id,is_active FROM identity_users WHERE email=$1").bind(email.clone()).fetch_optional(&state.pool).await {
+        if active {
+            if let Ok(token)=create_password_reset_token(&state,&id).await {
+                let url=format!("{}/reset-password?token={}",state.public_app_url.trim_end_matches('/'),token);
+                let _=send_email(&state,&email,"Reset your EdgeNest password",&format!("<p>Reset your password:</p><p><a href=\"{url}\">Reset password</a></p><p>This link expires in 30 minutes. Ignore this message if you did not request it.</p>")).await;
+            }
+        }
+    }
+    (StatusCode::ACCEPTED,Json(serde_json::json!({"message":"If an account exists for this email, password reset instructions have been sent."}))).into_response()
+}
+pub async fn confirm_password_reset(State(state): State<AppState>, Json(input): Json<PasswordResetConfirmRequest>) -> Response {
+    if input.token.len()<32 || input.new_password.len()<12 || input.new_password.len()>1024 { return invalid(); }
+    let hash=match hash_password(&input.new_password) { Ok(v)=>v,Err(_)=>return internal() };
+    let mut tx=match state.pool.begin().await { Ok(tx)=>tx,Err(_)=>return internal() };
+    let user_id=sqlx::query_scalar::<_,String>("UPDATE identity_password_reset_tokens SET consumed_at=NOW() WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>NOW() RETURNING user_id")
+        .bind(token_hash(&input.token)).fetch_optional(&mut *tx).await;
+    let user_id=match user_id {Ok(Some(id))=>id,_=>{let _=tx.rollback().await;return api_error(StatusCode::BAD_REQUEST,"invalid_token","Password reset link is invalid or expired");}};
+    if sqlx::query("UPDATE identity_users SET password_hash=$2,updated_at=NOW() WHERE id=$1").bind(&user_id).bind(hash).execute(&mut *tx).await.is_err()
+        || sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL").bind(user_id).execute(&mut *tx).await.is_err() {
+        let _=tx.rollback().await;return internal();
+    }
+    if tx.commit().await.is_err(){return internal();}
+    Json(serde_json::json!({"status":"password_reset","message":"Password reset successful. Sign in again."})).into_response()
+}
+pub async fn mfa_setup(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let claims=match state.jwt.authenticate(&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
+    let enabled=sqlx::query_scalar::<_,bool>("SELECT mfa_enabled FROM identity_users WHERE id=$1").bind(&claims.sub).fetch_optional(&state.pool).await.unwrap_or(None).unwrap_or(false);
+    if enabled { return api_error(StatusCode::CONFLICT,"mfa_enabled","MFA is already enabled"); }
+    let mut secret=[0u8;20];OsRng.fill_bytes(&mut secret);
+    let encrypted=match encrypt_mfa_secret(&state,&secret){Ok(v)=>v,Err(_)=>return internal()};
+    if sqlx::query("UPDATE identity_users SET mfa_secret_encrypted=$2 WHERE id=$1").bind(&claims.sub).bind(encrypted).execute(&state.pool).await.is_err(){return internal();}
+    let encoded=base32_encode(&secret);
+    let email=sqlx::query_scalar::<_,String>("SELECT email FROM identity_users WHERE id=$1").bind(&claims.sub).fetch_one(&state.pool).await.unwrap_or_default();
+    let uri=format!("otpauth://totp/EdgeNest:{}?secret={}&issuer=EdgeNest&algorithm=SHA1&digits=6&period=30",email,encoded);
+    Json(serde_json::json!({"secret":encoded,"otpauth_uri":uri,"message":"Add this secret to your authenticator app, then confirm with a current code."})).into_response()
+}
+pub async fn mfa_confirm(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<TotpRequest>) -> Response {
+    let claims=match state.jwt.authenticate(&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
+    let encrypted=sqlx::query_scalar::<_,Option<Vec<u8>>>("SELECT mfa_secret_encrypted FROM identity_users WHERE id=$1").bind(&claims.sub).fetch_optional(&state.pool).await.unwrap_or(None).flatten();
+    let Some(encrypted)=encrypted else{return api_error(StatusCode::BAD_REQUEST,"mfa_not_setup","Start MFA setup first")};
+    let secret=match decrypt_mfa_secret(&state,&encrypted){Ok(v)=>v,Err(_)=>return internal()};
+    if !verify_totp(&secret,&input.code){return api_error(StatusCode::BAD_REQUEST,"invalid_code","Authenticator code is invalid");}
+    let mut codes=Vec::new();
+    for _ in 0..10 { let code=random_token()[..12].to_owned(); codes.push(code); }
+    let mut tx=match state.pool.begin().await{Ok(tx)=>tx,Err(_)=>return internal()};
+    if sqlx::query("UPDATE identity_users SET mfa_enabled=TRUE WHERE id=$1").bind(&claims.sub).execute(&mut *tx).await.is_err(){let _=tx.rollback().await;return internal();}
+    for code in &codes { if sqlx::query("INSERT INTO identity_mfa_recovery_codes(id,user_id,code_hash) VALUES($1,$2,$3)").bind(uuid::Uuid::new_v4().to_string()).bind(&claims.sub).bind(token_hash(code)).execute(&mut *tx).await.is_err(){let _=tx.rollback().await;return internal();} }
+    if tx.commit().await.is_err(){return internal();}
+    Json(serde_json::json!({"status":"mfa_enabled","recovery_codes":codes,"warning":"Save these recovery codes now. They are shown only once."})).into_response()
+}
+pub async fn mfa_disable(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<TotpRequest>) -> Response {
+    let claims=match state.jwt.authenticate(&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
+    let encrypted=sqlx::query_scalar::<_,Option<Vec<u8>>>("SELECT mfa_secret_encrypted FROM identity_users WHERE id=$1").bind(&claims.sub).fetch_optional(&state.pool).await.unwrap_or(None).flatten();
+    let Some(encrypted)=encrypted else{return unauthorized()};
+    let secret=match decrypt_mfa_secret(&state,&encrypted){Ok(v)=>v,Err(_)=>return internal()};
+    if !verify_totp(&secret,&input.code){return api_error(StatusCode::UNAUTHORIZED,"invalid_code","Authenticator code is invalid");}
+    if sqlx::query("UPDATE identity_users SET mfa_enabled=FALSE,mfa_secret_encrypted=NULL WHERE id=$1").bind(&claims.sub).execute(&state.pool).await.is_err(){return internal();}
+    let _=sqlx::query("DELETE FROM identity_mfa_recovery_codes WHERE user_id=$1").bind(&claims.sub).execute(&state.pool).await;
+    Json(serde_json::json!({"status":"mfa_disabled"})).into_response()
+}
+pub async fn mfa_verify_login(State(state): State<AppState>, Json(input): Json<MfaLoginRequest>) -> Response {
+    let claims=match state.jwt.verify(&input.challenge_token){Ok(v)=>v,Err(_)=>return unauthorized()};
+    if claims.token_type!="mfa_challenge" || claims.sub.trim().is_empty(){return unauthorized();}
+    let encrypted=sqlx::query_scalar::<_,Option<Vec<u8>>>("SELECT mfa_secret_encrypted FROM identity_users WHERE id=$1 AND mfa_enabled=TRUE AND is_active=TRUE AND email_verified_at IS NOT NULL").bind(&claims.sub).fetch_optional(&state.pool).await.unwrap_or(None).flatten();
+    let Some(encrypted)=encrypted else{return unauthorized()};
+    let secret=match decrypt_mfa_secret(&state,&encrypted){Ok(v)=>v,Err(_)=>return internal()};
+    let valid_totp=verify_totp(&secret,&input.code);
+    let mut valid=valid_totp;
+    if !valid_totp {
+        let hash=token_hash(&input.code);
+        let consumed=sqlx::query("UPDATE identity_mfa_recovery_codes SET used_at=NOW() WHERE user_id=$1 AND code_hash=$2 AND used_at IS NULL").bind(&claims.sub).bind(hash).execute(&state.pool).await;
+        valid=consumed.is_ok_and(|r|r.rows_affected()==1);
+    }
+    if !valid{return unauthorized();}
+    let user=sqlx::query_as::<_,(String,String,String)>("SELECT id,email,display_name FROM identity_users WHERE id=$1").bind(&claims.sub).fetch_one(&state.pool).await;
+    let (id,email,display_name)=match user{Ok(v)=>v,Err(_)=>return internal()};
+    match issue_pair(&state,UserView{id,email,display_name}).await{Ok(pair)=>set_refresh_cookie(Json(pair.response).into_response(),&pair.refresh_token,state.refresh_ttl_days),Err(())=>internal()}
+}
+pub async fn jwks() -> Response {
+    // The current RSA public key is published as a JWK by the configured issuer.
+    api_error(StatusCode::NOT_IMPLEMENTED,"jwks_not_configured","JWKS key-ring support is being configured")
+}
