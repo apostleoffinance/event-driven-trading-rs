@@ -154,6 +154,68 @@ class ReadOnlyTerminalView:
         return symbol in self._allowed_symbols
 
 
+def validate_persisted_state(
+    config: Config,
+    expected_currency: str,
+    persisted: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    max_age_seconds: int = 60,
+    future_tolerance_seconds: int = 5,
+    expected_source: str = "mt5_macos_mql5_socket_v1",
+) -> tuple[int, datetime, datetime]:
+    """Validate fresh, identity-bound persisted market/reconciliation snapshots.
+
+    This is deliberately independent of the terminal and PostgreSQL so contract
+    tests can exercise the release gate deterministically. It never marks a
+    stream ready; it only validates evidence already persisted by the worker.
+    """
+    if max_age_seconds < 1 or future_tolerance_seconds < 0:
+        raise AdapterError("snapshot freshness policy is invalid")
+    if not isinstance(persisted, dict):
+        raise AdapterError("persisted MT5 snapshot state is invalid")
+    required = (
+        "market_sequence", "market_captured_at", "market_source",
+        "market_account_currency", "market_server", "reconciliation_sequence",
+        "reconciliation_captured_at", "reconciliation_source",
+        "reconciliation_currency", "reconciliation_server",
+    )
+    if any(persisted.get(key) is None for key in required):
+        raise AdapterError("market-data/reconciliation snapshots are incomplete")
+
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise AdapterError("snapshot validation time must be timezone-aware")
+    current = current.astimezone(timezone.utc)
+    market_at = parse_time(persisted["market_captured_at"], "market_captured_at")
+    recon_at = parse_time(persisted["reconciliation_captured_at"], "reconciliation_captured_at")
+    for field, captured_at in (("market", market_at), ("reconciliation", recon_at)):
+        age = (current - captured_at).total_seconds()
+        if age > max_age_seconds or age < -future_tolerance_seconds:
+            raise AdapterError(f"latest persisted {field} snapshot is stale or future-dated")
+
+    if persisted["market_source"] != expected_source or persisted["reconciliation_source"] != expected_source:
+        raise AdapterError("persisted snapshots do not identify the expected MT5 provider")
+    if persisted["market_server"] != config.server or persisted["reconciliation_server"] != config.server:
+        raise AdapterError("persisted terminal server identity does not match configured server")
+    if (
+        persisted["market_account_currency"] != expected_currency
+        or persisted["reconciliation_currency"] != expected_currency
+    ):
+        raise AdapterError("persisted account currency does not match expected demo currency")
+
+    try:
+        market_sequence = int(persisted["market_sequence"])
+        reconciliation_sequence = int(persisted["reconciliation_sequence"])
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise AdapterError("persisted snapshot sequence is invalid") from exc
+    if market_sequence <= 0 or reconciliation_sequence <= 0:
+        raise AdapterError("persisted snapshot sequence must be positive")
+    if market_sequence != reconciliation_sequence:
+        raise AdapterError("latest market-data and reconciliation snapshots do not share the same sequence")
+    return market_sequence, market_at, recon_at
+
+
 def smoke(timeout_seconds: int, persisted_only: bool = False) -> dict[str, Any]:
     config = Config.from_env()
     expected_currency = os.environ.get("MT5_EXPECTED_ACCOUNT_CURRENCY", "")
@@ -193,25 +255,12 @@ def smoke(timeout_seconds: int, persisted_only: bool = False) -> dict[str, Any]:
     # connection: the Rust daemon intentionally accepts one active worker stream.
     verify_tls_configuration(config)
     persisted = latest_persisted_state(config, timeout_seconds)
-    now = datetime.now(timezone.utc)
-    market_at = parse_time(persisted["market_captured_at"], "market_captured_at")
-    recon_at = parse_time(persisted["reconciliation_captured_at"], "reconciliation_captured_at")
-    for field, captured_at in (("market", market_at), ("reconciliation", recon_at)):
-        if (now - captured_at).total_seconds() > 60 or (captured_at - now).total_seconds() > 5:
-            raise AdapterError(f"latest persisted {field} snapshot is stale or future-dated")
-
-    expected_source = "mt5_macos_mql5_socket_v1"
-    if persisted["market_source"] != expected_source or persisted["reconciliation_source"] != expected_source:
-        raise AdapterError("persisted snapshots do not identify the native macOS MQL5 provider")
-    if persisted["market_server"] != config.server or persisted["reconciliation_server"] != config.server:
-        raise AdapterError("persisted terminal server identity does not match configured server")
-    if (
-        persisted["market_account_currency"] != expected_currency
-        or persisted["reconciliation_currency"] != expected_currency
-    ):
-        raise AdapterError("persisted account currency does not match expected demo currency")
-    if int(persisted["market_sequence"]) != int(persisted["reconciliation_sequence"]):
-        raise AdapterError("latest market-data and reconciliation snapshots do not share the same sequence")
+    sequence, market_at, recon_at = validate_persisted_state(
+        config,
+        expected_currency,
+        persisted,
+        now=datetime.now(timezone.utc),
+    )
 
     return {
         "schema_version": 1,
