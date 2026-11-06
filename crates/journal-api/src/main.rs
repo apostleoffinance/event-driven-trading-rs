@@ -1,11 +1,16 @@
 use std::{env, net::SocketAddr};
 
-use axum::{http::{header, HeaderValue, Method}, routing::get, Router};
+use axum::{
+    http::{header, HeaderValue, Method},
+    routing::get,
+    Router,
+};
 use persistence::{connect, migrate, TradingStore};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod auth;
 mod http;
+mod resources;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -68,12 +73,23 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT]);
 
     let app = Router::new()
         .route("/healthz", get(http::health))
         .route("/readyz", get(http::ready))
+        .route("/api/v1/journal/accounts", get(resources::list_accounts).post(resources::create_account))
+        .route("/api/v1/journal/accounts/:id", get(resources::get_account).put(resources::update_account).patch(resources::update_account).delete(resources::archive_account))
+        .route("/api/v1/journal/setups", get(resources::list_setups).post(resources::create_setup))
+        .route("/api/v1/journal/setups/:id", get(resources::get_setup).put(resources::update_setup).patch(resources::update_setup).delete(resources::archive_setup))
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route("/api/v1/journal/trades/:trade_id", get(http::get_one).put(http::replace).patch(http::replace).delete(http::delete))
         .with_state(state)
@@ -84,10 +100,13 @@ async fn main() {
         std::process::exit(2);
     });
     tracing::info!(%bind, "EdgeNest Journal API listening");
-    axum::serve(listener, app).with_graceful_shutdown(async {
-        let _ = tokio::signal::ctrl_c().await;
-    }).await.unwrap_or_else(|e| {
-        eprintln!("server error: {e}");
-        std::process::exit(1);
-    });
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+        })
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("server error: {e}");
+            std::process::exit(1);
+        });
 }
