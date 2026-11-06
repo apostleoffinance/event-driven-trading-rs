@@ -45,7 +45,7 @@ async fn health() -> &'static str {
 }
 
 async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Response<Body> {
-    let path = request.uri().path();
+    let path = request.uri().path().to_owned();
     let target = if path.starts_with("/api/v1/auth/") {
         "http://127.0.0.1:8081"
     } else if path.starts_with("/api/v1/journal/") {
