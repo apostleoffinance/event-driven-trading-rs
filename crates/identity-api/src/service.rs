@@ -72,9 +72,11 @@ impl JwtService {
         let decoding = DecodingKey::from_rsa_pem(public_pem)
             .map_err(|e| format!("invalid public RSA PEM: {e}"))?;
         let active_public_pem = std::str::from_utf8(public_pem).map_err(|e| e.to_string())?;
-        let active_rsa = RsaPublicKey::from_public_key_pem(active_public_pem)
-            .or_else(|_| RsaPublicKey::from_pkcs1_pem(active_public_pem))
-            .map_err(|e| format!("invalid active RSA public key: {e}"))?;
+        let active_rsa = match RsaPublicKey::from_public_key_pem(active_public_pem) {
+            Ok(key) => key,
+            Err(_) => RsaPublicKey::from_pkcs1_pem(active_public_pem)
+                .map_err(|e| format!("invalid active RSA public key: {e}"))?,
+        };
         if active_rsa.n().bits() < 2048 { return Err("RSA signing key must be at least 2048 bits".into()); }
         let private_pem = std::str::from_utf8(private_pem).map_err(|e| e.to_string())?;
         let private_rsa = match RsaPrivateKey::from_pkcs8_pem(private_pem) {
@@ -107,9 +109,11 @@ impl JwtService {
             let pem = key.pem.replace("\\n", "\n");
             let decoder = DecodingKey::from_rsa_pem(pem.as_bytes())
                 .map_err(|e| format!("invalid public PEM for kid {}: {e}", key.kid))?;
-            let rsa_key = RsaPublicKey::from_public_key_pem(&pem)
-                .or_else(|_| RsaPublicKey::from_pkcs1_pem(&pem))
-                .map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?;
+            let rsa_key = match RsaPublicKey::from_public_key_pem(&pem) {
+                Ok(key) => key,
+                Err(_) => RsaPublicKey::from_pkcs1_pem(&pem)
+                    .map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?,
+            };
             if rsa_key.n().bits() < 2048 { return Err(format!("RSA public key {} must be at least 2048 bits", key.kid)); }
             if key.kid == active_kid
                 && (rsa_key.n() != active_rsa.n() || rsa_key.e() != active_rsa.e())
