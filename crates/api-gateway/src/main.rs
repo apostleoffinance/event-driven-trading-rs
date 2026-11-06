@@ -4,11 +4,15 @@ use axum::{
     body::Body,
     extract::State,
     http::{header, Request, Response, StatusCode},
+    response::IntoResponse,
     routing::get,
     Router,
 };
 use reqwest::Client;
-use tokio::{process::{Child, Command}, time::sleep};
+use tokio::{
+    process::{Child, Command},
+    time::sleep,
+};
 
 #[derive(Clone)]
 struct GatewayState {
@@ -17,9 +21,14 @@ struct GatewayState {
 
 fn start_child(name: &str, executable: &str, bind_key: &str, bind: &str) -> Child {
     let mut command = Command::new(executable);
-    command.env(bind_key, bind).stdin(Stdio::null()).stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    command
+        .env(bind_key, bind)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
     if let Some(cors) = env::var_os("EDGENEST_CORS_ORIGINS") {
-        command.env("IDENTITY_CORS_ORIGINS", &cors)
+        command
+            .env("IDENTITY_CORS_ORIGINS", &cors)
             .env("JOURNAL_CORS_ORIGINS", &cors)
             .env("MARKET_DATA_CORS_ORIGINS", &cors);
     }
@@ -48,7 +57,15 @@ async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Res
     };
 
     let (parts, body) = request.into_parts();
-    let uri = format!("{target}{}{}", parts.uri.path(), parts.uri.query().map(|q| format!("?{q}")).unwrap_or_default());
+    let uri = format!(
+        "{target}{}{}",
+        parts.uri.path(),
+        parts
+            .uri
+            .query()
+            .map(|q| format!("?{q}"))
+            .unwrap_or_default()
+    );
     let mut upstream = state.client.request(parts.method, uri);
     for (name, value) in parts.headers.iter() {
         if name != header::HOST && name != header::CONNECTION && name != header::TRANSFER_ENCODING {
@@ -58,7 +75,13 @@ async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Res
 
     let body = match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
         Ok(body) => body,
-        Err(_) => return (StatusCode::BAD_REQUEST, "request body too large or unreadable").into_response(),
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "request body too large or unreadable",
+            )
+                .into_response()
+        }
     };
     let upstream = match upstream.body(body).send().await {
         Ok(response) => response,
@@ -72,7 +95,9 @@ async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Res
     let headers = upstream.headers().clone();
     let bytes = match upstream.bytes().await {
         Ok(bytes) => bytes,
-        Err(_) => return (StatusCode::BAD_GATEWAY, "failed to read upstream response").into_response(),
+        Err(_) => {
+            return (StatusCode::BAD_GATEWAY, "failed to read upstream response").into_response()
+        }
     };
     let mut response = Response::builder().status(status);
     for (name, value) in headers.iter() {
@@ -81,30 +106,53 @@ async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Res
         }
     }
     response.body(Body::from(bytes)).unwrap_or_else(|_| {
-        (StatusCode::INTERNAL_SERVER_ERROR, "failed to construct response").into_response()
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to construct response",
+        )
+            .into_response()
     })
 }
-
-use axum::response::IntoResponse;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "api_gateway=info".into()))
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "api_gateway=info".into()),
+        )
         .init();
 
     // Keep API processes on loopback; only this gateway is internet-facing.
-    let mut identity = start_child("identity-api", "./target/release/identity-api", "IDENTITY_API_BIND", "127.0.0.1:8081");
-    let mut journal = start_child("journal-api", "./target/release/journal-api", "JOURNAL_API_BIND", "127.0.0.1:8080");
-    let mut market = start_child("market-data-api", "./target/release/market-data-api", "MARKET_DATA_BIND", "127.0.0.1:8787");
+    let mut identity = start_child(
+        "identity-api",
+        "./target/release/identity-api",
+        "IDENTITY_API_BIND",
+        "127.0.0.1:8081",
+    );
+    let mut journal = start_child(
+        "journal-api",
+        "./target/release/journal-api",
+        "JOURNAL_API_BIND",
+        "127.0.0.1:8080",
+    );
+    let mut market = start_child(
+        "market-data-api",
+        "./target/release/market-data-api",
+        "MARKET_DATA_BIND",
+        "127.0.0.1:8787",
+    );
 
     // Give services a brief opportunity to start; readiness endpoints are exposed via the gateway.
     sleep(Duration::from_millis(500)).await;
 
-    let client = Client::builder().timeout(Duration::from_secs(30)).build().unwrap_or_else(|e| {
-        eprintln!("failed to create gateway HTTP client: {e}");
-        std::process::exit(1);
-    });
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap_or_else(|e| {
+            eprintln!("failed to create gateway HTTP client: {e}");
+            std::process::exit(1);
+        });
     let app = Router::new()
         .route("/healthz", get(health))
         .fallback(proxy)
