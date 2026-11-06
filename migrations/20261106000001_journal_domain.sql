@@ -105,7 +105,7 @@ CREATE INDEX IF NOT EXISTS idx_journal_trades_setup
 CREATE INDEX IF NOT EXISTS idx_journal_trades_symbol
     ON journal_trades(owner_id, symbol, opened_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_journal_trades_source
-    ON journal_trades(source_system, source_trade_id)
+    ON journal_trades(journal_account_id, source_system, source_trade_id)
     WHERE source_system IS NOT NULL AND source_trade_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS journal_screenshots (
