@@ -1,6 +1,7 @@
 "use client";
 
-import { apiRequest } from "@/lib/api/client";
+import { apiBaseUrl, apiRequest } from "@/lib/api/client";
+const identityBaseUrl = () => apiBaseUrl("identity");
 
 type AuthPayload = {
   token_type: "Bearer";
@@ -39,14 +40,14 @@ export function clearSession(): void {
 }
 export async function login(email: string, password: string): Promise<SessionUser> {
   const payload = await apiRequest<AuthPayload>("/api/v1/auth/login", {
-    method: "POST", auth: false, retryAuth: false, body: JSON.stringify({ email, password }),
+    method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(), body: JSON.stringify({ email, password }),
   });
   writeSession(payload);
   return payload.user;
 }
 export async function register(email: string, display_name: string, password: string): Promise<SessionUser> {
   const payload = await apiRequest<AuthPayload>("/api/v1/auth/register", {
-    method: "POST", auth: false, retryAuth: false, body: JSON.stringify({ email, display_name, password }),
+    method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(), body: JSON.stringify({ email, display_name, password }),
   });
   writeSession(payload);
   return payload.user;
@@ -60,7 +61,7 @@ export async function refreshSession(): Promise<boolean> {
   refreshInFlight = (async () => {
     try {
       const payload = await apiRequest<AuthPayload>("/api/v1/auth/refresh", {
-        method: "POST", auth: false, retryAuth: false,
+        method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(),
         body: JSON.stringify({ refresh_token: session.refresh_token }),
       });
       writeSession(payload);
@@ -77,12 +78,12 @@ export async function logout(): Promise<void> {
   try {
     if (session?.refresh_token) {
       await apiRequest<void>("/api/v1/auth/logout", {
-        method: "POST", auth: false, retryAuth: false,
+        method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(),
         body: JSON.stringify({ refresh_token: session.refresh_token }),
       });
     }
   } finally { clearSession(); }
 }
 export async function getCurrentUser(): Promise<SessionUser> {
-  return apiRequest<{ user: SessionUser }>("/api/v1/auth/me").then((r) => r.user);
+  return apiRequest<{ data: SessionUser }>("/api/v1/auth/me", { baseUrl: identityBaseUrl() }).then((r) => r.data);
 }
