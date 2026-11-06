@@ -61,6 +61,7 @@ pub struct Mt5ReconciliationSnapshot {
 /// Adapter contract for fetching an authoritative account/order/position snapshot
 /// from the authenticated MT5 EA/client. Production implementations must query the
 /// venue rather than return cached strategy state or a locally inferred position set.
+#[allow(clippy::double_must_use)]
 #[async_trait::async_trait]
 pub trait Mt5ReconciliationSource: Send + Sync {
     async fn fetch_snapshot(
