@@ -306,10 +306,12 @@ pub async fn register(
         }
         Err(_) => return internal(),
     };
-    match issue_pair(&state, user).await {
-        Ok(tokens) => set_refresh_cookie((StatusCode::CREATED, Json(tokens.response)).into_response(), &tokens.refresh_token, state.refresh_ttl_days),
-        Err(()) => internal(),
+    let token = match create_verification_token(&state, &user.id).await { Ok(v)=>v, Err(())=>return internal() };
+    let verify_url=format!("{}/verify-email?token={}",state.public_app_url.trim_end_matches('/'),token);
+    if send_email(&state,&user.email,"Verify your EdgeNest email",&format!("<p>Welcome to EdgeNest.</p><p><a href=\"{verify_url}\">Verify your email address</a></p><p>This link expires in 24 hours.</p>")).await.is_err() {
+        return api_error(StatusCode::SERVICE_UNAVAILABLE,"email_delivery_unavailable","Registration was created, but verification email delivery is temporarily unavailable. Use resend verification.");
     }
+    (StatusCode::CREATED,Json(serde_json::json!({"status":"verification_required","message":"Check your email to verify your EdgeNest account."}))).into_response()
 }
 
 pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest>) -> Response {
