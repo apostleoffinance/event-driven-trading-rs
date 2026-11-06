@@ -1,0 +1,48 @@
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { frontendConfig } from "@/config/frontend";
+import { marketDataApi } from "@/lib/api/market-data";
+import { PageHeader } from "@/components/layout/PageHeader";
+
+export default function MarketDataPage() {
+  const [instrument, setInstrument] = useState("EURUSD");
+  const [timeframe, setTimeframe] = useState("1m");
+  const [provider, setProvider] = useState("mt5_bridge");
+  const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "1m", provider: "mt5_bridge" });
+
+  const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers(), enabled: frontendConfig.dataMode === "api" });
+  const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: frontendConfig.dataMode === "api" });
+  const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: frontendConfig.dataMode === "api" && Boolean(submitted.instrument) });
+
+  if (frontendConfig.dataMode !== "api") {
+    return <div><PageHeader title="Market Data" description="Read-only Rust Market Data service." /><section className="panel"><h2>API mode disabled</h2><p>Set NEXT_PUBLIC_DATA_MODE=api and the Market Data API origin. No mock candles are displayed on this page.</p></section></div>;
+  }
+
+  const error = providers.error ?? instruments.error ?? candles.error;
+  const candleData = candles.data;
+  return <div>
+    <PageHeader title="Market Data" description="Read-only provider registry, instrument metadata, and candle retrieval from Rust API." />
+    {error ? <section className="panel error" role="alert"><h2>Market Data API error</h2><p>{error instanceof Error ? error.message : "Unable to load market data."}</p><p>Verify service URL, provider configuration, CORS, and service readiness.</p><button className="btn" onClick={() => { void providers.refetch(); void instruments.refetch(); void candles.refetch(); }}>Retry</button></section> : null}
+    <section className="panel">
+      <h2 className="panel-title">CANDLE QUERY</h2>
+      <form onSubmit={e => { e.preventDefault(); setSubmitted({ instrument, timeframe, provider }); }} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+        <label className="journal-field"><span>Instrument</span><select value={instrument} onChange={e => setInstrument(e.target.value)}>{(instruments.data ?? []).map(i => <option key={i.id} value={i.id}>{i.symbol ?? i.id}</option>)}</select></label>
+        <label className="journal-field"><span>Timeframe</span><select value={timeframe} onChange={e => setTimeframe(e.target.value)}>{["1m","5m","15m","1h","4h","1d"].map(t => <option key={t}>{t}</option>)}</select></label>
+        <label className="journal-field"><span>Provider</span><select value={provider} onChange={e => setProvider(e.target.value)}>{(providers.data ?? []).map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}</select></label>
+        <button className="btn primary" type="submit" disabled={providers.isLoading || instruments.isLoading}>Fetch candles</button>
+      </form>
+      {providers.isLoading || instruments.isLoading ? <p>Loading provider/instrument registry…</p> : null}
+    </section>
+    <div className="grid grid-kpi" style={{ marginTop: 12 }}>
+      <section className="panel"><div className="metric"><span className="metric-label">Candles returned</span><span className="metric-value">{candles.isLoading ? "…" : candleData?.count ?? "—"}</span></div></section>
+      <section className="panel"><div className="metric"><span className="metric-label">Data classification</span><span className="metric-value">{candleData?.classification ?? "—"}</span><span className="metric-sub">Inspect classification before using data</span></div></section>
+      <section className="panel"><div className="metric"><span className="metric-label">Last updated (UTC)</span><span className="metric-value" style={{ fontSize: 14 }}>{candleData?.last_updated_at ?? "—"}</span><span className="metric-sub">{candleData?.freshness ? JSON.stringify(candleData.freshness) : ""}</span></div></section>
+    </div>
+    <section className="panel" style={{ marginTop: 12 }}><h2 className="panel-title">LATEST CANDLES</h2>
+      {candles.isLoading ? <p>Fetching candles…</p> : candleData?.candles?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Time</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead><tbody>{candleData.candles.slice(-30).reverse().map((c, i) => <tr key={String(c.timestamp_ms ?? c.timestamp ?? i)}><td>{String(c.timestamp_ms ?? c.timestamp ?? c.time ?? "—")}</td><td className="num">{c.open}</td><td className="num">{c.high}</td><td className="num">{c.low}</td><td className="num">{c.close}</td><td className="num">{c.volume ?? "—"}</td></tr>)}</tbody></table></div> : !error ? <p>No candles returned for the selected instrument/provider. Provider status and classification determine whether the source is available.</p> : null}
+    </section>
+    <section className="panel" style={{ marginTop: 12 }}><h2 className="panel-title">PROVIDER REGISTRY</h2>{providers.data?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Provider</th><th>State</th></tr></thead><tbody>{providers.data.map(p => <tr key={p.id}><td>{p.name ?? p.id}</td><td>{p.status ? JSON.stringify(p.status) : "—"}</td></tr>)}</tbody></table></div> : !providers.isLoading ? <p>No providers returned.</p> : null}</section>
+  </div>;
+}
