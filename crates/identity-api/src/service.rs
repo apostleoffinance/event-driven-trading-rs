@@ -457,10 +457,8 @@ mod tests {
     #[test]
     fn passwords_are_argon2_hashed_and_verified() {
         let password = "correct horse battery staple";
-        let hash = match hash_password(password) {
-            Ok(hash) => hash,
-            Err(error) => panic!("password hashing failed: {error}"),
-        };
+        let hash = hash_password(password).unwrap_or_default();
+        assert!(!hash.is_empty());
         assert_ne!(hash, password);
         assert!(verify_password(password, &hash));
         assert!(!verify_password("incorrect password", &hash));
