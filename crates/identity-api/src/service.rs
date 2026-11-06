@@ -1121,3 +1121,33 @@ pub async fn mfa_verify_login(
 pub async fn jwks(State(state): State<AppState>) -> Response {
     Json(state.jwt.jwks().clone()).into_response()
 }
+
+#[cfg(test)]
+mod security_tests {
+    use super::*;
+
+    #[test]
+    fn totp_matches_current_rfc6238_window() {
+        let secret = b"edge-nest-test-secret";
+        let timestamp = Utc::now().timestamp().max(0) as u64;
+        let code = totp_code(secret, timestamp);
+        assert!(verify_totp(secret, &code));
+        assert!(!verify_totp(secret, "abcdef"));
+        assert!(!verify_totp(secret, "12345"));
+    }
+
+    #[test]
+    fn base32_secret_has_no_padding_and_valid_alphabet() {
+        let encoded = base32_encode(&[0xFF, 0x00, 0x10, 0x20]);
+        assert!(!encoded.contains('='));
+        assert!(encoded.chars().all(|c| c.is_ascii_uppercase() || ('2'..='7').contains(&c)));
+    }
+
+    #[test]
+    fn one_time_token_hash_is_not_raw_token() {
+        let token = random_token();
+        let digest = token_hash(&token);
+        assert_ne!(digest, token);
+        assert_eq!(digest.len(), 64);
+    }
+}
