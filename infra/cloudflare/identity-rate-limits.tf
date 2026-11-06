@@ -11,7 +11,7 @@ resource "cloudflare_ruleset" "edgenest_identity_rate_limits" {
       description = "Login and MFA challenge brute-force protection"
       enabled     = true
       action      = "block"
-      expression  = "(http.request.method eq \"POST\" and http.request.uri.path in {\"/api/v1/auth/login\" \"/api/v1/auth/mfa/verify-login\"})"
+      expression  = "(http.request.method eq \"POST\" and http.request.uri.path in {\"/api/v1/auth/login\" \"/api/v1/auth/mfa/verify-login\" \"/api/v1/auth/mfa/confirm\" \"/api/v1/auth/mfa/disable\"})"
       ratelimit = {
         characteristics     = ["cf.colo.id", "ip.src"]
         period              = 60
