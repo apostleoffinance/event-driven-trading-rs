@@ -13,7 +13,7 @@
 # testing
 /coverage
 
-# next.js
+# Next.js
 /.next/
 /out/
 
@@ -30,13 +30,20 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 !.env.example
+!.dev.vars.example
+.dev.vars
 
-# vercel
+# Vercel
 .vercel
 
-# typescript
+# Cloudflare
+/.wrangler/
+/.open-next/
+cloudflare-env.d.ts
+
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
