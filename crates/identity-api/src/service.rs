@@ -1042,27 +1042,19 @@ pub async fn mfa_confirm(
     .unwrap_or(None)
     .flatten();
     let Some(encrypted) = encrypted else {
-        return api_error(
-            StatusCode::BAD_REQUEST,
-            "mfa_not_setup",
-            "Start MFA setup first",
-        );
+        return api_error(StatusCode::BAD_REQUEST, "mfa_not_setup", "Start MFA setup first");
     };
     let secret = match decrypt_mfa_secret(&state, &encrypted) {
         Ok(v) => v,
         Err(_) => return internal(),
     };
     if !verify_totp(&secret, &input.code) {
-        return api_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_code",
-            "Authenticator code is invalid",
-        );
+        return api_error(StatusCode::BAD_REQUEST, "invalid_code", "Authenticator code is invalid");
     }
+
     let mut codes = Vec::new();
     for _ in 0..10 {
-        let code = random_token()[..32].to_owned();
-        codes.push(code);
+        codes.push(random_token()[..32].to_owned());
     }
     let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
@@ -1078,25 +1070,59 @@ pub async fn mfa_confirm(
         return internal();
     }
     for code in &codes {
-        if sqlx::query(
-            "INSERT INTO identity_mfa_recovery_codes(id,user_id,code_hash) VALUES($1,$2,$3)",
-        )
-        .bind(uuid::Uuid::new_v4().to_string())
-        .bind(&claims.sub)
-        .bind(token_hash(code))
-        .execute(&mut *tx)
-        .await
-        .is_err()
+        if sqlx::query("INSERT INTO identity_mfa_recovery_codes(id,user_id,code_hash) VALUES($1,$2,$3)")
+            .bind(uuid::Uuid::new_v4().to_string())
+            .bind(&claims.sub)
+            .bind(token_hash(code))
+            .execute(&mut *tx)
+            .await
+            .is_err()
         {
             let _ = tx.rollback().await;
             return internal();
         }
     }
+    // Revoke pre-MFA sessions. A fresh session is issued below after the user
+    // has proven possession of the authenticator.
+    if sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL")
+        .bind(&claims.sub)
+        .execute(&mut *tx)
+        .await
+        .is_err()
+    {
+        let _ = tx.rollback().await;
+        return internal();
+    }
     if tx.commit().await.is_err() {
         return internal();
     }
-    Json(serde_json::json!({"status":"mfa_enabled","recovery_codes":codes,"warning":"Save these recovery codes now. They are shown only once."})).into_response()
+
+    let user = sqlx::query_as::<_, (String, String, String)>(
+        "SELECT id,email,display_name FROM identity_users WHERE id=$1",
+    )
+    .bind(&claims.sub)
+    .fetch_one(&state.pool)
+    .await;
+    let (id, email, display_name) = match user {
+        Ok(value) => value,
+        Err(_) => return internal(),
+    };
+    let pair = match issue_pair(&state, UserView { id, email, display_name }).await {
+        Ok(value) => value,
+        Err(()) => return internal(),
+    };
+    let body = serde_json::json!({
+        "status":"mfa_enabled",
+        "recovery_codes":codes,
+        "warning":"Save these recovery codes now. They are shown only once.",
+        "token_type":pair.response.token_type,
+        "access_token":pair.response.access_token,
+        "expires_in":pair.response.expires_in,
+        "user":pair.response.user
+    });
+    set_refresh_cookie(Json(body).into_response(), &pair.refresh_token, state.refresh_ttl_days)
 }
+
 pub async fn mfa_disable(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1114,36 +1140,66 @@ pub async fn mfa_disable(
     .await
     .unwrap_or(None)
     .flatten();
-    let Some(encrypted) = encrypted else {
-        return unauthorized();
-    };
+    let Some(encrypted) = encrypted else { return unauthorized(); };
     let secret = match decrypt_mfa_secret(&state, &encrypted) {
         Ok(v) => v,
         Err(_) => return internal(),
     };
     if !verify_totp(&secret, &input.code) {
-        return api_error(
-            StatusCode::UNAUTHORIZED,
-            "invalid_code",
-            "Authenticator code is invalid",
-        );
+        return api_error(StatusCode::UNAUTHORIZED, "invalid_code", "Authenticator code is invalid");
     }
-    if sqlx::query(
-        "UPDATE identity_users SET mfa_enabled=FALSE,mfa_secret_encrypted=NULL WHERE id=$1",
-    )
-    .bind(&claims.sub)
-    .execute(&state.pool)
-    .await
-    .is_err()
+
+    let mut tx = match state.pool.begin().await {
+        Ok(tx) => tx,
+        Err(_) => return internal(),
+    };
+    if sqlx::query("UPDATE identity_users SET mfa_enabled=FALSE,mfa_secret_encrypted=NULL WHERE id=$1")
+        .bind(&claims.sub)
+        .execute(&mut *tx)
+        .await
+        .is_err()
+        || sqlx::query("DELETE FROM identity_mfa_recovery_codes WHERE user_id=$1")
+            .bind(&claims.sub)
+            .execute(&mut *tx)
+            .await
+            .is_err()
+        || sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND revoked_at IS NULL")
+            .bind(&claims.sub)
+            .execute(&mut *tx)
+            .await
+            .is_err()
     {
+        let _ = tx.rollback().await;
         return internal();
     }
-    let _ = sqlx::query("DELETE FROM identity_mfa_recovery_codes WHERE user_id=$1")
-        .bind(&claims.sub)
-        .execute(&state.pool)
-        .await;
-    Json(serde_json::json!({"status":"mfa_disabled"})).into_response()
+    if tx.commit().await.is_err() {
+        return internal();
+    }
+
+    let user = sqlx::query_as::<_, (String, String, String)>(
+        "SELECT id,email,display_name FROM identity_users WHERE id=$1",
+    )
+    .bind(&claims.sub)
+    .fetch_one(&state.pool)
+    .await;
+    let (id, email, display_name) = match user {
+        Ok(value) => value,
+        Err(_) => return internal(),
+    };
+    let pair = match issue_pair(&state, UserView { id, email, display_name }).await {
+        Ok(value) => value,
+        Err(()) => return internal(),
+    };
+    let body = serde_json::json!({
+        "status":"mfa_disabled",
+        "token_type":pair.response.token_type,
+        "access_token":pair.response.access_token,
+        "expires_in":pair.response.expires_in,
+        "user":pair.response.user
+    });
+    set_refresh_cookie(Json(body).into_response(), &pair.refresh_token, state.refresh_ttl_days)
 }
+
 pub async fn mfa_verify_login(
     State(state): State<AppState>,
     Json(input): Json<MfaLoginRequest>,
