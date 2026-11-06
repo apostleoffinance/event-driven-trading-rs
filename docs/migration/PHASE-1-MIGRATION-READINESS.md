@@ -181,3 +181,49 @@ Phase 1 can be marked **PASS** only when:
 - rollback/backup proof is available.
 
 **Current disposition: NOT PASS / NO-GO for production migration.** Repository source mapping is complete enough to design the integration, but live DB/deployment/auth evidence remains critical. This report intentionally does not claim otherwise.
+
+
+## 9. Live Render evidence update (2026-11-06)
+
+Render was connected after the initial source-only audit. All five accessible Render workspaces were enumerated: `analyticsages-edutech`, `traders-os`, `data-portal`, `IPILE`, and `polaris`.
+
+### TraderOS Render service
+- Service: `traders-os` (`srv-da5ol4bbc2fs739pdgsg`) in workspace `traders-os`.
+- Public service URL: `https://traders-os.onrender.com`.
+- Render reports service not suspended and latest deploy status `live`.
+- Runtime: Docker; Docker context `backend`; Dockerfile `backend/Dockerfile`; region Virginia; Free plan.
+- Render health check path is not configured.
+- Latest Render deployment: `dep-dbehua3ncjis73eab4bg`, commit `c20958479f8053936c5eeeee4352754a4acb0ff0`, deployment completed `2026-10-24T21:13:06Z`.
+- This deployment SHA matches TraderOS GitHub `main` at the time of inspection.
+- Render event history shows build and deploy succeeded on 24 October; no newer service deployment was listed.
+- **Important operational finding:** TraderOS `backend/Dockerfile` runs `alembic upgrade head` before starting Uvicorn. The service therefore attempts to apply Alembic migrations at container startup. This is a production change mechanism, not a read-only startup. Before a cutover or any schema changes, verify the actual DB target and migration state, ensure backup/rollback, and decide whether this behavior is acceptable. Do not trigger redeploys as part of this audit.
+
+### Render database inventory
+- No Render Postgres instance exists in the TraderOS workspace.
+- The only Render Postgres instance found across the enumerated workspaces is `analyticsages-db` in `analyticsages-edutech`. It is unrelated to TraderOS/EdgeNest based on ownership/workspace and was **not queried or modified**.
+- TraderOS database is therefore external to Render or otherwise not represented as a Render Postgres resource. The effective `DATABASE_URL` host and production migration table remain unverified because the Render MCP interface does not expose the service's environment-variable values.
+- Do not infer that it uses the repository's local default database URL. The default in code is a localhost development DSN and must not be treated as production configuration.
+
+### EdgeNest Render inventory
+- No Render service whose repository is `apostleoffinance/event-driven-trading-rs` was found across the accessible workspaces.
+- No EdgeNest-specific Render Postgres resource was found.
+- This establishes only that EdgeNest is not represented as a service/database in the connected Render account workspaces. It may be hosted elsewhere; that host and its deployment revision remain unidentified.
+
+### Live health/log limitations
+- Render's log retrieval returned HTTP 503 (“log retrieval is currently unavailable”) during this audit.
+- The environment’s direct outbound DNS/network probe could not resolve the service host; therefore no independent HTTP response from `/health`, OpenAPI, or API routes was captured.
+- Render's `live` deploy status and successful deploy event establish deployment metadata, **not** runtime database connectivity, health, or migration-head correctness.
+- No environment variable values, credentials, database writes, migrations, or deploy triggers were accessed/performed.
+
+### Revised gate status
+| Gate | Updated result |
+|---|---|
+| TraderOS Render service identity and deploy SHA | **PASS — metadata verified** |
+| TraderOS backend current runtime health | **BLOCKED — logs unavailable and endpoint not independently reachable** |
+| TraderOS actual DB host/connection target | **BLOCKED — service env values not exposed** |
+| TraderOS production Alembic current/head | **BLOCKED — DB not available through Render resource inventory** |
+| EdgeNest Render service deployment | **NOT FOUND in connected Render workspaces; alternate host must be identified** |
+| EdgeNest production DB/migration state | **BLOCKED** |
+| Live backup/restore evidence | **BLOCKED** |
+
+**Overall Phase 1 remains NOT PASS / NO-GO.** Render connection resolves the TraderOS deployment identity but does not provide the production database or runtime health evidence needed for safe migration.
