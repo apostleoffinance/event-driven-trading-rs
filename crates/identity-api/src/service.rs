@@ -521,13 +521,15 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest
             Ok(claims) if !claims.jti.is_empty() => claims,
             _ => return internal(),
         };
-        if sqlx::query("INSERT INTO identity_mfa_challenges(jti_hash,user_id,expires_at) VALUES($1,$2,$3)")
-            .bind(token_hash(&challenge_claims.jti))
-            .bind(&id)
-            .bind(Utc::now() + Duration::minutes(5))
-            .execute(&state.pool)
-            .await
-            .is_err()
+        if sqlx::query(
+            "INSERT INTO identity_mfa_challenges(jti_hash,user_id,expires_at) VALUES($1,$2,$3)",
+        )
+        .bind(token_hash(&challenge_claims.jti))
+        .bind(&id)
+        .bind(Utc::now() + Duration::minutes(5))
+        .execute(&state.pool)
+        .await
+        .is_err()
         {
             return internal();
         }
