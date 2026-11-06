@@ -6,7 +6,7 @@ use domain::{AccountId, AccountState, Order, OrderId, Position};
 use crate::error::VenueResult;
 use crate::types::{CancelRequest, OrderAck, OrderRequest};
 
-#allow(clippy::double_must_use)
+#[allow(clippy::double_must_use)
 #[async_trait]
 pub trait VenueAdapter: Send + Sync {
     fn venue_name(&self) -> &str;
