@@ -1,0 +1,62 @@
+name: Cloudflare Frontend Build
+
+on:
+  push:
+    branches:
+      - main
+      - feat/cloudflare-workers-frontend
+    paths:
+      - "frontend/**"
+      - ".github/workflows/cloudflare-frontend.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/cloudflare-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-frontend:
+    name: Next.js + OpenNext Workers build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build Cloudflare Worker
+        run: npm run cloudflare:build
+      - name: Smoke test Worker runtime (local preview)
+        run: |
+          npx opennextjs-cloudflare preview > /tmp/worker-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 40); do
+            if curl --silent --show-error --fail http://127.0.0.1:8787/ -o /tmp/worker-home.html; then
+              echo "Cloudflare Worker preview returned HTTP 200"
+              exit 0
+            fi
+            if ! kill -0 "$PREVIEW_PID" 2>/dev/null; then
+              cat /tmp/worker-preview.log
+              exit 1
+            fi
+            sleep 3
+          done
+          cat /tmp/worker-preview.log
+          echo "Worker preview did not become ready in time"
+          exit 1
