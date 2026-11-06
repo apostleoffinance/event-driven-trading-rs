@@ -61,7 +61,9 @@ impl JwtService {
     ) -> Result<Self, String> {
         let encoding = EncodingKey::from_rsa_pem(private_pem)
             .map_err(|e| format!("invalid private RSA PEM: {e}"))?;
-        if active_kid.trim().is_empty() { return Err("EDGENEST_JWT_KEY_ID cannot be empty".into()); }
+        if active_kid.trim().is_empty() {
+            return Err("EDGENEST_JWT_KEY_ID cannot be empty".into());
+        }
         let decoding = DecodingKey::from_rsa_pem(public_pem)
             .map_err(|e| format!("invalid public RSA PEM: {e}"))?;
         let active_public_pem = std::str::from_utf8(public_pem).map_err(|e| e.to_string())?;
@@ -91,10 +93,16 @@ impl JwtService {
                 .map_err(|e| format!("invalid public PEM for kid {}: {e}", key.kid))?;
             let rsa_key = RsaPublicKey::from_public_key_pem(&pem)
                 .map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?;
-            if key.kid == active_kid && (rsa_key.n() != active_rsa.n() || rsa_key.e() != active_rsa.e()) {
-                return Err("active JWT KID public key does not match EDGENEST_JWT_PUBLIC_KEY_PEM".into());
+            if key.kid == active_kid
+                && (rsa_key.n() != active_rsa.n() || rsa_key.e() != active_rsa.e())
+            {
+                return Err(
+                    "active JWT KID public key does not match EDGENEST_JWT_PUBLIC_KEY_PEM".into(),
+                );
             }
-            if public_keys.contains_key(&key.kid) { return Err(format!("duplicate JWT KID: {}", key.kid)); }
+            if public_keys.contains_key(&key.kid) {
+                return Err(format!("duplicate JWT KID: {}", key.kid));
+            }
             jwks_keys.push(serde_json::json!({"kty":"RSA","use":"sig","alg":"RS256","kid":key.kid,"n":URL_SAFE_NO_PAD.encode(rsa_key.n().to_bytes_be()),"e":URL_SAFE_NO_PAD.encode(rsa_key.e().to_bytes_be())}));
             public_keys.insert(key.kid, decoder);
         }
