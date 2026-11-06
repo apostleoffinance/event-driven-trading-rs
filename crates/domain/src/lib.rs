@@ -16,6 +16,7 @@ pub mod fill;
 pub mod ids;
 pub mod instrument;
 pub mod journal;
+pub mod journal_analytics;
 pub mod money;
 pub mod order;
 pub mod position;
@@ -30,6 +31,10 @@ pub use fill::Fill;
 pub use ids::*;
 pub use instrument::{Instrument, InstrumentSpec, InstrumentType};
 pub use journal::{JournalDirection, JournalTrade, JournalTradeSource, JournalTradeStatus};
+pub use journal_analytics::{
+    calculate_position_size, summarize_net_pnl, AnalyticsSummary, PositionSizingInput,
+    PositionSizingResult,
+};
 pub use order::{Order, OrderSide, OrderStatus, OrderType, TimeInForce};
 pub use position::{Position, PositionSide};
 pub use risk::{RiskDecision, RiskPolicy, RiskProfile, RiskRejectReason, RiskRequest};

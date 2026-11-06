@@ -713,3 +713,67 @@ table {
     font-size: 14px;
   }
 }
+
+
+/* Journal, calculator and analytics module */
+.journal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.journal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.journal-field > span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.journal-field input,
+.journal-field textarea {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  font-family: var(--font-mono);
+}
+.journal-field textarea {
+  resize: vertical;
+  font-family: var(--font-sans);
+}
+.journal-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 12px;
+  margin-top: 22px;
+}
+.journal-empty {
+  text-align: center;
+  max-width: 620px;
+  margin: 30px auto;
+  padding: 22px;
+}
+.journal-empty h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.journal-empty p {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+.journal-metric-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-muted);
+}
+.journal-metric-list li {
+  margin: 8px 0;
+}
+@media (max-width: 900px) {
+  .journal-form-grid { grid-template-columns: 1fr; }
+}

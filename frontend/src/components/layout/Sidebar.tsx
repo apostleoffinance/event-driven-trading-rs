@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   Briefcase,
+  BookOpen,
+  Calculator,
+  ChartNoAxesCombined,
   Crosshair,
   LayoutDashboard,
   ListOrdered,
@@ -26,6 +29,14 @@ const sections = [
       { href: "/strategies", label: "Strategies", icon: Crosshair },
       { href: "/positions", label: "Positions", icon: Briefcase },
       { href: "/orders", label: "Orders", icon: ListOrdered },
+    ],
+  },
+  {
+    title: "JOURNAL",
+    items: [
+      { href: "/journal", label: "Journal", icon: BookOpen },
+      { href: "/calculator", label: "Calculator", icon: Calculator },
+      { href: "/analytics", label: "Analytics Lab", icon: ChartNoAxesCombined },
     ],
   },
   {
