@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS journal_accounts (
     archived                BOOLEAN NOT NULL DEFAULT FALSE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (owner_id, external_source, external_account_id)
+    UNIQUE (owner_id, external_source, external_account_id),
+    UNIQUE (owner_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_journal_accounts_owner
@@ -35,14 +36,15 @@ CREATE TABLE IF NOT EXISTS journal_setups (
     archived        BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (owner_id, name)
+    UNIQUE (owner_id, name),
+    UNIQUE (owner_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS journal_trades (
     id                  TEXT PRIMARY KEY,
     owner_id            TEXT NOT NULL CHECK (length(trim(owner_id)) > 0),
-    journal_account_id  TEXT NOT NULL REFERENCES journal_accounts(id),
-    setup_id            TEXT REFERENCES journal_setups(id),
+    journal_account_id  TEXT NOT NULL,
+    setup_id            TEXT,
     symbol              TEXT NOT NULL CHECK (length(trim(symbol)) > 0),
     asset_class         TEXT NOT NULL DEFAULT 'forex',
     direction           TEXT NOT NULL CHECK (direction IN ('long', 'short')),
@@ -86,7 +88,12 @@ CREATE TABLE IF NOT EXISTS journal_trades (
     CHECK (closed_at IS NULL OR closed_at >= opened_at),
     CHECK (status <> 'closed' OR closed_at IS NOT NULL),
     CHECK (status <> 'closed' OR exit_price IS NOT NULL),
-    CHECK ((source_system IS NULL) = (source_trade_id IS NULL))
+    CHECK ((source_system IS NULL) = (source_trade_id IS NULL)),
+    UNIQUE (owner_id, id),
+    FOREIGN KEY (owner_id, journal_account_id)
+        REFERENCES journal_accounts(owner_id, id),
+    FOREIGN KEY (owner_id, setup_id)
+        REFERENCES journal_setups(owner_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_journal_trades_owner_opened
@@ -104,7 +111,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_journal_trades_source
 CREATE TABLE IF NOT EXISTS journal_screenshots (
     id                  TEXT PRIMARY KEY,
     owner_id            TEXT NOT NULL CHECK (length(trim(owner_id)) > 0),
-    trade_id            TEXT NOT NULL REFERENCES journal_trades(id) ON DELETE CASCADE,
+    trade_id            TEXT NOT NULL,
     storage_provider    TEXT NOT NULL CHECK (storage_provider IN ('s3', 'r2', 'minio', 'local', 'external')),
     object_key          TEXT NOT NULL CHECK (length(trim(object_key)) > 0),
     original_filename   TEXT,
@@ -115,7 +122,9 @@ CREATE TABLE IF NOT EXISTS journal_screenshots (
     metadata             JSONB NOT NULL DEFAULT '{}'::jsonb
                             CHECK (jsonb_typeof(metadata) = 'object'),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (storage_provider, object_key)
+    UNIQUE (storage_provider, object_key),
+    FOREIGN KEY (owner_id, trade_id)
+        REFERENCES journal_trades(owner_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_journal_screenshots_trade
@@ -123,13 +132,15 @@ CREATE INDEX IF NOT EXISTS idx_journal_screenshots_trade
 
 CREATE TABLE IF NOT EXISTS journal_trade_events (
     id              BIGSERIAL PRIMARY KEY,
-    trade_id        TEXT NOT NULL REFERENCES journal_trades(id),
+    trade_id        TEXT NOT NULL,
     owner_id        TEXT NOT NULL CHECK (length(trim(owner_id)) > 0),
     event_type      TEXT NOT NULL CHECK (length(trim(event_type)) > 0),
     actor_id        TEXT,
     event_payload   JSONB NOT NULL DEFAULT '{}'::jsonb
                         CHECK (jsonb_typeof(event_payload) = 'object'),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (owner_id, trade_id)
+        REFERENCES journal_trades(owner_id, id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_journal_trade_events_trade_time
