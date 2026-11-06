@@ -187,9 +187,10 @@ pub async fn create(
             return not_found();
         }
     }
-    if let (Some(source_system), Some(source_trade_id)) =
-        (trade.source_system.as_deref(), trade.source_trade_id.as_deref())
-    {
+    if let (Some(source_system), Some(source_trade_id)) = (
+        trade.source_system.as_deref(),
+        trade.source_trade_id.as_deref(),
+    ) {
         let duplicate = sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM journal_trades WHERE journal_account_id=$1 AND source_system=$2 AND source_trade_id=$3)",
         )
