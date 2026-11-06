@@ -179,6 +179,9 @@ fn normalize_email(email: &str) -> String {
     email.trim().to_lowercase()
 }
 fn valid_email(email: &str) -> bool {
+    if email.len() > 320 || email.chars().any(char::is_whitespace) {
+        return false;
+    }
     let mut parts = email.split('@');
     matches!((parts.next(), parts.next(), parts.next()), (Some(local), Some(domain), None) if !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.'))
 }
@@ -256,6 +259,7 @@ pub async fn register(
     let display_name = input.display_name.trim();
     if !valid_email(&email)
         || display_name.is_empty()
+        || display_name.len() > 120
         || input.password.len() < 12
         || input.password.len() > 1024
     {
@@ -452,6 +456,7 @@ mod tests {
         assert!(valid_email("test@example.com"));
         assert!(!valid_email("missing-at.example.com"));
         assert!(!valid_email("test@localhost"));
+        assert!(!valid_email("user name@example.com"));
     }
 
     #[test]
