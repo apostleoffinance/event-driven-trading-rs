@@ -1,4 +1,6 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{collections::HashMap, time::{SystemTime, UNIX_EPOCH}};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use rsa::{pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
 use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
 use hmac::{Hmac, Mac};
 use sha1::Sha1;
@@ -34,6 +36,9 @@ pub struct AccessClaims {
 pub struct JwtService {
     encoding: EncodingKey,
     decoding: DecodingKey,
+    public_keys: HashMap<String, DecodingKey>,
+    active_kid: String,
+    jwks: serde_json::Value,
     issuer: String,
     audience: String,
     validation: Validation,
@@ -43,6 +48,8 @@ impl JwtService {
     pub fn new(
         private_pem: &[u8],
         public_pem: &[u8],
+        active_kid: String,
+        public_keys_json: Option<&str>,
         issuer: String,
         audience: String,
     ) -> Result<Self, String> {
@@ -50,6 +57,25 @@ impl JwtService {
             .map_err(|e| format!("invalid private RSA PEM: {e}"))?;
         let decoding = DecodingKey::from_rsa_pem(public_pem)
             .map_err(|e| format!("invalid public RSA PEM: {e}"))?;
+        #[derive(Deserialize)]
+        struct KeyInput { kid: String, pem: String }
+        let mut public_keys: HashMap<String, DecodingKey> = HashMap::new();
+        let mut jwks_keys = Vec::new();
+        let mut inputs = match public_keys_json {
+            Some(json) => serde_json::from_str::<Vec<KeyInput>>(json).map_err(|e| format!("invalid EDGENEST_JWT_PUBLIC_KEYS_JSON: {e}"))?,
+            None => Vec::new(),
+        };
+        if !inputs.iter().any(|key| key.kid == active_kid) {
+            inputs.push(KeyInput { kid: active_kid.clone(), pem: String::from_utf8(public_pem.to_vec()).map_err(|e| e.to_string())? });
+        }
+        for key in inputs {
+            let pem = key.pem.replace("\\n", "\n");
+            let decoder = DecodingKey::from_rsa_pem(pem.as_bytes()).map_err(|e| format!("invalid public PEM for kid {}: {e}", key.kid))?;
+            let rsa_key = RsaPublicKey::from_public_key_pem(&pem).or_else(|_| RsaPublicKey::from_pkcs1_pem(&pem)).map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?;
+            jwks_keys.push(serde_json::json!({"kty":"RSA","use":"sig","alg":"RS256","kid":key.kid,"n":URL_SAFE_NO_PAD.encode(rsa_key.n().to_bytes_be()),"e":URL_SAFE_NO_PAD.encode(rsa_key.e().to_bytes_be())}));
+            public_keys.insert(key.kid, decoder);
+        }
+        let jwks = serde_json::json!({"keys":jwks_keys});
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_issuer(&[issuer.as_str()]);
         validation.set_audience(&[audience.as_str()]);
@@ -59,6 +85,9 @@ impl JwtService {
         Ok(Self {
             encoding,
             decoding,
+            public_keys,
+            active_kid,
+            jwks,
             issuer,
             audience,
             validation,
@@ -83,7 +112,8 @@ impl JwtService {
             iat: now,
             token_type: token_type.into(),
         };
-        let token = encode(&Header::new(Algorithm::RS256), &claims, &self.encoding)
+        let mut header = Header::new(Algorithm::RS256); header.kid = Some(self.active_kid.clone());
+        let token = encode(&header, &claims, &self.encoding)
             .map_err(|e| format!("JWT signing failed: {e}"))?;
         Ok((token, exp))
     }
@@ -102,9 +132,16 @@ impl JwtService {
     }
 
     pub fn verify(&self, token: &str) -> Result<AccessClaims, String> {
-        decode::<AccessClaims>(token, &self.decoding, &self.validation)
-            .map(|data| data.claims).map_err(|e| e.to_string())
+        let header = jsonwebtoken::decode_header(token).map_err(|e| e.to_string())?;
+        if let Some(kid) = header.kid.as_deref() {
+            let key = self.public_keys.get(kid).ok_or_else(|| "unknown JWT kid".to_string())?;
+            decode::<AccessClaims>(token, key, &self.validation).map(|data|data.claims).map_err(|e|e.to_string())
+        } else {
+            for key in self.public_keys.values() { if let Ok(data)=decode::<AccessClaims>(token,key,&self.validation) { return Ok(data.claims); } }
+            decode::<AccessClaims>(token,&self.decoding,&self.validation).map(|data|data.claims).map_err(|e|e.to_string())
+        }
     }
+    pub fn jwks(&self) -> &serde_json::Value { &self.jwks }
 }
 
 #[derive(Debug)]
@@ -672,7 +709,6 @@ pub async fn mfa_verify_login(State(state): State<AppState>, Json(input): Json<M
     let (id,email,display_name)=match user{Ok(v)=>v,Err(_)=>return internal()};
     match issue_pair(&state,UserView{id,email,display_name}).await{Ok(pair)=>set_refresh_cookie(Json(pair.response).into_response(),&pair.refresh_token,state.refresh_ttl_days),Err(())=>internal()}
 }
-pub async fn jwks() -> Response {
-    // The current RSA public key is published as a JWK by the configured issuer.
-    api_error(StatusCode::NOT_IMPLEMENTED,"jwks_not_configured","JWKS key-ring support is being configured")
+pub async fn jwks(State(state): State<AppState>) -> Response {
+    Json(state.jwt.jwks().clone()).into_response()
 }
