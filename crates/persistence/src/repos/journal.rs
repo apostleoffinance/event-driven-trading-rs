@@ -211,8 +211,12 @@ pub async fn get_for_owner(
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
             net_pnl, pnl_currency, risk_amount, r_multiple
           FROM journal_trades WHERE owner_id = $1 AND id = $2"#,
-    ).bind(owner_id).bind(trade_id).fetch_optional(pool).await?
-     .ok_or_else(|| PersistenceError::NotFound(format!("journal trade {trade_id}")))?;
+    )
+    .bind(owner_id)
+    .bind(trade_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| PersistenceError::NotFound(format!("journal trade {trade_id}")))?;
     JournalTrade::try_from(row)
 }
 
