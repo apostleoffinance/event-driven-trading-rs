@@ -1,6 +1,6 @@
 # TraderOS → EdgeNest Migration — Phase 0 Kickoff
 
-**Status:** In progress — kickoff baseline  
+**Status:** Phase 0 baseline established; remaining live-access/sign-off gates open  
 **Owner:** EdgeNest / TraderOS project owner  
 **Target repository:** `apostleoffinance/event-driven-trading-rs`  
 **Source repository:** `apostleoffinance/traders-os`  
@@ -38,7 +38,7 @@ Integrate the selected TraderOS capabilities into EdgeNest while retaining EdgeN
 | System | Current known state | Migration role |
 |---|---|---|
 | TraderOS repository | GitHub: `apostleoffinance/traders-os` | Source application and migration logic reference |
-| TraderOS PostgreSQL | Hosted on Render | Source historical journal database |
+| TraderOS PostgreSQL | Neon PostgreSQL (Render hosts the TraderOS backend service) | Source historical journal database |
 | TraderOS screenshot storage | S3 | Source image objects |
 | EdgeNest repository | GitHub: `apostleoffinance/event-driven-trading-rs` | Destination application/platform |
 | EdgeNest database | PostgreSQL; provider not yet verified | Destination data store |
@@ -90,7 +90,7 @@ These must be verified rather than inferred from repository code.
 - [x] Confirm desired capabilities: Journal, Risk Calculator, Analytics Lab.
 - [x] Confirm Journal needs manual and MT5-originated trades.
 - [x] Confirm historical TraderOS journal data must be preserved.
-- [x] Confirm source DB is Render PostgreSQL.
+- [x] Confirm source DB provider is Neon PostgreSQL (backend service is hosted on Render).
 - [x] Confirm screenshot source storage is S3.
 - [x] Record that EdgeNest database is PostgreSQL.
 - [ ] Verify destination PostgreSQL provider/host and environment separation.
@@ -105,9 +105,9 @@ These must be verified rather than inferred from repository code.
 - [x] Inspect EdgeNest engineering constitution and platform guide.
 - [x] Confirm EdgeNest README describes the frontend as mock-first/operator console.
 - [x] Confirm EdgeNest platform guide treats gateway/API capabilities as target architecture until proven deployed.
-- [ ] Record deployed EdgeNest commit and environment.
-- [ ] Record deployed TraderOS commit and environment.
-- [ ] Confirm current production services and deployment providers.
+- [x] Record current EdgeNest main commit: `ed2baa42ddf958802182050978960fcf3315a7fa` (source tree audit; deployment commit remains unverified).
+- [x] Record TraderOS main/deployed source commit from prior audit: `c20958479f8053936c5eeeee4352754a4acb0ff0`; deployment health/API remains unverified.
+- [x] Confirm TraderOS backend service metadata on Render and frontend deployment metadata on Vercel; EdgeNest production service remains unidentified.
 - [ ] Confirm current database migration versions for both systems.
 - [ ] Confirm existing CI checks and required branch protections.
 
@@ -145,7 +145,7 @@ Based on repository documentation—not live deployment verification:
 - EdgeNest's engineering constitution requires exact financial values, immutable/auditable financial events, explicit uncertainty, and no silent state correction.
 - TraderOS is a separate source application and must be selectively migrated, not wholesale restored.
 
-These findings need validation against deployed services and current code during Phase 1.
+Phase 0 repository/deployment metadata baseline has been established. Live DB/schema access, EdgeNest production deployment, identity authorization behavior, staging and sign-off remain open.
 
 ## 7. Data preservation requirements
 
