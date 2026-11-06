@@ -777,3 +777,15 @@ table {
 @media (max-width: 900px) {
   .journal-form-grid { grid-template-columns: 1fr; }
 }
+
+.auth-layout { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg-0); }
+.auth-card { width: min(440px, 100%); padding: 28px; display: grid; gap: 14px; }
+.auth-card h1 { margin: 0; font-size: 22px; font-weight: 600; }
+.auth-card p { margin: 0; color: var(--text-muted); }
+.auth-form { display: grid; gap: 12px; margin-top: 8px; }
+.auth-form label, .auth-label { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
+.auth-form input, .auth-label input { width: 100%; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-2); color: var(--text); }
+.auth-form small { color: var(--text-dim); }
+.auth-links { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--accent); margin-top: 8px; }
+.auth-error { color: var(--negative) !important; }
+.auth-card .brand-name { color: var(--accent); letter-spacing: .12em; }
