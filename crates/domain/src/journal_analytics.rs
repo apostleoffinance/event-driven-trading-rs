@@ -4,10 +4,9 @@
 //! modify execution account state, or override the execution Risk Engine.
 
 use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
 
 use crate::error::{DomainError, DomainResult};
-use crate::money::{require_non_negative, require_positive};
+use crate::money::require_positive;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PositionSizingInput {
