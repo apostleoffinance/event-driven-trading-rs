@@ -34,11 +34,16 @@ pub fn calculate_position_size(input: PositionSizingInput) -> DomainResult<Posit
     require_positive(input.account_balance, "account balance")?;
     require_positive(input.risk_percent, "risk percent")?;
     if input.risk_percent > Decimal::from(100) {
-        return Err(DomainError::Validation("risk percent cannot exceed 100".into()));
+        return Err(DomainError::Validation(
+            "risk percent cannot exceed 100".into(),
+        ));
     }
     require_positive(input.entry_price, "entry price")?;
     require_positive(input.stop_loss, "stop loss")?;
-    require_positive(input.value_per_price_unit_per_lot, "value per price unit per lot")?;
+    require_positive(
+        input.value_per_price_unit_per_lot,
+        "value per price unit per lot",
+    )?;
     require_positive(input.quantity_step, "quantity step")?;
 
     let distance = (input.entry_price - input.stop_loss).abs();
@@ -78,7 +83,9 @@ pub struct AnalyticsSummary {
 pub fn summarize_net_pnl(pnls: &[Decimal]) -> DomainResult<AnalyticsSummary> {
     let trade_count = pnls.len();
     if trade_count == 0 {
-        return Err(DomainError::Validation("analytics requires at least one closed trade".into()));
+        return Err(DomainError::Validation(
+            "analytics requires at least one closed trade".into(),
+        ));
     }
     let mut wins = 0usize;
     let mut losses = 0usize;
@@ -124,9 +131,19 @@ pub fn summarize_net_pnl(pnls: &[Decimal]) -> DomainResult<AnalyticsSummary> {
     let expectancy = net_profit / count;
 
     Ok(AnalyticsSummary {
-        trade_count, wins, losses, breakeven, win_rate_percent, gross_profit,
-        gross_loss, net_profit, profit_factor, expectancy, average_win,
-        average_loss, max_drawdown,
+        trade_count,
+        wins,
+        losses,
+        breakeven,
+        win_rate_percent,
+        gross_profit,
+        gross_loss,
+        net_profit,
+        profit_factor,
+        expectancy,
+        average_win,
+        average_loss,
+        max_drawdown,
     })
 }
 
@@ -144,7 +161,8 @@ mod tests {
             stop_loss: Decimal::from(95),
             value_per_price_unit_per_lot: Decimal::ONE,
             quantity_step: Decimal::new(1, 0),
-        }).unwrap();
+        })
+        .unwrap();
         assert_eq!(result.risk_budget, Decimal::from(100));
         assert_eq!(result.rounded_quantity, Decimal::from(20));
         assert_eq!(result.estimated_risk, Decimal::from(100));
@@ -165,7 +183,8 @@ mod tests {
 
     #[test]
     fn pnl_summary_calculates_expectancy_and_drawdown() {
-        let s = summarize_net_pnl(&[Decimal::from(100), Decimal::from(-40), Decimal::from(-10)]).unwrap();
+        let s = summarize_net_pnl(&[Decimal::from(100), Decimal::from(-40), Decimal::from(-10)])
+            .unwrap();
         assert_eq!(s.net_profit, Decimal::from(50));
         assert_eq!(s.expectancy, Decimal::new(50, 0) / Decimal::from(3));
         assert_eq!(s.max_drawdown, Decimal::from(50));
