@@ -891,13 +891,10 @@ pub async fn mfa_setup(State(state): State<AppState>, headers: HeaderMap) -> Res
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    let enabled =
-        sqlx::query_scalar::<_, bool>("SELECT mfa_enabled FROM identity_users WHERE id=$1")
-            .bind(&claims.sub)
-            .fetch_optional(&state.pool)
-            .await
-            .unwrap_or(None)
-            .unwrap_or(false);
+    let enabled = match sqlx::query_scalar::<_, bool>("SELECT mfa_enabled FROM identity_users WHERE id=$1")
+        .bind(&claims.sub).fetch_optional(&state.pool).await {
+        Ok(Some(value)) => value, Ok(None) => return unauthorized(), Err(_) => return internal()
+    };
     if enabled {
         return api_error(
             StatusCode::CONFLICT,
