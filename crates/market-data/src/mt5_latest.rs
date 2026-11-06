@@ -59,7 +59,8 @@ pub enum SourceError {
 
 #[async_trait]
 pub trait Mt5SnapshotSource: Send + Sync {
-    async fn load_latest(&self, scope: &Mt5Scope) -> Result<Option<Mt5SnapshotRecord>, SourceError>;
+    async fn load_latest(&self, scope: &Mt5Scope)
+        -> Result<Option<Mt5SnapshotRecord>, SourceError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -136,8 +137,12 @@ impl Mt5LatestService {
 
         match loaded {
             Ok(Some(record)) => build_quote(&record, self.clock.now_ms(), self.stale_after_seconds),
-            Ok(None) => Err(unavailable("no MT5 market-data snapshot has been persisted")),
-            Err(SourceError::Unavailable) => Err(unavailable("MT5 market-data store is unavailable")),
+            Ok(None) => Err(unavailable(
+                "no MT5 market-data snapshot has been persisted",
+            )),
+            Err(SourceError::Unavailable) => {
+                Err(unavailable("MT5 market-data store is unavailable"))
+            }
             Err(SourceError::Timeout) => Err(MarketDataError::Timeout { provider: PROVIDER }),
             Err(SourceError::Corrupt) => Err(invalid("stored snapshot failed integrity checks")),
         }
@@ -171,7 +176,12 @@ fn decimal_field(quote: &Value, field: &str) -> Result<Decimal, MarketDataError>
     }
     let value = Decimal::from_str(text).map_err(|_| {
         let (integer_digits, fraction_digits) = decimal_part_lengths(text);
-        log_decimal_failure(field, "decimal_parse_failure", integer_digits, fraction_digits);
+        log_decimal_failure(
+            field,
+            "decimal_parse_failure",
+            integer_digits,
+            fraction_digits,
+        );
         invalid("quote price is not a valid decimal")
     })?;
     if value <= Decimal::ZERO {
@@ -196,7 +206,11 @@ fn classify_decimal_failure(text: &str) -> (&'static str, usize, usize) {
         Some((i, f)) => (i, f),
         None => (text, ""),
     };
-    let category = if !integer.bytes().chain(fraction.bytes()).all(|b| b.is_ascii_digit()) {
+    let category = if !integer
+        .bytes()
+        .chain(fraction.bytes())
+        .all(|b| b.is_ascii_digit())
+    {
         "invalid_characters"
     } else if integer.is_empty() || (text.contains('.') && fraction.is_empty()) {
         "empty_integer_or_fraction"
@@ -340,7 +354,9 @@ pub fn connect_options(database_url: &str) -> Result<PgConnectOptions, &'static 
         PgSslMode::Require | PgSslMode::VerifyCa | PgSslMode::VerifyFull
     );
     if !is_local_host(options.get_host()) && !tls_enforced {
-        return Err("non-loopback database hosts require sslmode=require, verify-ca or verify-full");
+        return Err(
+            "non-loopback database hosts require sslmode=require, verify-ca or verify-full",
+        );
     }
     // Defense in depth on top of the read-only role: bounded statements and
     // read-only transactions for every session of this pool.
@@ -375,7 +391,10 @@ impl PgMt5SnapshotSource {
 
 #[async_trait]
 impl Mt5SnapshotSource for PgMt5SnapshotSource {
-    async fn load_latest(&self, scope: &Mt5Scope) -> Result<Option<Mt5SnapshotRecord>, SourceError> {
+    async fn load_latest(
+        &self,
+        scope: &Mt5Scope,
+    ) -> Result<Option<Mt5SnapshotRecord>, SourceError> {
         // Error details can carry connection information, so none are forwarded.
         match persistence::repos::mt5_market_data::load_latest(
             &self.pool,
@@ -533,7 +552,12 @@ mod tests {
 
     #[test]
     fn rejects_non_positive_bid_or_ask() {
-        for (bid, ask) in [("0", "1.1"), ("0.00000", "1.1"), ("-1.1", "1.1"), ("1.1", "0")] {
+        for (bid, ask) in [
+            ("0", "1.1"),
+            ("0.00000", "1.1"),
+            ("-1.1", "1.1"),
+            ("1.1", "0"),
+        ] {
             let mut q = quote(-1_000);
             q["bid"] = json!(bid);
             q["ask"] = json!(ask);
@@ -669,7 +693,11 @@ mod tests {
 
     #[test]
     fn rejects_invalid_or_non_utc_timestamp() {
-        for bad in [json!("not-a-time"), json!(null), json!("2026-11-02T13:00:00+01:00")] {
+        for bad in [
+            json!("not-a-time"),
+            json!(null),
+            json!("2026-11-02T13:00:00+01:00"),
+        ] {
             let mut q = quote(-1_000);
             q["tick_time"] = bad;
             let e = build_quote(&record_with(q, -1_000), NOW_MS, 60).unwrap_err();

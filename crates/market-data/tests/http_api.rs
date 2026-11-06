@@ -196,7 +196,11 @@ mod mt5_latest_route {
             60,
             std::time::Duration::from_secs(1),
         );
-        let app = router_with_mt5(Arc::new(svc), Arc::new(mt5), &["http://localhost:3107".into()]);
+        let app = router_with_mt5(
+            Arc::new(svc),
+            Arc::new(mt5),
+            &["http://localhost:3107".into()],
+        );
         let res = app
             .oneshot(
                 Request::get(uri)
@@ -209,12 +213,20 @@ mod mt5_latest_route {
         let status = res.status();
         let headers = res.headers().clone();
         let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        (status, headers, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+        (
+            status,
+            headers,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
     }
 
     #[tokio::test]
     async fn returns_quote_contract_without_identity() {
-        let (s, h, j) = get_mt5(Some(Ok(Some(good_record()))), "/api/v1/market-data/mt5/latest").await;
+        let (s, h, j) = get_mt5(
+            Some(Ok(Some(good_record()))),
+            "/api/v1/market-data/mt5/latest",
+        )
+        .await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(h.get("cache-control").unwrap(), "no-store");
         assert_eq!(j["status"], "fresh");
@@ -246,9 +258,17 @@ mod mt5_latest_route {
 
     #[tokio::test]
     async fn timeout_and_corrupt_map_to_504_and_502() {
-        let (s, _, _) = get_mt5(Some(Err(SourceError::Timeout)), "/api/v1/market-data/mt5/latest").await;
+        let (s, _, _) = get_mt5(
+            Some(Err(SourceError::Timeout)),
+            "/api/v1/market-data/mt5/latest",
+        )
+        .await;
         assert_eq!(s, StatusCode::GATEWAY_TIMEOUT);
-        let (s, _, _) = get_mt5(Some(Err(SourceError::Corrupt)), "/api/v1/market-data/mt5/latest").await;
+        let (s, _, _) = get_mt5(
+            Some(Err(SourceError::Corrupt)),
+            "/api/v1/market-data/mt5/latest",
+        )
+        .await;
         assert_eq!(s, StatusCode::BAD_GATEWAY);
     }
 

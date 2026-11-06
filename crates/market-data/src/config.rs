@@ -33,9 +33,18 @@ impl Mt5Config {
 impl std::fmt::Debug for Mt5Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Mt5Config")
-            .field("database_url", &self.database_url.as_ref().map(|_| "<redacted>"))
-            .field("account_id", &self.account_id.as_ref().map(|_| "<redacted>"))
-            .field("terminal_id", &self.terminal_id.as_ref().map(|_| "<redacted>"))
+            .field(
+                "database_url",
+                &self.database_url.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "account_id",
+                &self.account_id.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "terminal_id",
+                &self.terminal_id.as_ref().map(|_| "<redacted>"),
+            )
             .field("stale_after_seconds", &self.stale_after_seconds)
             .finish()
     }
@@ -76,7 +85,11 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let non_empty = |key: &str| get(key).map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+        let non_empty = |key: &str| {
+            get(key)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+        };
 
         let database_url = non_empty("MARKET_DATA_DATABASE_URL");
         if let Some(url) = &database_url {
@@ -167,7 +180,11 @@ mod tests {
 
     #[test]
     fn mt5_rejects_bad_values_without_echoing_them() {
-        let err = cfg(&[("MARKET_DATA_DATABASE_URL", "mysql://user:secret@localhost/d")]).unwrap_err();
+        let err = cfg(&[(
+            "MARKET_DATA_DATABASE_URL",
+            "mysql://user:secret@localhost/d",
+        )])
+        .unwrap_err();
         assert!(!err.contains("secret"));
         assert!(cfg(&[("MARKET_DATA_MT5_STALE_AFTER_SECONDS", "0")]).is_err());
         assert!(cfg(&[("MARKET_DATA_MT5_STALE_AFTER_SECONDS", "x")]).is_err());
@@ -176,8 +193,11 @@ mod tests {
 
     #[test]
     fn mt5_rejects_plaintext_remote_database_without_echoing_it() {
-        let err = cfg(&[("MARKET_DATA_DATABASE_URL", "postgres://u:pw@db.example.com/d")])
-            .unwrap_err();
+        let err = cfg(&[(
+            "MARKET_DATA_DATABASE_URL",
+            "postgres://u:pw@db.example.com/d",
+        )])
+        .unwrap_err();
         assert!(!err.contains("pw") && !err.contains("example.com"));
         assert!(cfg(&[(
             "MARKET_DATA_DATABASE_URL",
@@ -189,7 +209,10 @@ mod tests {
     #[test]
     fn mt5_debug_redacts_secrets() {
         let c = cfg(&[
-            ("MARKET_DATA_DATABASE_URL", "postgres://user:pw123@localhost/d"),
+            (
+                "MARKET_DATA_DATABASE_URL",
+                "postgres://user:pw123@localhost/d",
+            ),
             ("MARKET_DATA_MT5_ACCOUNT_ID", "acct-777"),
             ("MARKET_DATA_MT5_TERMINAL_ID", "term-888"),
         ])
