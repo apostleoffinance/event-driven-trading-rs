@@ -110,6 +110,14 @@ pub async fn create(State(state): State<AppState>, headers: HeaderMap, Json(inpu
     let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
     let trade = trade_from(claims.sub, uuid::Uuid::new_v4().to_string(), input);
     if let Err(e) = trade.validate() { return bad_request(e.to_string()); }
+    if !owned_account(state.store.pool(), &trade.owner_id, &trade.journal_account_id).await {
+        return not_found();
+    }
+    if let Some(setup_id) = trade.setup_id.as_deref() {
+        if !owned_setup(state.store.pool(), &trade.owner_id, setup_id).await {
+            return not_found();
+        }
+    }
     match state.store.insert_journal_trade(&trade).await {
         Ok(()) => match state.store.get_journal_trade(&trade.owner_id, &trade.id).await {
             Ok(created) => (StatusCode::CREATED, Json(serde_json::json!({"data":created}))).into_response(),
@@ -124,6 +132,14 @@ pub async fn replace(State(state): State<AppState>, headers: HeaderMap, Path(id)
     let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
     let trade = trade_from(claims.sub, id.clone(), input);
     if let Err(e) = trade.validate() { return bad_request(e.to_string()); }
+    if !owned_account(state.store.pool(), &trade.owner_id, &trade.journal_account_id).await {
+        return not_found();
+    }
+    if let Some(setup_id) = trade.setup_id.as_deref() {
+        if !owned_setup(state.store.pool(), &trade.owner_id, setup_id).await {
+            return not_found();
+        }
+    }
     let result = update_trade(state.store.pool(), &trade).await;
     match result {
         Ok(false) => not_found(),
@@ -160,4 +176,13 @@ pub async fn delete(State(state): State<AppState>, headers: HeaderMap, Path(id):
         Ok(false) => not_found(),
         Err(_) => internal(),
     }
+}
+
+async fn owned_account(pool: &PgPool, owner_id: &str, account_id: &str) -> bool {
+    sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM journal_accounts WHERE owner_id=$1 AND id=$2 AND archived=FALSE)")
+        .bind(owner_id).bind(account_id).fetch_one(pool).await.unwrap_or(false)
+}
+async fn owned_setup(pool: &PgPool, owner_id: &str, setup_id: &str) -> bool {
+    sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM journal_setups WHERE owner_id=$1 AND id=$2 AND archived=FALSE)")
+        .bind(owner_id).bind(setup_id).fetch_one(pool).await.unwrap_or(false)
 }
