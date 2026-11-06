@@ -18,6 +18,7 @@ pub struct ProviderRequest {
 
 /// Adapter boundary. Implementations translate to and from a provider's own
 /// symbols and wire format; nothing provider-specific may escape.
+#allow(clippy::double_must_use)
 #[async_trait]
 pub trait CandleProvider: Send + Sync {
     fn id(&self) -> ProviderId;
