@@ -4,7 +4,12 @@ use aes_gcm::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use hmac::{Hmac, Mac};
-use rsa::{pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
+use rsa::{
+    pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey},
+    pkcs8::{DecodePrivateKey, DecodePublicKey},
+    traits::PublicKeyParts,
+    RsaPrivateKey, RsaPublicKey,
+};
 use sha1::Sha1;
 use std::{
     collections::HashMap,
@@ -68,7 +73,18 @@ impl JwtService {
             .map_err(|e| format!("invalid public RSA PEM: {e}"))?;
         let active_public_pem = std::str::from_utf8(public_pem).map_err(|e| e.to_string())?;
         let active_rsa = RsaPublicKey::from_public_key_pem(active_public_pem)
+            .or_else(|_| RsaPublicKey::from_pkcs1_pem(active_public_pem))
             .map_err(|e| format!("invalid active RSA public key: {e}"))?;
+        if active_rsa.n().bits() < 2048 { return Err("RSA signing key must be at least 2048 bits".into()); }
+        let private_pem = std::str::from_utf8(private_pem).map_err(|e| e.to_string())?;
+        let private_rsa = match RsaPrivateKey::from_pkcs8_pem(private_pem) {
+            Ok(key) => key,
+            Err(_) => RsaPrivateKey::from_pkcs1_pem(private_pem).map_err(|e| format!("invalid RSA private key: {e}"))?,
+        };
+        let derived_public = RsaPublicKey::from(&private_rsa);
+        if derived_public.n() != active_rsa.n() || derived_public.e() != active_rsa.e() {
+            return Err("EDGENEST_JWT_PRIVATE_KEY_PEM does not match EDGENEST_JWT_PUBLIC_KEY_PEM".into());
+        }
         #[derive(Deserialize)]
         struct KeyInput {
             kid: String,
@@ -92,7 +108,9 @@ impl JwtService {
             let decoder = DecodingKey::from_rsa_pem(pem.as_bytes())
                 .map_err(|e| format!("invalid public PEM for kid {}: {e}", key.kid))?;
             let rsa_key = RsaPublicKey::from_public_key_pem(&pem)
+                .or_else(|_| RsaPublicKey::from_pkcs1_pem(&pem))
                 .map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?;
+            if rsa_key.n().bits() < 2048 { return Err(format!("RSA public key {} must be at least 2048 bits", key.kid)); }
             if key.kid == active_kid
                 && (rsa_key.n() != active_rsa.n() || rsa_key.e() != active_rsa.e())
             {
