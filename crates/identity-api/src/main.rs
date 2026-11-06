@@ -59,8 +59,7 @@ async fn main() {
     let resend_api_key = env::var("RESEND_API_KEY")
         .ok()
         .filter(|v| !v.trim().is_empty());
-    let email_from = env::var("IDENTITY_EMAIL_FROM")
-        .unwrap_or_else(|_| "EdgeNest <no-reply@edgenest.app>".into());
+    let email_from = env::var("IDENTITY_EMAIL_FROM").unwrap_or_default();
     let public_app_url =
         env::var("EDGENEST_PUBLIC_APP_URL").unwrap_or_else(|_| "https://app.edgenest.app".into());
     let mfa_encryption_key = required("IDENTITY_MFA_ENCRYPTION_KEY");
