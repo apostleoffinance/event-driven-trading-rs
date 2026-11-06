@@ -10,6 +10,7 @@ name = "identity-api"
 path = "src/main.rs"
 
 [dependencies]
+dotenvy = "0.15"
 argon2 = "0.5"
 aes-gcm = "0.10"
 base64 = "0.22"
