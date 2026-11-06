@@ -38,6 +38,7 @@ async fn main() {
     let issuer = env_required("EDGENEST_JWT_ISSUER");
     let audience = env_required("EDGENEST_JWT_AUDIENCE");
     let public_key = env_required("EDGENEST_JWT_PUBLIC_KEY_PEM").replace("\\n", "\n");
+    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON").ok();
     let bind: SocketAddr = env::var("JOURNAL_API_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())
         .parse()
@@ -64,7 +65,7 @@ async fn main() {
 
     let state = AppState {
         store: TradingStore::new(pool),
-        auth: auth::JwtConfig::new(public_key.as_bytes(), issuer, audience).unwrap_or_else(|e| {
+        auth: auth::JwtConfig::new(public_key.as_bytes(), public_keys_json.as_deref(), issuer, audience).unwrap_or_else(|e| {
             eprintln!("invalid JWT configuration: {e}");
             std::process::exit(2);
         }),
@@ -80,7 +81,8 @@ async fn main() {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT]);
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT])
+        .allow_credentials(true);
 
     let app = Router::new()
         .route("/healthz", get(http::health))
