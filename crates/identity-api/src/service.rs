@@ -1042,14 +1042,22 @@ pub async fn mfa_confirm(
     .unwrap_or(None)
     .flatten();
     let Some(encrypted) = encrypted else {
-        return api_error(StatusCode::BAD_REQUEST, "mfa_not_setup", "Start MFA setup first");
+        return api_error(
+            StatusCode::BAD_REQUEST,
+            "mfa_not_setup",
+            "Start MFA setup first",
+        );
     };
     let secret = match decrypt_mfa_secret(&state, &encrypted) {
         Ok(v) => v,
         Err(_) => return internal(),
     };
     if !verify_totp(&secret, &input.code) {
-        return api_error(StatusCode::BAD_REQUEST, "invalid_code", "Authenticator code is invalid");
+        return api_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_code",
+            "Authenticator code is invalid",
+        );
     }
 
     let mut codes = Vec::new();
@@ -1070,13 +1078,15 @@ pub async fn mfa_confirm(
         return internal();
     }
     for code in &codes {
-        if sqlx::query("INSERT INTO identity_mfa_recovery_codes(id,user_id,code_hash) VALUES($1,$2,$3)")
-            .bind(uuid::Uuid::new_v4().to_string())
-            .bind(&claims.sub)
-            .bind(token_hash(code))
-            .execute(&mut *tx)
-            .await
-            .is_err()
+        if sqlx::query(
+            "INSERT INTO identity_mfa_recovery_codes(id,user_id,code_hash) VALUES($1,$2,$3)",
+        )
+        .bind(uuid::Uuid::new_v4().to_string())
+        .bind(&claims.sub)
+        .bind(token_hash(code))
+        .execute(&mut *tx)
+        .await
+        .is_err()
         {
             let _ = tx.rollback().await;
             return internal();
@@ -1107,7 +1117,16 @@ pub async fn mfa_confirm(
         Ok(value) => value,
         Err(_) => return internal(),
     };
-    let pair = match issue_pair(&state, UserView { id, email, display_name }).await {
+    let pair = match issue_pair(
+        &state,
+        UserView {
+            id,
+            email,
+            display_name,
+        },
+    )
+    .await
+    {
         Ok(value) => value,
         Err(()) => return internal(),
     };
@@ -1120,7 +1139,11 @@ pub async fn mfa_confirm(
         "expires_in":pair.response.expires_in,
         "user":pair.response.user
     });
-    set_refresh_cookie(Json(body).into_response(), &pair.refresh_token, state.refresh_ttl_days)
+    set_refresh_cookie(
+        Json(body).into_response(),
+        &pair.refresh_token,
+        state.refresh_ttl_days,
+    )
 }
 
 pub async fn mfa_disable(
@@ -1140,13 +1163,19 @@ pub async fn mfa_disable(
     .await
     .unwrap_or(None)
     .flatten();
-    let Some(encrypted) = encrypted else { return unauthorized(); };
+    let Some(encrypted) = encrypted else {
+        return unauthorized();
+    };
     let secret = match decrypt_mfa_secret(&state, &encrypted) {
         Ok(v) => v,
         Err(_) => return internal(),
     };
     if !verify_totp(&secret, &input.code) {
-        return api_error(StatusCode::UNAUTHORIZED, "invalid_code", "Authenticator code is invalid");
+        return api_error(
+            StatusCode::UNAUTHORIZED,
+            "invalid_code",
+            "Authenticator code is invalid",
+        );
     }
 
     let mut tx = match state.pool.begin().await {
@@ -1186,7 +1215,16 @@ pub async fn mfa_disable(
         Ok(value) => value,
         Err(_) => return internal(),
     };
-    let pair = match issue_pair(&state, UserView { id, email, display_name }).await {
+    let pair = match issue_pair(
+        &state,
+        UserView {
+            id,
+            email,
+            display_name,
+        },
+    )
+    .await
+    {
         Ok(value) => value,
         Err(()) => return internal(),
     };
@@ -1197,7 +1235,11 @@ pub async fn mfa_disable(
         "expires_in":pair.response.expires_in,
         "user":pair.response.user
     });
-    set_refresh_cookie(Json(body).into_response(), &pair.refresh_token, state.refresh_ttl_days)
+    set_refresh_cookie(
+        Json(body).into_response(),
+        &pair.refresh_token,
+        state.refresh_ttl_days,
+    )
 }
 
 pub async fn mfa_verify_login(
