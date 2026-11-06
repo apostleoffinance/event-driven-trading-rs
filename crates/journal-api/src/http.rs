@@ -10,7 +10,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::PgPool;
 
-use crate::{auth::Claims, AppState};
+use crate::{auth::{ApiAuthError, Claims}, AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
@@ -57,11 +57,10 @@ fn default_currency() -> String {
     "USD".into()
 }
 
-fn owner(state: &AppState, headers: &HeaderMap) -> Result<Claims, Response> {
+fn owner(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
     state
         .auth
         .authenticate(headers)
-        .map_err(IntoResponse::into_response)
 }
 
 fn trade_from(owner_id: String, id: String, input: TradeWrite) -> JournalTrade {
@@ -136,7 +135,7 @@ pub async fn list(
 ) -> Response {
     let claims = match owner(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match state.store.list_journal_trades(&claims.sub, query.journal_account_id.as_deref(), query.limit.unwrap_or(100), query.offset.unwrap_or(0)).await {
         Ok(trades) => Json(serde_json::json!({"data":trades,"pagination":{"limit":query.limit.unwrap_or(100).clamp(1,500),"offset":query.offset.unwrap_or(0).max(0)}})).into_response(),
