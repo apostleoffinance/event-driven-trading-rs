@@ -1,0 +1,60 @@
+use axum::http::{header::AUTHORIZATION, HeaderMap, StatusCode};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String,
+    pub iss: String,
+    pub aud: String,
+    pub exp: usize,
+    #[serde(default)]
+    pub iat: Option<usize>,
+}
+
+#[derive(Clone)]
+pub struct JwtConfig {
+    key: DecodingKey,
+    validation: Validation,
+}
+
+impl JwtConfig {
+    pub fn new(public_key_pem: &[u8], issuer: String, audience: String) -> Result<Self, String> {
+        let key = DecodingKey::from_rsa_pem(public_key_pem)
+            .map_err(|e| format!("EDGENEST_JWT_PUBLIC_KEY_PEM must be an RSA public key: {e}"))?;
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.set_issuer(&[issuer]);
+        validation.set_audience(&[audience]);
+        validation.validate_exp = true;
+        validation.validate_nbf = true;
+        validation.required_spec_claims.insert("sub".to_owned());
+        validation.required_spec_claims.insert("exp".to_owned());
+        Ok(Self { key, validation })
+    }
+
+    pub fn authenticate(&self, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
+        let raw = headers
+            .get(AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .ok_or(ApiAuthError)?;
+        let token = raw.strip_prefix("Bearer ").ok_or(ApiAuthError)?;
+        let claims = decode::<Claims>(token, &self.key, &self.validation)
+            .map_err(|_| ApiAuthError)?
+            .claims;
+        if claims.sub.trim().is_empty() {
+            return Err(ApiAuthError);
+        }
+        Ok(claims)
+    }
+}
+
+#[derive(Debug)]
+pub struct ApiAuthError;
+
+impl axum::response::IntoResponse for ApiAuthError {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
+            "error": {"code": "unauthorized", "message": "A valid EdgeNest bearer token is required"}
+        }))).into_response()
+    }
+}
