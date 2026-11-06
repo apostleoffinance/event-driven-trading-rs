@@ -831,6 +831,9 @@ pub async fn resend_verification(
     State(state): State<AppState>,
     Json(input): Json<PasswordResetRequest>,
 ) -> Response {
+    if state.resend_api_key.is_none() || state.email_from.trim().is_empty() || state.public_app_url.trim().is_empty() {
+        return api_error(StatusCode::SERVICE_UNAVAILABLE, "email_delivery_unavailable", "Email delivery is not configured");
+    }
     let email = normalize_email(&input.email);
     if let Ok(Some((id, verified))) = sqlx::query_as::<_, (String, bool)>(
         "SELECT id,email_verified_at IS NOT NULL FROM identity_users WHERE email=$1",
@@ -856,6 +859,9 @@ pub async fn request_password_reset(
     State(state): State<AppState>,
     Json(input): Json<PasswordResetRequest>,
 ) -> Response {
+    if state.resend_api_key.is_none() || state.email_from.trim().is_empty() || state.public_app_url.trim().is_empty() {
+        return api_error(StatusCode::SERVICE_UNAVAILABLE, "email_delivery_unavailable", "Email delivery is not configured");
+    }
     let email = normalize_email(&input.email);
     if let Ok(Some((id, active))) = sqlx::query_as::<_, (String, bool)>(
         "SELECT id,is_active FROM identity_users WHERE email=$1",
