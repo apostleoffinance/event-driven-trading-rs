@@ -100,11 +100,13 @@ pub async fn archive_account(State(state): State<AppState>, headers: HeaderMap, 
     }
 }
 
+fn default_rules_json() -> Value { serde_json::json!({}) }
+
 #[derive(Debug, Deserialize)]
 pub struct SetupWrite {
     pub name: String,
     pub description: Option<String>,
-    #[serde(default)]
+    #[serde(default = "default_rules_json")]
     pub rules_json: Value,
 }
 
