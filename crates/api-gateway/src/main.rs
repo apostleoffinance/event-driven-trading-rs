@@ -160,10 +160,12 @@ async fn main() {
 
     let port = env::var("PORT").unwrap_or_else(|_| "10000".into());
     let bind = format!("0.0.0.0:{port}");
-    let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| {
-        eprintln!("gateway failed to bind {bind}: {e}");
-        std::process::exit(1);
-    });
+    let listener = tokio::net::TcpListener::bind(&bind)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("gateway failed to bind {bind}: {e}");
+            std::process::exit(1);
+        });
     tracing::info!(%bind, "EdgeNest combined API gateway listening");
 
     let server = axum::serve(listener, app).with_graceful_shutdown(async {
