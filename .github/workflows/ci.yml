@@ -2,9 +2,9 @@ name: Quant OS CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - '**'
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -32,9 +32,9 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/quant_os_test
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install stable Rust with components
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions/checkout@v7
+      - name: Install Rust 1.99.1 with components
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
       - name: Cache Cargo
@@ -56,9 +56,9 @@ jobs:
         working-directory: adapters/mt5-python
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Run read-only adapter contract tests
@@ -72,9 +72,9 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -93,9 +93,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Run macOS portable checks
