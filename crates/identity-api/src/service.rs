@@ -363,6 +363,9 @@ pub async fn health() -> &'static str {
     "ok"
 }
 pub async fn ready(State(state): State<AppState>) -> Response {
+    if state.resend_api_key.is_none() {
+        return api_error(StatusCode::SERVICE_UNAVAILABLE, "email_delivery_not_configured", "Email delivery provider is not configured");
+    }
     match sqlx::query_scalar::<_, i32>("SELECT 1")
         .fetch_one(&state.pool)
         .await
