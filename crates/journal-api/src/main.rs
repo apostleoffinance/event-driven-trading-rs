@@ -90,7 +90,7 @@ async fn main() {
             get(resources::list_accounts).post(resources::create_account),
         )
         .route(
-            "/api/v1/journal/accounts/:id",
+            "/api/v1/journal/accounts/{id}",
             get(resources::get_account)
                 .put(resources::update_account)
                 .patch(resources::update_account)
@@ -101,7 +101,7 @@ async fn main() {
             get(resources::list_setups).post(resources::create_setup),
         )
         .route(
-            "/api/v1/journal/setups/:id",
+            "/api/v1/journal/setups/{id}",
             get(resources::get_setup)
                 .put(resources::update_setup)
                 .patch(resources::update_setup)
@@ -109,7 +109,7 @@ async fn main() {
         )
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route(
-            "/api/v1/journal/trades/:trade_id",
+            "/api/v1/journal/trades/{trade_id}",
             get(http::get_one)
                 .put(http::replace)
                 .patch(http::replace)

@@ -46,19 +46,19 @@ All `/api/v1/journal/**` endpoints require `Authorization: Bearer <EdgeNest JWT>
 |---|---|---|
 | GET | `/api/v1/journal/accounts` | List active journal accounts |
 | POST | `/api/v1/journal/accounts` | Create journal account |
-| GET | `/api/v1/journal/accounts/:id` | Owner-scoped account detail |
-| PUT / PATCH | `/api/v1/journal/accounts/:id` | Replace account attributes |
-| DELETE | `/api/v1/journal/accounts/:id` | Archive account (no destructive delete) |
+| GET | `/api/v1/journal/accounts/{id}` | Owner-scoped account detail |
+| PUT / PATCH | `/api/v1/journal/accounts/{id}` | Replace account attributes |
+| DELETE | `/api/v1/journal/accounts/{id}` | Archive account (no destructive delete) |
 | GET | `/api/v1/journal/setups` | List active trading setups |
 | POST | `/api/v1/journal/setups` | Create setup |
-| GET | `/api/v1/journal/setups/:id` | Owner-scoped setup detail |
-| PUT / PATCH | `/api/v1/journal/setups/:id` | Replace setup attributes |
-| DELETE | `/api/v1/journal/setups/:id` | Archive setup |
+| GET | `/api/v1/journal/setups/{id}` | Owner-scoped setup detail |
+| PUT / PATCH | `/api/v1/journal/setups/{id}` | Replace setup attributes |
+| DELETE | `/api/v1/journal/setups/{id}` | Archive setup |
 | GET | `/api/v1/journal/trades?journal_account_id=&limit=&offset=` | Owner scoped, limit max 500 |
 | POST | `/api/v1/journal/trades` | Creates a manual/import journal trade |
-| GET | `/api/v1/journal/trades/:id` | Owner scoped |
-| PUT / PATCH | `/api/v1/journal/trades/:id` | Full replacement payload (PATCH is currently an alias; send all fields) |
-| DELETE | `/api/v1/journal/trades/:id` | Owner scoped, returns 204 |
+| GET | `/api/v1/journal/trades/{id}` | Owner scoped |
+| PUT / PATCH | `/api/v1/journal/trades/{id}` | Full replacement payload (PATCH is currently an alias; send all fields) |
+| DELETE | `/api/v1/journal/trades/{id}` | Owner scoped, returns 204 |
 | GET | `/healthz` | Liveness |
 | GET | `/readyz` | DB readiness |
 
