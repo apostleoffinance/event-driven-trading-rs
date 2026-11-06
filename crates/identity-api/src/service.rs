@@ -255,3 +255,28 @@ pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> Response {
         Err(_) => internal(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn email_is_normalized_and_validated() {
+        assert_eq!(normalize_email("  Test@Example.com "), "test@example.com");
+        assert!(valid_email("test@example.com"));
+        assert!(!valid_email("missing-at.example.com"));
+        assert!(!valid_email("test@localhost"));
+    }
+
+    #[test]
+    fn passwords_are_argon2_hashed_and_verified() {
+        let password = "correct horse battery staple";
+        let hash = match hash_password(password) {
+            Ok(hash) => hash,
+            Err(error) => panic!("password hashing failed: {error}"),
+        };
+        assert_ne!(hash, password);
+        assert!(verify_password(password, &hash));
+        assert!(!verify_password("incorrect password", &hash));
+    }
+}
