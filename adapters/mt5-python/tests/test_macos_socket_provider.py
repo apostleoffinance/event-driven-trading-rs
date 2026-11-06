@@ -176,7 +176,9 @@ class MacOsProviderTests(unittest.TestCase):
                 with connect_retry(port) as peer:
                     peer.sendall(f"HELLO\t{token}\n".encode())
                     reader = peer.makefile("rb")
-                    reader.readline()
+                    request = reader.readline()
+                    if request != b"PING\n":
+                        raise AssertionError(f"expected PING after HELLO, got {request!r}")
                     peer.sendall((json.dumps({
                         "ok": True,
                         "data": {
@@ -212,7 +214,9 @@ class MacOsProviderTests(unittest.TestCase):
                 with connect_retry(port) as peer:
                     peer.sendall(f"HELLO\t{token}\n".encode())
                     reader = peer.makefile("rb")
-                    reader.readline()
+                    request = reader.readline()
+                    if request != b"PING\n":
+                        raise AssertionError(f"expected PING after HELLO, got {request!r}")
                     peer.sendall((json.dumps({
                         "ok": True,
                         "data": {
@@ -248,7 +252,9 @@ class MacOsProviderTests(unittest.TestCase):
                 with connect_retry(port) as peer:
                     peer.sendall(f"HELLO\t{token}\n".encode())
                     reader = peer.makefile("rb")
-                    reader.readline()
+                    request = reader.readline()
+                    if request != b"PING\n":
+                        raise AssertionError(f"expected PING after HELLO, got {request!r}")
                     peer.sendall((json.dumps({
                         "ok": True,
                         "data": {
