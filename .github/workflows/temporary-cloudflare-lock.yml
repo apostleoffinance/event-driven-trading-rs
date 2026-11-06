@@ -16,10 +16,11 @@ jobs:
       - run: terraform -chdir=infra/cloudflare init -backend=false
       - name: Commit Terraform provider lock
         run: |
-          if git diff --quiet -- infra/cloudflare/.terraform.lock.hcl; then exit 0; fi
+          if [ ! -f infra/cloudflare/.terraform.lock.hcl ]; then echo "Terraform lockfile missing"; exit 1; fi
+          git add -f infra/cloudflare/.terraform.lock.hcl
+          if git diff --cached --quiet; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add infra/cloudflare/.terraform.lock.hcl
           git commit -m "Pin Cloudflare Terraform provider"
           git pull --rebase origin feat/identity-hardening-jwks-mfa-frontend
           git push
