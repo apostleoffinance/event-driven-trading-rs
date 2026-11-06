@@ -39,5 +39,79 @@ class MacOSConformanceHelperTests(unittest.TestCase):
             self.assertEqual(target.stat().st_mode & 0o777, 0o600)
 
 
+    @staticmethod
+    def persisted_fixture():
+        from datetime import timedelta
+        now = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
+        captured = (now - timedelta(seconds=10)).isoformat()
+        return now, {
+            "market_sequence": 41,
+            "market_captured_at": captured,
+            "market_source": "mt5_macos_mql5_socket_v1",
+            "market_account_currency": "USD",
+            "market_server": "Demo-Server",
+            "reconciliation_sequence": 41,
+            "reconciliation_captured_at": captured,
+            "reconciliation_source": "mt5_macos_mql5_socket_v1",
+            "reconciliation_currency": "USD",
+            "reconciliation_server": "Demo-Server",
+        }
+
+    def test_persisted_gate_accepts_fresh_matching_identity_and_sequence(self):
+        from types import SimpleNamespace
+        now, state = self.persisted_fixture()
+        sequence, market_at, recon_at = SMOKE.validate_persisted_state(
+            SimpleNamespace(server="Demo-Server"), "USD", state, now=now
+        )
+        self.assertEqual(sequence, 41)
+        self.assertEqual(market_at, recon_at)
+
+    def test_persisted_gate_rejects_stale_market_snapshot(self):
+        from types import SimpleNamespace
+        from datetime import timedelta
+        now, state = self.persisted_fixture()
+        state["market_captured_at"] = (now - timedelta(seconds=61)).isoformat()
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(SimpleNamespace(server="Demo-Server"), "USD", state, now=now)
+
+    def test_persisted_gate_rejects_future_snapshot_beyond_tolerance(self):
+        from types import SimpleNamespace
+        from datetime import timedelta
+        now, state = self.persisted_fixture()
+        state["reconciliation_captured_at"] = (now + timedelta(seconds=6)).isoformat()
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(SimpleNamespace(server="Demo-Server"), "USD", state, now=now)
+
+    def test_persisted_gate_rejects_market_reconciliation_sequence_mismatch(self):
+        from types import SimpleNamespace
+        now, state = self.persisted_fixture()
+        state["reconciliation_sequence"] = 42
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(SimpleNamespace(server="Demo-Server"), "USD", state, now=now)
+
+    def test_persisted_gate_rejects_wrong_server_and_currency(self):
+        from types import SimpleNamespace
+        now, state = self.persisted_fixture()
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(SimpleNamespace(server="Wrong-Server"), "USD", state, now=now)
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(SimpleNamespace(server="Demo-Server"), "EUR", state, now=now)
+
+    def test_persisted_gate_rejects_nonpositive_sequence(self):
+        from types import SimpleNamespace
+        now, state = self.persisted_fixture()
+        state["market_sequence"] = 0
+        state["reconciliation_sequence"] = 0
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(SimpleNamespace(server="Demo-Server"), "USD", state, now=now)
+
+    def test_persisted_gate_rejects_naive_validation_clock(self):
+        from types import SimpleNamespace
+        now, state = self.persisted_fixture()
+        with self.assertRaises(SMOKE.AdapterError):
+            SMOKE.validate_persisted_state(
+                SimpleNamespace(server="Demo-Server"), "USD", state, now=datetime(2026, 11, 6, 12, 0)
+            )
+
 if __name__ == "__main__":
     unittest.main()
