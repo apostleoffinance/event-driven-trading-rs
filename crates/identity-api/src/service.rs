@@ -445,8 +445,15 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest
             "Verify your email before signing in",
         );
     }
-    let mfa_enabled = match sqlx::query_scalar::<_, bool>("SELECT mfa_enabled FROM identity_users WHERE id=$1")
-        .bind(&id).fetch_one(&state.pool).await { Ok(value)=>value, Err(_)=>return internal() };
+    let mfa_enabled =
+        match sqlx::query_scalar::<_, bool>("SELECT mfa_enabled FROM identity_users WHERE id=$1")
+            .bind(&id)
+            .fetch_one(&state.pool)
+            .await
+        {
+            Ok(value) => value,
+            Err(_) => return internal(),
+        };
     if mfa_enabled {
         let (challenge_token, expires_at) = match state.jwt.issue_typed(&id, "mfa_challenge", 300) {
             Ok(v) => v,
