@@ -16,7 +16,7 @@ export const marketDataApi = {
     if (input.provider) params.set("provider", input.provider);
     if (input.from) params.set("from", input.from);
     if (input.to) params.set("to", input.to);
-    return apiRequest<CandleResponse>(`/api/v1/market-data/candles?${params.toString()}`, { auth: false });
+    return apiRequest<CandleResponse>(`/api/v1/market-data/candles?${params.toString()}`, { auth: false, baseUrl: marketDataBaseUrl() });
   },
   async mt5Latest() { requireApiMode(); return apiRequest<unknown>("/api/v1/market-data/mt5/latest", { auth: false, baseUrl: marketDataBaseUrl() }); },
 };
