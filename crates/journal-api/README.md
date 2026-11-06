@@ -36,7 +36,7 @@ The API applies existing SQL migrations on startup. Use a migration-capable depl
 - Rotate keys deliberately (future JWKS support should overlap old/new keys during token TTL). Do not accept TraderOS tokens or reuse its auth infrastructure.
 - No API keys, refresh-token endpoints, password storage, or login UI are implemented by this Journal service.
 
-The identity issuer itself is not present in this repo yet. Deploy this API only once the EdgeNest Identity issuer emits tokens conforming to the contract above. Issuer/audience/key values are environment-configured; do not guess production values.
+The EdgeNest Identity issuer is implemented in the sibling `identity-api` workspace service. Deploy both with identical issuer/audience/public-key configuration. Do not guess production values.
 
 ## Routes
 
