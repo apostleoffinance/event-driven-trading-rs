@@ -760,16 +760,24 @@ async fn send_email(state: &AppState, to: &str, subject: &str, html: &str) -> Re
 }
 async fn create_verification_token(state: &AppState, user_id: &str) -> Result<String, ()> {
     let raw = random_token();
+    let mut tx = state.pool.begin().await.map_err(|_| ())?;
+    sqlx::query("UPDATE identity_email_verification_tokens SET consumed_at=NOW() WHERE user_id=$1 AND consumed_at IS NULL")
+        .bind(user_id).execute(&mut *tx).await.map_err(|_| ())?;
     sqlx::query("INSERT INTO identity_email_verification_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)")
         .bind(uuid::Uuid::new_v4().to_string()).bind(user_id).bind(token_hash(&raw)).bind(Utc::now()+Duration::hours(24))
-        .execute(&state.pool).await.map_err(|_| ())?;
+        .execute(&mut *tx).await.map_err(|_| ())?;
+    tx.commit().await.map_err(|_| ())?;
     Ok(raw)
 }
 async fn create_password_reset_token(state: &AppState, user_id: &str) -> Result<String, ()> {
     let raw = random_token();
+    let mut tx = state.pool.begin().await.map_err(|_| ())?;
+    sqlx::query("UPDATE identity_password_reset_tokens SET consumed_at=NOW() WHERE user_id=$1 AND consumed_at IS NULL")
+        .bind(user_id).execute(&mut *tx).await.map_err(|_| ())?;
     sqlx::query("INSERT INTO identity_password_reset_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)")
         .bind(uuid::Uuid::new_v4().to_string()).bind(user_id).bind(token_hash(&raw)).bind(Utc::now()+Duration::minutes(30))
-        .execute(&state.pool).await.map_err(|_| ())?;
+        .execute(&mut *tx).await.map_err(|_| ())?;
+    tx.commit().await.map_err(|_| ())?;
     Ok(raw)
 }
 fn base32_encode(bytes: &[u8]) -> String {
