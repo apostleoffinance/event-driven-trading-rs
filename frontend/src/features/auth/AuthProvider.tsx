@@ -19,6 +19,7 @@ type AuthContextValue = {
   confirmPasswordReset: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
+  identityFetch: (url: string, init?: RequestInit) => Promise<Response>;
 };
 const AuthContext = createContext<AuthContextValue | null>(null);
 const identityBase = frontendConfig.identityUrl.replace(/\/$/, "");
@@ -111,7 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response;
   }, [accessToken]);
 
-  const value = useMemo(() => ({ user, accessToken, ready, login, completeMfaLogin, register, verifyEmail, resendVerification, requestPasswordReset, confirmPasswordReset, logout, authFetch }), [user, accessToken, ready, login, completeMfaLogin, register, verifyEmail, resendVerification, requestPasswordReset, confirmPasswordReset, logout, authFetch]);
+  const identityFetch = useCallback(async (url: string, init: RequestInit = {}) => {
+    if (!accessToken) throw new Error("Sign in to continue.");
+    const response = await fetch(`${identityBase}${url}`, { ...init, credentials: "include", headers: { Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) } });
+    if (response.status === 401) { setAccessToken(null); setUser(null); throw new Error("Your session expired. Sign in again."); }
+    return response;
+  }, [accessToken]);
+
+  const value = useMemo(() => ({ user, accessToken, ready, login, completeMfaLogin, register, verifyEmail, resendVerification, requestPasswordReset, confirmPasswordReset, logout, authFetch, identityFetch }), [user, accessToken, ready, login, completeMfaLogin, register, verifyEmail, resendVerification, requestPasswordReset, confirmPasswordReset, logout, authFetch, identityFetch]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
