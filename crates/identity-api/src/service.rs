@@ -1140,7 +1140,9 @@ mod security_tests {
     fn base32_secret_has_no_padding_and_valid_alphabet() {
         let encoded = base32_encode(&[0xFF, 0x00, 0x10, 0x20]);
         assert!(!encoded.contains('='));
-        assert!(encoded.chars().all(|c| c.is_ascii_uppercase() || ('2'..='7').contains(&c)));
+        assert!(encoded
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || ('2'..='7').contains(&c)));
     }
 
     #[test]
