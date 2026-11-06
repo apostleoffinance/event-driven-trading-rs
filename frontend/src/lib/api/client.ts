@@ -19,7 +19,7 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
   return normalized;
 }
 
-type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string; authService?: "identity" | "journal" | "market-data" };
+type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, authService = "identity", ...init } = options;
@@ -57,5 +57,6 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
 export function requireApiMode(): void {
   if (process.env.NEXT_PUBLIC_DATA_MODE !== "api") throw new Error("This feature requires NEXT_PUBLIC_DATA_MODE=api.");
-  apiBaseUrl();
+  const configured = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_IDENTITY_API_URL || process.env.NEXT_PUBLIC_JOURNAL_API_URL || process.env.NEXT_PUBLIC_MARKET_DATA_API_URL;
+  if (!configured?.trim()) throw new Error("Set NEXT_PUBLIC_API_URL or at least one service-specific API URL.");
 }
