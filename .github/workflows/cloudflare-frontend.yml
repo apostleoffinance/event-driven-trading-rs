@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   cloudflare-frontend:
@@ -36,27 +36,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
-        run: npm install
-      - name: Commit regenerated frontend lockfile to PR branch
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_BRANCH: ${{ github.head_ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(frontend): refresh package lockfile"
-            git pull --rebase origin "${PR_BRANCH}"
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${PR_BRANCH}"
-          fi
-      - name: Upload regenerated lockfile (temporary CI artifact)
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-package-lock
-          path: frontend/package-lock.json
-          retention-days: 1
+        run: npm ci
       - name: Typecheck
         run: npm run typecheck
       - name: Build Cloudflare Worker
