@@ -169,7 +169,7 @@ pub async fn record_outcome(
     )))?;
 
     if current.0 == state.as_str()
-        && venue_order_id.map_or(true, |id| current.1.as_deref() == Some(id))
+        && venue_order_id.is_none_or(|id| current.1.as_deref() == Some(id))
     {
         return Ok(());
     }
@@ -492,6 +492,7 @@ pub async fn persist_reconciliation_snapshot(
 /// Persist broker-authoritative MT5 instrument metadata and quote freshness states.
 /// Non-fresh data never marks a stream ready by itself, and unavailable updates
 /// preserve the prior actual quote separately as explicitly stale.
+#[allow(clippy::too_many_arguments)]
 pub async fn persist_market_data_snapshot(
     pool: &PgPool,
     account_id: &str,
