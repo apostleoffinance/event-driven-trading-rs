@@ -82,7 +82,9 @@ impl JournalTrade {
             (self.symbol.as_str(), "symbol"),
         ] {
             if value.trim().is_empty() {
-                return Err(DomainError::Validation(format!(\n                    "{field} must be non-empty"\n                )));
+                return Err(DomainError::Validation(format!(
+                    "{field} must be non-empty"
+                )));
             }
         }
 
@@ -119,7 +121,10 @@ impl JournalTrade {
             ));
         }
         if self.pnl_currency.len() != 3
-            || !self\n                .pnl_currency\n                .chars()\n                .all(|character| character.is_ascii_uppercase())
+            || !self
+                .pnl_currency
+                .chars()
+                .all(|character| character.is_ascii_uppercase())
         {
             return Err(DomainError::Validation(
                 "pnl_currency must be a 3-character uppercase ISO-style code".to_string(),
