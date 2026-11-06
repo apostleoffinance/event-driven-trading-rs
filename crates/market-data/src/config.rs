@@ -180,9 +180,10 @@ mod tests {
 
     #[test]
     fn mt5_rejects_bad_values_without_echoing_them() {
-        let err = cfg(&[
-            ("MARKET_DATA_DATABASE_URL", "mysql://user:secret@localhost/d"),
-        ])
+        let err = cfg(&[(
+            "MARKET_DATA_DATABASE_URL",
+            "mysql://user:secret@localhost/d",
+        )])
         .unwrap_err();
         assert!(!err.contains("secret"));
         assert!(cfg(&[("MARKET_DATA_MT5_STALE_AFTER_SECONDS", "0")]).is_err());
@@ -192,8 +193,11 @@ mod tests {
 
     #[test]
     fn mt5_rejects_plaintext_remote_database_without_echoing_it() {
-        let err = cfg(&[("MARKET_DATA_DATABASE_URL", "postgres://u:pw@db.example.com/d")])
-            .unwrap_err();
+        let err = cfg(&[(
+            "MARKET_DATA_DATABASE_URL",
+            "postgres://u:pw@db.example.com/d",
+        )])
+        .unwrap_err();
         assert!(!err.contains("pw") && !err.contains("example.com"));
         assert!(cfg(&[(
             "MARKET_DATA_DATABASE_URL",
