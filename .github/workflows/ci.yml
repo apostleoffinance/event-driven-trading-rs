@@ -38,8 +38,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install stable Rust with components
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust 1.99.1 with components
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
       - name: Cache Cargo
