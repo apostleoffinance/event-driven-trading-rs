@@ -26,7 +26,7 @@ fn start_child(name: &str, executable: &str, bind_key: &str, bind: &str) -> Chil
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
-    if let Some(cors) = env::var_os("EDGENEST_CORS_ORIGINS") {
+    let cors = env::var("EDGENEST_CORS_ORIGINS")\n        .unwrap_or_else(|_| "https://edgenest-frontend.edgenest.workers.dev,http://localhost:3000,http://localhost:3107,http://127.0.0.1:8787".into());\n    if !cors.trim().is_empty() {
         command
             .env("IDENTITY_CORS_ORIGINS", &cors)
             .env("JOURNAL_CORS_ORIGINS", &cors)
