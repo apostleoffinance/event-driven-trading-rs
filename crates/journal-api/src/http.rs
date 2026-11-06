@@ -151,7 +151,7 @@ pub async fn get_one(
 ) -> Response {
     let claims = match owner(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match state.store.get_journal_trade(&claims.sub, &id).await {
         Ok(trade) => Json(serde_json::json!({"data":trade})).into_response(),
@@ -167,7 +167,7 @@ pub async fn create(
 ) -> Response {
     let claims = match owner(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     let trade = trade_from(claims.sub, uuid::Uuid::new_v4().to_string(), input);
     if let Err(e) = trade.validate() {
@@ -239,7 +239,7 @@ pub async fn replace(
 ) -> Response {
     let claims = match owner(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     let trade = trade_from(claims.sub, id.clone(), input);
     if let Err(e) = trade.validate() {
@@ -307,7 +307,7 @@ pub async fn delete(
 ) -> Response {
     let claims = match owner(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match state.store.delete_journal_trade(&claims.sub, &id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
