@@ -34,19 +34,28 @@ impl TradingStore {
     }
 
     /// Insert a journal trade without creating or mutating OMS state.
-    pub async fn insert_journal_trade(&self, trade: &domain::JournalTrade) -> PersistenceResult<()> {
+    pub async fn insert_journal_trade(
+        &self,
+        trade: &domain::JournalTrade,
+    ) -> PersistenceResult<()> {
         journal::insert(&self.pool, trade).await
     }
 
     /// Owner-scoped journal listing; caller must pass the authenticated principal ID.
     pub async fn list_journal_trades(
-        &self, owner_id: &str, account_id: Option<&str>, limit: i64, offset: i64,
+        &self,
+        owner_id: &str,
+        account_id: Option<&str>,
+        limit: i64,
+        offset: i64,
     ) -> PersistenceResult<Vec<domain::JournalTrade>> {
         journal::list_for_owner(&self.pool, owner_id, account_id, limit, offset).await
     }
 
     pub async fn get_journal_trade(
-        &self, owner_id: &str, trade_id: &str,
+        &self,
+        owner_id: &str,
+        trade_id: &str,
     ) -> PersistenceResult<domain::JournalTrade> {
         journal::get_for_owner(&self.pool, owner_id, trade_id).await
     }
