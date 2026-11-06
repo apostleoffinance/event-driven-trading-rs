@@ -98,27 +98,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [accessToken]);
 
+  const refreshAccessToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const tokens = await identityRequest<TokenResponse>("/api/v1/auth/refresh", {
+        method: "POST",
+        body: "{}",
+      });
+      accept(tokens);
+      return tokens.access_token;
+    } catch {
+      setAccessToken(null);
+      setUser(null);
+      return null;
+    }
+  }, [accept]);
+
   const authFetch = useCallback(async (url: string, init: RequestInit = {}) => {
     if (!accessToken) throw new Error("Sign in to continue.");
     if (!journalBase && !url.startsWith("http")) throw new Error("Journal API URL is not configured.");
     const target = url.startsWith("http") ? url : `${journalBase}${url}`;
-    const response = await fetch(target, {
-      ...init, credentials: "include",
-      headers: { Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) },
+    const request = (token: string) => fetch(target, {
+      ...init,
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
     });
+    let response = await request(accessToken);
     if (response.status === 401) {
-      setAccessToken(null); setUser(null);
-      throw new Error("Your session expired. Sign in again.");
+      const renewed = await refreshAccessToken();
+      if (!renewed) throw new Error("Your session expired. Sign in again.");
+      response = await request(renewed);
+      if (response.status === 401) {
+        setAccessToken(null);
+        setUser(null);
+        throw new Error("Your session expired. Sign in again.");
+      }
     }
     return response;
-  }, [accessToken]);
+  }, [accessToken, refreshAccessToken]);
 
   const identityFetch = useCallback(async (url: string, init: RequestInit = {}) => {
     if (!accessToken) throw new Error("Sign in to continue.");
-    const response = await fetch(`${identityBase}${url}`, { ...init, credentials: "include", headers: { Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) } });
-    if (response.status === 401) { setAccessToken(null); setUser(null); throw new Error("Your session expired. Sign in again."); }
+    const request = (token: string) => fetch(`${identityBase}${url}`, {
+      ...init,
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
+    });
+    let response = await request(accessToken);
+    if (response.status === 401 && url !== "/api/v1/auth/refresh") {
+      const renewed = await refreshAccessToken();
+      if (!renewed) throw new Error("Your session expired. Sign in again.");
+      response = await request(renewed);
+      if (response.status === 401) {
+        setAccessToken(null);
+        setUser(null);
+        throw new Error("Your session expired. Sign in again.");
+      }
+    }
     return response;
-  }, [accessToken]);
+  }, [accessToken, refreshAccessToken]);
 
   const value = useMemo(() => ({ user, accessToken, ready, login, completeMfaLogin, register, verifyEmail, resendVerification, requestPasswordReset, confirmPasswordReset, logout, authFetch, identityFetch }), [user, accessToken, ready, login, completeMfaLogin, register, verifyEmail, resendVerification, requestPasswordReset, confirmPasswordReset, logout, authFetch, identityFetch]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
