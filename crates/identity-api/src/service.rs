@@ -1,4 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
+use hmac::{Hmac, Mac};
+use sha1::Sha1;
 
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -63,6 +66,10 @@ impl JwtService {
     }
 
     pub fn issue_access(&self, user_id: &str, ttl_seconds: i64) -> Result<(String, usize), String> {
+        self.issue_typed(user_id, "access", ttl_seconds)
+    }
+
+    pub fn issue_typed(&self, user_id: &str, token_type: &str, ttl_seconds: i64) -> Result<(String, usize), String> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| e.to_string())?
@@ -74,7 +81,7 @@ impl JwtService {
             aud: self.audience.clone(),
             exp,
             iat: now,
-            token_type: "access".into(),
+            token_type: token_type.into(),
         };
         let token = encode(&Header::new(Algorithm::RS256), &claims, &self.encoding)
             .map_err(|e| format!("JWT signing failed: {e}"))?;
@@ -87,13 +94,16 @@ impl JwtService {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .ok_or(AuthError)?;
-        let claims = decode::<AccessClaims>(bearer, &self.decoding, &self.validation)
-            .map_err(|_| AuthError)?
-            .claims;
+        let claims = self.verify(bearer).map_err(|_| AuthError)?;
         if claims.token_type != "access" || claims.sub.trim().is_empty() {
             return Err(AuthError);
         }
         Ok(claims)
+    }
+
+    pub fn verify(&self, token: &str) -> Result<AccessClaims, String> {
+        decode::<AccessClaims>(token, &self.decoding, &self.validation)
+            .map(|data| data.claims).map_err(|e| e.to_string())
     }
 }
 
@@ -120,10 +130,22 @@ pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct RefreshRequest {
-    pub refresh_token: String,
+    pub refresh_token: Option<String>,
 }
+#[derive(Debug, Deserialize)]
+pub struct OneTimeTokenRequest { pub token: String }
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetRequest { pub email: String }
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetConfirmRequest { pub token: String, pub new_password: String }
+#[derive(Debug, Deserialize)]
+pub struct TotpRequest { pub code: String }
+#[derive(Debug, Deserialize)]
+pub struct MfaLoginRequest { pub challenge_token: String, pub code: String }
+#[derive(Debug, Serialize)]
+struct IssuedPair { response: TokenResponse, refresh_token: String }
 #[derive(Debug, Serialize)]
 struct UserView {
     id: String,
@@ -135,7 +157,6 @@ struct TokenResponse {
     token_type: &'static str,
     access_token: String,
     expires_in: usize,
-    refresh_token: String,
     user: UserView,
 }
 
@@ -208,7 +229,7 @@ fn token_hash(raw: &str) -> String {
     hex::encode(Sha256::digest(raw.as_bytes()))
 }
 
-async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, ()> {
+async fn issue_pair(state: &AppState, user: UserView) -> Result<IssuedPair, ()> {
     let (access_token, _expires_at) = state
         .jwt
         .issue_access(&user.id, state.access_ttl_seconds)
@@ -225,13 +246,9 @@ async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, (
     .execute(&state.pool)
     .await
     .map_err(|_| ())?;
-    Ok(TokenResponse {
-        token_type: "Bearer",
-        access_token,
-        expires_in: state.access_ttl_seconds as usize,
-        refresh_token,
-        user,
-    })
+    Ok(IssuedPair { response: TokenResponse {
+        token_type: "Bearer", access_token, expires_in: state.access_ttl_seconds as usize, user,
+    }, refresh_token })
 }
 
 pub async fn health() -> &'static str {
@@ -290,7 +307,7 @@ pub async fn register(
         Err(_) => return internal(),
     };
     match issue_pair(&state, user).await {
-        Ok(tokens) => (StatusCode::CREATED, Json(tokens)).into_response(),
+        Ok(tokens) => set_refresh_cookie((StatusCode::CREATED, Json(tokens.response)).into_response(), &tokens.refresh_token, state.refresh_ttl_days),
         Err(()) => internal(),
     }
 }
@@ -311,6 +328,16 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest
     if !is_active || !verify_password(&input.password, &password_hash) {
         return unauthorized();
     }
+    let verified = sqlx::query_scalar::<_, Option<chrono::DateTime<Utc>>>("SELECT email_verified_at FROM identity_users WHERE id=$1").bind(&id).fetch_one(&state.pool).await;
+    if !matches!(verified, Ok(Some(Some(_)))) {
+        return api_error(StatusCode::FORBIDDEN, "email_not_verified", "Verify your email before signing in");
+    }
+    let mfa_enabled = sqlx::query_scalar::<_, bool>("SELECT mfa_enabled FROM identity_users WHERE id=$1").bind(&id).fetch_one(&state.pool).await.unwrap_or(false);
+    if mfa_enabled {
+        let (challenge_token, expires_at) = match state.jwt.issue_typed(&id, "mfa_challenge", 300) { Ok(v)=>v, Err(_)=>return internal() };
+        let now = Utc::now().timestamp() as usize;
+        return (StatusCode::ACCEPTED, Json(serde_json::json!({"mfa_required":true,"challenge_token":challenge_token,"expires_in":expires_at.saturating_sub(now)}))).into_response();
+    }
     match issue_pair(
         &state,
         UserView {
@@ -321,13 +348,15 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest
     )
     .await
     {
-        Ok(tokens) => Json(tokens).into_response(),
+        Ok(tokens) => set_refresh_cookie(Json(tokens.response).into_response(), &tokens.refresh_token, state.refresh_ttl_days),
         Err(()) => internal(),
     }
 }
 
-pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshRequest>) -> Response {
-    if input.refresh_token.len() < 32 || input.refresh_token.len() > 256 {
+pub async fn refresh(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<RefreshRequest>) -> Response {
+    let refresh_token = input.refresh_token.or_else(|| cookie_value(&headers, "__Host-edgenest_refresh"));
+    let Some(refresh_token) = refresh_token else { return unauthorized(); };
+    if refresh_token.len() < 32 || refresh_token.len() > 256 {
         return unauthorized();
     }
     let mut tx = match state.pool.begin().await {
@@ -336,7 +365,7 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
     };
     let user_id = sqlx::query_scalar::<_, String>(
         "UPDATE identity_refresh_tokens SET revoked_at=NOW(),last_used_at=NOW() WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>NOW() RETURNING user_id")
-        .bind(token_hash(&input.refresh_token)).fetch_optional(&mut *tx).await;
+         .bind(token_hash(&refresh_token)).fetch_optional(&mut *tx).await;
     let user_id = match user_id {
         Ok(Some(id)) => id,
         Ok(None) => {
@@ -395,18 +424,10 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
     if tx.commit().await.is_err() {
         return internal();
     }
-    Json(TokenResponse {
-        token_type: "Bearer",
-        access_token,
-        expires_in: state.access_ttl_seconds as usize,
-        refresh_token,
-        user: UserView {
-            id,
-            email,
-            display_name,
-        },
-    })
-    .into_response()
+    set_refresh_cookie(Json(TokenResponse {
+        token_type: "Bearer", access_token, expires_in: state.access_ttl_seconds as usize,
+        user: UserView { id, email, display_name },
+    }).into_response(), &refresh_token, state.refresh_ttl_days)
 }
 
 pub async fn logout(
@@ -418,9 +439,13 @@ pub async fn logout(
         Ok(claims) => claims,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND token_hash=$2 AND revoked_at IS NULL")
-        .bind(claims.sub).bind(token_hash(&input.refresh_token)).execute(&state.pool).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+    let refresh_token = input.refresh_token.or_else(|| cookie_value(&headers, "__Host-edgenest_refresh"));
+    if let Some(refresh_token) = refresh_token {
+        let _ = sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND token_hash=$2 AND revoked_at IS NULL")
+            .bind(claims.sub).bind(token_hash(&refresh_token)).execute(&state.pool).await;
+    }
+    match Ok::<(), sqlx::Error>(()) {
+        Ok(_) => clear_refresh_cookie(StatusCode::NO_CONTENT.into_response()),
         Err(_) => internal(),
     }
 }
