@@ -10,7 +10,7 @@ export type JournalSetup = {
 };
 export type JournalTrade = {
   id: string; journal_account_id: string; setup_id?: string | null; symbol: string;
-  direction: "Long" | "Short"; status: string; source: string; source_system?: string | null;
+  direction: "long" | "short"; status: string; source: string; source_system?: string | null;
   source_trade_id?: string | null; opened_at: string; closed_at?: string | null;
   quantity: string; entry_price: string; exit_price?: string | null; stop_loss?: string | null;
   take_profit?: string | null; gross_pnl?: string | null; commission: string; swap: string;
@@ -35,7 +35,7 @@ export const journalApi = {
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.limit !== undefined) params.set("limit", String(options.limit));
     if (options.offset !== undefined) params.set("offset", String(options.offset));
-    const suffix = params.size ? `?${params.toString()}` : "";
+    const query = params.toString();\n    const suffix = query ? `?${query}` : "";
     return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { baseUrl: journalBaseUrl() });
   },
   async createTrade(input: Omit<JournalTrade, "id">) {
