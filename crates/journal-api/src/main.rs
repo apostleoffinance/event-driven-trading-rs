@@ -41,7 +41,7 @@ async fn main() {
     let public_key = env_required("EDGENEST_JWT_PUBLIC_KEY_PEM").replace("\\n", "\n");
     let active_key_id =
         env::var("EDGENEST_JWT_KEY_ID").unwrap_or_else(|_| "edgenest-rsa-2026-01".into());
-    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON").ok();
+    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON").ok().filter(|value| !value.trim().is_empty());
     let bind: SocketAddr = env::var("JOURNAL_API_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".into())
         .parse()
