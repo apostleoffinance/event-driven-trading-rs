@@ -3,7 +3,7 @@ const marketDataBaseUrl = () => apiBaseUrl("market-data");
 
 export type MarketDataProvider = { id: string; status?: string; name?: string; [key: string]: unknown };
 export type MarketInstrument = { id: string; symbol?: string; name?: string; [key: string]: unknown };
-export type Candle = { timestamp?: string | number; time?: string | number; open: string | number; high: string | number; low: string | number; close: string | number; volume?: string | number };
+export type Candle = { timestamp_ms: number; open: number; high: number; low: number; close: number; volume?: number };
 export type CandleResponse = { candles: Candle[]; [key: string]: unknown };
 
 export const marketDataApi = {
