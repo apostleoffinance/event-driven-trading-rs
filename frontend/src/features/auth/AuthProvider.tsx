@@ -100,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const authFetch = useCallback(async (url: string, init: RequestInit = {}) => {
     if (!accessToken) throw new Error("Sign in to continue.");
+    if (!journalBase && !url.startsWith("http")) throw new Error("Journal API URL is not configured.");
     const target = url.startsWith("http") ? url : `${journalBase}${url}`;
     const response = await fetch(target, {
       ...init, credentials: "include",
