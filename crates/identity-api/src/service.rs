@@ -77,15 +77,20 @@ impl JwtService {
             Err(_) => RsaPublicKey::from_pkcs1_pem(active_public_pem)
                 .map_err(|e| format!("invalid active RSA public key: {e}"))?,
         };
-        if active_rsa.n().bits() < 2048 { return Err("RSA signing key must be at least 2048 bits".into()); }
+        if active_rsa.n().bits() < 2048 {
+            return Err("RSA signing key must be at least 2048 bits".into());
+        }
         let private_pem = std::str::from_utf8(private_pem).map_err(|e| e.to_string())?;
         let private_rsa = match RsaPrivateKey::from_pkcs8_pem(private_pem) {
             Ok(key) => key,
-            Err(_) => RsaPrivateKey::from_pkcs1_pem(private_pem).map_err(|e| format!("invalid RSA private key: {e}"))?,
+            Err(_) => RsaPrivateKey::from_pkcs1_pem(private_pem)
+                .map_err(|e| format!("invalid RSA private key: {e}"))?,
         };
         let derived_public = RsaPublicKey::from(&private_rsa);
         if derived_public.n() != active_rsa.n() || derived_public.e() != active_rsa.e() {
-            return Err("EDGENEST_JWT_PRIVATE_KEY_PEM does not match EDGENEST_JWT_PUBLIC_KEY_PEM".into());
+            return Err(
+                "EDGENEST_JWT_PRIVATE_KEY_PEM does not match EDGENEST_JWT_PUBLIC_KEY_PEM".into(),
+            );
         }
         #[derive(Deserialize)]
         struct KeyInput {
@@ -114,7 +119,12 @@ impl JwtService {
                 Err(_) => RsaPublicKey::from_pkcs1_pem(&pem)
                     .map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?,
             };
-            if rsa_key.n().bits() < 2048 { return Err(format!("RSA public key {} must be at least 2048 bits", key.kid)); }
+            if rsa_key.n().bits() < 2048 {
+                return Err(format!(
+                    "RSA public key {} must be at least 2048 bits",
+                    key.kid
+                ));
+            }
             if key.kid == active_kid
                 && (rsa_key.n() != active_rsa.n() || rsa_key.e() != active_rsa.e())
             {
