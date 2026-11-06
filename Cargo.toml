@@ -16,6 +16,7 @@ members = [
     "crates/market-data",
     "crates/journal-api",
     "crates/identity-api",
+    "crates/api-gateway",
     "strategies/mean-reversion",
 ]
 
