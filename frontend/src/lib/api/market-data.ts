@@ -1,4 +1,5 @@
-import { apiRequest, requireApiMode } from "@/lib/api/client";
+import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
+const marketDataBaseUrl = () => apiBaseUrl("market-data");
 
 export type MarketDataProvider = { id: string; status?: string; name?: string; [key: string]: unknown };
 export type MarketInstrument = { id: string; symbol?: string; name?: string; [key: string]: unknown };
@@ -6,7 +7,7 @@ export type Candle = { timestamp?: string | number; time?: string | number; open
 export type CandleResponse = { candles: Candle[]; [key: string]: unknown };
 
 export const marketDataApi = {
-  async providers() { requireApiMode(); return (await apiRequest<{ providers: MarketDataProvider[] }>("/api/v1/market-data/providers", { auth: false })).providers; },
+  async providers() { requireApiMode(); return (await apiRequest<{ providers: MarketDataProvider[] }>("/api/v1/market-data/providers", { auth: false, baseUrl: marketDataBaseUrl() })).providers; },
   async instruments() { requireApiMode(); return (await apiRequest<{ instruments: MarketInstrument[] }>("/api/v1/market-data/instruments", { auth: false })).instruments; },
   async candles(input: { instrument: string; timeframe: string; limit?: number; provider?: string; from?: string; to?: string }) {
     requireApiMode();
