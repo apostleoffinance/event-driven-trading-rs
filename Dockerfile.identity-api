@@ -5,6 +5,8 @@ RUN cargo build --release -p identity-api
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates     && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /workspace/crates/persistence
+COPY --from=build /workspace/migrations /workspace/migrations
 COPY --from=build /workspace/target/release/identity-api /usr/local/bin/identity-api
 USER 10001:10001
 EXPOSE 8081
