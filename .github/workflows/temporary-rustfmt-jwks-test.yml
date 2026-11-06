@@ -1,0 +1,25 @@
+name: Temporary rustfmt identity test
+on:
+  push:
+    branches:
+      - feat/identity-hardening-jwks-mfa-frontend
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          components: rustfmt
+      - run: cargo fmt --all
+      - name: Commit rustfmt
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "Format JWT key rotation test"
+          git pull --rebase origin feat/identity-hardening-jwks-mfa-frontend
+          git push
