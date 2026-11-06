@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { frontendConfig } from "@/config/frontend";
 
@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<IdentityUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const refreshPromise = useRef<Promise<string | null> | null>(null);
 
   const accept = useCallback((tokens: TokenResponse) => {
     setAccessToken(tokens.access_token);
@@ -99,18 +100,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [accessToken]);
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
-    try {
-      const tokens = await identityRequest<TokenResponse>("/api/v1/auth/refresh", {
-        method: "POST",
-        body: "{}",
-      });
-      accept(tokens);
-      return tokens.access_token;
-    } catch {
-      setAccessToken(null);
-      setUser(null);
-      return null;
-    }
+    if (refreshPromise.current) return refreshPromise.current;
+    const pending = (async () => {
+      try {
+        const tokens = await identityRequest<TokenResponse>("/api/v1/auth/refresh", {
+          method: "POST",
+          body: "{}",
+        });
+        accept(tokens);
+        return tokens.access_token;
+      } catch {
+        setAccessToken(null);
+        setUser(null);
+        return null;
+      } finally {
+        refreshPromise.current = null;
+      }
+    })();
+    refreshPromise.current = pending;
+    return pending;
   }, [accept]);
 
   const authFetch = useCallback(async (url: string, init: RequestInit = {}) => {
