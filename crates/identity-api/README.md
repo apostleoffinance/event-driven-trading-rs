@@ -11,10 +11,12 @@ This is the EdgeNest-owned identity issuer. It does not migrate TraderOS users, 
 - `EDGENEST_JWT_PUBLIC_KEY_PEM` (matching RSA public PEM)
 - `IDENTITY_MFA_ENCRYPTION_KEY` (random secret for encrypting TOTP seeds at rest)
 
+Required for readiness and production account flows:
+- `RESEND_API_KEY` (Resend API key)
+- `IDENTITY_EMAIL_FROM` (verified sender address, e.g. `EdgeNest <auth@your-domain>`)
+- `EDGENEST_PUBLIC_APP_URL` (real frontend base URL used in verification/reset links)
+
 Optional:
-- `RESEND_API_KEY` (Resend API key; needed for email verification/password reset delivery)
-- `IDENTITY_EMAIL_FROM` (verified sender address)
-- `EDGENEST_PUBLIC_APP_URL` (frontend base URL used in mail links)
 - `EDGENEST_JWT_KEY_ID` (active signing KID; default `edgenest-rsa-2026-01`)
 - `EDGENEST_JWT_PUBLIC_KEYS_JSON` (JSON array of `{kid,pem}` entries for active and overlapping old public keys)
 - `IDENTITY_API_BIND` (default `0.0.0.0:8081`)
