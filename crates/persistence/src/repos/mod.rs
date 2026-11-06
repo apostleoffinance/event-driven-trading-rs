@@ -130,6 +130,7 @@ impl TradingStore {
     }
 
     /// Persist an MT5 instrument/quote frame without changing stream readiness.
+    #[allow(clippy::too_many_arguments)]
     pub async fn persist_mt5_market_data_snapshot(
         &self,
         account_id: &str,
