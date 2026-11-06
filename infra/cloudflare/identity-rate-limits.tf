@@ -11,7 +11,7 @@ resource "cloudflare_ruleset" "edgenest_identity_rate_limits" {
     action      = "block"
     expression  = "(http.request.method eq \"POST\" and http.request.uri.path in {\"/api/v1/auth/login\" \"/api/v1/auth/mfa/verify-login\"})"
     ratelimit {
-      characteristics     = ["ip.src"]
+      characteristics     = ["cf.colo.id", "ip.src"]
       period              = 60
       requests_per_period = 10
       mitigation_timeout  = 600
