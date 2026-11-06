@@ -53,32 +53,11 @@ export function Topbar({
       </div>
       <div className="topbar-right">
         <span aria-live="polite">
-          <span className="status-dot ok" aria-hidden />
-          SYSTEM HEALTHY
+          <span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : "off"}`} aria-hidden />
+          {frontendConfig.dataMode === "mock" ? "MOCK MODE" : "BACKEND UNVERIFIED"}
         </span>
-        <span>
-          <span
-            className={`status-dot ${eventConnected ? "ok" : "off"}`}
-            aria-hidden
-          />
-          EVENT STREAM
+        <span aria-live="polite">
+          <span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />
+          {frontendConfig.dataMode === "mock" ? "MOCK STREAM" : "STREAM DISCONNECTED"}
         </span>
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          title={theme === "dark" ? "Light mode" : "Dark mode"}
-          onClick={toggleTheme}
-        >
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
-        <button type="button" className="icon-btn" aria-label="Notifications">
-          <Bell size={16} />
-        </button>
-        <button type="button" className="icon-btn" aria-label="Operator menu">
-          <User size={16} />
-        </button>
-      </div>
-    </header>
-  );
-}
+
