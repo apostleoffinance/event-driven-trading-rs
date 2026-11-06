@@ -1,0 +1,8 @@
+# Cloudflare Worker local secrets. Copy to .dev.vars and never commit secrets.
+# NEXT_PUBLIC_* values are compiled into the client bundle and must not contain secrets.
+NEXT_PUBLIC_APP_NAME=EdgeNest
+NEXT_PUBLIC_ENVIRONMENT=PAPER
+NEXT_PUBLIC_DATA_MODE=mock
+NEXT_PUBLIC_EVENT_MODE=mock
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_EVENT_STREAM_URL=
