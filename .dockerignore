@@ -1,0 +1,15 @@
+.git
+.gitignore
+**/.env
+**/.env.*
+!.env.example
+**/node_modules
+**/.next
+**/target
+**/dist
+**/coverage
+**/.terraform
+**/terraform.tfstate*
+**/*.pem
+**/*.key
+**/secrets
