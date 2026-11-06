@@ -33,7 +33,31 @@ impl TradingStore {
         Self { pool }
     }
 
-    /// Insert a journal trade without creating or mutating OMS state.\n    pub async fn insert_journal_trade(&self, trade: &domain::JournalTrade) -> PersistenceResult<()> {\n        journal::insert(&self.pool, trade).await\n    }\n\n    /// Owner-scoped journal listing; caller must pass the authenticated principal ID.\n    pub async fn list_journal_trades(\n        &self, owner_id: &str, account_id: Option<&str>, limit: i64, offset: i64,\n    ) -> PersistenceResult<Vec<domain::JournalTrade>> {\n        journal::list_for_owner(&self.pool, owner_id, account_id, limit, offset).await\n    }\n\n    pub async fn get_journal_trade(\n        &self, owner_id: &str, trade_id: &str,\n    ) -> PersistenceResult<domain::JournalTrade> {\n        journal::get_for_owner(&self.pool, owner_id, trade_id).await\n    }\n\n    pub async fn delete_journal_trade(\n        &self, owner_id: &str, trade_id: &str,\n    ) -> PersistenceResult<bool> {\n        journal::delete_for_owner(&self.pool, owner_id, trade_id).await\n    }\n\n    pub fn pool(&self) -> &PgPool {
+    /// Insert a journal trade without creating or mutating OMS state.
+    pub async fn insert_journal_trade(&self, trade: &domain::JournalTrade) -> PersistenceResult<()> {
+        journal::insert(&self.pool, trade).await
+    }
+
+    /// Owner-scoped journal listing; caller must pass the authenticated principal ID.
+    pub async fn list_journal_trades(
+        &self, owner_id: &str, account_id: Option<&str>, limit: i64, offset: i64,
+    ) -> PersistenceResult<Vec<domain::JournalTrade>> {
+        journal::list_for_owner(&self.pool, owner_id, account_id, limit, offset).await
+    }
+
+    pub async fn get_journal_trade(
+        &self, owner_id: &str, trade_id: &str,
+    ) -> PersistenceResult<domain::JournalTrade> {
+        journal::get_for_owner(&self.pool, owner_id, trade_id).await
+    }
+
+    pub async fn delete_journal_trade(
+        &self, owner_id: &str, trade_id: &str,
+    ) -> PersistenceResult<bool> {
+        journal::delete_for_owner(&self.pool, owner_id, trade_id).await
+    }
+
+    pub fn pool(&self) -> &PgPool {
         &self.pool
     }
 
