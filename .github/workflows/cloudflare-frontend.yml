@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -46,6 +48,7 @@ jobs:
           git add package-lock.json
           if ! git diff --cached --quiet; then
             git commit -m "chore(frontend): refresh package lockfile"
+            git pull --rebase origin "${PR_BRANCH}"
             git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${PR_BRANCH}"
           fi
       - name: Upload regenerated lockfile (temporary CI artifact)
