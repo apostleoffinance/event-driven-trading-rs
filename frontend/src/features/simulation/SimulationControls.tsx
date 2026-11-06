@@ -1,9 +1,11 @@
 "use client";
 
-import { useSimulation } from "@/features/simulation/SimulationProvider";\nimport { frontendConfig } from "@/config/frontend";
+import { useSimulation } from "@/features/simulation/SimulationProvider";
+import { frontendConfig } from "@/config/frontend";
 
 export function SimulationControls() {
-  const sim = useSimulation();\n  if (frontendConfig.dataMode !== "mock") return null;
+  const sim = useSimulation();
+  if (frontendConfig.dataMode !== "mock") return null;
   return (
     <div className="panel sim-bar" aria-label="Simulation controls">
       <span className="metric-label">SIMULATION</span>
