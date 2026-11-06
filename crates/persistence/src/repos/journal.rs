@@ -47,42 +47,83 @@ impl TryFrom<JournalTradeRow> for JournalTrade {
         let direction = match row.direction.as_str() {
             "long" => JournalDirection::Long,
             "short" => JournalDirection::Short,
-            other => return Err(PersistenceError::Other(format!("invalid journal direction: {other}"))),
+            other => {
+                return Err(PersistenceError::Other(format!(
+                    "invalid journal direction: {other}"
+                )))
+            }
         };
         let status = match row.status.as_str() {
             "open" => JournalTradeStatus::Open,
             "closed" => JournalTradeStatus::Closed,
             "cancelled" => JournalTradeStatus::Cancelled,
-            other => return Err(PersistenceError::Other(format!("invalid journal status: {other}"))),
+            other => {
+                return Err(PersistenceError::Other(format!(
+                    "invalid journal status: {other}"
+                )))
+            }
         };
         let source = match row.source.as_str() {
             "manual" => JournalTradeSource::Manual,
             "mt5" => JournalTradeSource::Mt5,
             "legacy_import" => JournalTradeSource::LegacyImport,
             "other" => JournalTradeSource::Other,
-            other => return Err(PersistenceError::Other(format!("invalid journal source: {other}"))),
+            other => {
+                return Err(PersistenceError::Other(format!(
+                    "invalid journal source: {other}"
+                )))
+            }
         };
         Ok(JournalTrade {
-            id: row.id, owner_id: row.owner_id, journal_account_id: row.journal_account_id,
-            setup_id: row.setup_id, symbol: row.symbol, direction, status, source,
-            source_system: row.source_system, source_trade_id: row.source_trade_id,
-            opened_at: row.opened_at, closed_at: row.closed_at, quantity: row.quantity,
-            entry_price: row.entry_price, exit_price: row.exit_price, stop_loss: row.stop_loss,
-            take_profit: row.take_profit, gross_pnl: row.gross_pnl, commission: row.commission,
-            swap: row.swap, other_fees: row.other_fees, net_pnl: row.net_pnl,
-            pnl_currency: row.pnl_currency, risk_amount: row.risk_amount, r_multiple: row.r_multiple,
+            id: row.id,
+            owner_id: row.owner_id,
+            journal_account_id: row.journal_account_id,
+            setup_id: row.setup_id,
+            symbol: row.symbol,
+            direction,
+            status,
+            source,
+            source_system: row.source_system,
+            source_trade_id: row.source_trade_id,
+            opened_at: row.opened_at,
+            closed_at: row.closed_at,
+            quantity: row.quantity,
+            entry_price: row.entry_price,
+            exit_price: row.exit_price,
+            stop_loss: row.stop_loss,
+            take_profit: row.take_profit,
+            gross_pnl: row.gross_pnl,
+            commission: row.commission,
+            swap: row.swap,
+            other_fees: row.other_fees,
+            net_pnl: row.net_pnl,
+            pnl_currency: row.pnl_currency,
+            risk_amount: row.risk_amount,
+            r_multiple: row.r_multiple,
         })
     }
 }
 
 fn direction(value: JournalDirection) -> &'static str {
-    match value { JournalDirection::Long => "long", JournalDirection::Short => "short" }
+    match value {
+        JournalDirection::Long => "long",
+        JournalDirection::Short => "short",
+    }
 }
 fn status(value: JournalTradeStatus) -> &'static str {
-    match value { JournalTradeStatus::Open => "open", JournalTradeStatus::Closed => "closed", JournalTradeStatus::Cancelled => "cancelled" }
+    match value {
+        JournalTradeStatus::Open => "open",
+        JournalTradeStatus::Closed => "closed",
+        JournalTradeStatus::Cancelled => "cancelled",
+    }
 }
 fn source(value: JournalTradeSource) -> &'static str {
-    match value { JournalTradeSource::Manual => "manual", JournalTradeSource::Mt5 => "mt5", JournalTradeSource::LegacyImport => "legacy_import", JournalTradeSource::Other => "other" }
+    match value {
+        JournalTradeSource::Manual => "manual",
+        JournalTradeSource::Mt5 => "mt5",
+        JournalTradeSource::LegacyImport => "legacy_import",
+        JournalTradeSource::Other => "other",
+    }
 }
 
 pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()> {
@@ -99,13 +140,33 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
         ) ON CONFLICT (journal_account_id, source_system, source_trade_id)
         WHERE source_system IS NOT NULL AND source_trade_id IS NOT NULL DO NOTHING"#,
     )
-    .bind(&trade.id).bind(&trade.owner_id).bind(&trade.journal_account_id).bind(&trade.setup_id)
-    .bind(&trade.symbol).bind(direction(trade.direction)).bind(status(trade.status)).bind(source(trade.source))
-    .bind(&trade.source_system).bind(&trade.source_trade_id).bind(trade.opened_at).bind(trade.closed_at)
-    .bind(trade.quantity).bind(trade.entry_price).bind(trade.exit_price).bind(trade.stop_loss)
-    .bind(trade.take_profit).bind(trade.gross_pnl).bind(trade.commission).bind(trade.swap)
-    .bind(trade.other_fees).bind(trade.net_pnl).bind(&trade.pnl_currency).bind(trade.risk_amount)
-    .bind(trade.r_multiple).execute(pool).await?;
+    .bind(&trade.id)
+    .bind(&trade.owner_id)
+    .bind(&trade.journal_account_id)
+    .bind(&trade.setup_id)
+    .bind(&trade.symbol)
+    .bind(direction(trade.direction))
+    .bind(status(trade.status))
+    .bind(source(trade.source))
+    .bind(&trade.source_system)
+    .bind(&trade.source_trade_id)
+    .bind(trade.opened_at)
+    .bind(trade.closed_at)
+    .bind(trade.quantity)
+    .bind(trade.entry_price)
+    .bind(trade.exit_price)
+    .bind(trade.stop_loss)
+    .bind(trade.take_profit)
+    .bind(trade.gross_pnl)
+    .bind(trade.commission)
+    .bind(trade.swap)
+    .bind(trade.other_fees)
+    .bind(trade.net_pnl)
+    .bind(&trade.pnl_currency)
+    .bind(trade.risk_amount)
+    .bind(trade.r_multiple)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -130,11 +191,20 @@ pub async fn list_for_owner(
           WHERE owner_id = $1 AND ($2::TEXT IS NULL OR journal_account_id = $2)
           ORDER BY opened_at DESC, id DESC LIMIT $3 OFFSET $4"#,
     )
-    .bind(owner_id).bind(account_id).bind(limit).bind(offset).fetch_all(pool).await?;
+    .bind(owner_id)
+    .bind(account_id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
     rows.into_iter().map(JournalTrade::try_from).collect()
 }
 
-pub async fn get_for_owner(pool: &PgPool, owner_id: &str, trade_id: &str) -> PersistenceResult<JournalTrade> {
+pub async fn get_for_owner(
+    pool: &PgPool,
+    owner_id: &str,
+    trade_id: &str,
+) -> PersistenceResult<JournalTrade> {
     let row = sqlx::query_as::<_, JournalTradeRow>(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
@@ -146,8 +216,15 @@ pub async fn get_for_owner(pool: &PgPool, owner_id: &str, trade_id: &str) -> Per
     JournalTrade::try_from(row)
 }
 
-pub async fn delete_for_owner(pool: &PgPool, owner_id: &str, trade_id: &str) -> PersistenceResult<bool> {
+pub async fn delete_for_owner(
+    pool: &PgPool,
+    owner_id: &str,
+    trade_id: &str,
+) -> PersistenceResult<bool> {
     let result = sqlx::query("DELETE FROM journal_trades WHERE owner_id = $1 AND id = $2")
-        .bind(owner_id).bind(trade_id).execute(pool).await?;
+        .bind(owner_id)
+        .bind(trade_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() == 1)
 }
