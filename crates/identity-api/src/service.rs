@@ -206,11 +206,11 @@ fn token_hash(raw: &str) -> String {
     hex::encode(Sha256::digest(raw.as_bytes()))
 }
 
-async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, Response> {
+async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, ()> {
     let (access_token, _expires_at) = state
         .jwt
         .issue_access(&user.id, state.access_ttl_seconds)
-        .map_err(|_| internal())?;
+        .map_err(|_| ())?;
     let refresh_token = new_refresh_token();
     let expires = Utc::now() + Duration::days(state.refresh_ttl_days);
     sqlx::query(
@@ -288,7 +288,7 @@ pub async fn register(
     };
     match issue_pair(&state, user).await {
         Ok(tokens) => (StatusCode::CREATED, Json(tokens)).into_response(),
-        Err(response) => response,
+        Err(()) => internal(),
     }
 }
 
