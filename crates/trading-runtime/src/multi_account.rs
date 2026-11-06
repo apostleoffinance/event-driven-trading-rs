@@ -180,23 +180,23 @@ mod tests {
         let (events_two, _subscriber_two) = events::event_channel(8);
         {
             let mut targets = [
-            AccountExecutionTarget {
-                runtime: &mut first,
-                venue: &venue_one,
-                events_out: &events_one,
-                sizing_provider: None,
-            },
-            AccountExecutionTarget {
-                runtime: &mut second,
-                venue: &venue_two,
-                events_out: &events_two,
-                sizing_provider: None,
-            },
-        ];
-        let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
-        assert!(
-            matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("duplicate account"))
-        );
+                AccountExecutionTarget {
+                    runtime: &mut first,
+                    venue: &venue_one,
+                    events_out: &events_one,
+                    sizing_provider: None,
+                },
+                AccountExecutionTarget {
+                    runtime: &mut second,
+                    venue: &venue_two,
+                    events_out: &events_two,
+                    sizing_provider: None,
+                },
+            ];
+            let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
+            assert!(
+                matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("duplicate account"))
+            );
         }
         assert!(first.oms().orders().is_empty());
         assert!(second.oms().orders().is_empty());
