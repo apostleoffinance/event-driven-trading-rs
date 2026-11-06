@@ -23,3 +23,7 @@ Deploy through the existing infrastructure pipeline. Do not manually paste API c
 | Refresh | 30 / IP / minute | 5 min |
 
 These rules are defense-in-depth. Also enable Cloudflare Bot Fight Mode or equivalent bot protections where available, and keep the API behind Cloudflare (restrict origin ingress to Cloudflare IP ranges). Monitor false positives before tightening thresholds. For deployments behind reverse proxies, application rate-limit keys must never trust arbitrary client-supplied `X-Forwarded-For` headers.
+
+## Existing zone Rulesets — important
+
+Cloudflare permits one zone entry-point Ruleset per phase. **Do not apply this as a second `http_ratelimit` zone ruleset if the zone already has one.** Import the existing rate-limit Ruleset into Terraform and merge these rules into it first, preserving current WAF/ratelimit rules. This Terraform resource assumes it owns the zone's rate-limit entry point.
