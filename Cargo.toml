@@ -14,6 +14,8 @@ members = [
     "crates/intent-bridge",
     "crates/event-trading",
     "crates/market-data",
+    "crates/journal-api",
+    "crates/identity-api",
     "strategies/mean-reversion",
 ]
 
