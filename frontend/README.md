@@ -46,11 +46,23 @@ Light/dark theme toggle is available in the top bar.
 
 `/` Command Center · `/accounts` · `/portfolio` · `/strategies` · `/positions` · `/orders` · `/risk` · `/events` · `/reconciliation` · `/system`
 
-## Vercel
+## Cloudflare Workers
 
-- Root Directory: `frontend`
-- Build: `npm run build`
-- Install: `npm install`
+This frontend deploys to Cloudflare Workers through OpenNext (not Pages or Vercel).
+
+- Workers Builds root directory: `frontend`
+- Install: `npm ci`
+- Build: `npm run cloudflare:build`
+- Deploy command: `npx wrangler deploy`
+- Worker config: `wrangler.jsonc`
+- Deployment runbook: `DEPLOY_CLOUDFLARE.md`
+
+For local Workers-runtime validation:
+
+```bash
+npm run cloudflare:build
+npx opennextjs-cloudflare preview
+```
 
 Mock mode works without the Rust backend.
 
