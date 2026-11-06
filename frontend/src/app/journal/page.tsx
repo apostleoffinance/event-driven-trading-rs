@@ -19,9 +19,10 @@ export default function JournalPage() {
   const trades = useQuery({ queryKey: ["journal", "trades"], queryFn: () => journalApi.listTrades({ limit: 100, offset: 0 }), enabled: authenticated && frontendConfig.dataMode === "api" });
 
   async function signOut() {
-    await logout();
-    setAuthenticated(false);
-    setUserEmail(null);
+    try { await logout(); } finally {
+      setAuthenticated(false);
+      setUserEmail(null);
+    }
   }
 
   if (frontendConfig.dataMode !== "api") {
