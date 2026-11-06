@@ -95,7 +95,7 @@ pub async fn create_account(
     }
     let id = uuid::Uuid::new_v4().to_string();
     match sqlx::query("INSERT INTO journal_accounts(id,owner_id,name,broker,account_type,currency,initial_balance) VALUES($1,$2,$3,$4,$5,$6,$7)")
-        .bind(&id).bind(claims.sub).bind(name).bind(input.broker).bind(input.account_type).bind(currency).bind(input.initial_balance)
+        .bind(&id).bind(claims.sub).bind(name).bind(input.broker).bind(input.account_type).bind(&currency).bind(input.initial_balance)
         .execute(state.store.pool()).await {
         Ok(_) => (StatusCode::CREATED, Json(serde_json::json!({"data":{"id":id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string()}}))).into_response(),
         Err(_) => internal(),
