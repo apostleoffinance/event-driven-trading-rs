@@ -80,11 +80,10 @@ async fn journal_schema_preserves_owner_scope_and_import_idempotency(pool: PgPoo
     .await;
     assert!(duplicate_source.is_err());
 
-    let row_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_trades WHERE owner_id = 'owner-a'",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("journal count query should succeed");
+    let row_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_trades WHERE owner_id = 'owner-a'")
+            .fetch_one(&pool)
+            .await
+            .expect("journal count query should succeed");
     assert_eq!(row_count, 1);
 }
