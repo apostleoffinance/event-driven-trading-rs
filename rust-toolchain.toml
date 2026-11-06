@@ -1,0 +1,6 @@
+# Keep local development and GitHub Actions on the same compiler/formatter.
+# CI observed rustc 1.99.1; rustfmt output from earlier local versions differed.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
