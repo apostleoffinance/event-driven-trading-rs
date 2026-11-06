@@ -32,7 +32,6 @@ fn required(name: &str) -> String {
 #[tokio::main]
 async fn main() {
     dotenvy::from_path("crates/identity-api/.env").ok();
-    dotenvy::from_path("crates/journal-api/.env").ok();
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
