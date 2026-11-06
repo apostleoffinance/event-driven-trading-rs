@@ -1151,3 +1151,44 @@ mod security_tests {
         assert_eq!(digest.len(), 64);
     }
 }
+
+#[cfg(test)]
+mod jwks_rotation_tests {
+    use super::*;
+    use rsa::{pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding}, RsaPrivateKey};
+
+    fn key_pair() -> (String, String) {
+        let private = RsaPrivateKey::new(&mut OsRng, 2048).expect("generate RSA key");
+        let private_pem = private.to_pkcs8_pem(LineEnding::LF).expect("encode private PEM").to_string();
+        let public_pem = private.to_public_key().to_public_key_pem(LineEnding::LF).expect("encode public PEM");
+        (private_pem, public_pem)
+    }
+
+    #[test]
+    fn overlapping_jwks_keyring_verifies_old_tokens_and_publishes_both_keys() {
+        let (old_private, old_public) = key_pair();
+        let (active_private, active_public) = key_pair();
+        let issuer = "https://identity.edgenest.test".to_string();
+        let audience = "edgenest-api".to_string();
+
+        let old_issuer = JwtService::new(
+            old_private.as_bytes(), old_public.as_bytes(), "old-key".into(), None,
+            issuer.clone(), audience.clone(),
+        ).expect("old key issuer");
+        let (old_token, _) = old_issuer.issue_access("user-123", 900).expect("old JWT");
+
+        let keyring = serde_json::json!([
+            {"kid":"old-key","pem":old_public},
+            {"kid":"active-key","pem":active_public}
+        ]).to_string();
+        let active_issuer = JwtService::new(
+            active_private.as_bytes(), active_public.as_bytes(), "active-key".into(), Some(&keyring),
+            issuer, audience,
+        ).expect("active key issuer");
+
+        assert_eq!(active_issuer.verify(&old_token).expect("verify old token").sub, "user-123");
+        let (new_token, _) = active_issuer.issue_access("user-456", 900).expect("new JWT");
+        assert_eq!(jsonwebtoken::decode_header(&new_token).expect("header").kid.as_deref(), Some("active-key"));
+        assert_eq!(active_issuer.jwks()["keys"].as_array().expect("JWKS keys").len(), 2);
+    }
+}
