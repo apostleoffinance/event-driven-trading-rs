@@ -695,7 +695,6 @@ fn sizing_audit_payload(
     })
 }
 
-
 #[cfg(test)]
 mod sizing_snapshot_tests {
     #![allow(clippy::unwrap_used)]
