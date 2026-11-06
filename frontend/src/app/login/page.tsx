@@ -38,7 +38,7 @@ export default function LoginPage() {
       <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
         {mode === "register" ? <label className="journal-field"><span>Display name</span><input required autoComplete="name" value={displayName} onChange={e => setDisplayName(e.target.value)} /></label> : null}
         <label className="journal-field"><span>Email</span><input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
-        <label className="journal-field"><span>Password</span><input required type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label className="journal-field"><span>Password</span><input required type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={12} value={password} onChange={e => setPassword(e.target.value)} /></label>
         {error ? <div className="error" role="alert">{error}</div> : null}
         <button className="btn primary" type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
       </form>
