@@ -11,13 +11,32 @@ use serde_json::Value;
 use crate::{auth::Claims, AppState};
 
 fn principal(state: &AppState, headers: &HeaderMap) -> Result<Claims, Response> {
-    state.auth.authenticate(headers).map_err(IntoResponse::into_response)
+    state
+        .auth
+        .authenticate(headers)
+        .map_err(IntoResponse::into_response)
 }
 fn err(status: StatusCode, code: &str, message: &str) -> Response {
-    (status, Json(serde_json::json!({"error":{"code":code,"message":message}}))).into_response()
+    (
+        status,
+        Json(serde_json::json!({"error":{"code":code,"message":message}})),
+    )
+        .into_response()
 }
-fn internal() -> Response { err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Internal server error") }
-fn not_found() -> Response { err(StatusCode::NOT_FOUND, "not_found", "Journal resource not found") }
+fn internal() -> Response {
+    err(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "internal_error",
+        "Internal server error",
+    )
+}
+fn not_found() -> Response {
+    err(
+        StatusCode::NOT_FOUND,
+        "not_found",
+        "Journal resource not found",
+    )
+}
 
 #[derive(Debug, Deserialize)]
 pub struct AccountWrite {
@@ -30,11 +49,18 @@ pub struct AccountWrite {
     #[serde(default)]
     pub initial_balance: Decimal,
 }
-fn default_account_type() -> String { "journal".into() }
-fn default_currency() -> String { "USD".into() }
+fn default_account_type() -> String {
+    "journal".into()
+}
+fn default_currency() -> String {
+    "USD".into()
+}
 
 pub async fn list_accounts(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool)>(
         "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
         .bind(claims.sub).fetch_all(state.store.pool()).await {
@@ -45,13 +71,27 @@ pub async fn list_accounts(State(state): State<AppState>, headers: HeaderMap) ->
     }
 }
 
-pub async fn create_account(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<AccountWrite>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn create_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<AccountWrite>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     let name = input.name.trim();
     let currency = input.currency.to_uppercase();
-    if name.is_empty() || !currency_is_valid(&currency) || input.initial_balance < Decimal::ZERO
-        || !["journal","paper","funded","live","demo"].contains(&input.account_type.as_str()) {
-        return err(StatusCode::BAD_REQUEST,"invalid_request","name, currency, account_type, or initial_balance is invalid");
+    if name.is_empty()
+        || !currency_is_valid(&currency)
+        || input.initial_balance < Decimal::ZERO
+        || !["journal", "paper", "funded", "live", "demo"].contains(&input.account_type.as_str())
+    {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "name, currency, account_type, or initial_balance is invalid",
+        );
     }
     let id = uuid::Uuid::new_v4().to_string();
     match sqlx::query("INSERT INTO journal_accounts(id,owner_id,name,broker,account_type,currency,initial_balance) VALUES($1,$2,$3,$4,$5,$6,$7)")
@@ -62,8 +102,15 @@ pub async fn create_account(State(state): State<AppState>, headers: HeaderMap, J
     }
 }
 
-pub async fn get_account(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn get_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool)>(
         "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
@@ -73,13 +120,28 @@ pub async fn get_account(State(state): State<AppState>, headers: HeaderMap, Path
     }
 }
 
-pub async fn update_account(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(input): Json<AccountWrite>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn update_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<AccountWrite>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     let name = input.name.trim();
     let currency = input.currency.to_uppercase();
-    if name.is_empty() || !currency_is_valid(&currency) || input.initial_balance < Decimal::ZERO
-        || !["journal","paper","funded","live","demo"].contains(&input.account_type.as_str()) {
-        return err(StatusCode::BAD_REQUEST,"invalid_request","name, currency, account_type, or initial_balance is invalid");
+    if name.is_empty()
+        || !currency_is_valid(&currency)
+        || input.initial_balance < Decimal::ZERO
+        || !["journal", "paper", "funded", "live", "demo"].contains(&input.account_type.as_str())
+    {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "name, currency, account_type, or initial_balance is invalid",
+        );
     }
     match sqlx::query("UPDATE journal_accounts SET name=$3,broker=$4,account_type=$5,currency=$6,initial_balance=$7,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
         .bind(claims.sub).bind(id).bind(name).bind(input.broker).bind(input.account_type).bind(currency).bind(input.initial_balance)
@@ -90,8 +152,15 @@ pub async fn update_account(State(state): State<AppState>, headers: HeaderMap, P
     }
 }
 
-pub async fn archive_account(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn archive_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match sqlx::query("UPDATE journal_accounts SET archived=TRUE,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
         .bind(claims.sub).bind(id).execute(state.store.pool()).await {
         Ok(r) if r.rows_affected()==1 => StatusCode::NO_CONTENT.into_response(),
@@ -100,7 +169,9 @@ pub async fn archive_account(State(state): State<AppState>, headers: HeaderMap, 
     }
 }
 
-fn default_rules_json() -> Value { serde_json::json!({}) }
+fn default_rules_json() -> Value {
+    serde_json::json!({})
+}
 
 #[derive(Debug, Deserialize)]
 pub struct SetupWrite {
@@ -111,7 +182,10 @@ pub struct SetupWrite {
 }
 
 pub async fn list_setups(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match sqlx::query_as::<_, (String,String,Option<String>,Value,bool)>("SELECT id,name,description,rules_json,archived FROM journal_setups WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
         .bind(claims.sub).fetch_all(state.store.pool()).await {
         Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,description,rules_json,archived)|serde_json::json!({"id":id,"name":name,"description":description,"rules_json":rules_json,"archived":archived})).collect::<Vec<_>>()})).into_response(),
@@ -119,9 +193,22 @@ pub async fn list_setups(State(state): State<AppState>, headers: HeaderMap) -> R
     }
 }
 
-pub async fn create_setup(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<SetupWrite>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
-    if input.name.trim().is_empty() || !input.rules_json.is_object() { return err(StatusCode::BAD_REQUEST,"invalid_request","setup name must be non-empty and rules_json must be an object"); }
+pub async fn create_setup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<SetupWrite>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
+    if input.name.trim().is_empty() || !input.rules_json.is_object() {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "setup name must be non-empty and rules_json must be an object",
+        );
+    }
     let id = uuid::Uuid::new_v4().to_string();
     match sqlx::query("INSERT INTO journal_setups(id,owner_id,name,description,rules_json) VALUES($1,$2,$3,$4,$5)")
         .bind(&id).bind(claims.sub).bind(input.name.trim()).bind(input.description).bind(input.rules_json).execute(state.store.pool()).await {
@@ -130,8 +217,15 @@ pub async fn create_setup(State(state): State<AppState>, headers: HeaderMap, Jso
     }
 }
 
-pub async fn get_setup(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn get_setup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match sqlx::query_as::<_, (String,String,Option<String>,Value,bool)>("SELECT id,name,description,rules_json,archived FROM journal_setups WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
         Ok(Some((id,name,description,rules_json,archived))) => Json(serde_json::json!({"data":{"id":id,"name":name,"description":description,"rules_json":rules_json,"archived":archived}})).into_response(),
@@ -140,9 +234,23 @@ pub async fn get_setup(State(state): State<AppState>, headers: HeaderMap, Path(i
     }
 }
 
-pub async fn update_setup(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(input): Json<SetupWrite>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
-    if input.name.trim().is_empty() || !input.rules_json.is_object() { return err(StatusCode::BAD_REQUEST,"invalid_request","setup name must be non-empty and rules_json must be an object"); }
+pub async fn update_setup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<SetupWrite>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
+    if input.name.trim().is_empty() || !input.rules_json.is_object() {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "setup name must be non-empty and rules_json must be an object",
+        );
+    }
     match sqlx::query("UPDATE journal_setups SET name=$3,description=$4,rules_json=$5,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
         .bind(claims.sub).bind(id).bind(input.name.trim()).bind(input.description).bind(input.rules_json).execute(state.store.pool()).await {
         Ok(r) if r.rows_affected()==1 => StatusCode::NO_CONTENT.into_response(),
@@ -151,8 +259,15 @@ pub async fn update_setup(State(state): State<AppState>, headers: HeaderMap, Pat
     }
 }
 
-pub async fn archive_setup(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn archive_setup(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match sqlx::query("UPDATE journal_setups SET archived=TRUE,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
         .bind(claims.sub).bind(id).execute(state.store.pool()).await {
         Ok(r) if r.rows_affected()==1 => StatusCode::NO_CONTENT.into_response(),
@@ -162,5 +277,5 @@ pub async fn archive_setup(State(state): State<AppState>, headers: HeaderMap, Pa
 }
 
 fn currency_is_valid(value: &str) -> bool {
-    value.len()==3 && value.chars().all(|c| c.is_ascii_uppercase())
+    value.len() == 3 && value.chars().all(|c| c.is_ascii_uppercase())
 }

@@ -50,55 +50,109 @@ pub struct TradeWrite {
     pub risk_amount: Option<Decimal>,
     pub r_multiple: Option<Decimal>,
 }
-fn default_source() -> JournalTradeSource { JournalTradeSource::Manual }
-fn default_currency() -> String { "USD".into() }
+fn default_source() -> JournalTradeSource {
+    JournalTradeSource::Manual
+}
+fn default_currency() -> String {
+    "USD".into()
+}
 
 fn owner(state: &AppState, headers: &HeaderMap) -> Result<Claims, Response> {
-    state.auth.authenticate(headers).map_err(IntoResponse::into_response)
+    state
+        .auth
+        .authenticate(headers)
+        .map_err(IntoResponse::into_response)
 }
 
 fn trade_from(owner_id: String, id: String, input: TradeWrite) -> JournalTrade {
     JournalTrade {
-        id, owner_id, journal_account_id: input.journal_account_id, setup_id: input.setup_id,
-        symbol: input.symbol.trim().to_uppercase(), direction: input.direction,
-        status: input.status, source: input.source, source_system: input.source_system,
-        source_trade_id: input.source_trade_id, opened_at: input.opened_at, closed_at: input.closed_at,
-        quantity: input.quantity, entry_price: input.entry_price, exit_price: input.exit_price,
-        stop_loss: input.stop_loss, take_profit: input.take_profit, gross_pnl: input.gross_pnl,
-        commission: input.commission, swap: input.swap, other_fees: input.other_fees,
-        net_pnl: input.net_pnl, pnl_currency: input.pnl_currency.to_uppercase(),
-        risk_amount: input.risk_amount, r_multiple: input.r_multiple,
+        id,
+        owner_id,
+        journal_account_id: input.journal_account_id,
+        setup_id: input.setup_id,
+        symbol: input.symbol.trim().to_uppercase(),
+        direction: input.direction,
+        status: input.status,
+        source: input.source,
+        source_system: input.source_system,
+        source_trade_id: input.source_trade_id,
+        opened_at: input.opened_at,
+        closed_at: input.closed_at,
+        quantity: input.quantity,
+        entry_price: input.entry_price,
+        exit_price: input.exit_price,
+        stop_loss: input.stop_loss,
+        take_profit: input.take_profit,
+        gross_pnl: input.gross_pnl,
+        commission: input.commission,
+        swap: input.swap,
+        other_fees: input.other_fees,
+        net_pnl: input.net_pnl,
+        pnl_currency: input.pnl_currency.to_uppercase(),
+        risk_amount: input.risk_amount,
+        r_multiple: input.r_multiple,
     }
 }
 
 fn bad_request(message: impl Into<String>) -> Response {
-    (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":{"code":"invalid_request","message":message.into()}}))).into_response()
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({"error":{"code":"invalid_request","message":message.into()}})),
+    )
+        .into_response()
 }
 fn internal() -> Response {
     (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":{"code":"internal_error","message":"Internal server error"}}))).into_response()
 }
 fn not_found() -> Response {
-    (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":{"code":"not_found","message":"Journal trade not found"}}))).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({"error":{"code":"not_found","message":"Journal trade not found"}})),
+    )
+        .into_response()
 }
 
-pub async fn health() -> &'static str { "ok" }
+pub async fn health() -> &'static str {
+    "ok"
+}
 pub async fn ready(State(state): State<AppState>) -> Response {
-    match sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(state.store.pool()).await {
+    match sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(state.store.pool())
+        .await
+    {
         Ok(_) => (StatusCode::OK, Json(serde_json::json!({"status":"ready"}))).into_response(),
-        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({"status":"not_ready"}))).into_response(),
+        Err(_) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"status":"not_ready"})),
+        )
+            .into_response(),
     }
 }
 
-pub async fn list(State(state): State<AppState>, headers: HeaderMap, Query(query): Query<ListQuery>) -> Response {
-    let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ListQuery>,
+) -> Response {
+    let claims = match owner(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match state.store.list_journal_trades(&claims.sub, query.journal_account_id.as_deref(), query.limit.unwrap_or(100), query.offset.unwrap_or(0)).await {
         Ok(trades) => Json(serde_json::json!({"data":trades,"pagination":{"limit":query.limit.unwrap_or(100).clamp(1,500),"offset":query.offset.unwrap_or(0).max(0)}})).into_response(),
         Err(_) => internal(),
     }
 }
 
-pub async fn get_one(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn get_one(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match owner(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match state.store.get_journal_trade(&claims.sub, &id).await {
         Ok(trade) => Json(serde_json::json!({"data":trade})).into_response(),
         Err(persistence::PersistenceError::NotFound(_)) => not_found(),
@@ -106,11 +160,26 @@ pub async fn get_one(State(state): State<AppState>, headers: HeaderMap, Path(id)
     }
 }
 
-pub async fn create(State(state): State<AppState>, headers: HeaderMap, Json(input): Json<TradeWrite>) -> Response {
-    let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn create(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<TradeWrite>,
+) -> Response {
+    let claims = match owner(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     let trade = trade_from(claims.sub, uuid::Uuid::new_v4().to_string(), input);
-    if let Err(e) = trade.validate() { return bad_request(e.to_string()); }
-    if !owned_account(state.store.pool(), &trade.owner_id, &trade.journal_account_id).await {
+    if let Err(e) = trade.validate() {
+        return bad_request(e.to_string());
+    }
+    if !owned_account(
+        state.store.pool(),
+        &trade.owner_id,
+        &trade.journal_account_id,
+    )
+    .await
+    {
         return not_found();
     }
     if let Some(setup_id) = trade.setup_id.as_deref() {
@@ -119,8 +188,16 @@ pub async fn create(State(state): State<AppState>, headers: HeaderMap, Json(inpu
         }
     }
     match state.store.insert_journal_trade(&trade).await {
-        Ok(()) => match state.store.get_journal_trade(&trade.owner_id, &trade.id).await {
-            Ok(created) => (StatusCode::CREATED, Json(serde_json::json!({"data":created}))).into_response(),
+        Ok(()) => match state
+            .store
+            .get_journal_trade(&trade.owner_id, &trade.id)
+            .await
+        {
+            Ok(created) => (
+                StatusCode::CREATED,
+                Json(serde_json::json!({"data":created})),
+            )
+                .into_response(),
             Err(_) => internal(),
         },
         Err(persistence::PersistenceError::Domain(e)) => bad_request(e.to_string()),
@@ -128,11 +205,27 @@ pub async fn create(State(state): State<AppState>, headers: HeaderMap, Json(inpu
     }
 }
 
-pub async fn replace(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(input): Json<TradeWrite>) -> Response {
-    let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn replace(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<TradeWrite>,
+) -> Response {
+    let claims = match owner(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     let trade = trade_from(claims.sub, id.clone(), input);
-    if let Err(e) = trade.validate() { return bad_request(e.to_string()); }
-    if !owned_account(state.store.pool(), &trade.owner_id, &trade.journal_account_id).await {
+    if let Err(e) = trade.validate() {
+        return bad_request(e.to_string());
+    }
+    if !owned_account(
+        state.store.pool(),
+        &trade.owner_id,
+        &trade.journal_account_id,
+    )
+    .await
+    {
         return not_found();
     }
     if let Some(setup_id) = trade.setup_id.as_deref() {
@@ -152,9 +245,21 @@ pub async fn replace(State(state): State<AppState>, headers: HeaderMap, Path(id)
 }
 
 async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx::Error> {
-    let direction = match trade.direction { JournalDirection::Long => "long", JournalDirection::Short => "short" };
-    let status = match trade.status { JournalTradeStatus::Open => "open", JournalTradeStatus::Closed => "closed", JournalTradeStatus::Cancelled => "cancelled" };
-    let source = match trade.source { JournalTradeSource::Manual => "manual", JournalTradeSource::Mt5 => "mt5", JournalTradeSource::LegacyImport => "legacy_import", JournalTradeSource::Other => "other" };
+    let direction = match trade.direction {
+        JournalDirection::Long => "long",
+        JournalDirection::Short => "short",
+    };
+    let status = match trade.status {
+        JournalTradeStatus::Open => "open",
+        JournalTradeStatus::Closed => "closed",
+        JournalTradeStatus::Cancelled => "cancelled",
+    };
+    let source = match trade.source {
+        JournalTradeSource::Manual => "manual",
+        JournalTradeSource::Mt5 => "mt5",
+        JournalTradeSource::LegacyImport => "legacy_import",
+        JournalTradeSource::Other => "other",
+    };
     let result = sqlx::query(r#"UPDATE journal_trades SET journal_account_id=$3, setup_id=$4, symbol=$5, direction=$6, status=$7, source=$8,
         source_system=$9, source_trade_id=$10, opened_at=$11, closed_at=$12, quantity=$13, entry_price=$14, exit_price=$15,
         stop_loss=$16, take_profit=$17, gross_pnl=$18, commission=$19, swap=$20, other_fees=$21, net_pnl=$22,
@@ -169,8 +274,15 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
     Ok(result.rows_affected() == 1)
 }
 
-pub async fn delete(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match owner(&state, &headers) { Ok(c) => c, Err(r) => return r };
+pub async fn delete(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match owner(&state, &headers) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
     match state.store.delete_journal_trade(&claims.sub, &id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => not_found(),

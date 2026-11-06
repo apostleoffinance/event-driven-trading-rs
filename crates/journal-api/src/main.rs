@@ -64,11 +64,10 @@ async fn main() {
 
     let state = AppState {
         store: TradingStore::new(pool),
-        auth: auth::JwtConfig::new(public_key.as_bytes(), issuer, audience)
-            .unwrap_or_else(|e| {
-                eprintln!("invalid JWT configuration: {e}");
-                std::process::exit(2);
-            }),
+        auth: auth::JwtConfig::new(public_key.as_bytes(), issuer, audience).unwrap_or_else(|e| {
+            eprintln!("invalid JWT configuration: {e}");
+            std::process::exit(2);
+        }),
     };
 
     let cors = CorsLayer::new()
@@ -86,19 +85,45 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(http::health))
         .route("/readyz", get(http::ready))
-        .route("/api/v1/journal/accounts", get(resources::list_accounts).post(resources::create_account))
-        .route("/api/v1/journal/accounts/:id", get(resources::get_account).put(resources::update_account).patch(resources::update_account).delete(resources::archive_account))
-        .route("/api/v1/journal/setups", get(resources::list_setups).post(resources::create_setup))
-        .route("/api/v1/journal/setups/:id", get(resources::get_setup).put(resources::update_setup).patch(resources::update_setup).delete(resources::archive_setup))
+        .route(
+            "/api/v1/journal/accounts",
+            get(resources::list_accounts).post(resources::create_account),
+        )
+        .route(
+            "/api/v1/journal/accounts/:id",
+            get(resources::get_account)
+                .put(resources::update_account)
+                .patch(resources::update_account)
+                .delete(resources::archive_account),
+        )
+        .route(
+            "/api/v1/journal/setups",
+            get(resources::list_setups).post(resources::create_setup),
+        )
+        .route(
+            "/api/v1/journal/setups/:id",
+            get(resources::get_setup)
+                .put(resources::update_setup)
+                .patch(resources::update_setup)
+                .delete(resources::archive_setup),
+        )
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
-        .route("/api/v1/journal/trades/:trade_id", get(http::get_one).put(http::replace).patch(http::replace).delete(http::delete))
+        .route(
+            "/api/v1/journal/trades/:trade_id",
+            get(http::get_one)
+                .put(http::replace)
+                .patch(http::replace)
+                .delete(http::delete),
+        )
         .with_state(state)
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind(bind).await.unwrap_or_else(|e| {
-        eprintln!("failed to bind {bind}: {e}");
-        std::process::exit(2);
-    });
+    let listener = tokio::net::TcpListener::bind(bind)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("failed to bind {bind}: {e}");
+            std::process::exit(2);
+        });
     tracing::info!(%bind, "EdgeNest Journal API listening");
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
