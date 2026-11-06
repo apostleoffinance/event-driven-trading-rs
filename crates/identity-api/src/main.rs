@@ -64,19 +64,26 @@ async fn main() {
         .filter_map(|s| s.parse::<HeaderValue>().ok())
         .collect::<Vec<_>>();
 
-    let pool = persistence::connect(&database_url).await.unwrap_or_else(|e| {
-        eprintln!("database connection failed: {e}");
-        std::process::exit(2);
-    });
+    let pool = persistence::connect(&database_url)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("database connection failed: {e}");
+            std::process::exit(2);
+        });
     persistence::migrate(&pool).await.unwrap_or_else(|e| {
         eprintln!("database migrations failed: {e}");
         std::process::exit(2);
     });
-    let jwt = service::JwtService::new(private_key.as_bytes(), public_key.as_bytes(), issuer, audience)
-        .unwrap_or_else(|e| {
-            eprintln!("invalid EdgeNest JWT key configuration: {e}");
-            std::process::exit(2);
-        });
+    let jwt = service::JwtService::new(
+        private_key.as_bytes(),
+        public_key.as_bytes(),
+        issuer,
+        audience,
+    )
+    .unwrap_or_else(|e| {
+        eprintln!("invalid EdgeNest JWT key configuration: {e}");
+        std::process::exit(2);
+    });
 
     let state = AppState {
         pool,
@@ -100,10 +107,12 @@ async fn main() {
         .with_state(state)
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind(bind).await.unwrap_or_else(|e| {
-        eprintln!("failed to bind {bind}: {e}");
-        std::process::exit(2);
-    });
+    let listener = tokio::net::TcpListener::bind(bind)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("failed to bind {bind}: {e}");
+            std::process::exit(2);
+        });
     tracing::info!(%bind, "EdgeNest Identity API listening");
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
