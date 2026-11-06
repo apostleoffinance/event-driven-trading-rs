@@ -1,6 +1,6 @@
 # TraderOS → EdgeNest — Phase 1 Journal Domain Baseline
 
-**Status:** Initial implementation committed; CI and local verification pending  
+**Status:** Journal domain/schema slice implemented; CI green on code commit `a163318d8e0f3260ab811f6a214a18a6d300e1ef` (2026-11-06)  
 **Branch:** `migration/traderos-edgenest-phase-1-journal`  
 **Date:** 2026-11-06
 
@@ -46,10 +46,10 @@ Migration: `migrations/20261106000001_journal_domain.sql`
 
 ## Validation plan / acceptance
 
-- [ ] Rust formatter, workspace check, tests and Clippy pass in CI.
+- [x] Rust formatter, workspace check, tests and Clippy pass in CI (CI run `42222958026`, conclusion `success`).
 - [ ] SQL migration reviewed against supported PostgreSQL version.
 - [ ] Migration applied against disposable PostgreSQL and rollback/restore strategy reviewed.
-- [ ] Domain tests pass.
+- [x] Journal domain tests pass as part of the workspace test suite.
 - [ ] Identity/tenant integration reviewed before exposing APIs.
 - [ ] Journal API repository/service implementation follows in next increment.
 - [ ] No production migration or deployment performed.
@@ -62,3 +62,14 @@ Migration: `migrations/20261106000001_journal_domain.sql`
 4. Need TraderOS export data/Neon project access to build and reconcile the source-to-target importer.
 5. Need staging DB and backup/restore evidence before any migration is run against production.
 6. This is a first domain slice, not a full Phase 1 sign-off or production-ready Journal application.
+
+
+## CI evidence
+
+- Workflow run: [Quant OS CI #555](https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/42222958026) — **success**
+- Rust: format, workspace check, workspace tests (including journal schema migration/integrity test), Clippy — **success**
+- Frontend: lint, typecheck, production build — **success**
+- Python MT5 contract tests — **success**
+- macOS portable MT5 preflight — **success**
+
+CI runs against a disposable PostgreSQL 16 service. It does **not** establish that production Neon or EdgeNest databases are backed up, correctly configured, or safe to migrate.
