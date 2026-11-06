@@ -33,7 +33,7 @@ The API applies existing SQL migrations on startup. Use a migration-capable depl
 - Required claims: `sub`, `iss`, `aud`, `exp`. `sub` is the canonical immutable EdgeNest user ID.
 - Owner/tenant scope is derived exclusively from verified `sub`; payloads and query strings cannot override owner ID.
 - Keep the RSA private signing key in EdgeNest Identity secret storage/KMS. Only the public PEM belongs in this API's configuration.
-- Rotate keys deliberately (future JWKS support should overlap old/new keys during token TTL). Do not accept TraderOS tokens or reuse its auth infrastructure.
+- Identity publishes JWKS at `/.well-known/jwks.json`. Configure this service with the same key ring JSON. Rotation requires overlapping old/new public keys until old access tokens expire. Do not accept TraderOS tokens or reuse its auth infrastructure.
 - No API keys, refresh-token endpoints, password storage, or login UI are implemented by this Journal service.
 
 The EdgeNest Identity issuer is implemented in the sibling `identity-api` workspace service. Deploy both with identical issuer/audience/public-key configuration. Do not guess production values.
