@@ -10,13 +10,22 @@ name = "identity-api"
 path = "src/main.rs"
 
 [dependencies]
+dotenvy = "0.15"
 argon2 = "0.5"
+aes-gcm = "0.10"
+base64 = "0.22"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { workspace = true }
 hex = "0.4"
+hmac = "0.12"
+sha1 = "0.10"
+subtle = "2.6"
 jsonwebtoken = "9.3"
 persistence = { path = "../persistence" }
 rand_core = { version = "0.6", features = ["getrandom"] }
+rsa = { version = "0.9", features = ["pem"] }
+totp-rs = "5.7"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"

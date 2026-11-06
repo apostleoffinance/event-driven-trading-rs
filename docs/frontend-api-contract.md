@@ -1,8 +1,11 @@
-# EdgeNest — Shared Platform API Contract (proposed)
+# EdgeNest — Shared Platform API Contract
 
-These endpoints are **proposed contracts**, not proof of an implemented Rust HTTP service. The Next.js app uses mock repositories today. The same API is intended to serve both the EdgeNest Trader Dashboard and external developer applications; neither client may bypass Rust risk authorization, OMS, adapter capability checks or reconciliation.
+The first-party Identity and Journal REST endpoints below are implemented in the Rust workspace. Trading platform/OMS endpoints remain proposed contracts and are not represented as live APIs by the Journal module. The same shared service contracts are intended to serve EdgeNest dashboard and external developer applications.
 
-Base URL: `NEXT_PUBLIC_API_URL`
+Base URLs:
+- `NEXT_PUBLIC_IDENTITY_API_URL` — EdgeNest Identity API
+- `NEXT_PUBLIC_JOURNAL_API_URL` — EdgeNest Journal API
+- `NEXT_PUBLIC_API_URL` — shared platform API / compatibility fallback
 
 ## Product boundary
 - First-party dashboard and third-party developers use the same versioned service contracts.
@@ -13,7 +16,42 @@ Base URL: `NEXT_PUBLIC_API_URL`
 - Do not expose broker passwords, terminal credentials, private keys, certificates or internal host details.
 - Live write endpoints remain unavailable until the corresponding venue and platform release gates are approved.
 
-## REST
+## Identity (implemented in `identity-api`)
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/auth/register` | Create EdgeNest user and email verification |
+| POST | `/api/v1/auth/verify-email` | Verify email token |
+| POST | `/api/v1/auth/login` | Password login (returns MFA challenge if enabled) |
+| POST | `/api/v1/auth/mfa/verify-login` | Complete MFA login |
+| POST | `/api/v1/auth/refresh` | Refresh access JWT using HttpOnly refresh cookie |
+| POST | `/api/v1/auth/logout` | Revoke refresh session |
+| GET | `/api/v1/auth/me` | Authenticated user |
+| POST | `/api/v1/auth/password-reset/request` | Request password reset |
+| POST | `/api/v1/auth/password-reset/confirm` | Complete password reset |
+| POST | `/api/v1/auth/mfa/setup` | Begin authenticator enrollment |
+| POST | `/api/v1/auth/mfa/confirm` | Enable TOTP and issue recovery codes |
+| POST | `/api/v1/auth/mfa/disable` | Disable TOTP |
+| GET | `/.well-known/jwks.json` | RSA public key set |
+
+Refresh token is a Secure, HttpOnly, SameSite=None `__Host-edgenest_refresh` cookie. The frontend holds short-lived access JWTs in memory, never localStorage. Configure exact CORS origins and credentials. Identity requires Resend API configuration for verification/recovery mail.
+
+## Journal (implemented in `journal-api`)
+
+Every route requires an EdgeNest RS256 bearer access JWT; the owner is derived from its verified `sub`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET / POST | `/api/v1/journal/accounts` | List/create personal journal accounts |
+| GET / PUT / PATCH / DELETE | `/api/v1/journal/accounts/:id` | Account details, replace, archive |
+| GET / POST | `/api/v1/journal/setups` | List/create journal setups |
+| GET / PUT / PATCH / DELETE | `/api/v1/journal/setups/:id` | Setup details, replace, archive |
+| GET / POST | `/api/v1/journal/trades` | List/create journal trades |
+| GET / PUT / PATCH / DELETE | `/api/v1/journal/trades/:id` | Trade detail, replace, delete |
+
+Journal records are a distinct user journal data domain; they do not create or alter OMS orders, fills, positions, or execution state. No TraderOS auth/runtime data is migrated.
+
+## REST (trading platform endpoints — proposed)
 
 | Method | Path | Purpose |
 |--------|------|---------|

@@ -27,6 +27,8 @@ fn env_required(name: &str) -> String {
 
 #[tokio::main]
 async fn main() {
+    dotenvy::from_path("crates/journal-api/.env").ok();
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -38,8 +40,13 @@ async fn main() {
     let issuer = env_required("EDGENEST_JWT_ISSUER");
     let audience = env_required("EDGENEST_JWT_AUDIENCE");
     let public_key = env_required("EDGENEST_JWT_PUBLIC_KEY_PEM").replace("\\n", "\n");
+    let active_key_id =
+        env::var("EDGENEST_JWT_KEY_ID").unwrap_or_else(|_| "edgenest-rsa-2026-01".into());
+    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
     let bind: SocketAddr = env::var("JOURNAL_API_BIND")
-        .unwrap_or_else(|_| "0.0.0.0:8080".into())
+        .unwrap_or_else(|_| "0.0.0.0:8082".into())
         .parse()
         .unwrap_or_else(|e| {
             eprintln!("invalid JOURNAL_API_BIND: {e}");
@@ -52,6 +59,10 @@ async fn main() {
         .filter(|s| !s.is_empty())
         .filter_map(|s| s.parse::<HeaderValue>().ok())
         .collect::<Vec<_>>();
+    if origins.is_empty() {
+        eprintln!("CORS origin allowlist is required; configure the service-specific CORS origins env var");
+        std::process::exit(2);
+    }
 
     let pool = connect(&database_url).await.unwrap_or_else(|e| {
         eprintln!("database connection failed: {e}");
@@ -64,7 +75,14 @@ async fn main() {
 
     let state = AppState {
         store: TradingStore::new(pool),
-        auth: auth::JwtConfig::new(public_key.as_bytes(), issuer, audience).unwrap_or_else(|e| {
+        auth: auth::JwtConfig::new(
+            public_key.as_bytes(),
+            active_key_id,
+            public_keys_json.as_deref(),
+            issuer,
+            audience,
+        )
+        .unwrap_or_else(|e| {
             eprintln!("invalid JWT configuration: {e}");
             std::process::exit(2);
         }),
@@ -80,7 +98,8 @@ async fn main() {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT]);
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT])
+        .allow_credentials(true);
 
     let app = Router::new()
         .route("/healthz", get(http::health))

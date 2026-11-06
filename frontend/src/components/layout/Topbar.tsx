@@ -3,6 +3,8 @@
 import { Bell, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
 import { useTheme } from "@/features/theme/ThemeProvider";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { useRouter } from "next/navigation";
 
 export function Topbar({
   collapsed,
@@ -17,6 +19,8 @@ export function Topbar({
 }) {
   const env = environmentLabel(frontendConfig.environment);
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const router = useRouter();
 
   return (
     <header className="topbar">
@@ -75,7 +79,8 @@ export function Topbar({
         <button type="button" className="icon-btn" aria-label="Notifications">
           <Bell size={16} />
         </button>
-        <button type="button" className="icon-btn" aria-label="Operator menu">
+        {user && <span title={user.email} className="metric-sub">{user.display_name}</span>}
+        <button type="button" className="icon-btn" aria-label="Sign out" title="Sign out" onClick={() => { void logout().then(() => router.replace("/login")); }}>
           <User size={16} />
         </button>
       </div>

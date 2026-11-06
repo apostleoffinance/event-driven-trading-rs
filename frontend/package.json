@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,18 +16,23 @@
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",
     "lucide-react": "^1.41.0",
-    "next": "^15.5.7",
+    "next": "15.5.29",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
+  },
+  "overrides": {
+    "postcss": "^8.5.23",
+    "sharp": "^0.35.5",
+    "source-map-js": "^1.2.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.1.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.5.29",
     "typescript": "^5"
   }
 }

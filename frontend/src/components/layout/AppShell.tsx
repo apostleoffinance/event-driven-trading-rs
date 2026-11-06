@@ -1,45 +1,74 @@
 "use client";
 
-import { EventStreamProvider, useSharedEventStream } from "@/features/events/EventStreamProvider";
-import { QueryProvider } from "@/features/query/QueryProvider";
-import { SimulationProvider } from "@/features/simulation/SimulationProvider";
-import { ThemeProvider } from "@/features/theme/ThemeProvider";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
-import { useState } from "react";
+import { ThemeProvider } from "@/features/theme/ThemeProvider";
+import { QueryProvider } from "@/features/query/QueryProvider";
+import { EventStreamProvider, useSharedEventStream } from "@/features/events/EventStreamProvider";
+import { SimulationProvider } from "@/features/simulation/SimulationProvider";
+import { AuthGate, AuthProvider } from "@/features/auth/AuthProvider";
 
-function ShellInner({ children }: { children: React.ReactNode }) {
+function AuthenticatedShell({ children }: { children: React.ReactNode }) {
+  const stream = useSharedEventStream();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const stream = useSharedEventStream();
+
+  useEffect(() => {
+    const stored = localStorage.getItem("quant-os-sidebar");
+    if (stored === "collapsed") setCollapsed(true);
+  }, []);
+
+  const toggleCollapse = () => {
+    setCollapsed((previous) => {
+      const next = !previous;
+      localStorage.setItem("quant-os-sidebar", next ? "collapsed" : "expanded");
+      return next;
+    });
+  };
 
   return (
     <SimulationProvider pushEvent={stream.push} resetEvents={stream.reset}>
       <div className={`app-shell${collapsed ? " collapsed" : ""}`}>
-        <Topbar
-          collapsed={collapsed}
-          eventConnected={stream.connected}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
-          onToggleMobile={() => setMobileOpen((v) => !v)}
-        />
-        <Sidebar
-          collapsed={collapsed}
-          mobileOpen={mobileOpen}
-          onNavigate={() => setMobileOpen(false)}
-        />
-        <main className="main">{children}</main>
+        <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onNavigate={() => setMobileOpen(false)} />
+        <div className="app-main">
+          <Topbar
+            collapsed={collapsed}
+            eventConnected={stream.connected}
+            onToggleCollapse={toggleCollapse}
+            onToggleMobile={() => setMobileOpen((open) => !open)}
+          />
+          <main className="app-content">{children}</main>
+        </div>
       </div>
     </SimulationProvider>
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+function ShellInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const authPage = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password"]
+    .some((path) => pathname === path || pathname.startsWith(path + "/"));
+
+  return (
+    <AuthGate>
+      {authPage ? <div className="auth-layout">{children}</div> : (
+        <EventStreamProvider>
+          <AuthenticatedShell>{children}</AuthenticatedShell>
+        </EventStreamProvider>
+      )}
+    </AuthGate>
+  );
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <QueryProvider>
-        <EventStreamProvider>
+        <AuthProvider>
           <ShellInner>{children}</ShellInner>
-        </EventStreamProvider>
+        </AuthProvider>
       </QueryProvider>
     </ThemeProvider>
   );

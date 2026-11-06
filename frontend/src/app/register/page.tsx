@@ -1,0 +1,9 @@
+"use client";
+import Link from "next/link";
+import { FormEvent,useState } from "react";
+import { useAuth } from "@/features/auth/AuthProvider";
+export default function RegisterPage(){
+ const {register}=useAuth();const [email,setEmail]=useState("");const [name,setName]=useState("");const [password,setPassword]=useState("");const [done,setDone]=useState(false);const [error,setError]=useState("");const [busy,setBusy]=useState(false);
+ async function submit(e:FormEvent){e.preventDefault();setError("");setBusy(true);try{await register(email,name,password);setDone(true);}catch(err){setError(err instanceof Error?err.message:"Registration failed");}finally{setBusy(false);}}
+ return <main className="auth-card panel"><div className="brand-name">EDGENEST</div><h1>Create your account</h1>{done?<><p>Account created. Check your email for a verification link before signing in.</p><Link href="/login" className="btn primary">Continue to sign in</Link></>:<><p className="muted">Use your own EdgeNest identity. TraderOS accounts are not imported.</p><form onSubmit={submit} className="auth-form"><label>Name<input required maxLength={120} value={name} onChange={e=>setName(e.target.value)}/></label><label>Email<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Password<input type="password" autoComplete="new-password" minLength={12} required value={password} onChange={e=>setPassword(e.target.value)}/><small>At least 12 characters.</small></label>{error&&<p className="auth-error" role="alert">{error}</p>}<button className="btn primary" disabled={busy}>{busy?"Creating…":"Create account"}</button></form><div className="auth-links"><Link href="/login">Already registered? Sign in</Link></div></>}</main>;
+}

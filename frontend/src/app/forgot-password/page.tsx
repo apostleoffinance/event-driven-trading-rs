@@ -1,0 +1,5 @@
+"use client";
+import Link from "next/link";
+import { FormEvent,useState } from "react";
+import { useAuth } from "@/features/auth/AuthProvider";
+export default function ForgotPasswordPage(){const {requestPasswordReset}=useAuth();const [email,setEmail]=useState("");const [message,setMessage]=useState("");const [error,setError]=useState("");async function submit(e:FormEvent){e.preventDefault();setError("");try{await requestPasswordReset(email);setMessage("If an account exists for this email, reset instructions have been sent.");}catch(err){setError(err instanceof Error?err.message:"Request failed");}}return <main className="auth-card panel"><div className="brand-name">EDGENEST</div><h1>Reset password</h1><p className="muted">We’ll email a time-limited reset link if the account exists.</p><form className="auth-form" onSubmit={submit}><label>Email<input type="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label>{message&&<p>{message}</p>}{error&&<p className="auth-error">{error}</p>}<button className="btn primary">Send reset link</button></form><Link href="/login">Back to sign in</Link></main>;}

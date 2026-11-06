@@ -4,6 +4,8 @@ export type FrontendConfig = {
   eventMode: "mock" | "websocket" | "sse";
   environment: "paper" | "shadow" | "live";
   apiUrl: string;
+  identityUrl: string;
+  journalApiUrl: string;
   eventStreamUrl: string;
 };
 
@@ -19,6 +21,8 @@ export const frontendConfig: FrontendConfig = {
       | "shadow"
       | "live") ?? "paper",
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "",
+  identityUrl: process.env.NEXT_PUBLIC_IDENTITY_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "",
+  journalApiUrl: process.env.NEXT_PUBLIC_JOURNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "",
   eventStreamUrl: process.env.NEXT_PUBLIC_EVENT_STREAM_URL ?? "",
 };
 

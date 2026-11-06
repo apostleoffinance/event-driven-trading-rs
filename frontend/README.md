@@ -59,3 +59,34 @@ Mock mode works without the Rust backend.
 - `docs/frontend-api-contract.md`
 - `docs/frontend/IMPLEMENTATION_NOTE.md`
 - `docs/architecture/STRATEGY_BRIDGE.md`
+
+## EdgeNest Identity + Journal integration
+
+Set these public variables at build time:
+- `NEXT_PUBLIC_IDENTITY_API_URL` — Identity API origin
+- `NEXT_PUBLIC_JOURNAL_API_URL` — Journal API origin
+- `NEXT_PUBLIC_API_URL` — compatibility fallback if services share an API origin
+
+The browser uses:
+- Access JWT in React memory only (never localStorage/sessionStorage).
+- Refresh token in Identity API's Secure, HttpOnly, SameSite=None `__Host-edgenest_refresh` cookie.
+- Credentialed fetches to Identity API; configure exact `IDENTITY_CORS_ORIGINS` values on the server.
+- Bearer access JWT for Journal API.
+
+Public routes: `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`. Application routes require an authenticated EdgeNest user.
+
+### Identity flows
+- Registration triggers email verification.
+- Login supports TOTP MFA challenges.
+- Password reset uses a single-use emailed link.
+- Security settings at `/security` enroll/disable TOTP and show recovery codes only once.
+
+### Production checklist
+- Use HTTPS for app and APIs.
+- Refresh cookie must be Secure, HttpOnly, Path=/, SameSite=None, with no Domain attribute (required for `__Host-` prefix).
+- Exact CORS allowlist + credentials on Identity API and Journal API.
+- Deploy Cloudflare rate-limit rules in `infra/cloudflare` and keep API origin ingress Cloudflare-only.
+- Configure Resend SPF/DKIM/DMARC and verified sender domain.
+- Configure Identity and Journal API with the same issuer, audience, active KID and public keyring.
+- Keep JWT signing private key and TOTP encryption secret server-side in a secret manager.
+- Next.js is pinned to patched 15.5.29; frontend security CI runs `npm audit --omit=dev --audit-level=high`.

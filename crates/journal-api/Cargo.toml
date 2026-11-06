@@ -10,6 +10,7 @@ name = "journal-api"
 path = "src/main.rs"
 
 [dependencies]
+dotenvy = "0.15"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { workspace = true }
 domain = { path = "../domain" }
