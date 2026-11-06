@@ -78,7 +78,7 @@ pub async fn create_account(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     let name = input.name.trim();
     let currency = input.currency.to_uppercase();
@@ -109,7 +109,7 @@ pub async fn get_account(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool)>(
         "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND id=$2")
@@ -128,7 +128,7 @@ pub async fn update_account(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     let name = input.name.trim();
     let currency = input.currency.to_uppercase();
@@ -159,7 +159,7 @@ pub async fn archive_account(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match sqlx::query("UPDATE journal_accounts SET archived=TRUE,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
         .bind(claims.sub).bind(id).execute(state.store.pool()).await {
@@ -184,7 +184,7 @@ pub struct SetupWrite {
 pub async fn list_setups(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match sqlx::query_as::<_, (String,String,Option<String>,Value,bool)>("SELECT id,name,description,rules_json,archived FROM journal_setups WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
         .bind(claims.sub).fetch_all(state.store.pool()).await {
@@ -200,7 +200,7 @@ pub async fn create_setup(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     if input.name.trim().is_empty() || !input.rules_json.is_object() {
         return err(
@@ -224,7 +224,7 @@ pub async fn get_setup(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match sqlx::query_as::<_, (String,String,Option<String>,Value,bool)>("SELECT id,name,description,rules_json,archived FROM journal_setups WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
@@ -242,7 +242,7 @@ pub async fn update_setup(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     if input.name.trim().is_empty() || !input.rules_json.is_object() {
         return err(
@@ -266,7 +266,7 @@ pub async fn archive_setup(
 ) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match sqlx::query("UPDATE journal_setups SET archived=TRUE,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
         .bind(claims.sub).bind(id).execute(state.store.pool()).await {
