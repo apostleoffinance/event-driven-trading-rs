@@ -43,6 +43,8 @@ async fn main() {
     let audience = required("EDGENEST_JWT_AUDIENCE");
     let private_key = required("EDGENEST_JWT_PRIVATE_KEY_PEM").replace("\\n", "\n");
     let public_key = required("EDGENEST_JWT_PUBLIC_KEY_PEM").replace("\\n", "\n");
+    let active_key_id = env::var("EDGENEST_JWT_KEY_ID").unwrap_or_else(|_| "edgenest-rsa-2026-01".into());
+    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON").ok();
     let access_ttl_seconds = env::var("EDGENEST_ACCESS_TOKEN_TTL_SECONDS")
         .unwrap_or_else(|_| "900".into())
         .parse::<i64>()
@@ -85,6 +87,8 @@ async fn main() {
     let jwt = service::JwtService::new(
         private_key.as_bytes(),
         public_key.as_bytes(),
+        active_key_id,
+        public_keys_json.as_deref(),
         issuer,
         audience,
     )
@@ -106,7 +110,8 @@ async fn main() {
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT]);
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE, header::ACCEPT])
+        .allow_credentials(true);
 
     let app = Router::new()
         .route("/healthz", get(service::health))
