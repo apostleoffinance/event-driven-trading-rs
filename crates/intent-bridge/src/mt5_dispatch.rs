@@ -12,6 +12,7 @@ use crate::mt5_session::Mt5SessionGate;
 use crate::mt5_v1::{BridgeFrame, BridgePayload, SubmitState};
 use crate::{BridgeError, BridgeResult};
 
+#[allow(clippy::large_enum_variant)] // Preserve the public single-send capability API without boxing.
 #[derive(Debug)]
 pub enum Mt5DispatchDecision {
     /// New durable claim: this request may be sent once by the future transport.

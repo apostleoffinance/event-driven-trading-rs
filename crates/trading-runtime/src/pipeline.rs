@@ -77,6 +77,7 @@ impl RuntimeInstrumentSizingContext {
 /// Runtime boundary for loading an account/instrument-scoped sizing snapshot.
 /// Implementations must obtain data from authoritative configured sources and
 /// return an error when any required input is missing or inconsistent.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait InstrumentSizingSnapshotProvider: Send + Sync {
     async fn load_snapshot(
@@ -546,107 +547,6 @@ impl TradingRuntime {
     }
 }
 
-#[cfg(test)]
-mod sizing_snapshot_tests {
-    #![allow(clippy::unwrap_used)]
-
-    use super::*;
-    use chrono::Duration;
-    use risk_engine::LossModel;
-    use rust_decimal::Decimal;
-
-    fn snapshot(now: DateTime<Utc>) -> RuntimeInstrumentSizingContext {
-        RuntimeInstrumentSizingContext {
-            account_id: AccountId::new("account-a").unwrap(),
-            instrument_id: InstrumentId::new("BTCUSDT").unwrap(),
-            source_id: "test-provider".to_string(),
-            pnl_conversion_path: "TEST:quote_to_account".to_string(),
-            notional_conversion_path: "TEST:price_to_account".to_string(),
-            venue_capabilities_validated: true,
-            account_position_semantics_known: true,
-            captured_at: now,
-            max_age_seconds: 10,
-            entry_price: None,
-            sizing: InstrumentSizingContext {
-                loss_model: LossModel::Linear {
-                    contract_multiplier: Decimal::ONE,
-                    pnl_to_account_rate: Decimal::ONE,
-                },
-                inputs_fresh: true,
-                notional_to_account_rate: Decimal::ONE,
-                quantity_step: Decimal::ONE,
-                min_quantity: Decimal::ONE,
-                max_quantity: Some(Decimal::from(100)),
-                min_notional_account_currency: None,
-                estimated_cost_per_quantity: Decimal::ZERO,
-                slippage_gap_buffer_per_quantity: Decimal::ZERO,
-                pending_order_exposure: Decimal::ZERO,
-                available_margin: None,
-                pending_order_margin: Decimal::ZERO,
-                margin_per_quantity: None,
-            },
-        }
-    }
-
-    #[test]
-    fn timestamped_snapshot_freshness_is_explicit_and_deterministic() {
-        let now = Utc::now();
-        assert!(snapshot(now).is_fresh_at(now));
-        assert!(snapshot(now - Duration::seconds(10)).is_fresh_at(now));
-        assert!(!snapshot(now - Duration::seconds(11)).is_fresh_at(now));
-        assert!(!snapshot(now + Duration::seconds(1)).is_fresh_at(now));
-
-        let mut unknown_bound = snapshot(now);
-        unknown_bound.max_age_seconds = 0;
-        assert!(!unknown_bound.is_fresh_at(now));
-
-        let mut unknown_source = snapshot(now);
-        unknown_source.source_id = "  ".to_string();
-        assert!(!unknown_source.is_fresh_at(now));
-    }
-
-    #[tokio::test]
-    async fn cache_rejects_stale_and_out_of_order_snapshots() {
-        let now = Utc::now();
-        let cache = InstrumentSizingSnapshotCache::default();
-        let mut fresh = snapshot(now);
-        fresh.max_age_seconds = 60;
-        cache.publish_snapshot(fresh.clone()).await.unwrap();
-
-        let mut older = fresh.clone();
-        older.captured_at = now - Duration::seconds(1);
-        assert!(cache.publish_snapshot(older).await.is_err());
-
-        let mut stale = fresh.clone();
-        stale.captured_at = now - Duration::seconds(120);
-        assert!(cache.publish_snapshot(stale).await.is_err());
-
-        let mut missing_conversion = fresh.clone();
-        missing_conversion.pnl_conversion_path = " ".to_string();
-        assert!(cache.publish_snapshot(missing_conversion).await.is_err());
-
-        let mut unknown_capabilities = fresh.clone();
-        unknown_capabilities.venue_capabilities_validated = false;
-        assert!(cache.publish_snapshot(unknown_capabilities).await.is_err());
-
-        let mut unknown_semantics = fresh;
-        unknown_semantics.account_position_semantics_known = false;
-        assert!(cache.publish_snapshot(unknown_semantics).await.is_err());
-    }
-
-    #[tokio::test]
-    async fn cache_load_fails_closed_for_missing_instrument() {
-        let cache = InstrumentSizingSnapshotCache::default();
-        let result = cache
-            .load_snapshot(
-                &AccountId::new("account-a").unwrap(),
-                &InstrumentId::new("ETHUSDT").unwrap(),
-            )
-            .await;
-        assert!(result.is_err());
-    }
-}
-
 fn optional_decimal(value: Option<Decimal>) -> Option<String> {
     value.map(|decimal| decimal.to_string())
 }
@@ -793,4 +693,105 @@ fn sizing_audit_payload(
         },
         "sizing_result": sizing_result
     })
+}
+
+#[cfg(test)]
+mod sizing_snapshot_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use chrono::Duration;
+    use risk_engine::LossModel;
+    use rust_decimal::Decimal;
+
+    fn snapshot(now: DateTime<Utc>) -> RuntimeInstrumentSizingContext {
+        RuntimeInstrumentSizingContext {
+            account_id: AccountId::new("account-a").unwrap(),
+            instrument_id: InstrumentId::new("BTCUSDT").unwrap(),
+            source_id: "test-provider".to_string(),
+            pnl_conversion_path: "TEST:quote_to_account".to_string(),
+            notional_conversion_path: "TEST:price_to_account".to_string(),
+            venue_capabilities_validated: true,
+            account_position_semantics_known: true,
+            captured_at: now,
+            max_age_seconds: 10,
+            entry_price: None,
+            sizing: InstrumentSizingContext {
+                loss_model: LossModel::Linear {
+                    contract_multiplier: Decimal::ONE,
+                    pnl_to_account_rate: Decimal::ONE,
+                },
+                inputs_fresh: true,
+                notional_to_account_rate: Decimal::ONE,
+                quantity_step: Decimal::ONE,
+                min_quantity: Decimal::ONE,
+                max_quantity: Some(Decimal::from(100)),
+                min_notional_account_currency: None,
+                estimated_cost_per_quantity: Decimal::ZERO,
+                slippage_gap_buffer_per_quantity: Decimal::ZERO,
+                pending_order_exposure: Decimal::ZERO,
+                available_margin: None,
+                pending_order_margin: Decimal::ZERO,
+                margin_per_quantity: None,
+            },
+        }
+    }
+
+    #[test]
+    fn timestamped_snapshot_freshness_is_explicit_and_deterministic() {
+        let now = Utc::now();
+        assert!(snapshot(now).is_fresh_at(now));
+        assert!(snapshot(now - Duration::seconds(10)).is_fresh_at(now));
+        assert!(!snapshot(now - Duration::seconds(11)).is_fresh_at(now));
+        assert!(!snapshot(now + Duration::seconds(1)).is_fresh_at(now));
+
+        let mut unknown_bound = snapshot(now);
+        unknown_bound.max_age_seconds = 0;
+        assert!(!unknown_bound.is_fresh_at(now));
+
+        let mut unknown_source = snapshot(now);
+        unknown_source.source_id = "  ".to_string();
+        assert!(!unknown_source.is_fresh_at(now));
+    }
+
+    #[tokio::test]
+    async fn cache_rejects_stale_and_out_of_order_snapshots() {
+        let now = Utc::now();
+        let cache = InstrumentSizingSnapshotCache::default();
+        let mut fresh = snapshot(now);
+        fresh.max_age_seconds = 60;
+        cache.publish_snapshot(fresh.clone()).await.unwrap();
+
+        let mut older = fresh.clone();
+        older.captured_at = now - Duration::seconds(1);
+        assert!(cache.publish_snapshot(older).await.is_err());
+
+        let mut stale = fresh.clone();
+        stale.captured_at = now - Duration::seconds(120);
+        assert!(cache.publish_snapshot(stale).await.is_err());
+
+        let mut missing_conversion = fresh.clone();
+        missing_conversion.pnl_conversion_path = " ".to_string();
+        assert!(cache.publish_snapshot(missing_conversion).await.is_err());
+
+        let mut unknown_capabilities = fresh.clone();
+        unknown_capabilities.venue_capabilities_validated = false;
+        assert!(cache.publish_snapshot(unknown_capabilities).await.is_err());
+
+        let mut unknown_semantics = fresh;
+        unknown_semantics.account_position_semantics_known = false;
+        assert!(cache.publish_snapshot(unknown_semantics).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn cache_load_fails_closed_for_missing_instrument() {
+        let cache = InstrumentSizingSnapshotCache::default();
+        let result = cache
+            .load_snapshot(
+                &AccountId::new("account-a").unwrap(),
+                &InstrumentId::new("ETHUSDT").unwrap(),
+            )
+            .await;
+        assert!(result.is_err());
+    }
 }

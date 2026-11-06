@@ -1,4 +1,5 @@
 pub mod mean_reversion;
+#[allow(clippy::module_inception)]
 pub mod strategy;
 pub mod strategy_factory;
 

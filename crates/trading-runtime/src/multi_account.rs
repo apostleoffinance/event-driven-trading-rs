@@ -178,25 +178,26 @@ mod tests {
         let venue_two = SimulatedVenue::new(VenueId::new("simulated").unwrap());
         let (events_one, _subscriber_one) = events::event_channel(8);
         let (events_two, _subscriber_two) = events::event_channel(8);
-        let mut targets = [
-            AccountExecutionTarget {
-                runtime: &mut first,
-                venue: &venue_one,
-                events_out: &events_one,
-                sizing_provider: None,
-            },
-            AccountExecutionTarget {
-                runtime: &mut second,
-                venue: &venue_two,
-                events_out: &events_two,
-                sizing_provider: None,
-            },
-        ];
-        let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
-        assert!(
-            matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("duplicate account"))
-        );
-        drop(targets);
+        {
+            let mut targets = [
+                AccountExecutionTarget {
+                    runtime: &mut first,
+                    venue: &venue_one,
+                    events_out: &events_one,
+                    sizing_provider: None,
+                },
+                AccountExecutionTarget {
+                    runtime: &mut second,
+                    venue: &venue_two,
+                    events_out: &events_two,
+                    sizing_provider: None,
+                },
+            ];
+            let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
+            assert!(
+                matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("duplicate account"))
+            );
+        }
         assert!(first.oms().orders().is_empty());
         assert!(second.oms().orders().is_empty());
     }
@@ -206,17 +207,18 @@ mod tests {
         let mut account = runtime("account-one", "expected-venue");
         let venue = SimulatedVenue::new(VenueId::new("different-venue").unwrap());
         let (events, _subscriber) = events::event_channel(8);
-        let mut targets = [AccountExecutionTarget {
-            runtime: &mut account,
-            venue: &venue,
-            events_out: &events,
-            sizing_provider: None,
-        }];
-        let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
-        assert!(
-            matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("venue binding mismatch"))
-        );
-        drop(targets);
+        {
+            let mut targets = [AccountExecutionTarget {
+                runtime: &mut account,
+                venue: &venue,
+                events_out: &events,
+                sizing_provider: None,
+            }];
+            let result = execute_intent_across_accounts(&test_intent(), &mut targets).await;
+            assert!(
+                matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("venue binding mismatch"))
+            );
+        }
         assert!(account.oms().orders().is_empty());
     }
 
@@ -229,37 +231,38 @@ mod tests {
         let (events_one, subscriber_one) = events::event_channel(8);
         drop(subscriber_one);
         let (events_two, _subscriber_two) = events::event_channel(8);
-        let mut targets = [
-            AccountExecutionTarget {
-                runtime: &mut first,
-                venue: &venue_one,
-                events_out: &events_one,
-                sizing_provider: None,
-            },
-            AccountExecutionTarget {
-                runtime: &mut second,
-                venue: &venue_two,
-                events_out: &events_two,
-                sizing_provider: None,
-            },
-        ];
+        {
+            let mut targets = [
+                AccountExecutionTarget {
+                    runtime: &mut first,
+                    venue: &venue_one,
+                    events_out: &events_one,
+                    sizing_provider: None,
+                },
+                AccountExecutionTarget {
+                    runtime: &mut second,
+                    venue: &venue_two,
+                    events_out: &events_two,
+                    sizing_provider: None,
+                },
+            ];
 
-        let outcome = execute_intent_across_accounts(&test_intent(), &mut targets)
-            .await
-            .unwrap();
+            let outcome = execute_intent_across_accounts(&test_intent(), &mut targets)
+                .await
+                .unwrap();
 
-        assert_eq!(outcome.results.len(), 2);
-        assert!(outcome.results[0].result.is_err());
-        assert!(outcome.results[1].result.is_err());
-        assert_eq!(
-            outcome.results[1].account_id.as_str(),
-            "account-later-target"
-        );
-        assert!(matches!(
-            &outcome.results[1].result,
-            Err(RuntimeError::Invariant(message)) if message.contains("snapshot provider")
-        ));
-        drop(targets);
+            assert_eq!(outcome.results.len(), 2);
+            assert!(outcome.results[0].result.is_err());
+            assert!(outcome.results[1].result.is_err());
+            assert_eq!(
+                outcome.results[1].account_id.as_str(),
+                "account-later-target"
+            );
+            assert!(matches!(
+                &outcome.results[1].result,
+                Err(RuntimeError::Invariant(message)) if message.contains("snapshot provider")
+            ));
+        }
         assert!(first.oms().orders().is_empty());
         assert!(second.oms().orders().is_empty());
     }

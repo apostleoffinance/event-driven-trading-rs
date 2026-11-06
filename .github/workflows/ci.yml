@@ -45,8 +45,8 @@ jobs:
         run: cargo check --workspace
       - name: Test workspace
         run: cargo test --workspace
-      - name: Clippy all targets
-        run: cargo clippy --workspace --all-targets
+      - name: Clippy all targets (warnings are errors)
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   mt5-python-adapter:
     name: MT5 Python adapter contract tests

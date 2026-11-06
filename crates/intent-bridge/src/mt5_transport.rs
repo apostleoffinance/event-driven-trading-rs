@@ -379,9 +379,7 @@ impl AuthenticatedMt5Connection {
             };
             if count == 0 {
                 self.failed = true;
-                if let Err(error) = self.decoder.finish() {
-                    return Err(error);
-                }
+                self.decoder.finish()?;
                 return Err(BridgeError::Invalid(
                     "MT5 authenticated transport closed".into(),
                 ));

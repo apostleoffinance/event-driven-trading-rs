@@ -7,6 +7,7 @@ use crate::error::PersistenceResult;
 
 /// Append a complete sizing-decision audit record. Rows are insert-only so
 /// later reconciliation never rewrites the historical decision inputs.
+#[allow(clippy::too_many_arguments)]
 pub async fn insert(
     pool: &PgPool,
     trade_intent_id: &TradeIntentId,

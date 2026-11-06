@@ -25,6 +25,7 @@ pub struct Mt5SizingSupplementSnapshot {
     pub max_age_seconds: i64,
 }
 
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait Mt5SizingSupplementProvider: Send + Sync {
     async fn load_supplement(

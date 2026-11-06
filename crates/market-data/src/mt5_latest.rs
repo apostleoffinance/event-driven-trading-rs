@@ -57,6 +57,7 @@ pub enum SourceError {
     Corrupt,
 }
 
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait Mt5SnapshotSource: Send + Sync {
     async fn load_latest(&self, scope: &Mt5Scope)
@@ -248,7 +249,7 @@ fn is_plain_decimal(text: &str) -> bool {
     let digits = |s: &str, max: usize| {
         !s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_digit())
     };
-    digits(integer, MAX_INTEGER_DIGITS) && fraction.map_or(true, |f| digits(f, MAX_FRACTION_DIGITS))
+    digits(integer, MAX_INTEGER_DIGITS) && fraction.is_none_or(|f| digits(f, MAX_FRACTION_DIGITS))
 }
 
 fn seconds(ms: i64) -> f64 {
