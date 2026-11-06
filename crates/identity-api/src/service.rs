@@ -517,6 +517,20 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest
             Ok(v) => v,
             Err(_) => return internal(),
         };
+        let challenge_claims = match state.jwt.verify(&challenge_token) {
+            Ok(claims) if !claims.jti.is_empty() => claims,
+            _ => return internal(),
+        };
+        if sqlx::query("INSERT INTO identity_mfa_challenges(jti_hash,user_id,expires_at) VALUES($1,$2,$3)")
+            .bind(token_hash(&challenge_claims.jti))
+            .bind(&id)
+            .bind(Utc::now() + Duration::minutes(5))
+            .execute(&state.pool)
+            .await
+            .is_err()
+        {
+            return internal();
+        }
         let now = Utc::now().timestamp() as usize;
         return (StatusCode::ACCEPTED, Json(serde_json::json!({"mfa_required":true,"challenge_token":challenge_token,"expires_in":expires_at.saturating_sub(now)}))).into_response();
     }
@@ -1273,14 +1287,40 @@ pub async fn mfa_verify_login(
         Err(_) => return internal(),
     };
     let valid_totp = verify_totp(&secret, &input.code);
-    let mut valid = valid_totp;
-    if !valid_totp {
-        let hash = token_hash(&input.code);
-        let consumed=sqlx::query("UPDATE identity_mfa_recovery_codes SET used_at=NOW() WHERE user_id=$1 AND code_hash=$2 AND used_at IS NULL").bind(&claims.sub).bind(hash).execute(&state.pool).await;
-        valid = consumed.is_ok_and(|r| r.rows_affected() == 1);
-    }
-    if !valid {
+    if !valid_totp && (input.code.len() < 32 || input.code.len() > 128) {
         return unauthorized();
+    }
+
+    let mut tx = match state.pool.begin().await {
+        Ok(tx) => tx,
+        Err(_) => return internal(),
+    };
+    let challenge_user = sqlx::query_scalar::<_, String>(
+        "UPDATE identity_mfa_challenges SET consumed_at=NOW() WHERE jti_hash=$1 AND user_id=$2 AND consumed_at IS NULL AND expires_at>NOW() RETURNING user_id",
+    )
+    .bind(token_hash(&claims.jti))
+    .bind(&claims.sub)
+    .fetch_optional(&mut *tx)
+    .await;
+    if !matches!(challenge_user, Ok(Some(_))) {
+        let _ = tx.rollback().await;
+        return unauthorized();
+    }
+    if !valid_totp {
+        let consumed = sqlx::query(
+            "UPDATE identity_mfa_recovery_codes SET used_at=NOW() WHERE user_id=$1 AND code_hash=$2 AND used_at IS NULL",
+        )
+        .bind(&claims.sub)
+        .bind(token_hash(&input.code))
+        .execute(&mut *tx)
+        .await;
+        if !consumed.is_ok_and(|result| result.rows_affected() == 1) {
+            let _ = tx.rollback().await;
+            return unauthorized();
+        }
+    }
+    if tx.commit().await.is_err() {
+        return internal();
     }
     let user = sqlx::query_as::<_, (String, String, String)>(
         "SELECT id,email,display_name FROM identity_users WHERE id=$1",
