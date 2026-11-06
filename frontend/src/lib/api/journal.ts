@@ -35,7 +35,8 @@ export const journalApi = {
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.limit !== undefined) params.set("limit", String(options.limit));
     if (options.offset !== undefined) params.set("offset", String(options.offset));
-    const query = params.toString();\n    const suffix = query ? `?${query}` : "";
+    const query = params.toString();
+    const suffix = query ? `?${query}` : "";
     return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { baseUrl: journalBaseUrl() });
   },
   async createTrade(input: Omit<JournalTrade, "id">) {
