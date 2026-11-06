@@ -16,6 +16,8 @@ base64 = "0.22"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { workspace = true }
 hex = "0.4"
+hmac = "0.12"
+sha1 = "0.10"
 jsonwebtoken = "9.3"
 persistence = { path = "../persistence" }
 rand_core = { version = "0.6", features = ["getrandom"] }
