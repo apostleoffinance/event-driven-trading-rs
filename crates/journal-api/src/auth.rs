@@ -9,6 +9,7 @@ pub struct Claims {
     pub iss: String,
     pub aud: String,
     pub exp: usize,
+    pub token_type: String,
     #[serde(default)]
     pub iat: Option<usize>,
 }
@@ -90,7 +91,7 @@ impl JwtConfig {
             }
             result.ok_or(ApiAuthError)?
         };
-        if claims.sub.trim().is_empty() {
+        if claims.sub.trim().is_empty() || claims.token_type != "access" {
             return Err(ApiAuthError);
         }
         Ok(claims)
