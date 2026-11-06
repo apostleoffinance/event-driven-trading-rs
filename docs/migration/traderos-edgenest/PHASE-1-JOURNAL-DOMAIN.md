@@ -31,7 +31,7 @@ Migration: `migrations/20261106000001_journal_domain.sql`
 ### Safety and integrity
 - All monetary/price/quantity values are PostgreSQL `NUMERIC(38,18)`.
 - Database owner-scope composite FKs protect account/setup/trade/screenshot/event relationships from cross-owner references.
-- Imported records can be deduplicated using a partial unique index on `(source_system, source_trade_id)`.
+- Imported records can be deduplicated using a partial unique index on `(journal_account_id, source_system, source_trade_id)`, avoiding false collisions when broker tickets repeat across accounts.
 - The source system + source trade ID must be provided together.
 - Closed trades require a close timestamp and exit price; timestamps cannot close before open.
 - Journal accounts are separate from EdgeNest execution accounts. A link is optional and explicit.
