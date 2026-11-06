@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use market_data::config::Config;
 use market_data::http::router_with_mt5;
-use market_data::mt5_latest::{
-    Mt5LatestService, Mt5Scope, Mt5SnapshotSource, PgMt5SnapshotSource,
-};
+use market_data::mt5_latest::{Mt5LatestService, Mt5Scope, Mt5SnapshotSource, PgMt5SnapshotSource};
 use market_data::providers::binance::{BinanceConfig, BinanceProvider, ReqwestHttp};
 use market_data::providers::demo::DemoProvider;
 use market_data::providers::mt5::Mt5Provider;
@@ -84,9 +82,9 @@ async fn main() {
         listener,
         router_with_mt5(service, Arc::new(mt5), &config.cors_origins),
     )
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await
-        .expect("server error");
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+    })
+    .await
+    .expect("server error");
 }
