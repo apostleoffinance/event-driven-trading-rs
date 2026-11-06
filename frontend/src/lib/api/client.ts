@@ -11,7 +11,7 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
     : service === "journal" ? process.env.NEXT_PUBLIC_JOURNAL_API_URL
     : service === "market-data" ? process.env.NEXT_PUBLIC_MARKET_DATA_API_URL : undefined;
   const value = (specific || process.env.NEXT_PUBLIC_API_URL || "").trim();
-  if (!value) throw new Error(`API URL is not configured. Set NEXT_PUBLIC_${service ? service.toUpperCase().replace("-", "_") + "_API_URL" : "API_URL"}_URL or NEXT_PUBLIC_API_URL.`);
+  if (!value) {\n    const required = service === "market-data" ? "NEXT_PUBLIC_MARKET_DATA_API_URL" : service === "identity" ? "NEXT_PUBLIC_IDENTITY_API_URL" : service === "journal" ? "NEXT_PUBLIC_JOURNAL_API_URL" : "NEXT_PUBLIC_API_URL";\n    throw new Error(`API URL is not configured. Set ${required} or NEXT_PUBLIC_API_URL.`);\n  }
   const normalized = value.replace(/\/$/, "");
   if (typeof window !== "undefined" && window.location.protocol === "https:" && normalized.startsWith("http://")) {
     throw new Error("API URL must use HTTPS when the frontend is served over HTTPS.");
@@ -22,7 +22,7 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
 type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, authService = "identity", ...init } = options;
+  const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, ...init } = options;
   const headers = new Headers(inputHeaders);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   headers.set("Accept", "application/json");
