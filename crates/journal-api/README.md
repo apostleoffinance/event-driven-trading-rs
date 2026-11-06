@@ -20,7 +20,7 @@ Required environment:
 | `EDGENEST_JWT_PUBLIC_KEY_PEM` | RSA public key in PEM format (literal newlines or escaped `\\n`) |
 
 Optional:
-- `JOURNAL_API_BIND` defaults to `0.0.0.0:8080`.
+- `JOURNAL_API_BIND` defaults to `0.0.0.0:8082`.
 - `JOURNAL_CORS_ORIGINS` is a comma-separated allowlist; default is no browser origins.
 - `RUST_LOG` controls tracing.
 
