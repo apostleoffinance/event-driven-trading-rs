@@ -13,7 +13,7 @@ use rsa::{
 use sha1::Sha1;
 use std::{
     collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration as StdDuration, SystemTime, UNIX_EPOCH},
 };
 
 use argon2::{
@@ -741,7 +741,8 @@ async fn send_email(state: &AppState, to: &str, subject: &str, html: &str) -> Re
     if state.email_from.trim().is_empty() || state.public_app_url.trim().is_empty() {
         return Err(());
     }
-    let response = reqwest::Client::new()
+    let client = reqwest::Client::builder().timeout(StdDuration::from_secs(10)).build().map_err(|_| ())?;
+    let response = client
         .post("https://api.resend.com/emails")
         .bearer_auth(api_key)
         .json(&serde_json::json!({"from":state.email_from,"to":[to],"subject":subject,"html":html}))
