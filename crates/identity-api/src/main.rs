@@ -60,8 +60,7 @@ async fn main() {
         .ok()
         .filter(|v| !v.trim().is_empty());
     let email_from = env::var("IDENTITY_EMAIL_FROM").unwrap_or_default();
-    let public_app_url =
-        env::var("EDGENEST_PUBLIC_APP_URL").unwrap_or_else(|_| "https://app.edgenest.app".into());
+    let public_app_url = env::var("EDGENEST_PUBLIC_APP_URL").unwrap_or_default();
     let mfa_encryption_key = required("IDENTITY_MFA_ENCRYPTION_KEY");
     let bind: SocketAddr = env::var("IDENTITY_API_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8081".into())
