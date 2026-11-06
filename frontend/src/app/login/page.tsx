@@ -45,7 +45,7 @@ export default function LoginPage() {
       <p className="metric-sub" style={{ marginTop: 12 }}>{mode === "login" ? "New to EdgeNest?" : "Already have an account?"}{" "}
         <button className="btn" type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}>{mode === "login" ? "Register" : "Sign in"}</button>
       </p>
-      <p className="metric-sub">Tokens are stored in this browser tab's sessionStorage and cleared on sign-out. This is not equivalent to HttpOnly-cookie/BFF protection against XSS; use a trusted HTTPS origin and review this auth-storage decision before production.</p>
+      <p className="metric-sub">Tokens are stored in this browser tab&apos;s sessionStorage and cleared on sign-out. This is not equivalent to HttpOnly-cookie/BFF protection against XSS; use a trusted HTTPS origin and review this auth-storage decision before production.</p>
     </section>
   </div>;
 }
