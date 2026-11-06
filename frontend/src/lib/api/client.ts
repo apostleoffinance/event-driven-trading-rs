@@ -11,7 +11,10 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
     : service === "journal" ? process.env.NEXT_PUBLIC_JOURNAL_API_URL
     : service === "market-data" ? process.env.NEXT_PUBLIC_MARKET_DATA_API_URL : undefined;
   const value = (specific || process.env.NEXT_PUBLIC_API_URL || "").trim();
-  if (!value) {\n    const required = service === "market-data" ? "NEXT_PUBLIC_MARKET_DATA_API_URL" : service === "identity" ? "NEXT_PUBLIC_IDENTITY_API_URL" : service === "journal" ? "NEXT_PUBLIC_JOURNAL_API_URL" : "NEXT_PUBLIC_API_URL";\n    throw new Error(`API URL is not configured. Set ${required} or NEXT_PUBLIC_API_URL.`);\n  }
+  if (!value) {
+    const required = service === "market-data" ? "NEXT_PUBLIC_MARKET_DATA_API_URL" : service === "identity" ? "NEXT_PUBLIC_IDENTITY_API_URL" : service === "journal" ? "NEXT_PUBLIC_JOURNAL_API_URL" : "NEXT_PUBLIC_API_URL";
+    throw new Error(`API URL is not configured. Set ${required} or NEXT_PUBLIC_API_URL.`);
+  }
   const normalized = value.replace(/\/$/, "");
   if (typeof window !== "undefined" && window.location.protocol === "https:" && normalized.startsWith("http://")) {
     throw new Error("API URL must use HTTPS when the frontend is served over HTTPS.");
