@@ -3,14 +3,13 @@ import { mockRepositories } from "@/lib/repositories/mock";
 import type { DataRepositories } from "@/lib/repositories/types";
 
 /**
- * Repository factory. API mode is a stub until Rust REST exists —
- * falls back to mock so the UI never hard-codes data sources.
+ * Trading dashboard repositories are still mock-only until the Rust trading
+ * read APIs are implemented. API mode must never quietly display demo data.
  */
 export function getRepositories(): DataRepositories {
-  if (frontendConfig.dataMode === "api" && frontendConfig.apiUrl) {
-    // Future: return apiRepositories(frontendConfig.apiUrl)
-    console.warn(
-      "[Quant OS] API mode requested but not wired; using mock repositories.",
+  if (frontendConfig.dataMode === "api") {
+    throw new Error(
+      "Trading dashboard API repositories are not implemented yet. Mock data is intentionally disabled in API mode.",
     );
   }
   return mockRepositories;
