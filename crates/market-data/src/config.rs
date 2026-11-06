@@ -79,7 +79,7 @@ impl Config {
         };
 
         let cors_origins = get("MARKET_DATA_CORS_ORIGINS")
-            .unwrap_or_else(|| "http://localhost:3000,http://localhost:3107".into())
+            .unwrap_or_else(|| "https://edgenest-frontend.edgenest.workers.dev,http://localhost:3000,http://localhost:3107,http://127.0.0.1:8787".into())
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())

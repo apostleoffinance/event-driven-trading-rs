@@ -57,7 +57,7 @@ async fn main() {
             std::process::exit(2);
         });
     let origins = env::var("IDENTITY_CORS_ORIGINS")
-        .unwrap_or_default()
+        .unwrap_or_else(|_| "https://edgenest-frontend.edgenest.workers.dev,http://localhost:3000,http://localhost:3107,http://127.0.0.1:8787".into())
         .split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
