@@ -57,7 +57,7 @@ pub enum SourceError {
     Corrupt,
 }
 
-#allow(clippy::double_must_use)
+#[allow(clippy::double_must_use)
 #[async_trait]
 pub trait Mt5SnapshotSource: Send + Sync {
     async fn load_latest(&self, scope: &Mt5Scope)
