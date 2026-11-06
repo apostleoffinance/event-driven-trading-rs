@@ -654,21 +654,23 @@ pub async fn logout(
     headers: HeaderMap,
     Json(input): Json<RefreshRequest>,
 ) -> Response {
-    let claims = match state.jwt.authenticate(&headers) {
-        Ok(claims) => claims,
-        Err(e) => return e.into_response(),
-    };
+    // Logout must still work after the short-lived access JWT expires.
+    // The opaque refresh cookie is the credential being revoked; never
+    // require an unexpired bearer token to clear the user's session.
     let refresh_token = input
         .refresh_token
         .or_else(|| cookie_value(&headers, "__Host-edgenest_refresh"));
     if let Some(refresh_token) = refresh_token {
-        let _ = sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND token_hash=$2 AND revoked_at IS NULL")
-            .bind(claims.sub).bind(token_hash(&refresh_token)).execute(&state.pool).await;
+        if refresh_token.len() >= 32 && refresh_token.len() <= 256 {
+            let _ = sqlx::query(
+                "UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE token_hash=$1 AND revoked_at IS NULL",
+            )
+            .bind(token_hash(&refresh_token))
+            .execute(&state.pool)
+            .await;
+        }
     }
-    match Ok::<(), sqlx::Error>(()) {
-        Ok(_) => clear_refresh_cookie(StatusCode::NO_CONTENT.into_response()),
-        Err(_) => internal(),
-    }
+    clear_refresh_cookie(StatusCode::NO_CONTENT.into_response())
 }
 
 pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> Response {
