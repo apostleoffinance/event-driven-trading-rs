@@ -55,7 +55,7 @@ pub enum HttpError {
     Transport(String),
 }
 
-#[allow(clippy::double_must_use)
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait HttpGet: Send + Sync {
     async fn get(&self, url: &str, timeout: Duration) -> Result<HttpResponse, HttpError>;
