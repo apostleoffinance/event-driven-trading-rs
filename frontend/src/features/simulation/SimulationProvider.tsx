@@ -7,7 +7,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { TradingEvent } from "@/types/domain";\nimport { frontendConfig } from "@/config/frontend";
+import type { TradingEvent } from "@/types/domain";
+import { frontendConfig } from "@/config/frontend";
 
 type SimState = {
   running: boolean;
@@ -32,7 +33,8 @@ export function SimulationProvider({
   const [running, setRunning] = useState(true);
   const [seq, setSeq] = useState(1);
 
-  const generateSignal = useCallback(() => {\n    if (frontendConfig.dataMode !== "mock") return;
+  const generateSignal = useCallback(() => {
+    if (frontendConfig.dataMode !== "mock") return;
     const n = seq + 1;
     setSeq(n);
     const intentId = `ti-sim-${n}`;
@@ -56,7 +58,8 @@ export function SimulationProvider({
     });
   }, [pushEvent, seq]);
 
-  const generateTrade = useCallback(() => {\n    if (frontendConfig.dataMode !== "mock") return;
+  const generateTrade = useCallback(() => {
+    if (frontendConfig.dataMode !== "mock") return;
     const n = seq + 1;
     setSeq(n);
     const intentId = `ti-sim-${n}`;
