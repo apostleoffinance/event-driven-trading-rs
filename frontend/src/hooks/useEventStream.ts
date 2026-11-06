@@ -17,12 +17,12 @@ export type EventStreamState = {
  * Swap for WebSocket/SSE without changing consumers.
  */
 export function useEventStream(limit = 40): EventStreamState {
-  const [events, setEvents] = useState<TradingEvent[]>(() => [...mockEvents]);
+  const [events, setEvents] = useState<TradingEvent[]>(() => frontendConfig.dataMode === "mock" ? [...mockEvents] : []);
   const [connected, setConnected] = useState(false);
   const seq = useRef(100);
 
   useEffect(() => {
-    if (frontendConfig.eventMode !== "mock") {
+    if (frontendConfig.dataMode !== "mock" || frontendConfig.eventMode !== "mock") {
       setConnected(false);
       return;
     }
@@ -50,7 +50,7 @@ export function useEventStream(limit = 40): EventStreamState {
   );
 
   const reset = useCallback(() => {
-    setEvents([...mockEvents]);
+    setEvents(frontendConfig.dataMode === "mock" ? [...mockEvents] : []);
   }, []);
 
   return { events, connected, push, reset };
