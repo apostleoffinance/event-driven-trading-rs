@@ -1,4 +1,4 @@
-use std::{time::{SystemTime, UNIX_EPOCH}, sync::Arc};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -143,13 +143,13 @@ fn token_hash(raw: &str) -> String {
 }
 
 async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, Response> {
-    let (access_token, expires_at) = state.jwt.issue_access(&user.id, state.access_ttl_seconds).map_err(|_| internal())?;
+    let (access_token, _expires_at) = state.jwt.issue_access(&user.id, state.access_ttl_seconds).map_err(|_| internal())?;
     let refresh_token = new_refresh_token();
     let expires = Utc::now() + Duration::days(state.refresh_ttl_days);
     sqlx::query("INSERT INTO identity_refresh_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)")
         .bind(uuid::Uuid::new_v4().to_string()).bind(&user.id).bind(token_hash(&refresh_token)).bind(expires)
         .execute(&state.pool).await.map_err(|_| internal())?;
-    Ok(TokenResponse { token_type: "Bearer", access_token, expires_in: expires_at, refresh_token, user })
+    Ok(TokenResponse { token_type: "Bearer", access_token, expires_in: state.access_ttl_seconds as usize, refresh_token, user })
 }
 
 pub async fn health() -> &'static str { "ok" }
@@ -220,7 +220,7 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
         Err(_) => { let _ = tx.rollback().await; return internal(); },
     };
     if !is_active { let _ = tx.rollback().await; return unauthorized(); }
-    let (access_token, expires_at) = match state.jwt.issue_access(&id, state.access_ttl_seconds) {
+    let (access_token, _expires_at) = match state.jwt.issue_access(&id, state.access_ttl_seconds) {
         Ok(token) => token, Err(_) => { let _ = tx.rollback().await; return internal(); },
     };
     let refresh_token = new_refresh_token();
@@ -232,7 +232,7 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
     }
     if tx.commit().await.is_err() { return internal(); }
     Json(TokenResponse {
-        token_type: "Bearer", access_token, expires_in: expires_at, refresh_token,
+        token_type: "Bearer", access_token, expires_in: state.access_ttl_seconds as usize, refresh_token,
         user: UserView { id,email,display_name },
     }).into_response()
 }
