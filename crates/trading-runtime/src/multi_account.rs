@@ -178,7 +178,8 @@ mod tests {
         let venue_two = SimulatedVenue::new(VenueId::new("simulated").unwrap());
         let (events_one, _subscriber_one) = events::event_channel(8);
         let (events_two, _subscriber_two) = events::event_channel(8);
-        let mut targets = [
+        {
+            let mut targets = [
             AccountExecutionTarget {
                 runtime: &mut first,
                 venue: &venue_one,
@@ -196,7 +197,7 @@ mod tests {
         assert!(
             matches!(result, Err(RuntimeError::Invariant(message)) if message.contains("duplicate account"))
         );
-        drop(targets);
+        }
         assert!(first.oms().orders().is_empty());
         assert!(second.oms().orders().is_empty());
     }
@@ -206,7 +207,8 @@ mod tests {
         let mut account = runtime("account-one", "expected-venue");
         let venue = SimulatedVenue::new(VenueId::new("different-venue").unwrap());
         let (events, _subscriber) = events::event_channel(8);
-        let mut targets = [AccountExecutionTarget {
+        {
+            let mut targets = [AccountExecutionTarget {
             runtime: &mut account,
             venue: &venue,
             events_out: &events,
