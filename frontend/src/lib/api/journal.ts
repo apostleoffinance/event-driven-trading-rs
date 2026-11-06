@@ -27,7 +27,7 @@ export const journalApi = {
   },
   async listSetups() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup[]>>("/api/v1/journal/setups", { baseUrl: journalBaseUrl() })).data; },
   async createSetup(input: { name: string; description?: string; rules_json?: Record<string, unknown> }) {
-    requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup>>("/api/v1/journal/setups", { method: "POST", body: JSON.stringify(input) })).data;
+    requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup>>("/api/v1/journal/setups", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
   },
   async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number } = {}) {
     requireApiMode();
