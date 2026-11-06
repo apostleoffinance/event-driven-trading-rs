@@ -46,7 +46,9 @@ async fn main() {
     let public_key = required("EDGENEST_JWT_PUBLIC_KEY_PEM").replace("\\n", "\n");
     let active_key_id =
         env::var("EDGENEST_JWT_KEY_ID").unwrap_or_else(|_| "edgenest-rsa-2026-01".into());
-    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON").ok().filter(|value| !value.trim().is_empty());
+    let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
     let access_ttl_seconds = env::var("EDGENEST_ACCESS_TOKEN_TTL_SECONDS")
         .unwrap_or_else(|_| "900".into())
         .parse::<i64>()
