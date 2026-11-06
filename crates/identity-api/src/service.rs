@@ -4,9 +4,7 @@ use aes_gcm::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use hmac::{Hmac, Mac};
-use rsa::{
-    pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey,
-};
+use rsa::{pkcs8::DecodePublicKey, traits::PublicKeyParts, RsaPublicKey};
 use sha1::Sha1;
 use std::{
     collections::HashMap,
