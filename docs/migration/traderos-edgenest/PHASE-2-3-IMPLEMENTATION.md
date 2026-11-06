@@ -2,7 +2,7 @@
 
 **Branch:** `feat/journal-phase-2-3-api-calculator-analytics`  
 **Base:** EdgeNest main after merged Phase 1 PR #64  
-**Status:** Implementation in progress; CI pending
+**Status:** Domain/persistence and frontend sandbox implementation landed on branch; CI green on `a616969c156ad772a10268385914b500fbcfb424` (2026-11-06)
 
 ## Phase 2 — Journal persistence foundation
 
@@ -41,3 +41,14 @@
 ## Verification
 
 CI is the gate for Rust format/check/tests/Clippy, frontend lint/typecheck/build, MT5 contract tests, and portable MT5 preflight. SQL migration/application is exercised against CI disposable Postgres, not production.
+
+
+## CI evidence (2026-11-06)
+
+- [GitHub Actions run](https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/42225889698) — **success**
+- Rust format / workspace check / tests / Clippy — **PASS**
+- Frontend lint / typecheck / production build — **PASS**
+- MT5 Python adapter contract tests — **PASS**
+- macOS portable MT5 preflight — **PASS**
+
+This means the current branch passes its automated checks. It does not mean Phase 2/3 end-user functionality is complete: authenticated HTTP API integration, actual Journal data connection, and the TraderOS import are still pending.
