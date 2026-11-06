@@ -41,6 +41,8 @@ pub struct AccessClaims {
     pub aud: String,
     pub exp: usize,
     pub iat: usize,
+    #[serde(default)]
+    pub jti: String,
     pub token_type: String,
 }
 
@@ -178,6 +180,7 @@ impl JwtService {
             aud: self.audience.clone(),
             exp,
             iat: now,
+            jti: uuid::Uuid::new_v4().to_string(),
             token_type: token_type.into(),
         };
         let mut header = Header::new(Algorithm::RS256);
