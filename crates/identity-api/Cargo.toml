@@ -15,6 +15,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 chrono = { workspace = true }
 hex = "0.4"
 jsonwebtoken = "9.3"
+persistence = { path = "../persistence" }
 rand_core = { version = "0.6", features = ["getrandom"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
