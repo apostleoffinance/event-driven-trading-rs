@@ -29,8 +29,10 @@ impl JwtConfig {
         issuer: String,
         audience: String,
     ) -> Result<Self, String> {
+        if active_kid.trim().is_empty() { return Err("EDGENEST_JWT_KEY_ID cannot be empty".into()); }
         let key = DecodingKey::from_rsa_pem(public_key_pem)
             .map_err(|e| format!("EDGENEST_JWT_PUBLIC_KEY_PEM must be an RSA public key: {e}"))?;
+        let active_pem = std::str::from_utf8(public_key_pem).map_err(|e|e.to_string())?;
         #[derive(Deserialize)]
         struct KeyInput {
             kid: String,
@@ -46,6 +48,8 @@ impl JwtConfig {
             let pem = item.pem.replace("\\n", "\n");
             let decoder = DecodingKey::from_rsa_pem(pem.as_bytes())
                 .map_err(|e| format!("invalid public key {}: {e}", item.kid))?;
+            if item.kid == active_kid && pem != active_pem { return Err("active JWT KID PEM does not match EDGENEST_JWT_PUBLIC_KEY_PEM".into()); }
+            if keys.contains_key(&item.kid) { return Err(format!("duplicate JWT KID: {}", item.kid)); }
             keys.insert(item.kid, decoder);
         }
         if keys.is_empty() {
