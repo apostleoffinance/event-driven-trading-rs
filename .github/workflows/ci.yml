@@ -3,10 +3,7 @@ name: Quant OS CI
 on:
   push:
     branches:
-      - main
-      - migration/*
-      - ci/*
-      - fix/*
+      - '**'
   pull_request:
     branches:
       - main
