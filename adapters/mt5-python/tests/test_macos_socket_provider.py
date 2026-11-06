@@ -24,7 +24,7 @@ from mt5_adapter.worker import (
 
 
 def connect_retry(port):
-    deadline = time.monotonic() + 3
+    deadline = time.monotonic() + 10
     while True:
         try:
             return socket.create_connection(("127.0.0.1", port), timeout=1)
