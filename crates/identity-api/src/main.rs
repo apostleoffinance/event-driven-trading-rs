@@ -43,7 +43,8 @@ async fn main() {
     let audience = required("EDGENEST_JWT_AUDIENCE");
     let private_key = required("EDGENEST_JWT_PRIVATE_KEY_PEM").replace("\\n", "\n");
     let public_key = required("EDGENEST_JWT_PUBLIC_KEY_PEM").replace("\\n", "\n");
-    let active_key_id = env::var("EDGENEST_JWT_KEY_ID").unwrap_or_else(|_| "edgenest-rsa-2026-01".into());
+    let active_key_id =
+        env::var("EDGENEST_JWT_KEY_ID").unwrap_or_else(|_| "edgenest-rsa-2026-01".into());
     let public_keys_json = env::var("EDGENEST_JWT_PUBLIC_KEYS_JSON").ok();
     let access_ttl_seconds = env::var("EDGENEST_ACCESS_TOKEN_TTL_SECONDS")
         .unwrap_or_else(|_| "900".into())
@@ -55,9 +56,13 @@ async fn main() {
         .parse::<i64>()
         .unwrap_or(30)
         .clamp(1, 90);
-    let resend_api_key = env::var("RESEND_API_KEY").ok().filter(|v| !v.trim().is_empty());
-    let email_from = env::var("IDENTITY_EMAIL_FROM").unwrap_or_else(|_| "EdgeNest <no-reply@edgenest.app>".into());
-    let public_app_url = env::var("EDGENEST_PUBLIC_APP_URL").unwrap_or_else(|_| "https://app.edgenest.app".into());
+    let resend_api_key = env::var("RESEND_API_KEY")
+        .ok()
+        .filter(|v| !v.trim().is_empty());
+    let email_from = env::var("IDENTITY_EMAIL_FROM")
+        .unwrap_or_else(|_| "EdgeNest <no-reply@edgenest.app>".into());
+    let public_app_url =
+        env::var("EDGENEST_PUBLIC_APP_URL").unwrap_or_else(|_| "https://app.edgenest.app".into());
     let mfa_encryption_key = required("IDENTITY_MFA_ENCRYPTION_KEY");
     let bind: SocketAddr = env::var("IDENTITY_API_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8081".into())
@@ -122,13 +127,25 @@ async fn main() {
         .route("/api/v1/auth/logout", post(service::logout))
         .route("/api/v1/auth/me", get(service::me))
         .route("/api/v1/auth/verify-email", post(service::verify_email))
-        .route("/api/v1/auth/resend-verification", post(service::resend_verification))
-        .route("/api/v1/auth/password-reset/request", post(service::request_password_reset))
-        .route("/api/v1/auth/password-reset/confirm", post(service::confirm_password_reset))
+        .route(
+            "/api/v1/auth/resend-verification",
+            post(service::resend_verification),
+        )
+        .route(
+            "/api/v1/auth/password-reset/request",
+            post(service::request_password_reset),
+        )
+        .route(
+            "/api/v1/auth/password-reset/confirm",
+            post(service::confirm_password_reset),
+        )
         .route("/api/v1/auth/mfa/setup", post(service::mfa_setup))
         .route("/api/v1/auth/mfa/confirm", post(service::mfa_confirm))
         .route("/api/v1/auth/mfa/disable", post(service::mfa_disable))
-        .route("/api/v1/auth/mfa/verify-login", post(service::mfa_verify_login))
+        .route(
+            "/api/v1/auth/mfa/verify-login",
+            post(service::mfa_verify_login),
+        )
         .route("/.well-known/jwks.json", get(service::jwks))
         .with_state(state)
         .layer(cors);
