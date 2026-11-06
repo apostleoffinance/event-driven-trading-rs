@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cloudflare:build": "opennextjs-cloudflare build",
+    "cloudflare:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "cloudflare:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cloudflare:upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",
@@ -28,6 +33,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.1.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@opennextjs/cloudflare": "latest",
+    "wrangler": "latest"
   }
 }
