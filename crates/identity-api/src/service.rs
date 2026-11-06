@@ -222,7 +222,7 @@ async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, (
     .bind(expires)
     .execute(&state.pool)
     .await
-    .map_err(|_| internal())?;
+    .map_err(|_| ())?;
     Ok(TokenResponse {
         token_type: "Bearer",
         access_token,
@@ -319,7 +319,7 @@ pub async fn login(State(state): State<AppState>, Json(input): Json<LoginRequest
     .await
     {
         Ok(tokens) => Json(tokens).into_response(),
-        Err(response) => response,
+        Err(()) => internal(),
     }
 }
 
