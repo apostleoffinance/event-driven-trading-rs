@@ -8,12 +8,13 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{auth::{ApiAuthError, Claims}, AppState};
+use crate::{
+    auth::{ApiAuthError, Claims},
+    AppState,
+};
 
 fn principal(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
-    state
-        .auth
-        .authenticate(headers)
+    state.auth.authenticate(headers)
 }
 fn err(status: StatusCode, code: &str, message: &str) -> Response {
     (
