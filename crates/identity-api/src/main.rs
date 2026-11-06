@@ -66,7 +66,7 @@ async fn main() {
     let email_from = env::var("IDENTITY_EMAIL_FROM").unwrap_or_default();
     let public_app_url = env::var("EDGENEST_PUBLIC_APP_URL").unwrap_or_default();
     let mfa_encryption_key = required("IDENTITY_MFA_ENCRYPTION_KEY");
-    if mfa_encryption_key.as_bytes().len() < 32 {
+    if mfa_encryption_key.len() < 32 {
         eprintln!("IDENTITY_MFA_ENCRYPTION_KEY must contain at least 32 bytes of high-entropy secret material");
         std::process::exit(2);
     }
