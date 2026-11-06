@@ -88,7 +88,6 @@ impl JwtService {
             let decoder = DecodingKey::from_rsa_pem(pem.as_bytes())
                 .map_err(|e| format!("invalid public PEM for kid {}: {e}", key.kid))?;
             let rsa_key = RsaPublicKey::from_public_key_pem(&pem)
-                .or_else(|_| RsaPublicKey::from_pkcs1_pem(&pem))
                 .map_err(|e| format!("invalid RSA public key {}: {e}", key.kid))?;
             jwks_keys.push(serde_json::json!({"kty":"RSA","use":"sig","alg":"RS256","kid":key.kid,"n":URL_SAFE_NO_PAD.encode(rsa_key.n().to_bytes_be()),"e":URL_SAFE_NO_PAD.encode(rsa_key.e().to_bytes_be())}));
             public_keys.insert(key.kid, decoder);
@@ -730,7 +729,7 @@ fn base32_encode(bytes: &[u8]) -> String {
 }
 fn totp_code(secret: &[u8], timestamp: u64) -> String {
     let counter = (timestamp / 30).to_be_bytes();
-    let mut mac = Hmac::<Sha1>::new_from_slice(secret).expect("HMAC accepts all key sizes");
+    let mut mac = <Hmac<Sha1> as Mac>::new_from_slice(secret).expect("HMAC accepts all key sizes");
     mac.update(&counter);
     let digest = mac.finalize().into_bytes();
     let offset = (digest[19] & 0x0f) as usize;
