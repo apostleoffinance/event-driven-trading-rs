@@ -61,7 +61,9 @@ impl TradingStore {
     }
 
     pub async fn delete_journal_trade(
-        &self, owner_id: &str, trade_id: &str,
+        &self,
+        owner_id: &str,
+        trade_id: &str,
     ) -> PersistenceResult<bool> {
         journal::delete_for_owner(&self.pool, owner_id, trade_id).await
     }
