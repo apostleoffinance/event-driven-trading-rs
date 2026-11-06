@@ -16,6 +16,7 @@ import {
   Server,
   Shield,
   Wallet,
+  ShieldCheck,
 } from "lucide-react";
 
 const sections = [
@@ -56,6 +57,7 @@ const sections = [
       { href: "/events", label: "Event Stream", icon: Radio },
       { href: "/reconciliation", label: "Reconcile", icon: Scale },
       { href: "/system", label: "System", icon: Server },
+      { href: "/security", label: "Account Security", icon: ShieldCheck },
     ],
   },
 ];
