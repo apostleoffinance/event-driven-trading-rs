@@ -7,7 +7,8 @@ import {
   Briefcase,
   BookOpen,
   Calculator,
-  ChartNoAxesCombined,\n  CandlestickChart,
+  ChartNoAxesCombined,
+  CandlestickChart,
   Crosshair,
   LayoutDashboard,
   ListOrdered,
@@ -53,7 +54,8 @@ const sections = [
   {
     title: "SYSTEM",
     items: [
-      { href: "/market-data", label: "Market Data", icon: CandlestickChart },\n      { href: "/events", label: "Event Stream", icon: Radio },
+      { href: "/market-data", label: "Market Data", icon: CandlestickChart },
+      { href: "/events", label: "Event Stream", icon: Radio },
       { href: "/reconciliation", label: "Reconcile", icon: Scale },
       { href: "/system", label: "System", icon: Server },
     ],
