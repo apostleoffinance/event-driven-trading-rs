@@ -77,7 +77,7 @@ impl RuntimeInstrumentSizingContext {
 /// Runtime boundary for loading an account/instrument-scoped sizing snapshot.
 /// Implementations must obtain data from authoritative configured sources and
 /// return an error when any required input is missing or inconsistent.
-#allow(clippy::double_must_use)
+#[allow(clippy::double_must_use)
 #[async_trait]
 pub trait InstrumentSizingSnapshotProvider: Send + Sync {
     async fn load_snapshot(
