@@ -382,3 +382,10 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Agreed implementation sequence is captured in `TASKS.md`; it is execution order only and does not replace product scope or the roadmap in `ROADMAP.md`.
 - Updated the current baseline/status sections and corrected stale statements about whether the MT5 authenticated transport, read-only daemon, and macOS provider exist in the task queue, adapter README, and MT5 protocol/security/conformance docs. Historical work-log entries remain as historical records.
 - No trading/runtime code changed. No actual MT5 terminal test or host security review was performed. No live execution was enabled.
+
+
+## Verification update — 2026-11-06
+
+- Phase 1 macOS persisted conformance validation was extracted into a deterministic gate and regression-tested (PR #60, merged commit `2be40d6c8f748269e2fda35ca82d2cddc4e4160c`).
+- GitHub Actions run [42211456734](https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/42211456734) passed all CI jobs on PR head `c4313e8c5464cdaafbbb0fbe698974b2a10adf02`, including Rust strict Clippy/workspace tests, MT5 Python adapter contract suite (74 passed), macOS portable preflight, and frontend checks/build.
+- This is a **code/CI PASS only**. Real MT5 demo conformance, actual broker data freshness, terminal/account identity, persisted real snapshots, restart/reconnect, certificate/ACL/revocation and independent release evidence remain unverified. Phase 1 is still IN PROGRESS; live/venue execution stays disabled.
