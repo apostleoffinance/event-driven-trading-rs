@@ -363,7 +363,10 @@ pub async fn health() -> &'static str {
     "ok"
 }
 pub async fn ready(State(state): State<AppState>) -> Response {
-    if state.resend_api_key.is_none() || state.email_from.trim().is_empty() || state.public_app_url.trim().is_empty() {
+    if state.resend_api_key.is_none()
+        || state.email_from.trim().is_empty()
+        || state.public_app_url.trim().is_empty()
+    {
         return api_error(
             StatusCode::SERVICE_UNAVAILABLE,
             "email_delivery_not_configured",
@@ -703,7 +706,9 @@ async fn send_email(state: &AppState, to: &str, subject: &str, html: &str) -> Re
     let Some(api_key) = state.resend_api_key.as_deref() else {
         return Err(());
     };
-    if state.email_from.trim().is_empty() || state.public_app_url.trim().is_empty() { return Err(()); }
+    if state.email_from.trim().is_empty() || state.public_app_url.trim().is_empty() {
+        return Err(());
+    }
     let response = reqwest::Client::new()
         .post("https://api.resend.com/emails")
         .bearer_auth(api_key)
