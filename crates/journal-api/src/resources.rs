@@ -8,13 +8,12 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{auth::Claims, AppState};
+use crate::{auth::{ApiAuthError, Claims}, AppState};
 
-fn principal(state: &AppState, headers: &HeaderMap) -> Result<Claims, Response> {
+fn principal(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
     state
         .auth
         .authenticate(headers)
-        .map_err(IntoResponse::into_response)
 }
 fn err(status: StatusCode, code: &str, message: &str) -> Response {
     (
@@ -59,7 +58,7 @@ fn default_currency() -> String {
 pub async fn list_accounts(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let claims = match principal(&state, &headers) {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(e) => return e.into_response(),
     };
     match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool)>(
         "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
