@@ -44,6 +44,16 @@ All `/api/v1/journal/**` endpoints require `Authorization: Bearer <EdgeNest JWT>
 
 | Method | Route | Notes |
 |---|---|---|
+| GET | `/api/v1/journal/accounts` | List active journal accounts |
+| POST | `/api/v1/journal/accounts` | Create journal account |
+| GET | `/api/v1/journal/accounts/:id` | Owner-scoped account detail |
+| PUT / PATCH | `/api/v1/journal/accounts/:id` | Replace account attributes |
+| DELETE | `/api/v1/journal/accounts/:id` | Archive account (no destructive delete) |
+| GET | `/api/v1/journal/setups` | List active trading setups |
+| POST | `/api/v1/journal/setups` | Create setup |
+| GET | `/api/v1/journal/setups/:id` | Owner-scoped setup detail |
+| PUT / PATCH | `/api/v1/journal/setups/:id` | Replace setup attributes |
+| DELETE | `/api/v1/journal/setups/:id` | Archive setup |
 | GET | `/api/v1/journal/trades?journal_account_id=&limit=&offset=` | Owner scoped, limit max 500 |
 | POST | `/api/v1/journal/trades` | Creates a manual/import journal trade |
 | GET | `/api/v1/journal/trades/:id` | Owner scoped |
@@ -58,7 +68,7 @@ Journal account must already exist and belong to the authenticated owner. Cross-
 
 ## Important current limitations
 
-- Journal account/setup CRUD is not exposed by this service yet; create them through the current EdgeNest account/setup service or a follow-up API implementation.
+- Journal account/setup CRUD is available in this service. These are separate journal entities and do not create EdgeNest OMS accounts or broker connections.
 - JWT key discovery/JWKS and key rotation are not implemented; the API accepts one configured RSA public key.
 - `PATCH` is full replacement, not partial JSON Merge Patch.
 - Screenshot upload/storage and journal analytics endpoints are not part of this API phase.
