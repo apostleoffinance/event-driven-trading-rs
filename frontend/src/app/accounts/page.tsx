@@ -38,7 +38,7 @@ export default function AccountsPage() {
         cell: ({ row }) => (
           <span>
             {row.original.name}
-            <div className="metric-sub">{row.original.id}</div>
+            
           </span>
         ),
       },
@@ -49,13 +49,13 @@ export default function AccountsPage() {
         cell: ({ row }) => (
           <span>
             {row.original.venueName}
-            <div className="metric-sub">{row.original.venueId}</div>
+            
           </span>
         ),
       },
       {
         accessorKey: "environment",
-        header: "Env",
+        header: "Environment",
         cell: ({ getValue }) => (
           <span
             className={`env-pill${String(getValue()) === "LIVE" ? " live" : ""}`}
@@ -91,7 +91,7 @@ export default function AccountsPage() {
       },
       {
         accessorKey: "drawdownPct",
-        header: "DD",
+        header: "Drawdown",
         cell: ({ getValue }) => (
           <span className="num">{formatPct(Number(getValue()))}</span>
         ),
@@ -107,7 +107,7 @@ export default function AccountsPage() {
       },
       {
         accessorKey: "connectionStatus",
-        header: "Conn",
+        header: "Connection",
         cell: ({ row }) => (
           <StatusBadge tone={healthTone(row.original.connectionStatus)}>
             {row.original.connectionStatus}
@@ -128,7 +128,7 @@ export default function AccountsPage() {
     <>
       <PageHeader
         title="Accounts"
-        description="Capital endpoints from account-engine. Account ≠ Venue — each row shows venue separately."
+        description="Manage your trading accounts and track balances, equity and risk."
       />
       <div className="panel">
         <DataTable
