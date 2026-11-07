@@ -228,7 +228,7 @@ export type PortfolioSnapshot = {
   maxDrawdownPct: number;
   grossExposure: Money;
   netExposure: Money;
-  exposurePct: number | null;
+  exposurePct: number;
   equitySeries: EquityPoint[];
   pnlByStrategy: { strategyId: string; pnl: Money }[];
   pnlByInstrument: { instrumentId: string; pnl: Money }[];
