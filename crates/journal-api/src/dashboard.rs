@@ -33,7 +33,7 @@ fn status_case(v: &str) -> String {
 
 #[derive(Debug, FromRow)]
 struct AccountRow {
-    id: String, account_type: String, status: String, venue_id: String,
+    id: String, account_type: String, environment: String, status: String, venue_id: String,
     venue_name: String, venue_enabled: bool, starting_capital: Decimal,
     label: Option<String>, balance: Decimal, equity: Decimal, used_margin: Decimal,
     open_position_count: i32, daily_realized_pnl: Decimal, peak_equity: Decimal,
@@ -42,7 +42,7 @@ struct AccountRow {
 
 async fn account_rows(state: &AppState, owner: &str, account_id: Option<&str>) -> Result<Vec<AccountRow>, sqlx::Error> {
     sqlx::query_as::<_,AccountRow>(r#"
-        SELECT a.id,a.account_type,a.status,a.venue_id,v.name AS venue_name,v.enabled AS venue_enabled,
+        SELECT a.id,a.account_type,a.environment,a.status,a.venue_id,v.name AS venue_name,v.enabled AS venue_enabled,
                a.starting_capital,a.label,s.balance,s.equity,s.used_margin,s.open_position_count,
                s.daily_realized_pnl,s.peak_equity,s.kill_switch,s.updated_at
         FROM dashboard_account_access g
@@ -63,7 +63,7 @@ fn account_json(a: AccountRow) -> serde_json::Value {
     serde_json::json!({
         "id":a.id,"name":a.label.unwrap_or_else(||a.id.clone()),
         "type":status_case(&a.account_type),"venueId":a.venue_id,"venueName":a.venue_name,
-        "environment":environment,"balance":dec(a.balance),"equity":dec(a.equity),
+        "environment":a.environment,"balance":dec(a.balance),"equity":dec(a.equity),
         "availableCapital":dec((a.equity-a.used_margin).max(Decimal::ZERO)),
         "dailyPnl":dec(a.daily_realized_pnl),"unrealizedPnl":dec(a.equity-a.balance),
         "realizedPnl":dec(a.daily_realized_pnl),"drawdownPct":drawdown,
@@ -220,7 +220,7 @@ pub async fn events(State(state):State<AppState>,headers:HeaderMap,Query(q):Quer
 pub async fn reconciliation(State(state):State<AppState>,headers:HeaderMap)->Response {
     let owner=match auth(&state,&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
     let rows=sqlx::query_as::<_,(String,String,DateTime<Utc>,serde_json::Value)>(r#"
-      SELECT r.account_id,r.terminal_id,r.captured_at,r.snapshot_json FROM mt5_bridge_reconciliation_snapshots r
+      SELECT r.account_id,r.terminal_id,r.captured_at,r.snapshot FROM mt5_bridge_reconciliation_snapshots r
       JOIN dashboard_account_access g ON g.account_id=r.account_id WHERE g.owner_id=$1
       ORDER BY r.created_at DESC LIMIT 1
     "#).bind(&owner).fetch_optional(state.store.pool()).await;
