@@ -48,8 +48,8 @@ export default function AnalyticsLabPage() {
   });
 
   if (frontendConfig.dataMode !== "api") return <div>
-    <header className="page-header"><div><h1>Analytics Lab</h1><p>Trader performance intelligence from EdgeNest Journal.</p></div><span className="badge warn">API mode required</span></header>
-    <section className="panel"><h2>Connect your Journal</h2><p>Analytics are computed from your actual closed journal trades. Enable API mode and sign in; EdgeNest does not fabricate performance history.</p><Link className="btn" href="/journal">Open Journal</Link></section>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Trader performance intelligence from EdgeNest Journal.</p></div><span className="badge warn">Analytics unavailable</span></header>
+    <section className="panel"><h2>Connect your trading journal</h2><p>Analytics will be available once your trading journal is connected and you have recorded closed trades.</p><Link className="btn" href="/journal">Open Journal</Link></section>
   </div>;
   if (!authenticated) return <div>
     <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance analytics based on your Journal records.</p></div><span className="badge warn">Sign-in required</span></header>
