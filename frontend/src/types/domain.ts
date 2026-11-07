@@ -39,7 +39,7 @@ export type StrategyStatus =
   | "PAPER"
   | "LIVE";
 
-export type HealthStatus = "HEALTHY" | "DEGRADED" | "DISCONNECTED" | "ERROR";
+export type HealthStatus = "HEALTHY" | "DEGRADED" | "DISCONNECTED" | "ERROR" | "UNKNOWN" | "NOT_CONFIGURED";
 
 export type RiskTone = "HEALTHY" | "WARNING" | "BREACH";
 
@@ -303,7 +303,7 @@ export type PipelineNode = {
   id: string;
   label: string;
   status: HealthStatus;
-  lastActivity: string;
+  lastActivity: string | null;
   metric: string;
   href: string;
 };
