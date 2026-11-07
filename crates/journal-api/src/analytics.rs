@@ -32,7 +32,9 @@ struct TradeFact {
     session: Option<String>,
 }
 
-fn auth_error(error: ApiAuthError) -> Response { error.into_response() }
+fn auth_error(error: ApiAuthError) -> Response {
+    error.into_response()
+}
 
 pub async fn summary(
     State(state): State<AppState>,
@@ -49,7 +51,8 @@ pub async fn summary(
         }))).into_response();
     }
 
-    let facts = sqlx::query_as::<_, TradeFact>(r#"
+    let facts = sqlx::query_as::<_, TradeFact>(
+        r#"
         SELECT id, symbol, direction, closed_at,
           COALESCE(net_pnl, gross_pnl + commission + swap + other_fees) AS net_pnl,
           risk_amount, r_multiple, session
@@ -60,7 +63,8 @@ pub async fn summary(
           AND ($3::TIMESTAMPTZ IS NULL OR closed_at >= $3)
           AND ($4::TIMESTAMPTZ IS NULL OR closed_at <= $4)
         ORDER BY closed_at ASC, id ASC
-    "#)
+    "#,
+    )
     .bind(&claims.sub)
     .bind(query.journal_account_id.as_deref())
     .bind(query.from)
@@ -70,9 +74,13 @@ pub async fn summary(
 
     let facts = match facts {
         Ok(rows) => rows,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-            "error":{"code":"internal_error","message":"Unable to calculate Journal analytics"}
-        }))).into_response(),
+        Err(_) => return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error":{"code":"internal_error","message":"Unable to calculate Journal analytics"}
+            })),
+        )
+            .into_response(),
     };
     if facts.is_empty() {
         return Json(serde_json::json!({"data":{
@@ -82,15 +90,22 @@ pub async fn summary(
             "average_win":null,"average_loss":null,"max_drawdown":"0",
             "average_r":null,"equity_curve":[],"by_symbol":[],"by_session":[],
             "notice":"No closed trades with realized P&L match the selected filters."
-        }})).into_response();
+        }}))
+        .into_response();
     }
 
     let pnls = facts.iter().map(|f| f.net_pnl).collect::<Vec<_>>();
     let stats = match summarize_net_pnl(&pnls) {
         Ok(value) => value,
-        Err(_) => return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
-            "error":{"code":"invalid_analytics_input","message":"No usable P&L values"}
-        }))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error":{"code":"invalid_analytics_input","message":"No usable P&L values"}
+                })),
+            )
+                .into_response()
+        }
     };
     let mut equity = Decimal::ZERO;
     let mut peak = Decimal::ZERO;
@@ -105,24 +120,38 @@ pub async fn summary(
         }));
     }
 
-    let mut symbols: std::collections::BTreeMap<String, Vec<Decimal>> = std::collections::BTreeMap::new();
-    let mut sessions: std::collections::BTreeMap<String, Vec<Decimal>> = std::collections::BTreeMap::new();
+    let mut symbols: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
+    let mut sessions: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
     for fact in &facts {
-        symbols.entry(fact.symbol.clone()).or_default().push(fact.net_pnl);
-        sessions.entry(fact.session.clone().unwrap_or_else(||"unspecified".into())).or_default().push(fact.net_pnl);
-        if let Some(r) = fact.r_multiple { total_r += r; r_count += 1; }
+        symbols
+            .entry(fact.symbol.clone())
+            .or_default()
+            .push(fact.net_pnl);
+        sessions
+            .entry(fact.session.clone().unwrap_or_else(|| "unspecified".into()))
+            .or_default()
+            .push(fact.net_pnl);
+        if let Some(r) = fact.r_multiple {
+            total_r += r;
+            r_count += 1;
+        }
     }
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
-        groups.into_iter().map(|(key, values)| {
-            let n=Decimal::from(values.len() as u64);
-            let net=values.iter().copied().sum::<Decimal>();
-            let wins=values.iter().filter(|v| **v>Decimal::ZERO).count();
-            serde_json::json!({"key":key,"trades":values.len(),"net_pnl":net.to_string(),
+        groups
+            .into_iter()
+            .map(|(key, values)| {
+                let n = Decimal::from(values.len() as u64);
+                let net = values.iter().copied().sum::<Decimal>();
+                let wins = values.iter().filter(|v| **v > Decimal::ZERO).count();
+                serde_json::json!({"key":key,"trades":values.len(),"net_pnl":net.to_string(),
                 "win_rate_percent":(Decimal::from(wins as u64)*Decimal::from(100)/n).to_string(),
                 "expectancy":(net/n).to_string()})
-        }).collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
     };
 
     Json(serde_json::json!({"data":{
