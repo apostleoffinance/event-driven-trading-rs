@@ -157,15 +157,30 @@ pub async fn create_paper_account(
         Ok(id) => id,
         Err(_) => return internal(),
     };
-    let account = Account::new(account_id.clone(), AccountType::Simulated, venue_id.clone(), now);
+    let account = Account::new(
+        account_id.clone(),
+        AccountType::Simulated,
+        venue_id.clone(),
+        now,
+    );
     let account_state = match AccountState::new(account_id.clone(), input.initial_capital, now) {
         Ok(state) => state,
-        Err(_) => return error(StatusCode::BAD_REQUEST, "invalid_capital", "initial_capital must be positive."),
+        Err(_) => {
+            return error(
+                StatusCode::BAD_REQUEST,
+                "invalid_capital",
+                "initial_capital must be positive.",
+            )
+        }
     };
     let venue = Venue::new(venue_id, VenueType::Simulated, "Paper Simulator", now);
 
     if state.store.upsert_venue(&venue).await.is_err()
-        || state.store.upsert_account(&account, input.initial_capital, Some(name), &account_state).await.is_err()
+        || state
+            .store
+            .upsert_account(&account, input.initial_capital, Some(name), &account_state)
+            .await
+            .is_err()
     {
         return internal();
     }
