@@ -11,6 +11,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 mod auth;
 mod analytics;
 mod http;
+mod imports;
 mod resources;
 
 #[derive(Clone)]
@@ -109,6 +110,7 @@ async fn main() {
                 .delete(resources::archive_setup),
         )
         .route("/api/v1/journal/analytics/summary", get(analytics::summary))
+        .route("/api/v1/journal/import", axum::routing::post(imports::import_trades))
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route(
             "/api/v1/journal/trades/{trade_id}",
