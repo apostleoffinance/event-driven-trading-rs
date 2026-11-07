@@ -106,7 +106,7 @@ export function Topbar({
       </div>
       <div className="search" role="search"><Search size={14} aria-hidden /><span>Search accounts, strategies, instruments…</span><kbd>⌘</kbd><kbd>K</kbd></div>
       <div className="topbar-right">
-        <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : backendStatus === "connected" ? "ok" : backendStatus === "checking" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK MODE" : backendStatus === "connected" ? "BACKEND CONNECTED" : backendStatus === "checking" ? "CHECKING BACKEND" : "BACKEND OFFLINE"}</span>
+        <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : backendStatus === "connected" ? "ok" : backendStatus === "checking" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK MODE" : backendStatus === "connected" ? "API GATEWAY ONLINE" : backendStatus === "checking" ? "CHECKING BACKEND" : "BACKEND OFFLINE"}</span>
         <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK STREAM" : eventConnected ? "API EVENT FEED" : "EVENT FEED UNAVAILABLE"}</span>
         <button type="button" className="icon-btn" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications"><Bell size={16} /></button>
