@@ -9,6 +9,7 @@ use persistence::{connect, migrate, TradingStore};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod analytics;
+mod attachments;
 mod auth;
 mod http;
 mod imports;
@@ -116,6 +117,14 @@ async fn main() {
             axum::routing::post(imports::import_trades),
         )
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
+        .route(
+            "/api/v1/journal/trades/{trade_id}/attachments",
+            get(attachments::list).post(attachments::create),
+        )
+        .route(
+            "/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}",
+            axum::routing::delete(attachments::delete),
+        )
         .route(
             "/api/v1/journal/trades/{trade_id}/psychology",
             get(psychology::get).put(psychology::upsert),
