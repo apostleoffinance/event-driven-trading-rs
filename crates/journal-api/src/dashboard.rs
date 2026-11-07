@@ -550,7 +550,7 @@ pub async fn reconciliation(State(state): State<AppState>, headers: HeaderMap) -
       ORDER BY r.created_at DESC LIMIT 1
     "#).bind(&owner).fetch_optional(state.store.pool()).await;
     match rows{Ok(Some((account,terminal,time,snapshot)))=>Json(serde_json::json!({"data":{"accountId":account,"venueId":terminal,"status":"ALERT","lines":[],"alerts":[{"title":"Reconciliation snapshot available","detail":"Snapshot data is available; live venue comparison is not exposed by this API.","action":"ALERT_ONLY"}],"lastRunAt":time,"snapshot":snapshot}})).into_response(),
-      Ok(None)=>Json(serde_json::json!({"data":{"accountId":"","venueId":"","status":"ALERT","lines":[],"alerts":[{"title":"No reconciliation snapshot","detail":"No authorized reconciliation snapshot is available.","action":"ALERT_ONLY"}],"lastRunAt":null}})).into_response(),Err(_)=>internal()}
+      Ok(None)=>Json(serde_json::json!({"data":{"accountId":null,"venueId":null,"status":"ALERT","lines":[],"alerts":[{"title":"No reconciliation snapshot","detail":"No authorized reconciliation snapshot is available.","action":"ALERT_ONLY"}],"lastRunAt":null}})).into_response(),Err(_)=>internal()}
 }
 
 pub async fn system_components(State(state): State<AppState>, headers: HeaderMap) -> Response {
