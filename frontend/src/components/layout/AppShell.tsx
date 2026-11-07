@@ -4,6 +4,7 @@ import { EventStreamProvider, useSharedEventStream } from "@/features/events/Eve
 import { QueryProvider } from "@/features/query/QueryProvider";
 import { SimulationProvider } from "@/features/simulation/SimulationProvider";
 import { ThemeProvider } from "@/features/theme/ThemeProvider";
+import { EnvironmentProvider } from "@/features/environment/EnvironmentProvider";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { useState } from "react";
@@ -36,6 +37,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
+      <EnvironmentProvider>
       <QueryProvider>
         <EventStreamProvider>
           <ShellInner>{children}</ShellInner>
