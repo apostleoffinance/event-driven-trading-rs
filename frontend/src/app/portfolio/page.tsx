@@ -25,7 +25,7 @@ export default function PortfolioPage() {
       />
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
         <Metric label="TOTAL EQUITY" value={p.totalEquity} />
-        <Metric label="REALIZED P&L" value={p.realizedPnl} signed />
+        <Metric label="REALIZED P&L" value={p.realizedPnl ?? "Unknown"} signed />
         <Metric label="UNREALIZED P&L" value={p.unrealizedPnl} signed />
         <div className="metric panel">
           <div className="metric-label">CUMULATIVE RETURN</div>
