@@ -139,7 +139,10 @@ pub async fn summary(
             .entry(fact.session.clone().unwrap_or_else(|| "unspecified".into()))
             .or_default()
             .push(fact.net_pnl);
-        setups.entry(fact.setup_name.clone()).or_default().push(fact.net_pnl);
+        setups
+            .entry(fact.setup_name.clone())
+            .or_default()
+            .push(fact.net_pnl);
         if let Some(r) = fact.r_multiple {
             total_r += r;
             r_count += 1;

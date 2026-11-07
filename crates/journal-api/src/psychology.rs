@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 use sqlx::Row;
 
-use crate::{AppState};
+use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct PsychologyWrite {
@@ -25,20 +25,43 @@ pub struct PsychologyWrite {
 }
 
 fn invalid(message: &str) -> Response {
-    (StatusCode::BAD_REQUEST, Json(serde_json::json!({
-        "error":{"code":"invalid_psychology","message":message}
-    }))).into_response()
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({
+            "error":{"code":"invalid_psychology","message":message}
+        })),
+    )
+        .into_response()
 }
 fn internal() -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-        "error":{"code":"internal_error","message":"Unable to save Journal psychology"}
-    }))).into_response()
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "error":{"code":"internal_error","message":"Unable to save Journal psychology"}
+        })),
+    )
+        .into_response()
 }
 fn ratings_valid(input: &PsychologyWrite) -> bool {
-    [input.confidence,input.fear,input.fomo,input.frustration,input.revenge_intensity,input.boredom]
-        .into_iter().flatten().all(|v|(0..=10).contains(&v))
-    && [input.emotion_before.as_deref(),input.emotion_during.as_deref(),input.emotion_after.as_deref()]
-        .into_iter().flatten().all(|s|s.len()<=100)
+    [
+        input.confidence,
+        input.fear,
+        input.fomo,
+        input.frustration,
+        input.revenge_intensity,
+        input.boredom,
+    ]
+    .into_iter()
+    .flatten()
+    .all(|v| (0..=10).contains(&v))
+        && [
+            input.emotion_before.as_deref(),
+            input.emotion_during.as_deref(),
+            input.emotion_after.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .all(|s| s.len() <= 100)
 }
 
 pub async fn get(
@@ -46,12 +69,18 @@ pub async fn get(
     headers: HeaderMap,
     Path(trade_id): Path<String>,
 ) -> Response {
-    let claims=match state.auth.authenticate(&headers) {
-        Ok(c)=>c,
-        Err(e)=>return e.into_response(),
+    let claims = match state.auth.authenticate(&headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
     };
-    let exists=sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)")
-        .bind(&claims.sub).bind(&trade_id).fetch_one(state.store.pool()).await.unwrap_or(false);
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)",
+    )
+    .bind(&claims.sub)
+    .bind(&trade_id)
+    .fetch_one(state.store.pool())
+    .await
+    .unwrap_or(false);
     if !exists {
         return (StatusCode::NOT_FOUND,Json(serde_json::json!({"error":{"code":"not_found","message":"Journal trade not found"}}))).into_response();
     }
@@ -80,15 +109,21 @@ pub async fn upsert(
     Path(trade_id): Path<String>,
     Json(input): Json<PsychologyWrite>,
 ) -> Response {
-    let claims=match state.auth.authenticate(&headers) {
-        Ok(c)=>c,
-        Err(e)=>return e.into_response(),
+    let claims = match state.auth.authenticate(&headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
     };
     if !ratings_valid(&input) {
         return invalid("Psychology ratings must be between 0 and 10; emotion labels are limited to 100 characters.");
     }
-    let exists=sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)")
-        .bind(&claims.sub).bind(&trade_id).fetch_one(state.store.pool()).await.unwrap_or(false);
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)",
+    )
+    .bind(&claims.sub)
+    .bind(&trade_id)
+    .fetch_one(state.store.pool())
+    .await
+    .unwrap_or(false);
     if !exists {
         return (StatusCode::NOT_FOUND,Json(serde_json::json!({"error":{"code":"not_found","message":"Journal trade not found"}}))).into_response();
     }
