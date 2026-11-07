@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { frontendConfig } from "@/config/frontend";
-import { mockEvents } from "@/mocks/events";\nimport { getRepositories } from "@/lib/repositories";
+import { mockEvents } from "@/mocks/events";
+import { getRepositories } from "@/lib/repositories";
 import type { TradingEvent } from "@/types/domain";
 
 export type EventStreamState = {
