@@ -292,10 +292,10 @@ export type SystemComponent = {
   name: string;
   status: HealthStatus;
   uptime: string;
-  lastHeartbeat: string;
+  lastHeartbeat: string | null;
   lastEvent?: string;
-  latencyMs: number;
-  errorCount: number;
+  latencyMs: number | null;
+  errorCount: number | null;
   eventsPerSec?: number;
 };
 
