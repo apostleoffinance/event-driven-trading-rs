@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { healthTone, StatusBadge } from "@/components/data-display/StatusBadge";
-import { formatDateTime } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import type { SystemComponent } from "@/types/domain";
 
@@ -17,8 +16,8 @@ export default function SystemPage() {
   return (
     <>
       <PageHeader
-        title="System Health"
-        description="Infrastructure components for the modular Rust stack + Python strategy path."
+        title="Connections & status"
+        description="Check the availability of your trading services and connected venues."
       />
       <div
         className="grid"
@@ -28,20 +27,9 @@ export default function SystemPage() {
           <article key={c.id} className="panel">
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <strong>{c.name}</strong>
-              <StatusBadge tone={healthTone(c.status)}>{c.status}</StatusBadge>
+              <StatusBadge tone={healthTone(c.status)}>{({HEALTHY:"Available",DEGRADED:"Needs attention",DISCONNECTED:"Disconnected",ERROR:"Unavailable",UNKNOWN:"Status unavailable",NOT_CONFIGURED:"Not configured"} as Record<SystemComponent["status"],string>)[c.status]}</StatusBadge>
             </div>
-            <div className="metric-sub">Uptime {c.uptime}</div>
-            <div className="metric-sub">
-              Heartbeat {c.lastHeartbeat ? formatDateTime(c.lastHeartbeat) : "unknown"}
-            </div>
-            <div className="metric-sub">Latency {c.latencyMs ?? "unknown"} ms</div>
-            <div className="metric-sub">Errors {c.errorCount ?? "unknown"}</div>
-            {c.eventsPerSec !== undefined ? (
-              <div className="metric-sub">Events/sec {c.eventsPerSec}</div>
-            ) : null}
-            {c.lastEvent ? (
-              <div className="metric-sub muted">Last: {c.lastEvent}</div>
-            ) : null}
+            <p className="metric-sub">{c.status === "HEALTHY" ? "This service is responding." : c.status === "NOT_CONFIGURED" ? "Complete setup to enable this service." : c.status === "UNKNOWN" ? "We do not have verified status information for this service yet." : "This service may need attention."}</p>
           </article>
         ))}
       </div>
