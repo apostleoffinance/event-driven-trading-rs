@@ -336,6 +336,23 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         trades_by_account: dict[str, list[dict[str, Any]]] = {}
         for trade_row in trades:
             trades_by_account.setdefault(str(trade_row["account_id"]), []).append(trade_row)
+        checklist_items = {str(item["id"]): item for item in read_table(prefix, "checklist_items")}
+        checklist_templates = {str(template["id"]): template for template in read_table(prefix, "checklist_templates")}
+        checklist_responses = [r for r in read_table(prefix, "trade_checklist_responses")
+                               if str(r.get("trade_id")) in {str(t["id"]) for t in trades}]
+        checklist_by_trade: dict[str, list[dict[str, Any]]] = {}
+        for response in checklist_responses:
+            item = checklist_items.get(str(response.get("item_id")), {})
+            template = checklist_templates.get(str(item.get("template_id")), {})
+            checklist_by_trade.setdefault(str(response.get("trade_id")), []).append({
+                "legacy_item_id": str(response.get("item_id")),
+                "label": item.get("label"), "description": item.get("description"),
+                "category": item.get("category"), "kind": item.get("kind"),
+                "auto_key": item.get("auto_key"), "required": item.get("required"),
+                "sort_order": item.get("sort_order"), "template_name": template.get("name"),
+                "template_id": str(item.get("template_id")) if item.get("template_id") else None,
+                "checked": bool(response.get("checked")),
+            })
         for source_account_id, account_trades in trades_by_account.items():
             for start in range(0, len(account_trades), 10000):
                 batch = account_trades[start:start + 10000]
@@ -344,7 +361,11 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
                 currency = str(source_account.get("currency") or "USD")
                 for trade_row in batch:
                     body = make_trade(trade_row, acc_map[source_account_id], setup_map, legacy_user_id, currency)
-                    body.pop("_migration", None)
+                    lineage = body.pop("_migration", {})
+                    lineage.update({"legacy_account_id": source_account_id,
+                                    "legacy_setup_id": str(trade_row.get("setup_id")) if trade_row.get("setup_id") else None})
+                    body["source_payload"] = lineage
+                    body["checklist"] = {"legacy_traderos_responses": checklist_by_trade.get(str(trade_row["id"]), [])}
                     body_trades.append(body)
                 result = api_request(base, token, "POST", "/api/v1/journal/import",
                                      {"journal_account_id": acc_map[source_account_id],
