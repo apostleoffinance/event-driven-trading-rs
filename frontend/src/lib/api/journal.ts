@@ -23,11 +23,11 @@ export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { lim
 export const journalApi = {
   async getPsychology(tradeId: string) {
     requireApiMode();
-    return (await apiRequest<DataEnvelope<JournalPsychology | null>>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/psychology\`, { baseUrl: journalBaseUrl() })).data;
+    return (await apiRequest<DataEnvelope<JournalPsychology | null>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { baseUrl: journalBaseUrl() })).data;
   },
   async savePsychology(tradeId: string, input: JournalPsychology) {
     requireApiMode();
-    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/psychology\`, { method:"PUT", baseUrl:journalBaseUrl(), body:JSON.stringify(input) });
+    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { method:"PUT", baseUrl:journalBaseUrl(), body:JSON.stringify(input) });
   },
   async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
     requireApiMode();
