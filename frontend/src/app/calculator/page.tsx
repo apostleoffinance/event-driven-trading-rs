@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 
-function money(value: number) {
-  return value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+function money(value: number, currency: string) {
+  return value.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 2 });
 }
 
 export default function CalculatorPage() {
   const [balance, setBalance] = useState("10000");
+  const [currency, setCurrency] = useState("USD");
+  const [instrumentPreset, setInstrumentPreset] = useState("fx_usd_quote");
   const [riskPct, setRiskPct] = useState("1");
   const [entry, setEntry] = useState("1.0850");
   const [stop, setStop] = useState("1.0800");
@@ -25,8 +27,10 @@ export default function CalculatorPage() {
     return { budget, distance, raw, quantity, risk: quantity * distance * v };
   }, [balance, riskPct, entry, stop, valuePerPriceUnit, step]);
 
+  function applyPreset(value: string) { setInstrumentPreset(value); if (value === "fx_usd_quote") { setValuePerPriceUnit("100000"); setStep("0.01"); } else if (value === "crypto_spot") { setValuePerPriceUnit("1"); setStep("0.001"); } else if (value === "index_cfd") { setValuePerPriceUnit("1"); setStep("1"); } }
+
   const fields = [
-    ["Account balance (USD)", balance, setBalance],
+    ["Account balance (" + currency + ")", balance, setBalance],
     ["Risk (%)", riskPct, setRiskPct],
     ["Entry price", entry, setEntry],
     ["Stop loss price", stop, setStop],
@@ -44,6 +48,8 @@ export default function CalculatorPage() {
         <section className="panel">
           <h2 className="panel-title">INPUTS</h2>
           <div className="journal-form-grid">
+            <label className="journal-field"><span>Account currency</span><select value={currency} onChange={e=>setCurrency(e.target.value)}>{["USD","EUR","GBP","NGN","CHF","JPY","USDT"].map(x=><option key={x}>{x}</option>)}</select></label>
+            <label className="journal-field"><span>Instrument contract preset</span><select value={instrumentPreset} onChange={e=>applyPreset(e.target.value)}><option value="fx_usd_quote">FX standard contract · USD quote</option><option value="crypto_spot">Crypto spot · base-unit sizing</option><option value="index_cfd">Index/CFD · 1-unit contract</option><option value="custom">Custom broker contract</option></select></label>
             {fields.map(([label, value, setter]) => (
               <label className="journal-field" key={label}>
                 <span>{label}</span>
@@ -51,17 +57,17 @@ export default function CalculatorPage() {
               </label>
             ))}
           </div>
-          <p className="muted" style={{ marginTop: 12, fontSize: 12 }}>Contract value varies by symbol, broker, account currency, and instrument. Verify the value against your broker specifications before trading.</p>
+          <p className="muted" style={{ marginTop: 12, fontSize: 12 }}>Presets are calculation starting points only. FX preset assumes a standard 100,000-unit lot and USD quote currency; crypto spot uses 1 base unit; CFD values are broker-specific. For non-USD quote currencies, account currency conversion is not automated. Verify tick/contract value and lot step with your broker before trading.</p>
         </section>
         <section className="panel">
           <h2 className="panel-title">ESTIMATED RESULT</h2>
           {result ? <>
-            <div className="metric"><span className="metric-label">Risk budget</span><span className="metric-value">{money(result.budget)}</span></div>
+            <div className="metric"><span className="metric-label">Risk budget</span><span className="metric-value">{money(result.budget, currency)}</span></div>
             <div className="journal-result-grid">
               <div><span className="metric-label">Stop distance</span><div className="metric-value">{result.distance.toPrecision(6)}</div></div>
               <div><span className="metric-label">Raw quantity</span><div className="metric-value">{result.raw.toFixed(6)}</div></div>
               <div><span className="metric-label">Step-rounded size</span><div className="metric-value pos">{result.quantity.toFixed(4)}</div></div>
-              <div><span className="metric-label">Estimated risk</span><div className="metric-value">{money(result.risk)}</div></div>
+              <div><span className="metric-label">Estimated risk</span><div className="metric-value">{money(result.risk, currency)}</div></div>
             </div>
           </> : <p className="muted">Enter valid positive values. Entry and stop must differ; risk must be 0–100%.</p>}
           <div className="badge warn" style={{ marginTop: 16 }}>This calculator is not connected to an order ticket or risk engine.</div>

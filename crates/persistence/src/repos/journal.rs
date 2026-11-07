@@ -7,7 +7,7 @@
 use chrono::{DateTime, Utc};
 use domain::{JournalDirection, JournalTrade, JournalTradeSource, JournalTradeStatus};
 use rust_decimal::Decimal;
-use sqlx::{FromRow, PgPool};
+use sqlx::{types::Json, FromRow, PgPool};
 
 use crate::error::{PersistenceError, PersistenceResult};
 
@@ -38,6 +38,20 @@ struct JournalTradeRow {
     pnl_currency: String,
     risk_amount: Option<Decimal>,
     r_multiple: Option<Decimal>,
+    session: Option<String>,
+    timeframe: Option<String>,
+    timezone: Option<String>,
+    mfe_r: Option<Decimal>,
+    mae_r: Option<Decimal>,
+    notes: Option<String>,
+    tags: Json<Vec<String>>,
+    setup_valid: Option<bool>,
+    rules_followed: Option<bool>,
+    emotional_trade: Option<bool>,
+    mistake: Option<bool>,
+    mistake_notes: Option<String>,
+    discipline_score: Option<i16>,
+    acknowledged_warnings: Json<Vec<String>>,
 }
 
 impl TryFrom<JournalTradeRow> for JournalTrade {
@@ -100,6 +114,20 @@ impl TryFrom<JournalTradeRow> for JournalTrade {
             pnl_currency: row.pnl_currency,
             risk_amount: row.risk_amount,
             r_multiple: row.r_multiple,
+            session: row.session,
+            timeframe: row.timeframe,
+            timezone: row.timezone,
+            mfe_r: row.mfe_r,
+            mae_r: row.mae_r,
+            notes: row.notes,
+            tags: row.tags.0,
+            setup_valid: row.setup_valid,
+            rules_followed: row.rules_followed,
+            emotional_trade: row.emotional_trade,
+            mistake: row.mistake,
+            mistake_notes: row.mistake_notes,
+            discipline_score: row.discipline_score,
+            acknowledged_warnings: row.acknowledged_warnings.0,
         })
     }
 }
@@ -133,10 +161,10 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
             id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone, mfe_r, mae_r, notes, tags, setup_valid, rules_followed, emotional_trade, mistake, mistake_notes, discipline_score, acknowledged_warnings
         ) VALUES (
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-            $22,$23,$24,$25
+            $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39
         ) ON CONFLICT (journal_account_id, source_system, source_trade_id)
         WHERE source_system IS NOT NULL AND source_trade_id IS NOT NULL DO NOTHING"#,
     )
@@ -165,6 +193,20 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
     .bind(&trade.pnl_currency)
     .bind(trade.risk_amount)
     .bind(trade.r_multiple)
+    .bind(&trade.session)
+    .bind(&trade.timeframe)
+    .bind(&trade.timezone)
+    .bind(trade.mfe_r)
+    .bind(trade.mae_r)
+    .bind(&trade.notes)
+    .bind(Json(&trade.tags))
+    .bind(trade.setup_valid)
+    .bind(trade.rules_followed)
+    .bind(trade.emotional_trade)
+    .bind(trade.mistake)
+    .bind(&trade.mistake_notes)
+    .bind(trade.discipline_score)
+    .bind(Json(&trade.acknowledged_warnings))
     .execute(pool)
     .await?;
     Ok(())
@@ -186,7 +228,7 @@ pub async fn list_for_owner(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone, mfe_r, mae_r, notes, tags, setup_valid, rules_followed, emotional_trade, mistake, mistake_notes, discipline_score, acknowledged_warnings
           FROM journal_trades
           WHERE owner_id = $1 AND ($2::TEXT IS NULL OR journal_account_id = $2)
           ORDER BY opened_at DESC, id DESC LIMIT $3 OFFSET $4"#,

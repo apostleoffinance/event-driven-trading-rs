@@ -1,72 +1,108 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { frontendConfig } from "@/config/frontend";
+import { journalApi } from "@/lib/api/journal";
+import { getSessionUser, hasSession } from "@/lib/auth/session";
+
+function money(value: string | null | undefined) {
+  if (value == null) return "—";
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }) : "—";
+}
+function percent(value: string | null | undefined) {
+  if (value == null) return "—";
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(1) + "%" : "—";
+}
 
 export default function AnalyticsLabPage() {
-  const [pnlInput, setPnlInput] = useState("");
-  const result = useMemo(() => {
-    const raw = pnlInput.split(/[\s,;]+/).filter(Boolean);
-    if (!raw.length) return null;
-    const pnls = raw.map(Number);
-    if (pnls.some((v) => !Number.isFinite(v))) return null;
-    const wins = pnls.filter((v) => v > 0);
-    const losses = pnls.filter((v) => v < 0);
-    const net = pnls.reduce((a, b) => a + b, 0);
-    const grossProfit = wins.reduce((a, b) => a + b, 0);
-    const grossLoss = -losses.reduce((a, b) => a + b, 0);
-    let equity = 0, peak = 0, maxDD = 0;
-    for (const pnl of pnls) {
-      equity += pnl;
-      peak = Math.max(peak, equity);
-      maxDD = Math.max(maxDD, peak - equity);
-    }
-    return {
-      count: pnls.length,
-      wins: wins.length,
-      losses: losses.length,
-      winRate: wins.length / pnls.length * 100,
-      net,
-      expectancy: net / pnls.length,
-      profitFactor: grossLoss ? grossProfit / grossLoss : (grossProfit ? null : 0),
-      maxDD,
-    };
-  }, [pnlInput]);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [accountId, setAccountId] = useState("");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  useEffect(() => {
+    setAuthenticated(hasSession());
+    setUserEmail(getSessionUser()?.email ?? null);
+  }, []);
 
-  const currency = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-  return (
-    <div>
-      <header className="page-header">
-        <div><h1>Analytics Lab</h1><p>Evaluate performance using closed-trade net P&amp;L, expectancy, profit factor, and equity drawdown.</p></div>
-        <span className="badge warn">Manual sample mode</span>
-      </header>
-      <section className="panel">
-        <h2 className="panel-title">PASTE CLOSED-TRADE NET P&amp;L (USD)</h2>
-        <label className="journal-field"><span>Comma, space, or newline separated values</span>
-          <textarea rows={4} value={pnlInput} onChange={(e) => setPnlInput(e.target.value)} placeholder="Example: 120, -45, 80, -30, 0" />
+  const accounts = useQuery({
+    queryKey: ["journal", "accounts"],
+    queryFn: journalApi.listAccounts,
+    enabled: authenticated && frontendConfig.dataMode === "api",
+  });
+  const analytics = useQuery({
+    queryKey: ["journal", "analytics", accountId],
+    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined }),
+    enabled: authenticated && frontendConfig.dataMode === "api",
+  });
+
+  if (frontendConfig.dataMode !== "api") return <div>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Trader performance intelligence from EdgeNest Journal.</p></div><span className="badge warn">API mode required</span></header>
+    <section className="panel"><h2>Connect your Journal</h2><p>Analytics are computed from your actual closed journal trades. Enable API mode and sign in; EdgeNest does not fabricate performance history.</p><Link className="btn" href="/journal">Open Journal</Link></section>
+  </div>;
+  if (!authenticated) return <div>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance analytics based on your Journal records.</p></div><span className="badge warn">Sign-in required</span></header>
+    <section className="panel"><h2>Authentication required</h2><p>Sign in to see your private Journal analytics.</p><Link className="btn" href="/login">Sign in</Link></section>
+  </div>;
+
+  const a = analytics.data;
+  const metrics: [string, string][] = [
+    ["Closed trades", String(a?.trade_count ?? "—")],
+    ["Win rate", percent(a?.win_rate_percent)],
+    ["Net P&L", money(a?.net_profit)],
+    ["Expectancy / trade", money(a?.expectancy)],
+    ["Profit factor", a?.profit_factor == null ? (a?.trade_count ? "∞" : "—") : Number(a.profit_factor).toFixed(2)],
+    ["Max drawdown", money(a?.max_drawdown)],
+    ["Average winner", money(a?.average_win)],
+    ["Average loser", money(a?.average_loss)],
+    ["Average R", a?.average_r == null ? "—" : `${Number(a.average_r).toFixed(2)}R`],
+    ["Avg. MFE", a?.average_mfe_r == null ? "—" : `${Number(a.average_mfe_r).toFixed(2)}R`],
+    ["Avg. MAE", a?.average_mae_r == null ? "—" : `${Number(a.average_mae_r).toFixed(2)}R`],
+    ["Rules followed", percent(a?.rules_followed_percent)],
+    ["Valid setup rate", percent(a?.setup_valid_percent)],
+    ["Avg. discipline", a?.average_discipline_score == null ? "—" : Number(a.average_discipline_score).toFixed(0) + "/100"],
+    ["Emotional trades", String(a?.emotional_trade_count ?? "—")],
+    ["Mistakes", String(a?.mistake_count ?? "—")],
+    ["Gross profit", money(a?.gross_profit)],
+    ["Gross loss", money(a?.gross_loss)],
+    ["Breakeven", String(a?.breakeven ?? "—")],
+  ];
+  return <div>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? `Signed in as ${userEmail}.` : ""}</p></div><span className="badge ok">Journal-connected</span></header>
+    <section className="panel">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
+        <label className="journal-field" style={{minWidth:240}}><span>Journal account</span>
+          <select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">All accounts</option>{accounts.data?.map(x=><option key={x.id} value={x.id}>{x.name} · {x.currency}</option>)}</select>
         </label>
-        <p className="muted" style={{ fontSize: 12 }}>This sandbox calculates only the values entered here. It does not read your actual journal or account.</p>
-      </section>
-      <div className="grid grid-kpi" style={{ marginTop: 14 }}>
-        {[
-          ["Trades", result ? String(result.count) : "—"],
-          ["Win rate", result ? result.winRate.toFixed(1) + "%" : "—"],
-          ["Net P&L", result ? currency(result.net) : "—"],
-          ["Expectancy", result ? currency(result.expectancy) : "—"],
-          ["Profit factor", result ? (result.profitFactor === null ? "∞" : result.profitFactor.toFixed(2)) : "—"],
-          ["Max drawdown", result ? currency(result.maxDD) : "—"],
-          ["Winning trades", result ? String(result.wins) : "—"],
-          ["Losing trades", result ? String(result.losses) : "—"],
-        ].map(([label, value]) => <section className="panel" key={label}><div className="metric"><span className="metric-label">{label}</span><span className="metric-value">{value}</span></div></section>)}
       </div>
-      <section className="panel" style={{ marginTop: 14 }}>
-        <h2 className="panel-title">METRIC DEFINITIONS</h2>
-        <ul className="journal-metric-list">
-          <li><strong>Win rate</strong> = winning trades ÷ closed trades.</li>
-          <li><strong>Expectancy</strong> = mean net P&amp;L per trade.</li>
-          <li><strong>Profit factor</strong> = gross profit ÷ absolute gross loss.</li>
-          <li><strong>Max drawdown</strong> = largest peak-to-trough decline in the cumulative P&amp;L series starting from zero.</li>
-        </ul>
+      {analytics.isLoading ? <p>Calculating your Journal analytics…</p> : null}
+      {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
+    </section>
+    {a ? <>
+      <div className="grid grid-kpi" style={{marginTop:14}}>{metrics.map(([label,value])=><section className="panel" key={label}><div className="metric"><span className="metric-label">{label}</span><span className="metric-value">{value}</span></div></section>)}</div>
+      <div className="grid grid-dash" style={{marginTop:14}}>
+        <section className="panel"><h2 className="panel-title">PERFORMANCE BY SYMBOL</h2>
+          {a.by_symbol.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th><th>Expectancy</th></tr></thead><tbody>{a.by_symbol.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td className="num">{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td><td className="num">{money(x.expectancy)}</td></tr>)}</tbody></table></div>:<p>No symbol data yet.</p>}
+        </section>
+        <section className="panel"><h2 className="panel-title">PERFORMANCE BY SESSION</h2>
+          {a.by_session.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Session</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th><th>Expectancy</th></tr></thead><tbody>{a.by_session.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td className="num">{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td><td className="num">{money(x.expectancy)}</td></tr>)}</tbody></table></div>:<p>No session data yet.</p>}
+        </section>
+        <section className="panel"><h2 className="panel-title">PERFORMANCE BY SETUP</h2>
+          {a.by_setup?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Setup</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th><th>Expectancy</th></tr></thead><tbody>{a.by_setup.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td className="num">{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td><td className="num">{money(x.expectancy)}</td></tr>)}</tbody></table></div>:<p>No setup grouping yet.</p>}
+        </section>
+      </div>
+
+      <div className="grid grid-dash" style={{marginTop:14}}>
+        <section className="panel"><h2 className="panel-title">PERFORMANCE BY WEEKDAY</h2>{a.by_weekday?.length?<div className="data-table-wrap"><table className="data-table"><thead><tr><th>Weekday</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th></tr></thead><tbody>{a.by_weekday.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td>{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td></tr>)}</tbody></table></div>:<p>No weekday data.</p>}</section>
+        <section className="panel"><h2 className="panel-title">PERFORMANCE BY HOUR (UTC)</h2>{a.by_hour_utc?.length?<div className="data-table-wrap"><table className="data-table"><thead><tr><th>Hour</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th></tr></thead><tbody>{a.by_hour_utc.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td>{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td></tr>)}</tbody></table></div>:<p>No hour data.</p>}</section>
+      </div>
+      <section className="panel" style={{marginTop:14}}><h2 className="panel-title">EQUITY CURVE · CLOSED TRADES</h2>
+        {a.equity_curve.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Closed</th><th>Trade</th><th>Net P&amp;L</th><th>Cumulative equity</th><th>Drawdown</th></tr></thead><tbody>{a.equity_curve.map((x,i)=><tr key={x.trade_id}><td>{new Date(x.closed_at).toLocaleString()}</td><td>{i+1}</td><td className="num">{money(x.net_pnl)}</td><td className="num">{money(x.equity)}</td><td className="num">{money(x.drawdown)}</td></tr>)}</tbody></table></div>:<p>No closed trades with realized P&amp;L yet. Add trades or import your TraderOS history in the Journal.</p>}
       </section>
-    </div>
-  );
+      <section className="panel" style={{marginTop:14}}><p className="muted">{a.notice ?? "Analytics are descriptive historical calculations, not forecasts or trading advice."}</p></section>
+    </>:null}
+  </div>;
 }
