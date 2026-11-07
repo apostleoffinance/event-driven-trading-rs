@@ -52,6 +52,9 @@ pub struct TradeWrite {
     pub pnl_currency: String,
     pub risk_amount: Option<Decimal>,
     pub r_multiple: Option<Decimal>,
+    pub session: Option<String>,
+    pub timeframe: Option<String>,
+    pub timezone: Option<String>,
 }
 fn default_source() -> JournalTradeSource {
     JournalTradeSource::Manual
@@ -91,6 +94,9 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
         pnl_currency: input.pnl_currency.to_uppercase(),
         risk_amount: input.risk_amount,
         r_multiple: input.r_multiple,
+        session: input.session,
+        timeframe: input.timeframe,
+        timezone: input.timezone,
     }
 }
 
@@ -289,13 +295,13 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
     let result = sqlx::query(r#"UPDATE journal_trades SET journal_account_id=$3, setup_id=$4, symbol=$5, direction=$6, status=$7, source=$8,
         source_system=$9, source_trade_id=$10, opened_at=$11, closed_at=$12, quantity=$13, entry_price=$14, exit_price=$15,
         stop_loss=$16, take_profit=$17, gross_pnl=$18, commission=$19, swap=$20, other_fees=$21, net_pnl=$22,
-        pnl_currency=$23, risk_amount=$24, r_multiple=$25, updated_at=NOW()
+        pnl_currency=$23, risk_amount=$24, r_multiple=$25, session=$26, timeframe=$27, timezone=$28, updated_at=NOW()
         WHERE owner_id=$1 AND id=$2"#)
         .bind(&trade.owner_id).bind(&trade.id).bind(&trade.journal_account_id).bind(&trade.setup_id).bind(&trade.symbol)
         .bind(direction).bind(status).bind(source).bind(&trade.source_system).bind(&trade.source_trade_id)
         .bind(trade.opened_at).bind(trade.closed_at).bind(trade.quantity).bind(trade.entry_price).bind(trade.exit_price)
         .bind(trade.stop_loss).bind(trade.take_profit).bind(trade.gross_pnl).bind(trade.commission).bind(trade.swap)
-        .bind(trade.other_fees).bind(trade.net_pnl).bind(&trade.pnl_currency).bind(trade.risk_amount).bind(trade.r_multiple)
+        .bind(trade.other_fees).bind(trade.net_pnl).bind(&trade.pnl_currency).bind(trade.risk_amount).bind(trade.r_multiple).bind(&trade.session).bind(&trade.timeframe).bind(&trade.timezone)
         .execute(pool).await?;
     Ok(result.rows_affected() == 1)
 }
