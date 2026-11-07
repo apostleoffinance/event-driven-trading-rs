@@ -91,6 +91,8 @@ export type JournalAnalytics = {
   by_symbol: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_session: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_setup?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
+  by_weekday?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
+  by_hour_utc?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   notice?: string;
 };
 
