@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Bell, ChevronDown, LogOut, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
 import { useTheme } from "@/features/theme/ThemeProvider";
+import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
 
 export function Topbar({
   collapsed,
@@ -18,6 +21,58 @@ export function Topbar({
 }) {
   const env = environmentLabel(frontendConfig.environment);
   const { theme, toggleTheme } = useTheme();
+  const pathname = usePathname();
+  const router = useRouter();
+  const accountRef = useRef<HTMLDivElement>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Auth state is stored in sessionStorage, so sync it after client-side route
+  // changes (e.g. returning from login/register) rather than during SSR.
+  useEffect(() => {
+    setAuthenticated(hasSession());
+    setUserEmail(getSessionUser()?.email ?? null);
+    setAccountOpen(false);
+  }, [pathname]);
+
+  // Close the account menu on outside click or Escape.
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (accountRef.current && !accountRef.current.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [accountOpen]);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setAccountOpen(false);
+    try {
+      await logout();
+    } catch {
+      // logout() clears local credentials in its finally block even if the API
+      // is unreachable. Do not leave the browser appearing authenticated.
+    } finally {
+      setAuthenticated(false);
+      setUserEmail(null);
+      setSigningOut(false);
+      router.replace("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <header className="topbar">
@@ -33,7 +88,42 @@ export function Topbar({
         <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK STREAM" : "STREAM DISCONNECTED"}</span>
         <button type="button" className="icon-btn" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications"><Bell size={16} /></button>
-        <Link href="/login" className="icon-btn" aria-label="Sign in or manage account" title="Sign in / account"><User size={16} /></Link>
+        <div className="account-menu" ref={accountRef}>
+          <button
+            type="button"
+            className="icon-btn account-trigger"
+            aria-label="Account menu"
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            title={authenticated ? userEmail ?? "Account menu" : "Sign in / account"}
+            onClick={() => setAccountOpen((open) => !open)}
+          >
+            <User size={16} />
+            <ChevronDown size={12} aria-hidden />
+          </button>
+          {accountOpen && (
+            <div className="account-dropdown" role="menu" aria-label="Account actions">
+              {authenticated ? (
+                <>
+                  <div className="account-menu-user">
+                    <span className="account-menu-label">Signed in</span>
+                    <span className="account-menu-email">{userEmail ?? "EdgeNest user"}</span>
+                  </div>
+                  <div className="account-menu-divider" />
+                  <button type="button" role="menuitem" className="account-menu-item" onClick={handleSignOut} disabled={signingOut}>
+                    <LogOut size={15} aria-hidden />
+                    {signingOut ? "Signing out…" : "Sign out"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" role="menuitem" className="account-menu-item" onClick={() => setAccountOpen(false)}>Sign in</Link>
+                  <Link href="/login" role="menuitem" className="account-menu-item" onClick={() => setAccountOpen(false)}>Register (on sign-in page)</Link>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -78,7 +78,7 @@ export async function logout(): Promise<void> {
   try {
     if (session?.refresh_token) {
       await apiRequest<void>("/api/v1/auth/logout", {
-        method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(),
+        method: "POST", auth: true, retryAuth: false, baseUrl: identityBaseUrl(),
         body: JSON.stringify({ refresh_token: session.refresh_token }),
       });
     }
