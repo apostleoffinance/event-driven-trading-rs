@@ -629,17 +629,24 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
         .fetch_one(state.store.pool())
         .await
         .is_ok();
-    let status = if db { "DEGRADED" } else { "ERROR" };
     let components = vec![
         ("api", "EdgeNest API"),
         ("database", "PostgreSQL"),
-        ("risk", "Risk Engine"),
-        ("oms", "Order Management"),
-        ("market-data", "Market Data"),
-        ("venue", "Venue Connectivity"),
-        ("reconciliation", "Reconciliation"),
+        ("risk", "Risk controls"),
+        ("oms", "Order management"),
+        ("market-data", "Market data"),
+        ("venue", "Broker connectivity"),
+        ("reconciliation", "Trade reconciliation"),
     ];
-    Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({"id":id,"name":name,"status":if id=="api" || (id=="database" && db){"HEALTHY"}else{status},"uptime":"unknown","lastHeartbeat":null,"latencyMs":null,"errorCount":null})).collect::<Vec<_>>()})).into_response()
+    Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({
+        "id":id,
+        "name":name,
+        "status":if id=="api" { "HEALTHY" } else if id=="database" && db { "HEALTHY" } else if id=="database" { "ERROR" } else { "UNKNOWN" },
+        "uptime":null,
+        "lastHeartbeat":null,
+        "latencyMs":null,
+        "errorCount":null
+    })).collect::<Vec<_>>()})).into_response()
 }
 pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let owner = match auth(&state, &headers) {
