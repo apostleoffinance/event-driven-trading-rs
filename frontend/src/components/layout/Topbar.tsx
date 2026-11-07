@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
+import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
 
@@ -28,6 +29,7 @@ export function Topbar({
   const [authenticated, setAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "connected" | "unavailable">("checking");
 
   // Auth state is stored in sessionStorage, so sync it after client-side route
   // changes (e.g. returning from login/register) rather than during SSR.
@@ -55,6 +57,26 @@ export function Topbar({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [accountOpen]);
+
+  useEffect(() => {
+    if (frontendConfig.dataMode !== "api") {
+      setBackendStatus("checking");
+      return;
+    }
+    let active = true;
+    const check = async () => {
+      try {
+        const origin = apiBaseUrl();
+        const response = await fetch(`${origin}/healthz`, { cache: "no-store", headers: { Accept: "text/plain" } });
+        if (active) setBackendStatus(response.ok ? "connected" : "unavailable");
+      } catch {
+        if (active) setBackendStatus("unavailable");
+      }
+    };
+    void check();
+    const id = window.setInterval(() => void check(), 30000);
+    return () => { active = false; window.clearInterval(id); };
+  }, []);
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -84,8 +106,8 @@ export function Topbar({
       </div>
       <div className="search" role="search"><Search size={14} aria-hidden /><span>Search accounts, strategies, instruments…</span><kbd>⌘</kbd><kbd>K</kbd></div>
       <div className="topbar-right">
-        <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK MODE" : "BACKEND UNVERIFIED"}</span>
-        <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK STREAM" : "STREAM DISCONNECTED"}</span>
+        <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : backendStatus === "connected" ? "ok" : backendStatus === "checking" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK MODE" : backendStatus === "connected" ? "API GATEWAY ONLINE" : backendStatus === "checking" ? "CHECKING BACKEND" : "BACKEND OFFLINE"}</span>
+        <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK STREAM" : eventConnected ? "API EVENT FEED" : "EVENT FEED UNAVAILABLE"}</span>
         <button type="button" className="icon-btn" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications"><Bell size={16} /></button>
         <div className="account-menu" ref={accountRef}>

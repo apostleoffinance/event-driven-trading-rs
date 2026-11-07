@@ -38,7 +38,7 @@ function TabBody({ strategy, tab }: { strategy: Strategy; tab: Tab }) {
           </p>
           <div className="metric-sub">
             Version {strategy.version} · {strategy.environment} · Instrument{" "}
-            {strategy.instrumentId}
+            {strategy.instrumentId ?? "Not linked"}
           </div>
           <div className="metric-sub">
             Emits TradeIntent only — never submits orders or holds secrets.
@@ -47,7 +47,7 @@ function TabBody({ strategy, tab }: { strategy: Strategy; tab: Tab }) {
       );
     case "signals":
       return (
-        <div className="metric-sub num">Signals generated: {strategy.signals}</div>
+        <div className="metric-sub num">Signals generated: {strategy.signals ?? "Not recorded"}</div>
       );
     case "intents":
       return (
@@ -62,21 +62,21 @@ function TabBody({ strategy, tab }: { strategy: Strategy; tab: Tab }) {
     case "trades":
       return (
         <div className="metric-sub num">
-          Fills attributed after risk/OMS: {strategy.trades}
+          Fills attributed after risk/OMS: {strategy.trades ?? "Not recorded"}
         </div>
       );
     case "performance":
       return (
         <div className="grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-          <div className="metric-sub num">Return {formatPct(strategy.returnPct)}</div>
-          <div className="metric-sub num">Sharpe {strategy.sharpe.toFixed(2)}</div>
+          <div className="metric-sub num">Return {strategy.returnPct == null ? "N/A" : formatPct(strategy.returnPct)}</div>
+          <div className="metric-sub num">Sharpe {strategy.sharpe == null ? "N/A" : strategy.sharpe.toFixed(2)}</div>
           <div className="metric-sub num">
-            Max DD {strategy.maxDrawdownPct.toFixed(2)}%
+            Max DD {strategy.maxDrawdownPct == null ? "N/A" : `${strategy.maxDrawdownPct.toFixed(2)}%`}
           </div>
           <div className="metric-sub num">
-            Win {strategy.winRatePct.toFixed(1)}%
+            Win {strategy.winRatePct == null ? "N/A" : `${strategy.winRatePct.toFixed(1)}%`}
           </div>
-          <div className="metric-sub num">PF {strategy.profitFactor.toFixed(2)}</div>
+          <div className="metric-sub num">PF {strategy.profitFactor == null ? "N/A" : strategy.profitFactor.toFixed(2)}</div>
         </div>
       );
     case "risk":
@@ -173,7 +173,7 @@ export default function StrategiesPage() {
                 {s.version} · {s.environment}
               </div>
               <div className="metric-sub num">
-                {formatPct(s.returnPct)} · Sharpe {s.sharpe.toFixed(2)}
+                {s.returnPct == null ? "N/A" : formatPct(s.returnPct)} · Sharpe {s.sharpe == null ? "N/A" : s.sharpe.toFixed(2)}
               </div>
             </button>
           ))}

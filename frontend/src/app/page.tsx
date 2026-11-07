@@ -16,6 +16,7 @@ import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { SimulationControls } from "@/features/simulation/SimulationControls";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
+import { frontendConfig } from "@/config/frontend";
 import type {
   Order,
   PipelineNode,
@@ -77,16 +78,16 @@ export default function CommandCenterPage() {
     );
 
   const util =
-    (risk.dailyLossPct / risk.dailyLossLimitPct) * 100;
+    risk.dailyLossLimitPct && risk.dailyLossLimitPct > 0 ? (risk.dailyLossPct / risk.dailyLossLimitPct) * 100 : 0;
 
   return (
     <>
       <PageHeader
         title="Command Center"
-        description="What is happening in the trading system right now — PAPER simulation of Strategy → TradeIntent → Risk → OMS → Venue."
+        description={frontendConfig.dataMode === "api" ? "Read-only trading state from the authenticated EdgeNest API. Execution remains server-side." : "What is happening in the trading system right now — PAPER simulation of Strategy → TradeIntent → Risk → OMS → Venue."}
       />
       <div style={{ marginBottom: 12 }}>
-        <SimulationControls />
+        {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
       </div>
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
         <Metric
@@ -100,7 +101,7 @@ export default function CommandCenterPage() {
           <div className="metric-label">DRAWDOWN</div>
           <div className="metric-value neg">{portfolio.drawdownPct.toFixed(2)}%</div>
           <div className="metric-sub">
-            max {portfolio.maxDrawdownPct.toFixed(2)}%
+            max {portfolio.maxDrawdownPct == null ? "N/A" : `${portfolio.maxDrawdownPct.toFixed(2)}%`}
           </div>
         </div>
       </div>
@@ -121,7 +122,7 @@ export default function CommandCenterPage() {
             <span style={{ width: `${Math.min(util, 100)}%` }} />
           </div>
           <div className="metric-sub num">
-            {risk.dailyLossPct.toFixed(2)}% / {risk.dailyLossLimitPct.toFixed(2)}%
+            {risk.dailyLossPct.toFixed(2)}% / {risk.dailyLossLimitPct == null ? "Not configured" : `${risk.dailyLossLimitPct.toFixed(2)}%`}
           </div>
           <div className="metric-label" style={{ marginTop: 12 }}>
             MAX DRAWDOWN
@@ -129,16 +130,16 @@ export default function CommandCenterPage() {
           <div className="meter">
             <span
               style={{
-                width: `${(risk.maxDrawdownPct / risk.maxDrawdownLimitPct) * 100}%`,
+                width: `${risk.maxDrawdownLimitPct && risk.maxDrawdownLimitPct > 0 ? (risk.maxDrawdownPct / risk.maxDrawdownLimitPct) * 100 : 0}%`,
               }}
             />
           </div>
           <div className="metric-sub">
-            {risk.maxDrawdownPct.toFixed(2)}% / {risk.maxDrawdownLimitPct.toFixed(2)}%
+            {risk.maxDrawdownPct.toFixed(2)}% / {risk.maxDrawdownLimitPct == null ? "Not configured" : `${risk.maxDrawdownLimitPct.toFixed(2)}%`}
           </div>
           <div className="metric-sub" style={{ marginTop: 12 }}>
-            Open risk {risk.openRiskPct.toFixed(2)}% · Exposure{" "}
-            {risk.exposurePct.toFixed(1)}% · Kill switch{" "}
+            Open risk {risk.openRiskPct == null ? "unknown" : `${risk.openRiskPct.toFixed(2)}%`} · Exposure{" "}
+            {risk.exposurePct == null ? "unknown" : `${risk.exposurePct.toFixed(1)}%`} · Kill switch{" "}
             {risk.killSwitch ? "ON" : "OFF"}
           </div>
         </div>
@@ -184,7 +185,7 @@ export default function CommandCenterPage() {
                     >
                       {formatSignedMoney(p.unrealizedPnl)}
                     </td>
-                    <td>{p.strategyId}</td>
+                    <td>{p.strategyId ?? "Unattributed"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -238,7 +239,7 @@ export default function CommandCenterPage() {
         </div>
         <div className="metric-sub muted" style={{ marginTop: 8 }}>
           Unrealized {formatMoney(portfolio.unrealizedPnl)} · Realized{" "}
-          {formatSignedMoney(portfolio.realizedPnl)} · Gross exposure{" "}
+          {portfolio.realizedPnl == null ? "Unknown" : formatSignedMoney(portfolio.realizedPnl)} · Gross exposure{" "}
           {formatMoney(portfolio.grossExposure)}
         </div>
       </div>

@@ -27,8 +27,8 @@ export default function ReconciliationPage() {
           {data.status}
         </StatusBadge>
         <div className="metric-sub" style={{ marginTop: 8 }}>
-          Account {data.accountId} · Venue {data.venueId} · Last run{" "}
-          {formatDateTime(data.lastRunAt)}
+          Account {data.accountId ?? "None"} · Venue {data.venueId ?? "None"} · Last run{" "}
+          {data.lastRunAt ? formatDateTime(data.lastRunAt) : "No snapshot"}
         </div>
         <div className="metric-sub muted" style={{ fontFamily: "var(--font-sans)" }}>
           Account ≠ Venue. Action on mismatch is ALERT ONLY — no auto-fix control.

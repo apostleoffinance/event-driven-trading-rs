@@ -65,9 +65,30 @@ Current client implementation stores access and refresh tokens in tab-scoped `se
 
 - Mock mode (`NEXT_PUBLIC_DATA_MODE=mock`) remains the explicit demo mode.
 - API mode never silently substitutes seeded dashboard fixtures.
-- Trading dashboard accounts/portfolio/strategies/positions/orders/risk/events/reconciliation/system endpoints are not yet implemented as Rust REST routes. Their repository methods fail with an explicit not-implemented error until the backend contract and handlers are implemented.
+- Trading dashboard read endpoints are exposed by the Rust API under `/api/v1/trading/*` and use bearer JWT authentication plus explicit `dashboard_account_access` ownership grants. Mock data is never substituted in API mode.
 - Journal and Market Data API routes use real API clients and display loading/error/empty states.
 - Market Data classification/freshness must be checked; a response is not automatically production/live feed data.
+
+## Trading dashboard API (read-only)
+
+The following authenticated GET endpoints are currently implemented by the Journal API service and proxied by the combined gateway:
+
+- `GET /api/v1/trading/accounts` and `GET /accounts/:id`
+- `POST /api/v1/trading/accounts` creates an authenticated owner-scoped PAPER account only
+- `/api/v1/trading/portfolio`
+- `/api/v1/trading/strategies`
+- `/api/v1/trading/positions`
+- `/api/v1/trading/orders?limit=...`
+- `/api/v1/trading/risk` and `/risk/decisions`
+- `/api/v1/trading/events?limit=...`
+- `/api/v1/trading/reconciliation`
+- `/api/v1/trading/system/components` and `/system/pipeline`
+
+The dashboard is intentionally read-only; these endpoints do not submit, cancel, or modify orders.
+
+**Account access:** the core execution accounts predate EdgeNest identity grants. Migration `20261107000002_dashboard_account_access.sql` creates `dashboard_account_access`. Accounts are not automatically exposed to a JWT subject. A trusted provisioning/administrative workflow must explicitly grant an account to the authenticated owner; users must never be able to self-claim an arbitrary trading account. Without grants, API mode returns truthful empty account/position/order data and disconnected/degraded status rather than mock fixtures.
+
+Risk limits are read from linked risk profile policy JSON. Missing risk limits are returned as `null` and rendered as “Not configured”; open risk and exposure values are unknown when the current schema cannot authoritatively calculate them. System health distinguishes the API/database checks from unavailable risk/OMS/venue runtime telemetry.
 
 ## Local build and smoke-test sequence
 

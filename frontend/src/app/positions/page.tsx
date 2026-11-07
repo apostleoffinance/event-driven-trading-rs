@@ -27,7 +27,7 @@ export default function PositionsPage() {
     () => [
       { accessorKey: "instrumentId", header: "Instrument" },
       { accessorKey: "accountId", header: "Account" },
-      { accessorKey: "strategyId", header: "Strategy" },
+      { accessorKey: "strategyId", header: "Strategy", cell: ({ row }) => row.original.strategyId ?? "Not attributed" },
       { accessorKey: "side", header: "Side" },
       {
         accessorKey: "quantity",
@@ -71,7 +71,7 @@ export default function PositionsPage() {
         accessorKey: "riskPct",
         header: "Risk %",
         cell: ({ getValue }) => (
-          <span className="num">{Number(getValue()).toFixed(2)}</span>
+          <span className="num">{getValue() == null ? "Unknown" : Number(getValue()).toFixed(2)}</span>
         ),
       },
       {
@@ -130,7 +130,7 @@ export default function PositionsPage() {
               {selected.instrumentId} · {selected.side}
             </h2>
             <div className="metric-sub">Account {selected.accountId}</div>
-            <div className="metric-sub">Strategy {selected.strategyId}</div>
+            <div className="metric-sub">Strategy {selected.strategyId ?? "Not attributed"}</div>
             <div className="metric-sub num">Qty {selected.quantity}</div>
             <div className="metric-sub num">
               Entry {selected.entryPrice} · Mark {selected.markPrice}

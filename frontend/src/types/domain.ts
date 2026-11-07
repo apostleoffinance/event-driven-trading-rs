@@ -87,7 +87,7 @@ export type Account = {
   availableCapital: Money;
   dailyPnl: Money;
   unrealizedPnl: Money;
-  realizedPnl: Money;
+  realizedPnl: Money | null;
   drawdownPct: number;
   openPositionCount: number;
   status: AccountStatus;
@@ -119,14 +119,14 @@ export type Strategy = {
   version: string;
   status: StrategyStatus;
   environment: Environment;
-  instrumentId: string;
-  signals: number;
-  trades: number;
-  returnPct: number;
-  sharpe: number;
-  maxDrawdownPct: number;
-  winRatePct: number;
-  profitFactor: number;
+  instrumentId: string | null;
+  signals: number | null;
+  trades: number | null;
+  returnPct: number | null;
+  sharpe: number | null;
+  maxDrawdownPct: number | null;
+  winRatePct: number | null;
+  profitFactor: number | null;
   description: string;
   /** Config keys only — never secrets. */
   configuration: { key: string; value: string }[];
@@ -196,7 +196,7 @@ export type Fill = {
 export type Position = {
   id: string;
   accountId: string;
-  strategyId: string;
+  strategyId: string | null;
   instrumentId: string;
   side: PositionSide;
   quantity: Money;
@@ -205,7 +205,7 @@ export type Position = {
   unrealizedPnl: Money;
   realizedPnl: Money;
   exposure: Money;
-  riskPct: number;
+  riskPct: number | null;
   openedAt: string;
 };
 
@@ -222,10 +222,10 @@ export type PortfolioSnapshot = {
   availableCapital: Money;
   dailyPnl: Money;
   unrealizedPnl: Money;
-  realizedPnl: Money;
+  realizedPnl: Money | null;
   cumulativeReturnPct: number;
   drawdownPct: number;
-  maxDrawdownPct: number;
+  maxDrawdownPct: number | null;
   grossExposure: Money;
   netExposure: Money;
   exposurePct: number;
@@ -237,10 +237,10 @@ export type PortfolioSnapshot = {
 export type RiskOverview = {
   engineStatus: HealthStatus;
   dailyLossPct: number;
-  dailyLossLimitPct: number;
+  dailyLossLimitPct: number | null;
   maxDrawdownPct: number;
-  maxDrawdownLimitPct: number;
-  openRiskPct: number;
+  maxDrawdownLimitPct: number | null;
+  openRiskPct: number | null;
   exposurePct: number;
   killSwitch: boolean;
   tone: RiskTone;
@@ -279,12 +279,12 @@ export type ReconciliationLine = {
 };
 
 export type ReconciliationResult = {
-  accountId: string;
-  venueId: string;
+  accountId: string | null;
+  venueId: string | null;
   status: "HEALTHY" | "ALERT";
   lines: ReconciliationLine[];
   alerts: { title: string; detail: string; action: "ALERT_ONLY" }[];
-  lastRunAt: string;
+  lastRunAt: string | null;
 };
 
 export type SystemComponent = {
@@ -292,10 +292,10 @@ export type SystemComponent = {
   name: string;
   status: HealthStatus;
   uptime: string;
-  lastHeartbeat: string;
+  lastHeartbeat: string | null;
   lastEvent?: string;
-  latencyMs: number;
-  errorCount: number;
+  latencyMs: number | null;
+  errorCount: number | null;
   eventsPerSec?: number;
 };
 

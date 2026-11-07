@@ -32,10 +32,10 @@ export default function SystemPage() {
             </div>
             <div className="metric-sub">Uptime {c.uptime}</div>
             <div className="metric-sub">
-              Heartbeat {formatDateTime(c.lastHeartbeat)}
+              Heartbeat {c.lastHeartbeat ? formatDateTime(c.lastHeartbeat) : "unknown"}
             </div>
-            <div className="metric-sub">Latency {c.latencyMs} ms</div>
-            <div className="metric-sub">Errors {c.errorCount}</div>
+            <div className="metric-sub">Latency {c.latencyMs ?? "unknown"} ms</div>
+            <div className="metric-sub">Errors {c.errorCount ?? "unknown"}</div>
             {c.eventsPerSec !== undefined ? (
               <div className="metric-sub">Events/sec {c.eventsPerSec}</div>
             ) : null}
