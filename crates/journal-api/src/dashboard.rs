@@ -68,6 +68,14 @@ fn risk_status(
     )
 }
 
+fn venue_connection_status(enabled: bool) -> &'static str {
+    if enabled {
+        "UNKNOWN"
+    } else {
+        "DISCONNECTED"
+    }
+}
+
 fn status_case(v: &str) -> String {
     v.split('_')
         .filter(|part| !part.is_empty())
@@ -129,11 +137,7 @@ fn account_json(a: AccountRow) -> serde_json::Value {
         0.0
     };
     let risk_status = if a.kill_switch { "BREACH" } else { "WARNING" };
-    let conn_status = if a.venue_enabled {
-        "DEGRADED"
-    } else {
-        "DISCONNECTED"
-    };
+    let conn_status = venue_connection_status(a.venue_enabled);
     serde_json::json!({
         "id":a.id,"name":a.label.unwrap_or_else(||a.id.clone()),
         "type":status_case(&a.account_type),"venueId":a.venue_id,"venueName":a.venue_name,
@@ -227,7 +231,7 @@ pub async fn create_paper_account(
             "venueName":"Paper Simulator","environment":"PAPER","balance":dec(input.initial_capital),
             "equity":dec(input.initial_capital),"availableCapital":dec(input.initial_capital),
             "dailyPnl":"0","unrealizedPnl":"0","realizedPnl":null,"drawdownPct":0.0,
-            "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"DEGRADED"
+            "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"UNKNOWN"
         }})),
     ).into_response()
 }
@@ -736,6 +740,12 @@ mod tests {
             super::risk_status(true, true, Decimal::ZERO, None, Decimal::ZERO, None),
             ("HEALTHY", "BREACH")
         );
+    }
+
+    #[test]
+    fn enabled_venue_does_not_claim_degraded_or_connected_without_telemetry() {
+        assert_eq!(super::venue_connection_status(true), "UNKNOWN");
+        assert_eq!(super::venue_connection_status(false), "DISCONNECTED");
     }
 
     #[test]
