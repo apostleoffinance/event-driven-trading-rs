@@ -41,6 +41,8 @@ struct JournalTradeRow {
     session: Option<String>,
     timeframe: Option<String>,
     timezone: Option<String>,
+    mfe_r: Option<Decimal>,
+    mae_r: Option<Decimal>,
 }
 
 impl TryFrom<JournalTradeRow> for JournalTrade {
@@ -106,6 +108,8 @@ impl TryFrom<JournalTradeRow> for JournalTrade {
             session: row.session,
             timeframe: row.timeframe,
             timezone: row.timezone,
+            mfe_r: row.mfe_r,
+            mae_r: row.mae_r,
         })
     }
 }
@@ -139,10 +143,10 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
             id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone, mfe_r, mae_r
         ) VALUES (
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-            $22,$23,$24,$25,$26,$27,$28
+            $22,$23,$24,$25,$26,$27,$28,$29,$30
         ) ON CONFLICT (journal_account_id, source_system, source_trade_id)
         WHERE source_system IS NOT NULL AND source_trade_id IS NOT NULL DO NOTHING"#,
     )
@@ -174,6 +178,8 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
     .bind(&trade.session)
     .bind(&trade.timeframe)
     .bind(&trade.timezone)
+    .bind(trade.mfe_r)
+    .bind(trade.mae_r)
     .execute(pool)
     .await?;
     Ok(())
@@ -195,7 +201,7 @@ pub async fn list_for_owner(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone, mfe_r, mae_r
           FROM journal_trades
           WHERE owner_id = $1 AND ($2::TEXT IS NULL OR journal_account_id = $2)
           ORDER BY opened_at DESC, id DESC LIMIT $3 OFFSET $4"#,
