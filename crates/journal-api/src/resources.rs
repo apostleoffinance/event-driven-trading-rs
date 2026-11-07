@@ -167,7 +167,6 @@ pub async fn update_account(
     }
 }
 
-
 /// Merge owner-scoped migration metadata without overwriting ordinary account fields.
 /// Used to attach a source-archive reference after an interrupted import.
 pub async fn update_account_migration_metadata(
