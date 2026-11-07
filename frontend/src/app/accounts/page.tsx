@@ -129,7 +129,7 @@ export default function AccountsPage() {
           data={data}
           columns={columns}
           onRowClick={setSelected}
-          emptyMessage="No accounts."
+          emptyMessage={frontendConfig.dataMode === "api" ? "No trading accounts. Create a Paper Account to begin, or have an existing account explicitly linked to your user." : "No accounts."}
         />
       </div>
       {createOpen ? (
@@ -158,9 +158,9 @@ export default function AccountsPage() {
               }
             }}>
               <label className="metric-label" htmlFor="paper-account-name">Account name</label>
-              <input id="paper-account-name" className="input" value={accountName} maxLength={80} onChange={(e) => setAccountName(e.target.value)} required />
+              <input id="paper-account-name" className="input" style={{ width: "100%", padding: 8, border: "1px solid var(--border)", background: "var(--panel)", borderRadius: 6, marginBottom: 8 }} value={accountName} maxLength={80} onChange={(e) => setAccountName(e.target.value)} required />
               <label className="metric-label" htmlFor="paper-account-capital" style={{ marginTop: 12 }}>Starting capital (account currency)</label>
-              <input id="paper-account-capital" className="input num" type="number" min="0.01" step="0.01" value={initialCapital} onChange={(e) => setInitialCapital(e.target.value)} required />
+              <input id="paper-account-capital" className="input num" style={{ width: "100%", padding: 8, border: "1px solid var(--border)", background: "var(--panel)", borderRadius: 6, marginBottom: 8 }} type="number" min="0.01" step="0.01" value={initialCapital} onChange={(e) => setInitialCapital(e.target.value)} required />
               {createError ? <div className="error" role="alert">{createError}</div> : null}
               <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                 <button className="btn primary" type="submit" disabled={creating}>{creating ? "Creating…" : "Create account"}</button>
