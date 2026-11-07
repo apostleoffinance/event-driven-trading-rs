@@ -199,7 +199,7 @@ pub async fn create_paper_account(
             "id":account_id.as_str(),"name":name,"type":"Simulated","venueId":"simulated",
             "venueName":"Paper Simulator","environment":"PAPER","balance":dec(input.initial_capital),
             "equity":dec(input.initial_capital),"availableCapital":dec(input.initial_capital),
-            "dailyPnl":"0","unrealizedPnl":"0","realizedPnl":"0","drawdownPct":0.0,
+            "dailyPnl":"0","unrealizedPnl":"0","realizedPnl":null,"drawdownPct":0.0,
             "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"DEGRADED"
         }})),
     ).into_response()
@@ -634,4 +634,20 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
         "Reconciliation",
     ];
     Json(serde_json::json!({"data":stages.iter().enumerate().map(|(i,label)|serde_json::json!({"id":format!("stage-{i}"),"label":label,"status":"DEGRADED","lastActivity":"unknown","metric":"No live activity reported","href":"/system"})).collect::<Vec<_>>()})).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::status_case;
+
+    #[test]
+    fn status_case_converts_snake_case_values() {
+        assert_eq!(status_case("partially_filled"), "PartiallyFilled");
+        assert_eq!(status_case("cancel_pending"), "CancelPending");
+    }
+
+    #[test]
+    fn status_case_preserves_pascal_case_values() {
+        assert_eq!(status_case("OrderFilled"), "OrderFilled");
+    }
 }
