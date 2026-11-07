@@ -184,8 +184,18 @@ pub async fn summary(
             total_mae_r += r;
             mae_count += 1;
         }
-        if let Some(valid) = fact.setup_valid { setup_valid_known += 1; if valid { setup_valid_count += 1; } }
-        if let Some(followed) = fact.rules_followed { rules_followed_known += 1; if followed { rules_followed_count += 1; } }
+        if let Some(valid) = fact.setup_valid {
+            setup_valid_known += 1;
+            if valid {
+                setup_valid_count += 1;
+            }
+        }
+        if let Some(followed) = fact.rules_followed {
+            rules_followed_known += 1;
+            if followed {
+                rules_followed_count += 1;
+            }
+        }
         if fact.emotional_trade == Some(true) {
             emotional_trade_count += 1;
         }
