@@ -21,6 +21,8 @@ function percent(value: string | null | undefined) {
 export default function AnalyticsLabPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [accountId, setAccountId] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   useEffect(() => {
     setAuthenticated(hasSession());
@@ -32,15 +34,16 @@ export default function AnalyticsLabPage() {
     queryFn: journalApi.listAccounts,
     enabled: authenticated && frontendConfig.dataMode === "api",
   });
+  const dateFilter = { from: fromDate ? fromDate + "T00:00:00.000Z" : undefined, to: toDate ? toDate + "T23:59:59.999Z" : undefined };
   const analytics = useQuery({
-    queryKey: ["journal", "analytics", accountId],
-    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined }),
+    queryKey: ["journal", "analytics", accountId, fromDate, toDate],
+    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
     enabled: authenticated && frontendConfig.dataMode === "api",
   });
 
   const intelligence = useQuery({
-    queryKey: ["journal", "analytics-intelligence", accountId],
-    queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined }),
+    queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate],
+    queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter }),
     enabled: authenticated && frontendConfig.dataMode === "api",
   });
 
@@ -82,6 +85,9 @@ export default function AnalyticsLabPage() {
         <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
         <label className="journal-field" style={{minWidth:240}}><span>Journal account</span>
           <select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">All accounts</option>{accounts.data?.map(x=><option key={x.id} value={x.id}>{x.name} · {x.currency}</option>)}</select>
+          <span>From UTC</span><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} />
+          <span>To UTC</span><input type="date" min={fromDate || undefined} value={toDate} onChange={e=>setToDate(e.target.value)} />
+          <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");}}>Reset</button>
         </label>
       </div>
       {analytics.isLoading ? <p>Calculating your Journal analytics…</p> : null}
