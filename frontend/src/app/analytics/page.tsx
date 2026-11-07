@@ -38,6 +38,12 @@ export default function AnalyticsLabPage() {
     enabled: authenticated && frontendConfig.dataMode === "api",
   });
 
+  const intelligence = useQuery({
+    queryKey: ["journal", "analytics-intelligence", accountId],
+    queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined }),
+    enabled: authenticated && frontendConfig.dataMode === "api",
+  });
+
   if (frontendConfig.dataMode !== "api") return <div>
     <header className="page-header"><div><h1>Analytics Lab</h1><p>Trader performance intelligence from EdgeNest Journal.</p></div><span className="badge warn">API mode required</span></header>
     <section className="panel"><h2>Connect your Journal</h2><p>Analytics are computed from your actual closed journal trades. Enable API mode and sign in; EdgeNest does not fabricate performance history.</p><Link className="btn" href="/journal">Open Journal</Link></section>
@@ -82,6 +88,12 @@ export default function AnalyticsLabPage() {
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
     {a ? <>
+      {intelligence.data ? <section className="panel" style={{marginTop:14}}>
+        <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
+        <p className="muted">95% Wilson win-rate interval: {intelligence.data.win_rate_confidence_95 ? intelligence.data.win_rate_confidence_95.lower_percent.toFixed(1)+"%–"+intelligence.data.win_rate_confidence_95.upper_percent.toFixed(1)+"%" : "Not available"} · Sample: {intelligence.data.sample_status.replaceAll("_"," ")} · n={intelligence.data.trade_count}</p>
+        <div className="grid grid-dash"><div><h3>Process vs outcome</h3><p>Good process / win: {intelligence.data.process_outcomes.good_process_win}</p><p>Good process / loss: {intelligence.data.process_outcomes.good_process_loss}</p><p>Poor process / win: {intelligence.data.process_outcomes.poor_process_win}</p><p>Poor process / loss: {intelligence.data.process_outcomes.poor_process_loss}</p></div>
+        <div><h3>Behavioral markers</h3><p>Rule adherence: {intelligence.data.rule_adherence_percent == null ? "—" : intelligence.data.rule_adherence_percent.toFixed(1)+"%"}</p><p>Valid setup rate: {intelligence.data.valid_setup_percent == null ? "—" : intelligence.data.valid_setup_percent.toFixed(1)+"%"}</p><p>Emotional trades: {intelligence.data.emotional_trade_count}</p><p>Mistakes: {intelligence.data.mistake_count}</p><p>Average discipline: {intelligence.data.average_discipline_score == null ? "—" : intelligence.data.average_discipline_score.toFixed(1)+"/100"}</p></div></div>
+        <h3>Review insights</h3>{intelligence.data.insights.map((item,i)=><section key={item.type+"-"+i} className="panel" style={{marginTop:8}}><strong>{item.title}</strong><p>{item.message}</p></section>)}<p className="muted">{intelligence.data.notice}</p></section> : intelligence.isLoading ? <section className="panel" style={{marginTop:14}}>Calculating process intelligence…</section> : intelligence.error ? <section className="panel error" style={{marginTop:14}}>Process intelligence could not be loaded. <button className="btn" onClick={()=>void intelligence.refetch()}>Retry</button></section> : null}
       <div className="grid grid-kpi" style={{marginTop:14}}>{metrics.map(([label,value])=><section className="panel" key={label}><div className="metric"><span className="metric-label">{label}</span><span className="metric-value">{value}</span></div></section>)}</div>
       <div className="grid grid-dash" style={{marginTop:14}}>
         <section className="panel"><h2 className="panel-title">PERFORMANCE BY SYMBOL</h2>
