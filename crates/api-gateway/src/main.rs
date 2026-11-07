@@ -50,7 +50,7 @@ async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Res
     let path = request.uri().path().to_owned();
     let target = if path.starts_with("/api/v1/auth/") {
         "http://127.0.0.1:8081"
-    } else if path.starts_with("/api/v1/journal/") {
+    } else if path.starts_with("/api/v1/journal/") || path.starts_with("/api/v1/trading/") {
         "http://127.0.0.1:8080"
     } else if path.starts_with("/api/v1/market-data/") {
         "http://127.0.0.1:8787"
