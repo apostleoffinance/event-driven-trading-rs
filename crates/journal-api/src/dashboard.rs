@@ -27,8 +27,10 @@ fn not_found() -> Response {
 }
 fn dec(v: Decimal) -> String { v.to_string() }
 fn status_case(v: &str) -> String {
-    let mut chars=v.chars();
-    match chars.next() { Some(c)=>format!("{}{}",c.to_uppercase(),chars.as_str()),None=>String::new() }
+    v.split('_').filter(|part| !part.is_empty()).map(|part| {
+        let mut chars=part.chars();
+        match chars.next() { Some(c)=>format!("{}{}",c.to_uppercase(),chars.as_str()),None=>String::new() }
+    }).collect::<String>()
 }
 
 #[derive(Debug, FromRow)]
@@ -146,14 +148,14 @@ pub async fn positions(State(state):State<AppState>,headers:HeaderMap)->Response
 pub async fn orders(State(state):State<AppState>,headers:HeaderMap,Query(q):Query<ListLimit>)->Response {
     let owner=match auth(&state,&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
     let limit=q.limit.unwrap_or(100).clamp(1,500);
-    let rows=sqlx::query_as::<_,(String,String,String,String,String,String,String,String,String,Decimal,Option<Decimal>,Decimal,String,DateTime<Utc>,Option<DateTime<Utc>>,DateTime<Utc>)>(r#"
-      SELECT o.id,o.client_order_id,o.account_id,o.venue_id,o.strategy_id,COALESCE(o.trade_intent_id,''),i.symbol,o.side,o.order_type,o.quantity,o.price,o.filled_quantity,o.status,o.created_at,o.submitted_at,o.updated_at
+    let rows=sqlx::query_as::<_,(String,String,String,String,String,String,String,String,String,String,Decimal,Option<Decimal>,Decimal,String,DateTime<Utc>,Option<DateTime<Utc>>,DateTime<Utc>)>(r#"
+      SELECT o.id,o.client_order_id,o.account_id,o.venue_id,o.strategy_id,COALESCE(o.trade_intent_id,''),i.symbol,o.side,o.order_type,o.time_in_force,o.quantity,o.price,o.filled_quantity,o.status,o.created_at,o.submitted_at,o.updated_at
       FROM orders o JOIN instruments i ON i.id=o.instrument_id JOIN dashboard_account_access g ON g.account_id=o.account_id
       WHERE g.owner_id=$1 ORDER BY o.created_at DESC LIMIT $2
     "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
-    match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,client,account,venue,strategy,intent,symbol,side,kind,qty,price,filled,status,created,submitted,updated)|serde_json::json!({
+    match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,client,account,venue,strategy,intent,symbol,side,kind,tif,qty,price,filled,status,created,submitted,updated)|serde_json::json!({
       "id":id,"clientOrderId":client,"accountId":account,"venueId":venue,"strategyId":strategy,"tradeIntentId":intent,"instrumentId":symbol,
-      "side":status_case(&side),"orderType":status_case(&kind),"timeInForce":"Gtc","quantity":dec(qty),"price":price.map(dec),"filledQuantity":dec(filled),
+      "side":status_case(&side),"orderType":status_case(&kind),"timeInForce":status_case(&tif),"quantity":dec(qty),"price":price.map(dec),"filledQuantity":dec(filled),
       "status":status_case(&status),"createdAt":created,"submittedAt":submitted,"updatedAt":updated
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
@@ -213,7 +215,7 @@ pub async fn events(State(state):State<AppState>,headers:HeaderMap,Query(q):Quer
       WHERE g.owner_id=$1 ORDER BY e.created_at DESC LIMIT $2
     "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time)|serde_json::json!({
-      "id":id.to_string(),"timestamp":time,"type":kind,"entity":order,"status":"RECORDED","detail":format!("Execution event for order {}",order.unwrap_or_default()),"payload":payload,"correlationId":venue
+      "id":id.to_string(),"timestamp":time,"type":kind,"entity":order,"status":"RECORDED","detail":format!("Execution event for order {}",order.as_deref().unwrap_or("unknown")),"payload":payload,"correlationId":venue
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
