@@ -9,6 +9,7 @@ use persistence::{connect, migrate, TradingStore};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod auth;
+mod analytics;
 mod http;
 mod resources;
 
@@ -107,6 +108,7 @@ async fn main() {
                 .patch(resources::update_setup)
                 .delete(resources::archive_setup),
         )
+        .route("/api/v1/journal/analytics/summary", get(analytics::summary))
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route(
             "/api/v1/journal/trades/{trade_id}",
