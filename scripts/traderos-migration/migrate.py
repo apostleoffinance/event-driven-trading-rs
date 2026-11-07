@@ -101,7 +101,6 @@ def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
                             item["file_path"] = str(target)
                             item["file_sha256"] = hashlib.sha256(binary).hexdigest()
                             item["file_size"] = len(binary)
-                        item.pop("user_id", None)
                     clean_rows.append(json_value(item))
                 dump_json(out.with_suffix("").with_name(f"{out.stem}_{table}.json"), clean_rows)
                 counts[table] = len(clean_rows)
@@ -192,7 +191,7 @@ def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str], 
         "exit_price": decimal_str(row.get("exit_price")),
         "stop_loss": decimal_str(row.get("stop_loss")),
         "take_profit": decimal_str(row.get("take_profit")),
-        "gross_pnl": decimal_str(row.get("realized_pnl")),
+        "gross_pnl": (str(Decimal(str(row.get("realized_pnl"))) - Decimal(str(row.get("commission") or 0)) - Decimal(str(row.get("swap") or 0))) if row.get("realized_pnl") is not None else None),
         "commission": decimal_str(row.get("commission"), "0"),
         "swap": decimal_str(row.get("swap"), "0"),
         "other_fees": "0",
@@ -291,7 +290,7 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
                 acc_map[legacy_acc_id] = f"DRYRUN:{legacy_acc_id}"
                 continue
             acct_type = "funded" if account.get("firm") else "journal"
-            payload = {"name": str(account.get("account_name") or "TraderOS account"), "broker": account.get("firm"),
+            payload = {"name": str(account.get("account_name") or "TraderOS account"), "broker": " / ".join(x for x in [str(account.get("firm") or "").strip(), str(account.get("program") or "").strip()] if x) or None,
                        "account_type": acct_type, "currency": str(account.get("currency") or "USD").upper(),
                        "initial_balance": decimal_str(account.get("starting_balance"), "0")}
             result = api_request(base, token, "POST", "/api/v1/journal/accounts", payload)
@@ -357,11 +356,17 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         # Source psych entries are mapped to per-trade psychology endpoints.
         psych_rows = {str(p["trade_id"]): p for p in read_table(prefix, "psychology") if str(p.get("user_id")) == str(legacy_user_id)}
         # Resolve target trade IDs by idempotent source identity.
-        target_trades = api_request(base, token, "GET", "/api/v1/journal/trades?limit=500")
-        target_trades_all = target_trades.get("data", [])
-        for offset in range(500, max(500, len(trades)), 500):
-            page = api_request(base, token, "GET", f"/api/v1/journal/trades?limit=500&offset={offset}")
-            target_trades_all.extend(page.get("data", []))
+        target_trades_all = []
+        for source_account_id, target_account_id in acc_map.items():
+            offset = 0
+            while True:
+                page = api_request(base, token, "GET",
+                                   f"/api/v1/journal/trades?journal_account_id={target_account_id}&limit=500&offset={offset}")
+                rows = page.get("data", [])
+                target_trades_all.extend(rows)
+                if len(rows) < 500:
+                    break
+                offset += 500
         target_by_source = {str(t.get("source_trade_id")): t for t in target_trades_all if t.get("source_system") == "TraderOS"}
         for legacy_trade_id, p in psych_rows.items():
             target = target_by_source.get(legacy_trade_id)
