@@ -68,6 +68,10 @@ pub struct TradeWrite {
     pub discipline_score: Option<i16>,
     #[serde(default)]
     pub acknowledged_warnings: Vec<String>,
+    #[serde(default)]
+    pub checklist: serde_json::Value,
+    #[serde(default)]
+    pub source_payload: serde_json::Value,
 }
 fn default_source() -> JournalTradeSource {
     JournalTradeSource::Manual
