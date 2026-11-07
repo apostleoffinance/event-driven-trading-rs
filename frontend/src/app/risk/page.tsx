@@ -100,14 +100,14 @@ export default function RiskPage() {
               style={{
                 width: `${Math.min(
                   100,
-                  (overview.dailyLossPct / overview.dailyLossLimitPct) * 100,
+                  overview.dailyLossLimitPct && overview.dailyLossLimitPct > 0 ? (overview.dailyLossPct / overview.dailyLossLimitPct) * 100 : 0,
                 )}%`,
               }}
             />
           </div>
           <div className="metric-sub num">
             {overview.dailyLossPct.toFixed(2)}% /{" "}
-            {overview.dailyLossLimitPct.toFixed(2)}%
+            {overview.dailyLossLimitPct == null ? "Not configured" : `${overview.dailyLossLimitPct.toFixed(2)}%`}
           </div>
         </div>
         <div className="panel">
@@ -117,21 +117,21 @@ export default function RiskPage() {
               style={{
                 width: `${Math.min(
                   100,
-                  (overview.maxDrawdownPct / overview.maxDrawdownLimitPct) * 100,
+                  overview.maxDrawdownLimitPct && overview.maxDrawdownLimitPct > 0 ? (overview.maxDrawdownPct / overview.maxDrawdownLimitPct) * 100 : 0,
                 )}%`,
               }}
             />
           </div>
           <div className="metric-sub num">
             {overview.maxDrawdownPct.toFixed(2)}% /{" "}
-            {overview.maxDrawdownLimitPct.toFixed(2)}%
+            {overview.maxDrawdownLimitPct == null ? "Not configured" : `${overview.maxDrawdownLimitPct.toFixed(2)}%`}
           </div>
         </div>
         <div className="panel">
           <div className="metric-label">OPEN RISK / EXPOSURE</div>
-          <div className="metric-value">{overview.openRiskPct.toFixed(2)}%</div>
+          <div className="metric-value">{overview.openRiskPct == null ? "Unknown" : `${overview.openRiskPct.toFixed(2)}%`}</div>
           <div className="metric-sub">
-            Exposure {overview.exposurePct.toFixed(1)}%
+            Exposure {overview.exposurePct == null ? "Unknown" : `${overview.exposurePct.toFixed(1)}%`}
           </div>
         </div>
       </div>
