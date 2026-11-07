@@ -28,7 +28,8 @@ export function Topbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);\n  const [backendStatus, setBackendStatus] = useState<"checking" | "connected" | "unavailable">("checking");
+  const [signingOut, setSigningOut] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<"checking" | "connected" | "unavailable">("checking");
 
   // Auth state is stored in sessionStorage, so sync it after client-side route
   // changes (e.g. returning from login/register) rather than during SSR.
@@ -105,8 +106,8 @@ export function Topbar({
       </div>
       <div className="search" role="search"><Search size={14} aria-hidden /><span>Search accounts, strategies, instruments…</span><kbd>⌘</kbd><kbd>K</kbd></div>
       <div className="topbar-right">
-        <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK MODE" : "BACKEND UNVERIFIED"}</span>
-        <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK STREAM" : "STREAM DISCONNECTED"}</span>
+        <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : backendStatus === "connected" ? "ok" : backendStatus === "checking" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK MODE" : backendStatus === "connected" ? "BACKEND CONNECTED" : backendStatus === "checking" ? "CHECKING BACKEND" : "BACKEND OFFLINE"}</span>
+        <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "MOCK STREAM" : eventConnected ? "API EVENT FEED" : "EVENT FEED UNAVAILABLE"}</span>
         <button type="button" className="icon-btn" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications"><Bell size={16} /></button>
         <div className="account-menu" ref={accountRef}>
