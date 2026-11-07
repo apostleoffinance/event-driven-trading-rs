@@ -7,7 +7,6 @@ credential tables are queried. Requires psycopg[binary] and requests.
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -381,7 +380,43 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         # External URLs/storage metadata are otherwise retained in the audit report only.
         screenshot_rows = [s for s in read_table(prefix, "trade_screenshots") if str(s.get("user_id")) == str(legacy_user_id)]
         if screenshot_rows:
-            report["errors"].append(f"{len(screenshot_rows)} screenshot metadata records require object-store upload configuration; source bytes are preserved in snapshot. Configure S3 endpoint/bucket before attachment linking.")
+            s3_cfg = config.get("object_storage", {})
+            if not (s3_cfg.get("bucket") and s3_cfg.get("access_key_id") and s3_cfg.get("secret_access_key")):
+                report["errors"].append(f"{len(screenshot_rows)} screenshot records need object_storage bucket/access_key_id/secret_access_key configuration; bytes remain in the snapshot directory.")
+            else:
+                try:
+                    import boto3
+                    s3 = boto3.client("s3", endpoint_url=s3_cfg.get("endpoint_url"),
+                                      region_name=s3_cfg.get("region", "auto"),
+                                      aws_access_key_id=s3_cfg["access_key_id"],
+                                      aws_secret_access_key=s3_cfg["secret_access_key"])
+                    for shot in screenshot_rows:
+                        old_trade_id = str(shot.get("trade_id"))
+                        target_trade = target_by_source.get(old_trade_id)
+                        if not target_trade:
+                            report["errors"].append(f"Screenshot orphan: source trade {old_trade_id} missing in EdgeNest")
+                            continue
+                        source_file = shot.get("file_path")
+                        if not source_file or not Path(source_file).is_file():
+                            report["errors"].append(f"Screenshot {shot.get('id')} has no extracted bytes")
+                            continue
+                        key = f"{s3_cfg.get('prefix', 'traderos-import').strip('/')}/{legacy_user_id}/{old_trade_id}/{shot.get('id')}.bin"
+                        data = Path(source_file).read_bytes()
+                        digest = hashlib.sha256(data).hexdigest()
+                        s3.put_object(Bucket=s3_cfg["bucket"], Key=key, Body=data,
+                                      ContentType=shot.get("content_type") or "application/octet-stream",
+                                      Metadata={"sha256": digest, "legacy-screenshot-id": str(shot.get("id"))})
+                        api_request(base, token, "POST", f"/api/v1/journal/trades/{target_trade['id']}/attachments",
+                                    {"attachment_type": str(shot.get("type") or "screenshot").lower(),
+                                     "storage_provider": str(s3_cfg.get("provider", "r2")),
+                                     "storage_key": key, "original_filename": shot.get("original_filename"),
+                                     "content_type": shot.get("content_type"), "byte_size": len(data),
+                                     "captured_at": shot.get("created_at"),
+                                     "metadata": {"legacy_screenshot_id": str(shot.get("id")),
+                                                  "sha256": digest, "source": "TraderOS"}})
+                        attachments += 1
+                except Exception as exc:
+                    report["errors"].append(f"Screenshot migration error: {exc}")
         user_result.update({"imported_trades": imported, "skipped_duplicates": skipped, "psychology_records": psych,
                             "screenshot_records": len(screenshot_rows)})
     report["counts"] = {"users": len(report["users"]), "errors": len(report["errors"])}
