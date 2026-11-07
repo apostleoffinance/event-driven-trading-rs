@@ -101,7 +101,7 @@ export default function CommandCenterPage() {
           <div className="metric-label">DRAWDOWN</div>
           <div className="metric-value neg">{portfolio.drawdownPct.toFixed(2)}%</div>
           <div className="metric-sub">
-            max {portfolio.maxDrawdownPct.toFixed(2)}%
+            max {portfolio.maxDrawdownPct == null ? "N/A" : `${portfolio.maxDrawdownPct.toFixed(2)}%`}
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function CommandCenterPage() {
         </div>
         <div className="metric-sub muted" style={{ marginTop: 8 }}>
           Unrealized {formatMoney(portfolio.unrealizedPnl)} · Realized{" "}
-          {formatSignedMoney(portfolio.realizedPnl)} · Gross exposure{" "}
+          {portfolio.realizedPnl == null ? "Unknown" : formatSignedMoney(portfolio.realizedPnl)} · Gross exposure{" "}
           {formatMoney(portfolio.grossExposure)}
         </div>
       </div>
