@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect,useState } from "react";
 import { useMutation,useQuery,useQueryClient } from "@tanstack/react-query";
 import { frontendConfig } from "@/config/frontend";
-import { journalApi,JournalTrade,JournalPsychology,JournalAttachment } from "@/lib/api/journal";
+import { journalApi,JournalTrade,JournalPsychology } from "@/lib/api/journal";
 import { getSessionUser,hasSession } from "@/lib/auth/session";
 
 type Draft={journal_account_id:string;setup_id:string;symbol:string;direction:"long"|"short";status:"open"|"closed"|"cancelled";opened_at:string;closed_at:string;quantity:string;entry_price:string;exit_price:string;stop_loss:string;take_profit:string;gross_pnl:string;commission:string;swap:string;other_fees:string;net_pnl:string;pnl_currency:string;risk_amount:string;r_multiple:string;session:string;timeframe:string;timezone:string;mfe_r:string;mae_r:string;notes:string;tags:string;setup_valid:string;rules_followed:string;emotional_trade:string;mistake:string;mistake_notes:string;discipline_score:string};
