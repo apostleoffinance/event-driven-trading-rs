@@ -21,6 +21,15 @@ type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
 
 export const journalApi = {
+  async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
+    requireApiMode();
+    const params = new URLSearchParams();
+    if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
+    if (options.from) params.set("from", options.from);
+    if (options.to) params.set("to", options.to);
+    const suffix = params.toString() ? \`?\${params.toString()}\` : "";
+    return (await apiRequest<DataEnvelope<JournalAnalytics>>(\`/api/v1/journal/analytics/summary\${suffix}\`, { baseUrl: journalBaseUrl() })).data;
+  },
   async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { baseUrl: journalBaseUrl() })).data; },
   async createAccount(input: { name: string; broker?: string; account_type?: string; currency?: string; initial_balance?: string }) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount>>("/api/v1/journal/accounts", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
@@ -47,4 +56,15 @@ export const journalApi = {
     requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
   },
   async deleteTrade(id: string) { requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { method: "DELETE", baseUrl: journalBaseUrl() }); },
+};
+
+export type JournalAnalytics = {
+  trade_count: number; wins: number; losses: number; breakeven: number;
+  win_rate_percent: string; gross_profit: string; gross_loss: string; net_profit: string;
+  profit_factor: string | null; expectancy: string; average_win: string | null; average_loss: string | null;
+  max_drawdown: string; average_r: string | null;
+  equity_curve: Array<{ trade_id: string; closed_at: string; net_pnl: string; equity: string; drawdown: string }>;
+  by_symbol: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
+  by_session: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
+  notice?: string;
 };
