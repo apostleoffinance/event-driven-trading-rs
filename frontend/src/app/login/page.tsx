@@ -29,12 +29,12 @@ export default function LoginPage() {
   }
 
   if (frontendConfig.dataMode !== "api") {
-    return <section className="panel"><h1>EdgeNest sign in</h1><p>Set NEXT_PUBLIC_DATA_MODE=api and NEXT_PUBLIC_API_URL to enable Identity API authentication.</p><Link className="btn" href="/">Back to dashboard</Link></section>;
+    return <section className="panel"><h1>EdgeNest sign in</h1><p>Sign-in is temporarily unavailable. Please try again later.</p><Link className="btn" href="/">Back to dashboard</Link></section>;
   }
 
   return <div style={{ maxWidth: 480, margin: "40px auto" }}>
     <section className="panel">
-      <header className="page-header"><div><h1>{mode === "login" ? "Sign in" : "Create EdgeNest account"}</h1><p>Authenticate with the Rust Identity API.</p></div><span className="badge">API auth</span></header>
+      <header className="page-header"><div><h1>{mode === "login" ? "Welcome back to EdgeNest" : "Create your EdgeNest account"}</h1><p>{mode === "login" ? "Sign in to manage your trading accounts and journal." : "Create an account to get started with EdgeNest."}</p></div></header>
       <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
         {mode === "register" ? <label className="journal-field"><span>Display name</span><input required autoComplete="name" value={displayName} onChange={e => setDisplayName(e.target.value)} /></label> : null}
         <label className="journal-field"><span>Email</span><input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
@@ -45,7 +45,7 @@ export default function LoginPage() {
       <p className="metric-sub" style={{ marginTop: 12 }}>{mode === "login" ? "New to EdgeNest?" : "Already have an account?"}{" "}
         <button className="btn" type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(null); }}>{mode === "login" ? "Register" : "Sign in"}</button>
       </p>
-      <p className="metric-sub">Tokens are stored in this browser tab&apos;s sessionStorage and cleared on sign-out. This is not equivalent to HttpOnly-cookie/BFF protection against XSS; use a trusted HTTPS origin and review this auth-storage decision before production.</p>
+      
     </section>
   </div>;
 }
