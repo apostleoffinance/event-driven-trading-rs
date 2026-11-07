@@ -87,7 +87,7 @@ export type Account = {
   availableCapital: Money;
   dailyPnl: Money;
   unrealizedPnl: Money;
-  realizedPnl: Money;
+  realizedPnl: Money | null;
   drawdownPct: number;
   openPositionCount: number;
   status: AccountStatus;
