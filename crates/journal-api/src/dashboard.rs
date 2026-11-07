@@ -413,6 +413,27 @@ pub async fn positions(State(state): State<AppState>, headers: HeaderMap) -> Res
 pub struct ListLimit {
     pub limit: Option<i64>,
 }
+#[derive(Debug, FromRow)]
+struct OrderRow {
+    id: String,
+    client_order_id: String,
+    account_id: String,
+    venue_id: String,
+    strategy_id: String,
+    trade_intent_id: Option<String>,
+    symbol: String,
+    side: String,
+    order_type: String,
+    time_in_force: String,
+    quantity: Decimal,
+    price: Option<Decimal>,
+    filled_quantity: Decimal,
+    status: String,
+    created_at: DateTime<Utc>,
+    submitted_at: Option<DateTime<Utc>>,
+    updated_at: DateTime<Utc>,
+}
+
 pub async fn orders(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -423,16 +444,30 @@ pub async fn orders(
         Err(e) => return e.into_response(),
     };
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
-    let rows=sqlx::query_as::<_,(String,String,String,String,String,String,String,String,String,String,Decimal,Option<Decimal>,Decimal,String,DateTime<Utc>,Option<DateTime<Utc>>,DateTime<Utc>)>(r#"
-      SELECT o.id,o.client_order_id,o.account_id,o.venue_id,o.strategy_id,COALESCE(o.trade_intent_id,''),i.symbol,o.side,o.order_type,o.time_in_force,o.quantity,o.price,o.filled_quantity,o.status,o.created_at,o.submitted_at,o.updated_at
-      FROM orders o JOIN instruments i ON i.id=o.instrument_id JOIN dashboard_account_access g ON g.account_id=o.account_id
+    let rows = sqlx::query_as::<_, OrderRow>(r#"
+      SELECT o.id,o.client_order_id,o.account_id,o.venue_id,o.strategy_id,o.trade_intent_id,
+             i.symbol,o.side,o.order_type,o.time_in_force,o.quantity,o.price,o.filled_quantity,
+             o.status,o.created_at,o.submitted_at,o.updated_at
+      FROM orders o JOIN instruments i ON i.id=o.instrument_id
+      JOIN dashboard_account_access g ON g.account_id=o.account_id
       WHERE g.owner_id=$1 ORDER BY o.created_at DESC LIMIT $2
-    "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
-    match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,client,account,venue,strategy,intent,symbol,side,kind,tif,qty,price,filled,status,created,submitted,updated)|serde_json::json!({
-      "id":id,"clientOrderId":client,"accountId":account,"venueId":venue,"strategyId":strategy,"tradeIntentId":intent,"instrumentId":symbol,
-      "side":status_case(&side),"orderType":status_case(&kind),"timeInForce":status_case(&tif),"quantity":dec(qty),"price":price.map(dec),"filledQuantity":dec(filled),
-      "status":status_case(&status),"createdAt":created,"submittedAt":submitted,"updatedAt":updated
-    })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
+    "#)
+    .bind(&owner)
+    .bind(limit)
+    .fetch_all(state.store.pool())
+    .await;
+    match rows {
+        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|row|serde_json::json!({
+            "id":row.id,"clientOrderId":row.client_order_id,"accountId":row.account_id,
+            "venueId":row.venue_id,"strategyId":row.strategy_id,"tradeIntentId":row.trade_intent_id,
+            "instrumentId":row.symbol,"side":status_case(&row.side),"orderType":status_case(&row.order_type),
+            "timeInForce":status_case(&row.time_in_force),"quantity":dec(row.quantity),
+            "price":row.price.map(dec),"filledQuantity":dec(row.filled_quantity),
+            "status":status_case(&row.status),"createdAt":row.created_at,
+            "submittedAt":row.submitted_at,"updatedAt":row.updated_at
+        })).collect::<Vec<_>>()})).into_response(),
+        Err(_) => internal(),
+    }
 }
 
 pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -446,7 +481,7 @@ pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Re
       JOIN dashboard_account_access g ON g.account_id=d.account_id
       WHERE g.owner_id=$1 ORDER BY d.created_at DESC
     "#).bind(&owner).fetch_all(state.store.pool()).await;
-    match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,account_type)|serde_json::json!({
+    match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,environment)|serde_json::json!({
       "id":id,"name":name,"version":version,"status":if enabled{environment.as_str()}else{"STOPPED"},"environment":environment,
       "instrumentId":null,"signals":null,"trades":null,"returnPct":null,"sharpe":null,"maxDrawdownPct":null,"winRatePct":null,"profitFactor":null,
       "description":format!("Deployment for account {account}; strategy performance metrics are not yet persisted."),"configuration":[],"recentIntentIds":[],"createdAt":created
