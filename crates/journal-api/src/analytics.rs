@@ -149,9 +149,18 @@ pub async fn summary(
             .entry(fact.setup_name.clone())
             .or_default()
             .push(fact.net_pnl);
-        if let Some(r) = fact.r_multiple { total_r += r; r_count += 1; }
-        if let Some(r) = fact.mfe_r { total_mfe_r += r; mfe_count += 1; }
-        if let Some(r) = fact.mae_r { total_mae_r += r; mae_count += 1; }
+        if let Some(r) = fact.r_multiple {
+            total_r += r;
+            r_count += 1;
+        }
+        if let Some(r) = fact.mfe_r {
+            total_mfe_r += r;
+            mfe_count += 1;
+        }
+        if let Some(r) = fact.mae_r {
+            total_mae_r += r;
+            mae_count += 1;
+        }
     }
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
