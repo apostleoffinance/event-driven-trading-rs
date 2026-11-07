@@ -130,6 +130,10 @@ async fn main() {
                 .delete(resources::archive_account),
         )
         .route(
+            "/api/v1/journal/accounts/{id}/migration-metadata",
+            axum::routing::put(resources::update_account_migration_metadata),
+        )
+        .route(
             "/api/v1/journal/setups",
             get(resources::list_setups).post(resources::create_setup),
         )
