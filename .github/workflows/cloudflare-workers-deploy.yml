@@ -46,7 +46,7 @@ jobs:
           node --version
           npx wrangler --version
           test -s .open-next/worker.js
-          node -e "const c=require('./wrangler.jsonc'); if(c.main !== '.open-next/worker.js') throw new Error('Unexpected Worker entrypoint: '+c.main);"
+          python3 -c "import json; c=json.load(open('wrangler.jsonc')); assert c['main'] == '.open-next/worker.js', c.get('main')"
 
       - name: Deploy to Cloudflare Workers
         env:
