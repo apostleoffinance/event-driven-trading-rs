@@ -642,14 +642,40 @@ def main() -> int:
     config = load_json(args.config)
     prefix = args.snapshot
     if args.command == "plan":
+        # Planning is a source-snapshot preflight, not a check for destination
+        # IDs that can only be created during apply. Use explicit temporary IDs
+        # for source accounts/setups so the planner can validate trade fields,
+        # references, and screenshot checksums before any destination writes.
         manifest = load_json(prefix)
         user_id = str(manifest["source_user_id"])
         state_path = Path(config.get("state_file", "migration-state.json"))
         state = load_json(state_path) if state_path.exists() else {"account_map": {}, "setup_map": {}}
-        plan = validate_snapshot(prefix, user_id, state.get("account_map", {}).get(user_id, {}),
-                                 state.get("setup_map", {}).get(user_id, {}))
+        account_map = state.get("account_map", {}).get(user_id, {})
+        setup_map = state.get("setup_map", {}).get(user_id, {})
+        accounts = read_table(prefix, "accounts")
+        setups = read_table(prefix, "setups")
+        effective_accounts = {
+            **account_map,
+            **{str(row["id"]): account_map.get(str(row["id"]), f"PLAN:{row['id']}")
+               for row in accounts if str(row["id"]) not in account_map},
+        }
+        effective_setups = {
+            **setup_map,
+            **{str(row["id"]): setup_map.get(str(row["id"]), f"PLAN:{row['id']}")
+               for row in setups if str(row["id"]) not in setup_map},
+        }
+        plan = validate_snapshot(prefix, user_id, effective_accounts, effective_setups,
+                                 allow_placeholders=True)
         owner_ok = bool(config.get("owner_map", {}).get(user_id, {}).get("jwt"))
         plan["owner_mapping_present"] = owner_ok
+        plan["destination_mappings_pending"] = {
+            "accounts": sum(1 for row in accounts if str(row["id"]) not in account_map),
+            "setups": sum(1 for row in setups if str(row["id"]) not in setup_map),
+        }
+        if plan["destination_mappings_pending"]["accounts"] or plan["destination_mappings_pending"]["setups"]:
+            plan["warnings"].append(
+                "Destination account/setup IDs are not yet mapped; apply will create and checkpoint them."
+            )
         plan["valid"] = plan["valid"] and owner_ok
         print(json.dumps(plan, indent=2))
         return 0 if plan["valid"] else 2

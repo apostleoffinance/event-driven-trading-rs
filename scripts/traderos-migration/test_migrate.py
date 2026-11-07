@@ -133,6 +133,42 @@ class MigrationTransformTests(unittest.TestCase):
             plan = migrate.validate_snapshot(prefix, "u", {"a":"DRYRUN:a"}, {"s":"DRYRUN:s"}, allow_placeholders=True)
             self.assertTrue(plan["valid"])
 
+    def test_plan_preflight_accepts_unmapped_destination_accounts_and_setups(self):
+        import sys
+        from contextlib import redirect_stdout
+        from io import StringIO
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prefix = root / "snapshot.json"
+            migrate.dump_json(prefix, {"format": migrate.SOURCE_FORMAT, "source_user_id": "u", "tables": {}})
+            tables = {
+                "accounts": [{"id": "a", "user_id": "u", "account_name": "Test",
+                              "currency": "USD", "starting_balance": "1000"}],
+                "setups": [{"id": "s", "user_id": "u", "name": "Setup"}],
+                "trades": [{"id": "t", "user_id": "u", "account_id": "a", "setup_id": "s",
+                            "trade_timestamp": "2026-10-01T09:30:00+00:00", "status": "open",
+                            "direction": "long", "lot_size": "0.1", "entry_price": "1.2"}],
+                "psychology": [], "trade_screenshots": [], "account_risk_profiles": [],
+                "checklist_items": [], "checklist_templates": [], "trade_checklist_responses": [],
+            }
+            for table, rows in tables.items():
+                migrate.dump_json(root / f"snapshot_{table}.json", rows)
+            config_path = root / "config.json"
+            migrate.dump_json(config_path, {
+                "state_file": str(root / "migration-state.json"),
+                "owner_map": {"u": {"jwt": "plan-only-placeholder"}},
+            })
+            output = StringIO()
+            with patch.object(sys, "argv", ["migrate.py", "plan", "--snapshot", str(prefix),
+                                           "--config", str(config_path)]), redirect_stdout(output):
+                exit_code = migrate.main()
+            result = json.loads(output.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(result["valid"])
+            self.assertTrue(result["owner_mapping_present"])
+            self.assertEqual(result["destination_mappings_pending"], {"accounts": 1, "setups": 1})
+            self.assertTrue(any("apply will create" in warning for warning in result["warnings"]))
+
     def test_export_allowlist_contains_account_owned_history_without_auth_table(self):
         self.assertIn("risk_events", migrate.SOURCE_TABLES)
         self.assertIn("ai_analyses", migrate.SOURCE_TABLES)

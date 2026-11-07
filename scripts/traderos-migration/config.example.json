@@ -3,7 +3,9 @@
   "state_file": "./migration-state.json",
   "report_file": "./migration-report.json",
   "owner_map": {
-    "TRADEROS_USER_UUID": { "jwt": "LOAD_FROM_SECRET_MANAGER_OR_PRIVATE_CONFIG" }
+    "REPLACE_WITH_snapshot_source_user_id": {
+      "jwt": "REPLACE_WITH_REAL_EDGENEST_USER_JWT_IN_PRIVATE_CONFIG"
+    }
   },
   "source_storage": {
     "endpoint_url": "https://<traderos-account-id>.r2.cloudflarestorage.com",
