@@ -177,20 +177,39 @@ pub async fn strategies(State(state):State<AppState>,headers:HeaderMap)->Respons
 
 pub async fn risk(State(state):State<AppState>,headers:HeaderMap)->Response {
     let owner=match auth(&state,&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
-    let row=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<bool>,i64)>(r#"
-      SELECT COALESCE(SUM(s.daily_realized_pnl),0),COALESCE(SUM(s.balance),0),
-        COALESCE(MAX(CASE WHEN s.peak_equity>0 THEN (s.peak_equity-s.equity)/s.peak_equity*100 ELSE 0 END),0),
-        COALESCE(SUM(s.equity-s.used_margin),0),BOOL_OR(s.kill_switch),COUNT(*)
-      FROM dashboard_account_access g JOIN account_states s ON s.account_id=g.account_id WHERE g.owner_id=$1
-    "#).bind(&owner).fetch_one(state.store.pool()).await;
-    let (daily,balance,dd,available,kill,count)=match row{Ok(r)=>r,Err(_)=>return internal()};
-    let daily=daily.unwrap_or_default();let balance=balance.unwrap_or_default();let dd=dd.unwrap_or_default();let available=available.unwrap_or_default();let kill=kill.unwrap_or(false);
+    let row=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<bool>,i64,Option<Decimal>,Option<Decimal>)>(r#"
+      WITH owned AS (
+        SELECT g.account_id,s.daily_realized_pnl,s.balance,s.equity,s.peak_equity,s.kill_switch
+        FROM dashboard_account_access g JOIN account_states s ON s.account_id=g.account_id WHERE g.owner_id=$1
+      ), limits AS (
+        SELECT MAX(NULLIF(rp.policy_json->>'max_daily_loss_pct','')::NUMERIC) AS daily_limit,
+               MAX(NULLIF(rp.policy_json->>'max_drawdown_pct','')::NUMERIC) AS dd_limit
+        FROM dashboard_account_access g
+        JOIN strategy_deployments d ON d.account_id=g.account_id
+        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.owner_id=$1
+      )
+      SELECT COALESCE(SUM(o.daily_realized_pnl),0),COALESCE(SUM(o.balance),0),
+        COALESCE(MAX(CASE WHEN o.peak_equity>0 THEN (o.peak_equity-o.equity)/o.peak_equity*100 ELSE 0 END),0),
+        BOOL_OR(o.kill_switch),COUNT(*),limits.daily_limit,limits.dd_limit
+      FROM owned o CROSS JOIN limits GROUP BY limits.daily_limit,limits.dd_limit
+    "#).bind(&owner).fetch_optional(state.store.pool()).await;
+    let (daily,balance,dd,kill,count,daily_limit,dd_limit)=match row{
+        Ok(Some(r))=>r,
+        Ok(None)=>(Some(Decimal::ZERO),Some(Decimal::ZERO),Some(Decimal::ZERO),Some(false),0,None,None),
+        Err(_)=>return internal()
+    };
+    let daily=daily.unwrap_or_default();let balance=balance.unwrap_or_default();let dd=dd.unwrap_or_default();let kill=kill.unwrap_or(false);
     let daily_loss=if balance>Decimal::ZERO{(-daily).max(Decimal::ZERO)/balance*Decimal::from(100)}else{Decimal::ZERO};
-    let status=if count==0{"DISCONNECTED"}else if kill{"ERROR"}else{"DEGRADED"};
-    Json(serde_json::json!({"data":{"engineStatus":status,"dailyLossPct":daily_loss.to_f64().unwrap_or(0.0),"dailyLossLimitPct":5.0,
-      "maxDrawdownPct":dd.to_f64().unwrap_or(0.0),"maxDrawdownLimitPct":20.0,"openRiskPct":0.0,
-      "exposurePct":if available+daily>Decimal::ZERO{(available/ (available+daily.abs())*Decimal::from(100)).to_f64().unwrap_or(0.0)}else{0.0},
-      "killSwitch":kill,"tone":if kill{"BREACH"}else if count==0{"WARNING"}else{"WARNING"},"hierarchy":[]}})).into_response()
+    let engine_status=if count==0{"DISCONNECTED"}else{"DEGRADED"};
+    Json(serde_json::json!({"data":{
+      "engineStatus":engine_status,
+      "dailyLossPct":daily_loss.to_f64().unwrap_or(0.0),
+      "dailyLossLimitPct":daily_limit.and_then(|v|v.to_f64()),
+      "maxDrawdownPct":dd.to_f64().unwrap_or(0.0),
+      "maxDrawdownLimitPct":dd_limit.and_then(|v|v.to_f64()),
+      "openRiskPct":null,"exposurePct":null,
+      "killSwitch":kill,"tone":if kill{"BREACH"}else{"WARNING"},"hierarchy":[]
+    }})).into_response()
 }
 
 pub async fn risk_decisions(State(state):State<AppState>,headers:HeaderMap)->Response {
