@@ -3,15 +3,23 @@
   "state_file": "./migration-state.json",
   "report_file": "./migration-report.json",
   "owner_map": {
-    "TRADEROS_USER_UUID": { "jwt": "PASTE_EDGE_NEST_JWT_HERE" }
+    "TRADEROS_USER_UUID": { "jwt": "LOAD_FROM_SECRET_MANAGER_OR_PRIVATE_CONFIG" }
+  },
+  "source_storage": {
+    "endpoint_url": "https://<traderos-account-id>.r2.cloudflarestorage.com",
+    "region": "auto",
+    "bucket": "traderos-source-bucket",
+    "access_key_id": "TRADEROS_SOURCE_ACCESS_KEY",
+    "secret_access_key": "TRADEROS_SOURCE_SECRET_KEY"
   },
   "object_storage": {
     "provider": "r2",
-    "endpoint_url": "https://<account-id>.r2.cloudflarestorage.com",
+    "endpoint_url": "https://<edgenest-account-id>.r2.cloudflarestorage.com",
     "region": "auto",
     "bucket": "edgenest-journal-attachments",
     "prefix": "traderos-migration",
-    "access_key_id": "R2_ACCESS_KEY_ID",
-    "secret_access_key": "R2_SECRET_ACCESS_KEY"
+    "archive_prefix": "traderos-migration-archives",
+    "access_key_id": "EDGENEST_R2_ACCESS_KEY",
+    "secret_access_key": "EDGENEST_R2_SECRET_KEY"
   }
 }

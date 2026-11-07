@@ -1,79 +1,36 @@
-# TraderOS → EdgeNest migration (Phases 4–5)
+# TraderOS → EdgeNest Journal migration (Phases 4–5)
 
-This tool migrates historical journal records only. It never copies TraderOS users,
-password hashes, session/refresh tokens, MT5 connection tokens, or credentials. Source
-PostgreSQL is opened read-only. EdgeNest is written only through its authenticated Journal API.
-Never run this against production until a full dry-run/reconciliation report is reviewed.
+This is a historical Journal migration. TraderOS PostgreSQL is queried in read-only mode. EdgeNest writes happen only through authenticated, owner-scoped Journal APIs. No users, passwords, session/API tokens, MT5 connection tokens or execution state are migrated.
 
-## Phase 4 — tooling and schema readiness
+See [RUNBOOK.md](RUNBOOK.md) for operational steps and [MIGRATION-COVERAGE.md](MIGRATION-COVERAGE.md) for the source/native/archive-only coverage matrix.
 
-- Snapshot selected TraderOS user rows to JSON files (source tables: accounts, risk profiles,
-  setups, trades, psychology, checklists/responses, screenshots).
-- Preserve Decimal values as strings, timezone-aware timestamps, source UUIDs and screenshot
-  bytes separately; secret-like fields are stripped from JSON snapshots.
-- Explicit owner/account/setup mapping state, dry-run validation, idempotent source trade IDs,
-  retryable API calls, and JSON audit report.
-- The source is not modified and no target OMS orders/fills/positions are created.
+## Extraction
 
-## Phase 5 — historical journal migration
+The per-user source snapshot includes accounts, risk profiles, setups, trades, psychology, checklists, screenshots, risk events, AI analyses/memories, market analyses, chart annotations, safe MT5 connection metadata, processed deals, sync snapshots, source deals and account-scoped broker candles. A separate global shared `market_candles` cache is intentionally excluded.
 
-The CLI imports journal accounts, setups, trades and psychology using the API. Trade import
-uses source_system=TraderOS and original trade ID as source_trade_id; duplicate retries
-are safe. Closed trades with missing exit time/price and naive timestamps without a timezone
-are rejected rather than guessed.
+When screenshot binaries are stored in TraderOS S3/R2, extraction accepts `--source-storage-config` to retrieve them. The private config is not written into the export.
 
-TraderOS-only facts that are not yet represented as first-class EdgeNest columns are retained
-in the extraction snapshot (risk profiles, planned RR/percent, realized RR, stop/target pips,
-MT5 IDs, instrument metadata, checklists and screenshot records). The CLI does not silently
-discard these: its reconciliation report flags screenshot object transfer as incomplete.
-Checklist migration into Journal UI/API and S3/R2 binary transfer must be completed/configured
-before claiming full historical parity.
+## Archive preservation
 
-## Run
+Before apply, the tool requires private destination object storage. It packages the manifest, all per-table JSON files and exported screenshot binaries into a ZIP, derives a SHA-256 content-addressed key, uploads to R2/S3-compatible storage and verifies object metadata/size. The archive reference and checksum are attached to each EdgeNest Journal account through its owner-scoped migration metadata API. This also runs for accounts resumed from a previous checkpoint.
 
-Install dependencies:
+## Native EdgeNest import
 
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r scripts/traderos-migration/requirements.txt
+- Accounts and setups.
+- Trades with source provenance, exact decimal strings, timestamps, risk facts, notes and checklist answers.
+- Psychology linked to the imported trade.
+- Screenshot binaries and attachment metadata when source bytes are available and destination object storage is configured.
 
-1. Configure the EdgeNest API and explicit source-user → EdgeNest JWT mapping:
+Risk events, AI records, market analyses, annotations, MT5 historical raw evidence and full checklist template definitions remain preserved in the account-linked source archive until EdgeNest introduces dedicated first-class resource models/screens. This distinction is explicit in the migration report and coverage matrix.
 
-    cp scripts/traderos-migration/config.example.json migration-config.json
+## Validation
 
-Edit migration-config.json. Keep JWT out of Git and logs.
+The utility validates source owner scope and relationships, rejects naive timestamps and invalid trade financial/lifecycle values, checks screenshot hashes, preserves source precision, and uses a dry-run that makes no API requests and changes no checkpoint state. Apply is gated on the full source archive being uploaded and verified. See the runbook for the reconciliation checklist.
 
-2. Export one TraderOS user from a read-only database credential:
+## Tests
 
-    export TRADEROS_DATABASE_URL='postgresql://READ_ONLY_USER:...@.../traderos'
-    python scripts/traderos-migration/migrate.py extract --user-id '<TraderOS UUID>' --out ./snapshot.json
+```bash
+python -m unittest discover -s scripts/traderos-migration -p 'test_*.py' -v
+```
 
-3. Validate snapshot mapping:
-
-    python scripts/traderos-migration/migrate.py plan --snapshot ./snapshot.json --config ./migration-config.json
-
-4. Run dry-run first:
-
-    python scripts/traderos-migration/migrate.py apply --snapshot ./snapshot.json --config ./migration-config.json --dry-run
-
-5. Apply only after reviewing report:
-
-    python scripts/traderos-migration/migrate.py apply --snapshot ./snapshot.json --config ./migration-config.json
-
-## Important operational constraints
-
-- A single source snapshot is per TraderOS user. Use a separate snapshot file per user.
-- Source timezone must be explicit; do not reinterpret naive timestamps.
-- Account balance is imported as the historical journal account's initial balance; TraderOS live
-  account equity and prop-firm risk-profile fields are snapshot-only until a dedicated target
-  schema/API is implemented.
-- Binary screenshot bytes are extracted to a local directory and never embedded in JSON. Do not
-  delete the source. S3/R2 transfer and attachment linking are a separate, explicit step.
-- Import uses the current API batch limit of 10,000 trades. Checkpoints preserve account/setup IDs.
-- Keep snapshot, state, reports and JWTs out of Git; snapshots may contain sensitive financial data.
-- For production, run from a secure host with private DB networking, a least-privilege source
-  DB account, target JWTs, and encrypted backups. Reconcile counts and values before cutover.
-
-## Verification
-
-    python -m unittest discover -s scripts/traderos-migration -p 'test_*.py' -v
+This repository change does not perform a production data migration or production deployment. Use a disposable staging API/database first and only cut over after the source/target reconciliation is approved.
