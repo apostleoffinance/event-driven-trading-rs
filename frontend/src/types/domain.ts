@@ -279,12 +279,12 @@ export type ReconciliationLine = {
 };
 
 export type ReconciliationResult = {
-  accountId: string;
-  venueId: string;
+  accountId: string | null;
+  venueId: string | null;
   status: "HEALTHY" | "ALERT";
   lines: ReconciliationLine[];
   alerts: { title: string; detail: string; action: "ALERT_ONLY" }[];
-  lastRunAt: string;
+  lastRunAt: string | null;
 };
 
 export type SystemComponent = {
