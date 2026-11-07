@@ -15,7 +15,8 @@ import { TradingPipeline } from "@/components/trading/TradingPipeline";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { SimulationControls } from "@/features/simulation/SimulationControls";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
-import { getRepositories } from "@/lib/repositories";\nimport { frontendConfig } from "@/config/frontend";
+import { getRepositories } from "@/lib/repositories";
+import { frontendConfig } from "@/config/frontend";
 import type {
   Order,
   PipelineNode,
