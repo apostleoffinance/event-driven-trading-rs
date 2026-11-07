@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { frontendConfig } from "@/config/frontend";
+import { apiRequest } from "@/lib/api/client";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
@@ -129,6 +132,44 @@ export default function AccountsPage() {
           emptyMessage="No accounts."
         />
       </div>
+      {createOpen ? (
+        <>
+          <button type="button" className="drawer-backdrop" aria-label="Close account creation" onClick={() => setCreateOpen(false)} />
+          <aside className="drawer" role="dialog" aria-label="Create paper account">
+            <h2 style={{ marginTop: 0, fontSize: 16, fontWeight: 500 }}>Create Paper Account</h2>
+            <p className="metric-sub">This creates a PAPER-only simulated account. It does not connect a broker or enable live execution.</p>
+            <form onSubmit={async (event) => {
+              event.preventDefault();
+              setCreating(true);
+              setCreateError(null);
+              try {
+                await apiRequest("/api/v1/trading/accounts", {
+                  method: "POST",
+                  body: JSON.stringify({ name: accountName, initial_capital: initialCapital }),
+                });
+                await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+                await queryClient.invalidateQueries({ queryKey: ["risk", "overview"] });
+                await queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+                setCreateOpen(false);
+              } catch (e) {
+                setCreateError(e instanceof Error ? e.message : "Account creation failed.");
+              } finally {
+                setCreating(false);
+              }
+            }}>
+              <label className="metric-label" htmlFor="paper-account-name">Account name</label>
+              <input id="paper-account-name" className="input" value={accountName} maxLength={80} onChange={(e) => setAccountName(e.target.value)} required />
+              <label className="metric-label" htmlFor="paper-account-capital" style={{ marginTop: 12 }}>Starting capital (account currency)</label>
+              <input id="paper-account-capital" className="input num" type="number" min="0.01" step="0.01" value={initialCapital} onChange={(e) => setInitialCapital(e.target.value)} required />
+              {createError ? <div className="error" role="alert">{createError}</div> : null}
+              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                <button className="btn primary" type="submit" disabled={creating}>{creating ? "Creating…" : "Create account"}</button>
+                <button className="btn" type="button" disabled={creating} onClick={() => setCreateOpen(false)}>Cancel</button>
+              </div>
+            </form>
+          </aside>
+        </>
+      ) : null}
       {selected ? (
         <>
           <button
