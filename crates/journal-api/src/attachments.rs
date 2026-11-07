@@ -115,11 +115,17 @@ pub async fn create(
         );
     }
     let id = uuid::Uuid::new_v4().to_string();
-    match sqlx::query("INSERT INTO journal_trade_attachments(id,owner_id,trade_id,attachment_type,storage_provider,storage_key,original_filename,content_type,byte_size,captured_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)")
+    match sqlx::query("INSERT INTO journal_trade_attachments(id,owner_id,trade_id,attachment_type,storage_provider,storage_key,original_filename,content_type,byte_size,captured_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (owner_id,storage_provider,storage_key) DO NOTHING")
         .bind(&id).bind(&claims.sub).bind(&trade_id).bind(input.attachment_type.unwrap_or_else(||"screenshot".into()))
         .bind(&input.storage_provider).bind(&input.storage_key).bind(&input.original_filename).bind(&input.content_type)
         .bind(input.byte_size).bind(input.captured_at).bind(input.metadata).execute(state.store.pool()).await {
-        Ok(_) => (StatusCode::CREATED,Json(serde_json::json!({"data":{"id":id,"trade_id":trade_id,"saved":true}}))).into_response(),
+        Ok(result) if result.rows_affected() == 1 => (StatusCode::CREATED,Json(serde_json::json!({"data":{"id":id,"trade_id":trade_id,"saved":true}}))).into_response(),
+        Ok(_) => match sqlx::query_as::<_,(String,String)>("SELECT id,trade_id FROM journal_trade_attachments WHERE owner_id=$1 AND storage_provider=$2 AND storage_key=$3")
+            .bind(&claims.sub).bind(&input.storage_provider).bind(&input.storage_key).fetch_optional(state.store.pool()).await {
+            Ok(Some((existing_id,existing_trade))) if existing_trade == trade_id => (StatusCode::OK,Json(serde_json::json!({"data":{"id":existing_id,"trade_id":trade_id,"saved":true,"already_imported":true}}))).into_response(),
+            Ok(Some(_)) => error("attachment_conflict","Attachment key already belongs to a different trade",StatusCode::CONFLICT),
+            _ => error("internal_error","Unable to resolve attachment metadata",StatusCode::INTERNAL_SERVER_ERROR),
+        },
         Err(_) => error("internal_error","Unable to save attachment metadata",StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
