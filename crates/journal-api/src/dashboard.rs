@@ -444,14 +444,16 @@ pub async fn orders(
         Err(e) => return e.into_response(),
     };
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
-    let rows = sqlx::query_as::<_, OrderRow>(r#"
+    let rows = sqlx::query_as::<_, OrderRow>(
+        r#"
       SELECT o.id,o.client_order_id,o.account_id,o.venue_id,o.strategy_id,o.trade_intent_id,
              i.symbol,o.side,o.order_type,o.time_in_force,o.quantity,o.price,o.filled_quantity,
              o.status,o.created_at,o.submitted_at,o.updated_at
       FROM orders o JOIN instruments i ON i.id=o.instrument_id
       JOIN dashboard_account_access g ON g.account_id=o.account_id
       WHERE g.owner_id=$1 ORDER BY o.created_at DESC LIMIT $2
-    "#)
+    "#,
+    )
     .bind(&owner)
     .bind(limit)
     .fetch_all(state.store.pool())
