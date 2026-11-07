@@ -88,7 +88,6 @@ async fn journal_schema_preserves_owner_scope_and_import_idempotency(pool: PgPoo
     assert_eq!(row_count, 1);
 }
 
-
 #[sqlx::test(migrations = "../../migrations")]
 async fn journal_get_by_id_returns_all_trade_annotations(pool: PgPool) {
     sqlx::query(
