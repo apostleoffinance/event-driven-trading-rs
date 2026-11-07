@@ -11,7 +11,6 @@ import {
 } from "@/components/data-display/StatusBadge";
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { TradingPipeline } from "@/components/trading/TradingPipeline";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { SimulationControls } from "@/features/simulation/SimulationControls";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
@@ -20,7 +19,6 @@ import { frontendConfig } from "@/config/frontend";
 import type {
   Account,
   Order,
-  PipelineNode,
   PortfolioSnapshot,
   Position,
   RiskOverview,
@@ -34,7 +32,6 @@ export default function CommandCenterPage() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [risk, setRisk] = useState<RiskOverview | null>(null);
-  const [pipeline, setPipeline] = useState<PipelineNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,13 +39,12 @@ export default function CommandCenterPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [acct, p, pos, ord, r, pipe] = await Promise.all([
+        const [acct, p, pos, ord, r] = await Promise.all([
           repos.accounts.listAccounts(),
           repos.portfolio.getSnapshot(),
           repos.positions.listPositions(),
           repos.orders.listOrders(),
           repos.risk.getOverview(),
-          repos.system.getPipeline(),
         ]);
         if (cancelled) return;
         setAccounts(acct);
@@ -56,7 +52,6 @@ export default function CommandCenterPage() {
         setPositions(pos);
         setOrders(ord.slice(0, 8));
         setRisk(r);
-        setPipeline(pipe);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Load failed");
       } finally {
@@ -66,7 +61,7 @@ export default function CommandCenterPage() {
     return () => {
       cancelled = true;
     };
-  }, [repos.portfolio, repos.positions, repos.orders, repos.risk, repos.system]);
+  }, [repos.accounts, repos.portfolio, repos.positions, repos.orders, repos.risk]);
 
   if (loading) return <div className="loading">Loading command center…</div>;
   if (error || !portfolio || !risk)
@@ -164,10 +159,6 @@ export default function CommandCenterPage() {
           </div>
         </div>
       </div>
-      <div className="panel" style={{ marginBottom: 12 }}>
-        <div className="panel-title">TRADING ACTIVITY</div>
-        <TradingPipeline nodes={pipeline} />
-      </div>
       <div className="grid grid-dash">
         <div className="panel">
           <div
@@ -193,6 +184,7 @@ export default function CommandCenterPage() {
                 </tr>
               </thead>
               <tbody>
+                {!positions.length ? <tr><td colSpan={7} className="muted">No open positions yet. Your positions will appear here when trades are opened.</td></tr> : null}
                 {positions.map((p) => (
                   <tr key={p.id}>
                     <td>{p.instrumentId}</td>
@@ -213,7 +205,7 @@ export default function CommandCenterPage() {
           </div>
         </div>
         <div className="panel">
-          <div className="panel-title">EVENT STREAM</div>
+          <div className="panel-title">RECENT ACTIVITY</div>
           <EventStreamList events={events} limit={8} />
         </div>
       </div>
@@ -241,6 +233,7 @@ export default function CommandCenterPage() {
               </tr>
             </thead>
             <tbody>
+              {!orders.length ? <tr><td colSpan={7} className="muted">No orders yet. Your order history will appear here when you start trading.</td></tr> : null}
               {orders.map((o) => (
                 <tr key={o.id}>
                   <td className="num">{new Date(o.updatedAt).toLocaleTimeString()}</td>
