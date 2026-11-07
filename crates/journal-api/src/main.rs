@@ -10,6 +10,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod analytics;
 mod attachments;
+mod dashboard;
 mod auth;
 mod http;
 mod imports;
@@ -90,6 +91,18 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(http::health))
         .route("/readyz", get(http::ready))
+        .route("/api/v1/trading/accounts", get(dashboard::accounts))
+        .route("/api/v1/trading/accounts/{id}", get(dashboard::account))
+        .route("/api/v1/trading/portfolio", get(dashboard::portfolio))
+        .route("/api/v1/trading/strategies", get(dashboard::strategies))
+        .route("/api/v1/trading/positions", get(dashboard::positions))
+        .route("/api/v1/trading/orders", get(dashboard::orders))
+        .route("/api/v1/trading/risk", get(dashboard::risk))
+        .route("/api/v1/trading/risk/decisions", get(dashboard::risk_decisions))
+        .route("/api/v1/trading/events", get(dashboard::events))
+        .route("/api/v1/trading/reconciliation", get(dashboard::reconciliation))
+        .route("/api/v1/trading/system/components", get(dashboard::system_components))
+        .route("/api/v1/trading/system/pipeline", get(dashboard::system_pipeline))
         .route(
             "/api/v1/journal/accounts",
             get(resources::list_accounts).post(resources::create_account),
