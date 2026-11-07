@@ -132,10 +132,10 @@ pub async fn get_account(
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool)>(
+    match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool,String)>(
         "SELECT id,name,broker,account_type,currency,initial_balance,archived,environment FROM journal_accounts WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
-        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived,environment))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived}})).into_response(),
+        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived,environment))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"environment":environment}})).into_response(),
         Ok(None) => not_found(),
         Err(_) => internal(),
     }
@@ -157,6 +157,7 @@ pub async fn update_account(
         || !currency_is_valid(&currency)
         || input.initial_balance < Decimal::ZERO
         || !["journal", "paper", "funded", "live", "demo"].contains(&input.account_type.as_str())
+        || !["PAPER", "DEMO", "LIVE"].contains(&input.environment.as_str())
     {
         return err(
             StatusCode::BAD_REQUEST,
