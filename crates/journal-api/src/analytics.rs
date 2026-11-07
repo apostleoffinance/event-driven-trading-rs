@@ -24,10 +24,8 @@ pub struct AnalyticsQuery {
 struct TradeFact {
     id: String,
     symbol: String,
-    direction: String,
     closed_at: DateTime<Utc>,
     net_pnl: Decimal,
-    risk_amount: Option<Decimal>,
     r_multiple: Option<Decimal>,
     session: Option<String>,
     setup_name: String,
@@ -56,9 +54,9 @@ pub async fn summary(
 
     let facts = sqlx::query_as::<_, TradeFact>(
         r#"
-        SELECT t.id, t.symbol, t.direction, t.closed_at,
+        SELECT t.id, t.symbol, t.closed_at,
           COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
-          t.risk_amount, t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name, t.mfe_r, t.mae_r
+          t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name, t.mfe_r, t.mae_r
         FROM journal_trades t
         LEFT JOIN journal_setups s ON s.owner_id=t.owner_id AND s.id=t.setup_id
         WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
@@ -151,6 +149,14 @@ pub async fn summary(
             .push(fact.net_pnl);
         setups
             .entry(fact.setup_name.clone())
+            .or_default()
+            .push(fact.net_pnl);
+        weekdays
+            .entry(fact.closed_at.format("%A").to_string())
+            .or_default()
+            .push(fact.net_pnl);
+        hours_utc
+            .entry(fact.closed_at.format("%H:00 UTC").to_string())
             .or_default()
             .push(fact.net_pnl);
         if let Some(r) = fact.r_multiple {
