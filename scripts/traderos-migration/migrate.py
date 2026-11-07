@@ -271,7 +271,7 @@ def checklist_by_trade(prefix: Path, trade_ids: set[str]) -> dict[str, list[dict
 
 
 def validate_snapshot(prefix: Path, legacy_user_id: str, account_map: dict[str, str],
-                      setup_map: dict[str, str]) -> dict[str, Any]:
+                      setup_map: dict[str, str], allow_placeholders: bool = False) -> dict[str, Any]:
     manifest = load_json(prefix)
     errors: list[str] = []
     warnings: list[str] = []
@@ -293,7 +293,7 @@ def validate_snapshot(prefix: Path, legacy_user_id: str, account_map: dict[str, 
     for trade in trades:
         if str(trade.get("account_id")) not in source_account_ids:
             errors.append(f"Trade {trade.get('id')} references missing source account")
-        if str(trade.get("account_id")) not in account_map or str(account_map.get(str(trade.get("account_id")), "")).startswith("DRYRUN:"):
+        if str(trade.get("account_id")) not in account_map or (not allow_placeholders and str(account_map.get(str(trade.get("account_id")), "")).startswith("DRYRUN:")):
             errors.append(f"Missing destination account mapping for source account {trade.get('account_id')}")
         try:
             make_trade(trade, account_map.get(str(trade.get("account_id")), ""), setup_map, legacy_user_id)
@@ -302,7 +302,7 @@ def validate_snapshot(prefix: Path, legacy_user_id: str, account_map: dict[str, 
         if trade.get("setup_id") and str(trade.get("setup_id")) not in {str(s.get("id")) for s in setups}:
             errors.append(f"Trade {trade.get('id')} references missing setup")
     for setup in setups:
-        if str(setup.get("id")) not in setup_map or str(setup_map.get(str(setup.get("id")), "")).startswith("DRYRUN:"):
+        if str(setup.get("id")) not in setup_map or (not allow_placeholders and str(setup_map.get(str(setup.get("id")), "")).startswith("DRYRUN:")):
             errors.append(f"Missing destination setup mapping for setup {setup.get('id')}")
     for row in psych:
         if str(row.get("trade_id")) not in source_trade_ids:
@@ -360,7 +360,7 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         # Dry-run never mutates checkpoint state or calls the destination API.
         effective_accounts = {**acc_map, **{str(a["id"]): f"DRYRUN:{a['id']}" for a in accounts if str(a["id"]) not in acc_map}}
         effective_setups = {**setup_map, **{str(s["id"]): f"DRYRUN:{s['id']}" for s in setups if str(s["id"]) not in setup_map}}
-        plan = validate_snapshot(prefix, source_user, effective_accounts, effective_setups)
+        plan = validate_snapshot(prefix, source_user, effective_accounts, effective_setups, allow_placeholders=True)
         report["users"].append({"plan": user_plan, "validation": plan})
         report["warnings"].extend(plan["warnings"])
         report["errors"].extend(plan["errors"])
