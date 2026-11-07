@@ -431,13 +431,13 @@ pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Re
         Err(e) => return e.into_response(),
     };
     let rows=sqlx::query_as::<_,(String,String,String,String,bool,DateTime<Utc>,String)>(r#"
-      SELECT d.id,s.name,d.strategy_version,d.account_id,d.enabled,d.created_at,a.account_type
+      SELECT d.id,s.name,d.strategy_version,d.account_id,d.enabled,d.created_at,a.environment
       FROM strategy_deployments d JOIN strategies s ON s.id=d.strategy_id JOIN accounts a ON a.id=d.account_id
       JOIN dashboard_account_access g ON g.account_id=d.account_id
       WHERE g.owner_id=$1 ORDER BY d.created_at DESC
     "#).bind(&owner).fetch_all(state.store.pool()).await;
     match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,account_type)|serde_json::json!({
-      "id":id,"name":name,"version":version,"status":if enabled{"PAPER"}else{"STOPPED"},"environment":if account_type=="simulated"{"PAPER"}else{"SHADOW"},
+      "id":id,"name":name,"version":version,"status":if enabled{environment.as_str()}else{"STOPPED"},"environment":environment,
       "instrumentId":null,"signals":null,"trades":null,"returnPct":null,"sharpe":null,"maxDrawdownPct":null,"winRatePct":null,"profitFactor":null,
       "description":format!("Deployment for account {account}; strategy performance metrics are not yet persisted."),"configuration":[],"recentIntentIds":[],"createdAt":created
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
