@@ -89,6 +89,20 @@ def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
                 elif table == "psychology":
                     sql = """SELECT p.* FROM psychology p JOIN trades t ON t.id=p.trade_id
                              WHERE p.user_id=%s AND t.user_id=%s"""
+                elif table == "mt5_processed_deals":
+                    sql = """SELECT d.id, d.connection_id, d.deal_id, d.trade_id, d.volume,
+                                    d.price, d.profit, d.commission, d.swap, d.processed_at
+                             FROM mt5_processed_deals d
+                             JOIN mt5_connections c ON c.id=d.connection_id
+                             JOIN accounts a ON a.id=c.account_id WHERE a.user_id=%s"""
+                elif table == "broker_candles":
+                    sql = """SELECT b.* FROM broker_candles b
+                             JOIN accounts a ON a.id=b.account_id WHERE a.user_id=%s"""
+                elif table == "mt5_connections":
+                    sql = """SELECT id, user_id, account_id, status, mt5_login, mt5_server,
+                                    broker_name, last_seen_at, last_sync_at, broker_utc_offset_seconds,
+                                    created_at, updated_at, revoked_at
+                             FROM mt5_connections WHERE user_id=%s"""
                 else:
                     sql = f"SELECT * FROM {table} WHERE user_id=%s"
                 args = (legacy_user_id, legacy_user_id) if table in ("trade_screenshots", "psychology") else (legacy_user_id,)
