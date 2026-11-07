@@ -222,10 +222,10 @@ export type PortfolioSnapshot = {
   availableCapital: Money;
   dailyPnl: Money;
   unrealizedPnl: Money;
-  realizedPnl: Money;
+  realizedPnl: Money | null;
   cumulativeReturnPct: number;
   drawdownPct: number;
-  maxDrawdownPct: number;
+  maxDrawdownPct: number | null;
   grossExposure: Money;
   netExposure: Money;
   exposurePct: number;
