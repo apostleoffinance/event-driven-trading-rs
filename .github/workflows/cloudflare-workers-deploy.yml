@@ -37,8 +37,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
+        
       - name: Build Next.js app for Cloudflare
+        env:
+          NEXT_PUBLIC_DATA_MODE: ${{ secrets.NEXT_PUBLIC_DATA_MODE }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: npm run cloudflare:build
 
       - name: Verify Wrangler v4 and generated Worker entrypoint
