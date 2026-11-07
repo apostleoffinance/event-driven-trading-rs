@@ -533,10 +533,18 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
     } else {
         Decimal::ZERO
     };
-    let engine_status = if count == 0 {
-        "DISCONNECTED"
+    // Configuration state is distinct from service availability. Do not report
+    // DISCONNECTED/DEGRADED merely because a user has not configured accounts.
+    let configured = count > 0 && (daily_limit.is_some() || dd_limit.is_some());
+    let engine_status = if configured { "HEALTHY" } else { "NOT_CONFIGURED" };
+    let daily_limit_breached = daily_limit.is_some_and(|limit| daily_loss >= limit);
+    let drawdown_limit_breached = dd_limit.is_some_and(|limit| dd >= limit);
+    let tone = if kill || daily_limit_breached || drawdown_limit_breached {
+        "BREACH"
+    } else if configured {
+        "HEALTHY"
     } else {
-        "DEGRADED"
+        "WARNING"
     };
     Json(serde_json::json!({"data":{
       "engineStatus":engine_status,
@@ -545,7 +553,7 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
       "maxDrawdownPct":dd.to_f64().unwrap_or(0.0),
       "maxDrawdownLimitPct":dd_limit.and_then(|v|v.to_f64()),
       "openRiskPct":null,"exposurePct":null,
-      "killSwitch":kill,"tone":if kill{"BREACH"}else{"WARNING"},"hierarchy":[]
+      "killSwitch":kill,"tone":tone,"hierarchy":[]
     }}))
     .into_response()
 }
@@ -622,22 +630,47 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
     Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({"id":id,"name":name,"status":if id=="api" || (id=="database" && db){"HEALTHY"}else{status},"uptime":"unknown","lastHeartbeat":null,"latencyMs":null,"errorCount":null})).collect::<Vec<_>>()})).into_response()
 }
 pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let _owner = match auth(&state, &headers) {
+    let owner = match auth(&state, &headers) {
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    let stages = [
-        "Market Data",
-        "Strategy",
-        "Trade Intent",
-        "Risk",
-        "OMS",
-        "Venue",
-        "Reconciliation",
-    ];
-    Json(serde_json::json!({"data":stages.iter().enumerate().map(|(i,label)|serde_json::json!({"id":format!("stage-{i}"),"label":label,"status":"DEGRADED","lastActivity":"unknown","metric":"No live activity reported","href":"/system"})).collect::<Vec<_>>()})).into_response()
-}
 
+    let account_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM dashboard_account_access WHERE owner_id=$1",
+    )
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+
+    let account_count = match account_count {
+        Ok(count) => count,
+        Err(_) => return internal(),
+    };
+
+    // There is no persisted end-to-end pipeline telemetry yet. Return an honest
+    // empty state when the user has no accounts, and UNKNOWN (not DEGRADED) when
+    // account-specific activity cannot be measured.
+    if account_count == 0 {
+        return Json(serde_json::json!({"data":[]})).into_response();
+    }
+
+    let stages = [
+        ("market-data", "Market updates"),
+        ("strategy", "Strategy signals"),
+        ("risk", "Risk checks"),
+        ("orders", "Order activity"),
+        ("venue", "Broker execution"),
+        ("reconciliation", "Trade reconciliation"),
+    ];
+    Json(serde_json::json!({"data":stages.iter().map(|(id,label)|serde_json::json!({
+        "id":id,
+        "label":label,
+        "status":"UNKNOWN",
+        "lastActivity":null,
+        "metric":"Activity status is not available yet",
+        "href":"/system"
+    })).collect::<Vec<_>>()})).into_response()
+}
 #[cfg(test)]
 mod tests {
     use super::status_case;
