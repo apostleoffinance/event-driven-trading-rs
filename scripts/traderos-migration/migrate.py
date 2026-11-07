@@ -69,52 +69,46 @@ def connect_source(dsn: str):
     return conn
 
 
-def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
-    """Extract account-owned history, analytics and MT5 evidence; never auth secrets."""
+def source_snapshot(dsn: str, legacy_user_id: str, out: Path, source_storage: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Extract account-owned history and optionally download remote screenshots."""
     conn = connect_source(dsn)
     files_dir = out.with_suffix("").with_name(out.stem + "_screenshot_files")
     counts: dict[str, int] = {}
     screenshot_manifest: list[dict[str, Any]] = []
+    s3_client = None
+    if source_storage and source_storage.get("bucket") and source_storage.get("access_key_id") and source_storage.get("secret_access_key"):
+        import boto3
+        s3_client = boto3.client("s3", endpoint_url=source_storage.get("endpoint_url"),
+            region_name=source_storage.get("region", "auto"),
+            aws_access_key_id=source_storage["access_key_id"],
+            aws_secret_access_key=source_storage["secret_access_key"])
     try:
         with conn.transaction():
             for table in SOURCE_TABLES:
                 if table == "account_risk_profiles":
-                    sql = """SELECT arp.* FROM account_risk_profiles arp
-                             JOIN accounts a ON a.id=arp.account_id WHERE a.user_id=%s"""
+                    sql = """SELECT arp.* FROM account_risk_profiles arp JOIN accounts a ON a.id=arp.account_id WHERE a.user_id=%s"""
                     args = (legacy_user_id,)
                 elif table == "checklist_items":
-                    sql = """SELECT ci.* FROM checklist_items ci JOIN checklist_templates ct
-                             ON ct.id=ci.template_id WHERE ct.user_id=%s"""
+                    sql = """SELECT ci.* FROM checklist_items ci JOIN checklist_templates ct ON ct.id=ci.template_id WHERE ct.user_id=%s"""
                     args = (legacy_user_id,)
                 elif table == "trade_checklist_responses":
-                    sql = """SELECT r.* FROM trade_checklist_responses r JOIN trades t
-                             ON t.id=r.trade_id WHERE t.user_id=%s"""
+                    sql = """SELECT r.* FROM trade_checklist_responses r JOIN trades t ON t.id=r.trade_id WHERE t.user_id=%s"""
                     args = (legacy_user_id,)
                 elif table == "trade_screenshots":
-                    sql = """SELECT s.* FROM trade_screenshots s JOIN trades t ON t.id=s.trade_id
-                             WHERE s.user_id=%s AND t.user_id=%s"""
+                    sql = """SELECT s.* FROM trade_screenshots s JOIN trades t ON t.id=s.trade_id WHERE s.user_id=%s AND t.user_id=%s"""
                     args = (legacy_user_id, legacy_user_id)
                 elif table == "psychology":
-                    sql = """SELECT p.* FROM psychology p JOIN trades t ON t.id=p.trade_id
-                             WHERE p.user_id=%s AND t.user_id=%s"""
+                    sql = """SELECT p.* FROM psychology p JOIN trades t ON t.id=p.trade_id WHERE p.user_id=%s AND t.user_id=%s"""
                     args = (legacy_user_id, legacy_user_id)
                 elif table == "mt5_processed_deals":
-                    sql = """SELECT d.id, d.connection_id, d.deal_id, d.trade_id, d.volume,
-                                    d.price, d.profit, d.commission, d.swap, d.processed_at
-                             FROM mt5_processed_deals d
-                             JOIN mt5_connections c ON c.id=d.connection_id
-                             JOIN accounts a ON a.id=c.account_id WHERE a.user_id=%s"""
+                    sql = """SELECT d.id, d.connection_id, d.deal_id, d.trade_id, d.volume, d.price, d.profit, d.commission, d.swap, d.processed_at FROM mt5_processed_deals d JOIN mt5_connections c ON c.id=d.connection_id JOIN accounts a ON a.id=c.account_id WHERE a.user_id=%s"""
                     args = (legacy_user_id,)
                 elif table == "broker_candles":
-                    sql = """SELECT b.* FROM broker_candles b
-                             JOIN accounts a ON a.id=b.account_id WHERE a.user_id=%s"""
+                    sql = """SELECT b.* FROM broker_candles b JOIN accounts a ON a.id=b.account_id WHERE a.user_id=%s"""
                     args = (legacy_user_id,)
                 elif table == "mt5_connections":
-                    # Explicit allowlist: token_hash and token_prefix are never selected.
-                    sql = """SELECT id, user_id, account_id, status, mt5_login, mt5_server,
-                                    broker_name, last_seen_at, last_sync_at, broker_utc_offset_seconds,
-                                    created_at, updated_at, revoked_at
-                             FROM mt5_connections WHERE user_id=%s"""
+                    # Token hash and token prefix are intentionally never selected.
+                    sql = """SELECT id, user_id, account_id, status, mt5_login, mt5_server, broker_name, last_seen_at, last_sync_at, broker_utc_offset_seconds, created_at, updated_at, revoked_at FROM mt5_connections WHERE user_id=%s"""
                     args = (legacy_user_id,)
                 else:
                     sql = f"SELECT * FROM {table} WHERE user_id=%s"
@@ -125,40 +119,36 @@ def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
                     item = dict(row)
                     if table == "trade_screenshots":
                         binary = item.pop("file_data", None)
-                        key = str(item.get("id", "unknown"))
+                        screenshot_id = str(item.get("id", "unknown"))
+                        if not binary and s3_client and item.get("storage_key"):
+                            try:
+                                response = s3_client.get_object(Bucket=source_storage["bucket"], Key=item["storage_key"])
+                                binary = response["Body"].read()
+                            except Exception as exc:
+                                item["source_object_error"] = type(exc).__name__
                         if binary:
                             files_dir.mkdir(parents=True, exist_ok=True)
-                            target = files_dir / f"{key}.bin"
+                            target = files_dir / f"{screenshot_id}.bin"
                             target.write_bytes(binary)
                             digest = hashlib.sha256(binary).hexdigest()
                             item.update(file_path=str(target), file_sha256=digest, file_size=len(binary))
-                        screenshot_manifest.append({
-                            "id": key, "trade_id": str(item.get("trade_id")),
-                            "has_binary": bool(item.get("file_path")),
-                            "sha256": item.get("file_sha256"),
-                            "byte_size": item.get("file_size"),
-                            "remote_key": item.get("storage_key") or item.get("file_path"),
-                        })
+                        screenshot_manifest.append({"id": screenshot_id, "trade_id": str(item.get("trade_id")),
+                            "has_binary": bool(item.get("file_path")), "sha256": item.get("file_sha256"),
+                            "byte_size": item.get("file_size"), "remote_key": item.get("storage_key")})
                     clean_rows.append(json_value(item))
                 dump_json(out.with_suffix("").with_name(f"{out.stem}_{table}.json"), clean_rows)
                 counts[table] = len(clean_rows)
     finally:
         conn.close()
     manifest = {
-        "format": SOURCE_FORMAT,
-        "created_at": datetime.now().astimezone().isoformat(),
-        "source_user_id": str(legacy_user_id),
-        "tables": counts,
-        "screenshots": screenshot_manifest,
-        "screenshot_files_dir": str(files_dir) if files_dir.exists() else None,
-        "snapshot_prefix": out.stem,
-        "excluded_global_reference_tables": ["market_candles"],
-        "excluded_sensitive_tables": ["users"],
+        "format": SOURCE_FORMAT, "created_at": datetime.now().astimezone().isoformat(),
+        "source_user_id": str(legacy_user_id), "tables": counts, "screenshots": screenshot_manifest,
+        "screenshot_files_dir": str(files_dir) if files_dir.exists() else None, "snapshot_prefix": out.stem,
+        "excluded_global_reference_tables": ["market_candles"], "excluded_sensitive_tables": ["users"],
         "sensitive_columns_excluded": {"mt5_connections": ["token_hash", "token_prefix"]},
     }
     dump_json(out, manifest)
     return manifest
-
 
 def parse_time(value: Any) -> str | None:
     if value is None:
