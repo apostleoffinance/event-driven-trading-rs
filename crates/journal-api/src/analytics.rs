@@ -144,7 +144,9 @@ pub async fn summary(
     let mut total_mae_r = Decimal::ZERO;
     let mut mae_count = 0usize;
     let mut setup_valid_count = 0usize;
+    let mut setup_valid_known = 0usize;
     let mut rules_followed_count = 0usize;
+    let mut rules_followed_known = 0usize;
     let mut emotional_trade_count = 0usize;
     let mut mistake_count = 0usize;
     let mut total_discipline = 0i64;
@@ -182,12 +184,8 @@ pub async fn summary(
             total_mae_r += r;
             mae_count += 1;
         }
-        if fact.setup_valid == Some(true) {
-            setup_valid_count += 1;
-        }
-        if fact.rules_followed == Some(true) {
-            rules_followed_count += 1;
-        }
+        if let Some(valid) = fact.setup_valid { setup_valid_known += 1; if valid { setup_valid_count += 1; } }
+        if let Some(followed) = fact.rules_followed { rules_followed_known += 1; if followed { rules_followed_count += 1; } }
         if fact.emotional_trade == Some(true) {
             emotional_trade_count += 1;
         }
@@ -224,8 +222,8 @@ pub async fn summary(
         "average_mfe_r":if mfe_count>0 {Some((total_mfe_r/Decimal::from(mfe_count as u64)).to_string())} else {None},
         "average_mae_r":if mae_count>0 {Some((total_mae_r/Decimal::from(mae_count as u64)).to_string())} else {None},
         "setup_valid_count":setup_valid_count,"rules_followed_count":rules_followed_count,"emotional_trade_count":emotional_trade_count,"mistake_count":mistake_count,
-        "setup_valid_percent":(Decimal::from(setup_valid_count as u64)*Decimal::from(100)/Decimal::from(facts.len() as u64)).to_string(),
-        "rules_followed_percent":(Decimal::from(rules_followed_count as u64)*Decimal::from(100)/Decimal::from(facts.len() as u64)).to_string(),
+        "setup_valid_percent":if setup_valid_known>0 {Some((Decimal::from(setup_valid_count as u64)*Decimal::from(100)/Decimal::from(setup_valid_known as u64)).to_string())} else {None},
+        "rules_followed_percent":if rules_followed_known>0 {Some((Decimal::from(rules_followed_count as u64)*Decimal::from(100)/Decimal::from(rules_followed_known as u64)).to_string())} else {None},
         "average_discipline_score":if discipline_count>0 {Some((Decimal::from(total_discipline)/Decimal::from(discipline_count as u64)).to_string())} else {None},
         "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
