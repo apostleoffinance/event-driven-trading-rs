@@ -118,7 +118,7 @@ export function Topbar({
               ) : (
                 <>
                   <Link href="/login" role="menuitem" className="account-menu-item" onClick={() => setAccountOpen(false)}>Sign in</Link>
-                  <Link href="/register" role="menuitem" className="account-menu-item" onClick={() => setAccountOpen(false)}>Create account</Link>
+                  <Link href="/login" role="menuitem" className="account-menu-item" onClick={() => setAccountOpen(false)}>Register (on sign-in page)</Link>
                 </>
               )}
             </div>
