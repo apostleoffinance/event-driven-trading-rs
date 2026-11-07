@@ -16,6 +16,7 @@ import time
 import tempfile
 import zipfile
 from datetime import date, datetime
+from uuid import UUID
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,8 @@ def json_value(value: Any) -> Any:
     if isinstance(value, (datetime, date)):
         return value.isoformat()
     if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, UUID):
         return str(value)
     if isinstance(value, bytes):
         return {"__binary_sha256__": hashlib.sha256(value).hexdigest(), "__binary_size__": len(value)}
@@ -185,6 +188,10 @@ def api_request(base: str, token: str, method: str, path: str, body: Any = None,
             continue
         if response.status_code >= 400:
             # Never include response body: gateways sometimes echo sensitive request data.
+            if response.status_code == 401:
+                raise RuntimeError(f"{method} {path} failed with HTTP 401: EdgeNest JWT is invalid, expired, or not accepted by this API")
+            if response.status_code == 403:
+                raise RuntimeError(f"{method} {path} failed with HTTP 403: authenticated identity is not authorized")
             raise RuntimeError(f"{method} {path} failed with HTTP {response.status_code}")
         if response.status_code == 204 or not response.content:
             return None
@@ -193,6 +200,35 @@ def api_request(base: str, token: str, method: str, path: str, body: Any = None,
         except ValueError as exc:
             raise RuntimeError(f"{method} {path} returned invalid JSON") from exc
     raise RuntimeError(f"Retry exhaustion for {method} {path}")
+
+
+def check_destination(base: str, token: str) -> dict[str, Any]:
+    """Check API liveness/readiness and verify JWT on an owner-scoped read route."""
+    if not base.startswith("https://") and not base.startswith("http://localhost"):
+        raise RuntimeError("EdgeNest API URL must use HTTPS (localhost is allowed for tests)")
+    parts = token.split(".")
+    if len(parts) != 3 or not all(parts):
+        raise RuntimeError("EdgeNest access token is not a JWT (expected three non-empty dot-separated segments); obtain a fresh EdgeNest Identity access token")
+    try:
+        import requests
+    except ImportError as exc:
+        raise SystemExit("Missing requests. Install scripts/traderos-migration/requirements.txt") from exc
+
+    result: dict[str, Any] = {"api_url": base.rstrip("/"), "liveness": None, "readiness": None,
+                              "authentication": None}
+    for name, route in (("liveness", "/healthz"), ("readiness", "/readyz")):
+        try:
+            response = requests.get(base.rstrip("/") + route, timeout=(10, 30))
+        except requests.RequestException as exc:
+            raise RuntimeError(f"EdgeNest {name} check failed: {type(exc).__name__}") from exc
+        if response.status_code >= 400:
+            raise RuntimeError(f"EdgeNest {name} check failed with HTTP {response.status_code}")
+        result[name] = f"HTTP {response.status_code}"
+
+    # Read-only route: verifies JWT signature, issuer, audience, expiry and owner scope.
+    api_request(base, token, "GET", "/api/v1/journal/accounts")
+    result["authentication"] = "passed (authenticated journal accounts read)"
+    return result
 
 
 def read_table(prefix: Path, table: str) -> list[dict[str, Any]]:
@@ -438,6 +474,13 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         report["complete"] = not report["errors"]
         return report
 
+    # Validate destination before any archive upload or destination write.
+    try:
+        report["destination_preflight"] = check_destination(base, token)
+    except Exception as exc:
+        report["errors"].append(f"Destination authentication/readiness preflight failed: {exc}")
+        return report
+
     # Validate the complete source snapshot before creating any destination data.
     preflight_accounts = {**acc_map, **{str(a["id"]): f"DRYRUN:{a['id']}" for a in accounts if str(a["id"]) not in acc_map}}
     preflight_setups = {**setup_map, **{str(s["id"]): f"DRYRUN:{s['id']}" for s in setups if str(s["id"]) not in setup_map}}
@@ -626,6 +669,9 @@ def main() -> int:
     ex.add_argument("--user-id", required=True)
     ex.add_argument("--out", type=Path, required=True)
     ex.add_argument("--source-storage-config", type=Path, help="Private JSON config for downloading remote TraderOS screenshots")
+    auth_cmd = sub.add_parser("auth-check", help="Read-only EdgeNest API readiness and JWT authentication check")
+    auth_cmd.add_argument("--snapshot", type=Path, required=True)
+    auth_cmd.add_argument("--config", type=Path, required=True)
     for name in ("plan", "apply"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--snapshot", type=Path, required=True)
@@ -641,6 +687,20 @@ def main() -> int:
         return 0
     config = load_json(args.config)
     prefix = args.snapshot
+    if args.command == "auth-check":
+        manifest = load_json(prefix)
+        user_id = str(manifest["source_user_id"])
+        token = config.get("owner_map", {}).get(user_id, {}).get("jwt")
+        if not token:
+            print(json.dumps({"valid": False, "error": "Missing EdgeNest owner/JWT mapping for snapshot user"}, indent=2))
+            return 2
+        try:
+            result = check_destination(str(config.get("edgenest_api_url", "")).strip(), token)
+            print(json.dumps({"valid": True, **result}, indent=2))
+            return 0
+        except Exception as exc:
+            print(json.dumps({"valid": False, "error": str(exc)}, indent=2))
+            return 2
     if args.command == "plan":
         # Planning is a source-snapshot preflight, not a check for destination
         # IDs that can only be created during apply. Use explicit temporary IDs
