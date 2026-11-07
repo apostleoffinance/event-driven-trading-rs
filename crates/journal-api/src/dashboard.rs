@@ -58,7 +58,14 @@ fn risk_status(
     } else {
         "WARNING"
     };
-    (if configured { "HEALTHY" } else { "NOT_CONFIGURED" }, tone)
+    (
+        if configured {
+            "HEALTHY"
+        } else {
+            "NOT_CONFIGURED"
+        },
+        tone,
+    )
 }
 
 fn status_case(v: &str) -> String {
@@ -704,11 +711,25 @@ mod tests {
             ("NOT_CONFIGURED", "WARNING")
         );
         assert_eq!(
-            super::risk_status(true, false, Decimal::from(2), Some(Decimal::from(5)), Decimal::from(1), Some(Decimal::from(10))),
+            super::risk_status(
+                true,
+                false,
+                Decimal::from(2),
+                Some(Decimal::from(5)),
+                Decimal::from(1),
+                Some(Decimal::from(10))
+            ),
             ("HEALTHY", "HEALTHY")
         );
         assert_eq!(
-            super::risk_status(true, false, Decimal::from(5), Some(Decimal::from(5)), Decimal::ZERO, None),
+            super::risk_status(
+                true,
+                false,
+                Decimal::from(5),
+                Some(Decimal::from(5)),
+                Decimal::ZERO,
+                None
+            ),
             ("HEALTHY", "BREACH")
         );
         assert_eq!(
