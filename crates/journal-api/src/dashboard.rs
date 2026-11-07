@@ -68,6 +68,15 @@ fn risk_status(
     )
 }
 
+fn system_component_status(id: &str, database_healthy: bool) -> &'static str {
+    match id {
+        "api" => "HEALTHY",
+        "database" if database_healthy => "HEALTHY",
+        "database" => "ERROR",
+        _ => "UNKNOWN",
+    }
+}
+
 fn venue_connection_status(enabled: bool) -> &'static str {
     if enabled {
         "UNKNOWN"
@@ -652,7 +661,7 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
     Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({
         "id":id,
         "name":name,
-        "status":if id=="api" { "HEALTHY" } else if id=="database" && db { "HEALTHY" } else if id=="database" { "ERROR" } else { "UNKNOWN" },
+        "status":system_component_status(id, db),
         "uptime":null,
         "lastHeartbeat":null,
         "latencyMs":null,
@@ -741,6 +750,14 @@ mod tests {
             super::risk_status(true, true, Decimal::ZERO, None, Decimal::ZERO, None),
             ("HEALTHY", "BREACH")
         );
+    }
+
+    #[test]
+    fn system_health_reports_only_observed_components() {
+        assert_eq!(super::system_component_status("api", false), "HEALTHY");
+        assert_eq!(super::system_component_status("database", true), "HEALTHY");
+        assert_eq!(super::system_component_status("database", false), "ERROR");
+        assert_eq!(super::system_component_status("risk", true), "UNKNOWN");
     }
 
     #[test]
