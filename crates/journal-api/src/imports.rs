@@ -61,6 +61,8 @@ pub async fn import_trades(
             None=>return (StatusCode::BAD_REQUEST,Json(serde_json::json!({"error":{"code":"source_id_required","message":"Every imported trade must contain source_trade_id for idempotency"}}))).into_response(),
         };
         let mut write = write;
+        let checklist_payload = write.checklist.clone();
+        let source_payload = write.source_payload.clone();
         write.journal_account_id = input.journal_account_id.clone();
         write.source_system = Some(source_system.to_owned());
         write.source_trade_id = Some(external_id.clone());
@@ -98,8 +100,8 @@ pub async fn import_trades(
         let inserted=sqlx::query(r#"
             INSERT INTO journal_trades(id,owner_id,journal_account_id,setup_id,symbol,direction,status,source,
               source_system,source_trade_id,opened_at,closed_at,quantity,entry_price,exit_price,stop_loss,take_profit,
-              gross_pnl,commission,swap,other_fees,net_pnl,pnl_currency,risk_amount,r_multiple,session,timeframe,timezone,mfe_r,mae_r,notes,tags,setup_valid,rules_followed,emotional_trade,mistake,mistake_notes,discipline_score,acknowledged_warnings)
-            VALUES($1,$2,$3,$4,$5,$6,$7,'legacy_import',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)
+              gross_pnl,commission,swap,other_fees,net_pnl,pnl_currency,risk_amount,r_multiple,session,timeframe,timezone,mfe_r,mae_r,notes,tags,setup_valid,rules_followed,emotional_trade,mistake,mistake_notes,discipline_score,acknowledged_warnings,checklist,source_payload)
+            VALUES($1,$2,$3,$4,$5,$6,$7,'legacy_import',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40)
             ON CONFLICT (journal_account_id,source_system,source_trade_id)
               WHERE source_system IS NOT NULL AND source_trade_id IS NOT NULL DO NOTHING
             RETURNING id
@@ -109,6 +111,7 @@ pub async fn import_trades(
         .bind(trade.quantity).bind(trade.entry_price).bind(trade.exit_price).bind(trade.stop_loss).bind(trade.take_profit)
         .bind(trade.gross_pnl).bind(trade.commission).bind(trade.swap).bind(trade.other_fees).bind(trade.net_pnl)
         .bind(&trade.pnl_currency).bind(trade.risk_amount).bind(trade.r_multiple).bind(&trade.session).bind(&trade.timeframe).bind(&trade.timezone).bind(trade.mfe_r).bind(trade.mae_r).bind(&trade.notes).bind(sqlx::types::Json(&trade.tags)).bind(trade.setup_valid).bind(trade.rules_followed).bind(trade.emotional_trade).bind(trade.mistake).bind(&trade.mistake_notes).bind(trade.discipline_score).bind(sqlx::types::Json(&trade.acknowledged_warnings))
+        .bind(sqlx::types::Json(&checklist_payload)).bind(sqlx::types::Json(&source_payload))
         .fetch_optional(&mut *tx).await;
         match inserted {
             Ok(Some(row)) => {

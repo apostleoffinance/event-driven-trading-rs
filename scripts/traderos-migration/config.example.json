@@ -1,0 +1,17 @@
+{
+  "edgenest_api_url": "https://edgenest-api.onrender.com",
+  "state_file": "./migration-state.json",
+  "report_file": "./migration-report.json",
+  "owner_map": {
+    "TRADEROS_USER_UUID": { "jwt": "PASTE_EDGE_NEST_JWT_HERE" }
+  },
+  "object_storage": {
+    "provider": "r2",
+    "endpoint_url": "https://<account-id>.r2.cloudflarestorage.com",
+    "region": "auto",
+    "bucket": "edgenest-journal-attachments",
+    "prefix": "traderos-migration",
+    "access_key_id": "R2_ACCESS_KEY_ID",
+    "secret_access_key": "R2_SECRET_ACCESS_KEY"
+  }
+}

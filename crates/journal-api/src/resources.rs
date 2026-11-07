@@ -48,6 +48,12 @@ pub struct AccountWrite {
     pub currency: String,
     #[serde(default)]
     pub initial_balance: Decimal,
+    #[serde(default)]
+    pub external_source: Option<String>,
+    #[serde(default)]
+    pub external_account_id: Option<String>,
+    #[serde(default = "default_rules_json")]
+    pub migration_metadata: Value,
 }
 fn default_account_type() -> String {
     "journal".into()
@@ -86,6 +92,8 @@ pub async fn create_account(
         || !currency_is_valid(&currency)
         || input.initial_balance < Decimal::ZERO
         || !["journal", "paper", "funded", "live", "demo"].contains(&input.account_type.as_str())
+        || !input.migration_metadata.is_object()
+        || (input.external_source.is_some() != input.external_account_id.is_some())
     {
         return err(
             StatusCode::BAD_REQUEST,
@@ -94,10 +102,17 @@ pub async fn create_account(
         );
     }
     let id = uuid::Uuid::new_v4().to_string();
-    match sqlx::query("INSERT INTO journal_accounts(id,owner_id,name,broker,account_type,currency,initial_balance) VALUES($1,$2,$3,$4,$5,$6,$7)")
-        .bind(&id).bind(claims.sub).bind(name).bind(input.broker).bind(input.account_type).bind(&currency).bind(input.initial_balance)
-        .execute(state.store.pool()).await {
-        Ok(_) => (StatusCode::CREATED, Json(serde_json::json!({"data":{"id":id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string()}}))).into_response(),
+    let inserted = sqlx::query("INSERT INTO journal_accounts(id,owner_id,name,broker,account_type,currency,initial_balance,external_source,external_account_id,migration_metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (owner_id,external_source,external_account_id) DO NOTHING")
+        .bind(&id).bind(&claims.sub).bind(name).bind(input.broker).bind(input.account_type).bind(&currency).bind(input.initial_balance)
+        .bind(&input.external_source).bind(&input.external_account_id).bind(&input.migration_metadata)
+        .execute(state.store.pool()).await;
+    match inserted {
+        Ok(result) if result.rows_affected() == 1 => (StatusCode::CREATED, Json(serde_json::json!({"data":{"id":id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string()}}))).into_response(),
+        Ok(_) => match sqlx::query_scalar::<_,String>("SELECT id FROM journal_accounts WHERE owner_id=$1 AND external_source=$2 AND external_account_id=$3")
+            .bind(&claims.sub).bind(&input.external_source).bind(&input.external_account_id).fetch_optional(state.store.pool()).await {
+            Ok(Some(existing_id)) => (StatusCode::OK, Json(serde_json::json!({"data":{"id":existing_id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string(),"already_imported":true}}))).into_response(),
+            _ => internal(),
+        },
         Err(_) => internal(),
     }
 }

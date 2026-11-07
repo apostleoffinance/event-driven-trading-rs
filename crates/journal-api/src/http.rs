@@ -68,12 +68,19 @@ pub struct TradeWrite {
     pub discipline_score: Option<i16>,
     #[serde(default)]
     pub acknowledged_warnings: Vec<String>,
+    #[serde(default = "default_json_object")]
+    pub checklist: serde_json::Value,
+    #[serde(default = "default_json_object")]
+    pub source_payload: serde_json::Value,
 }
 fn default_source() -> JournalTradeSource {
     JournalTradeSource::Manual
 }
 fn default_currency() -> String {
     "USD".into()
+}
+fn default_json_object() -> serde_json::Value {
+    serde_json::json!({})
 }
 
 fn owner(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
