@@ -140,7 +140,7 @@ pub async fn positions(State(state):State<AppState>,headers:HeaderMap)->Response
     "#).bind(&owner).fetch_all(state.store.pool()).await;
     match rows { Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,account,symbol,side,qty,entry,mark,realized,opened)|{
       let unrealized=if side=="long"{(mark-entry)*qty}else{(entry-mark)*qty};
-      serde_json::json!({"id":id,"accountId":account,"strategyId":"unassigned","instrumentId":symbol,"side":if side=="long"{"Long"}else{"Short"},"quantity":dec(qty),"entryPrice":dec(entry),"markPrice":dec(mark),"unrealizedPnl":dec(unrealized),"realizedPnl":dec(realized),"exposure":dec((mark*qty).abs()),"riskPct":0.0,"openedAt":opened})
+      serde_json::json!({"id":id,"accountId":account,"strategyId":null,"instrumentId":symbol,"side":if side=="long"{"Long"}else{"Short"},"quantity":dec(qty),"entryPrice":dec(entry),"markPrice":dec(mark),"unrealizedPnl":dec(unrealized),"realizedPnl":dec(realized),"exposure":dec((mark*qty).abs()),"riskPct":null,"openedAt":opened})
     }).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
@@ -170,7 +170,7 @@ pub async fn strategies(State(state):State<AppState>,headers:HeaderMap)->Respons
     "#).bind(&owner).fetch_all(state.store.pool()).await;
     match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,account_type)|serde_json::json!({
       "id":id,"name":name,"version":version,"status":if enabled{"PAPER"}else{"STOPPED"},"environment":if account_type=="simulated"{"PAPER"}else{"SHADOW"},
-      "instrumentId":"unassigned","signals":0,"trades":0,"returnPct":0.0,"sharpe":0.0,"maxDrawdownPct":0.0,"winRatePct":0.0,"profitFactor":0.0,
+      "instrumentId":null,"signals":null,"trades":null,"returnPct":null,"sharpe":null,"maxDrawdownPct":null,"winRatePct":null,"profitFactor":null,
       "description":format!("Deployment for account {account}; strategy performance metrics are not yet persisted."),"configuration":[],"recentIntentIds":[],"createdAt":created
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
