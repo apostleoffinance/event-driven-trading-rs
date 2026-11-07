@@ -44,6 +44,8 @@ pub struct AccountWrite {
     pub broker: Option<String>,
     #[serde(default = "default_account_type")]
     pub account_type: String,
+    #[serde(default = "default_environment")]
+    pub environment: String,
     #[serde(default = "default_currency")]
     pub currency: String,
     #[serde(default)]
@@ -58,6 +60,9 @@ pub struct AccountWrite {
 fn default_account_type() -> String {
     "journal".into()
 }
+fn default_environment() -> String {
+    "PAPER".into()
+}
 fn default_currency() -> String {
     "USD".into()
 }
@@ -67,11 +72,11 @@ pub async fn list_accounts(State(state): State<AppState>, headers: HeaderMap) ->
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool)>(
-        "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
+    match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool, String)>(
+        "SELECT id,name,broker,account_type,currency,initial_balance,archived,environment FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
         .bind(claims.sub).fetch_all(state.store.pool()).await {
-        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,broker,account_type,currency,initial_balance,archived)|serde_json::json!({
-            "id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived
+        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,broker,account_type,currency,initial_balance,archived,environment)|serde_json::json!({
+            "id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"environment":environment
         })).collect::<Vec<_>>()})).into_response(),
         Err(_) => internal(),
     }
@@ -92,6 +97,7 @@ pub async fn create_account(
         || !currency_is_valid(&currency)
         || input.initial_balance < Decimal::ZERO
         || !["journal", "paper", "funded", "live", "demo"].contains(&input.account_type.as_str())
+        || !["PAPER", "DEMO", "LIVE"].contains(&input.environment.as_str())
         || !input.migration_metadata.is_object()
         || (input.external_source.is_some() != input.external_account_id.is_some())
     {
@@ -102,12 +108,12 @@ pub async fn create_account(
         );
     }
     let id = uuid::Uuid::new_v4().to_string();
-    let inserted = sqlx::query("INSERT INTO journal_accounts(id,owner_id,name,broker,account_type,currency,initial_balance,external_source,external_account_id,migration_metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (owner_id,external_source,external_account_id) DO NOTHING")
+    let inserted = sqlx::query("INSERT INTO journal_accounts(id,owner_id,name,broker,account_type,currency,initial_balance,external_source,external_account_id,migration_metadata,environment) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (owner_id,external_source,external_account_id) DO NOTHING")
         .bind(&id).bind(&claims.sub).bind(name).bind(input.broker).bind(input.account_type).bind(&currency).bind(input.initial_balance)
-        .bind(&input.external_source).bind(&input.external_account_id).bind(&input.migration_metadata)
+        .bind(&input.external_source).bind(&input.external_account_id).bind(&input.migration_metadata).bind(&input.environment)
         .execute(state.store.pool()).await;
     match inserted {
-        Ok(result) if result.rows_affected() == 1 => (StatusCode::CREATED, Json(serde_json::json!({"data":{"id":id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string()}}))).into_response(),
+        Ok(result) if result.rows_affected() == 1 => (StatusCode::CREATED, Json(serde_json::json!({"data":{"id":id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string(),"environment":input.environment}}))).into_response(),
         Ok(_) => match sqlx::query_scalar::<_,String>("SELECT id FROM journal_accounts WHERE owner_id=$1 AND external_source=$2 AND external_account_id=$3")
             .bind(&claims.sub).bind(&input.external_source).bind(&input.external_account_id).fetch_optional(state.store.pool()).await {
             Ok(Some(existing_id)) => (StatusCode::OK, Json(serde_json::json!({"data":{"id":existing_id,"name":name,"currency":currency,"initial_balance":input.initial_balance.to_string(),"already_imported":true}}))).into_response(),
@@ -127,9 +133,9 @@ pub async fn get_account(
         Err(e) => return e.into_response(),
     };
     match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool)>(
-        "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND id=$2")
+        "SELECT id,name,broker,account_type,currency,initial_balance,archived,environment FROM journal_accounts WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
-        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived}})).into_response(),
+        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived,environment))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived}})).into_response(),
         Ok(None) => not_found(),
         Err(_) => internal(),
     }
@@ -158,8 +164,8 @@ pub async fn update_account(
             "name, currency, account_type, or initial_balance is invalid",
         );
     }
-    match sqlx::query("UPDATE journal_accounts SET name=$3,broker=$4,account_type=$5,currency=$6,initial_balance=$7,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
-        .bind(claims.sub).bind(id).bind(name).bind(input.broker).bind(input.account_type).bind(currency).bind(input.initial_balance)
+    match sqlx::query("UPDATE journal_accounts SET name=$3,broker=$4,account_type=$5,currency=$6,initial_balance=$7,environment=$8,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE")
+        .bind(claims.sub).bind(id).bind(name).bind(input.broker).bind(input.account_type).bind(currency).bind(input.initial_balance).bind(input.environment)
         .execute(state.store.pool()).await {
         Ok(r) if r.rows_affected()==1 => StatusCode::NO_CONTENT.into_response(),
         Ok(_) => not_found(),
