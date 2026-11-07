@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS journal_accounts (
                                 CHECK (currency ~ '^[A-Z]{3}$'),
     initial_balance         NUMERIC(38, 18) NOT NULL DEFAULT 0
                                 CHECK (initial_balance >= 0),
-    linked_trading_account_id TEXT REFERENCES accounts(id),
+    linked_trading_account_id TEXT,
     external_source         TEXT,
     external_account_id     TEXT,
     archived                BOOLEAN NOT NULL DEFAULT FALSE,
