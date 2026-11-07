@@ -1,5 +1,10 @@
 //! Owner-scoped journal process intelligence and statistical sample warnings.
-use axum::{extract::{Query, State}, http::{HeaderMap, StatusCode}, response::{IntoResponse, Response}, Json};
+use axum::{
+    extract::{Query, State},
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    Json,
+};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -25,7 +30,9 @@ struct Fact {
 }
 
 fn wilson_interval(wins: usize, n: usize) -> Option<(f64, f64)> {
-    if n == 0 { return None; }
+    if n == 0 {
+        return None;
+    }
     let z = 1.959_963_984_540_054_f64;
     let p = wins as f64 / n as f64;
     let nf = n as f64;
@@ -50,7 +57,8 @@ pub async fn summary(
         }))).into_response();
     }
 
-    let rows = sqlx::query_as::<_, Fact>(r#"
+    let rows = sqlx::query_as::<_, Fact>(
+        r#"
         SELECT COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
           t.rules_followed, t.setup_valid, t.emotional_trade, t.mistake, t.discipline_score
         FROM journal_trades t
@@ -60,9 +68,14 @@ pub async fn summary(
           AND ($3::TIMESTAMPTZ IS NULL OR t.closed_at >= $3)
           AND ($4::TIMESTAMPTZ IS NULL OR t.closed_at <= $4)
         ORDER BY t.closed_at ASC, t.id ASC
-    "#)
-    .bind(&claims.sub).bind(query.journal_account_id.as_deref()).bind(query.from).bind(query.to)
-    .fetch_all(state.store.pool()).await;
+    "#,
+    )
+    .bind(&claims.sub)
+    .bind(query.journal_account_id.as_deref())
+    .bind(query.from)
+    .bind(query.to)
+    .fetch_all(state.store.pool())
+    .await;
 
     let rows = match rows {
         Ok(rows) => rows,
@@ -76,20 +89,44 @@ pub async fn summary(
     let losses = rows.iter().filter(|r| r.net_pnl < Decimal::ZERO).count();
     let breakeven = n.saturating_sub(wins + losses);
     let known_rules = rows.iter().filter(|r| r.rules_followed.is_some()).count();
-    let rules_ok = rows.iter().filter(|r| r.rules_followed == Some(true)).count();
+    let rules_ok = rows
+        .iter()
+        .filter(|r| r.rules_followed == Some(true))
+        .count();
     let known_valid = rows.iter().filter(|r| r.setup_valid.is_some()).count();
     let valid = rows.iter().filter(|r| r.setup_valid == Some(true)).count();
-    let emotional = rows.iter().filter(|r| r.emotional_trade == Some(true)).count();
+    let emotional = rows
+        .iter()
+        .filter(|r| r.emotional_trade == Some(true))
+        .count();
     let mistakes = rows.iter().filter(|r| r.mistake == Some(true)).count();
     let discipline: Vec<i16> = rows.iter().filter_map(|r| r.discipline_score).collect();
 
-    let good_process_wins = rows.iter().filter(|r| r.rules_followed == Some(true) && r.net_pnl > Decimal::ZERO).count();
-    let good_process_losses = rows.iter().filter(|r| r.rules_followed == Some(true) && r.net_pnl < Decimal::ZERO).count();
-    let poor_process_wins = rows.iter().filter(|r| r.rules_followed == Some(false) && r.net_pnl > Decimal::ZERO).count();
-    let poor_process_losses = rows.iter().filter(|r| r.rules_followed == Some(false) && r.net_pnl < Decimal::ZERO).count();
+    let good_process_wins = rows
+        .iter()
+        .filter(|r| r.rules_followed == Some(true) && r.net_pnl > Decimal::ZERO)
+        .count();
+    let good_process_losses = rows
+        .iter()
+        .filter(|r| r.rules_followed == Some(true) && r.net_pnl < Decimal::ZERO)
+        .count();
+    let poor_process_wins = rows
+        .iter()
+        .filter(|r| r.rules_followed == Some(false) && r.net_pnl > Decimal::ZERO)
+        .count();
+    let poor_process_losses = rows
+        .iter()
+        .filter(|r| r.rules_followed == Some(false) && r.net_pnl < Decimal::ZERO)
+        .count();
 
     let confidence = wilson_interval(wins, n);
-    let sample_status = if n < 30 { "insufficient_sample" } else if n < 100 { "early_sample" } else { "more_stable_sample" };
+    let sample_status = if n < 30 {
+        "insufficient_sample"
+    } else if n < 100 {
+        "early_sample"
+    } else {
+        "more_stable_sample"
+    };
     let mut insights: Vec<serde_json::Value> = Vec::new();
     if n < 30 {
         insights.push(serde_json::json!({"type":"sample_size","severity":"info","title":"Small sample",
