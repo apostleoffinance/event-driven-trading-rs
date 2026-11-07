@@ -12,8 +12,9 @@ export function StatusBadge({
 
 export function healthTone(status: HealthStatus): "ok" | "warn" | "bad" {
   if (status === "HEALTHY") return "ok";
-  if (status === "DEGRADED") return "warn";
-  return "bad";
+  if (status === "DEGRADED" || status === "UNKNOWN" || status === "NOT_CONFIGURED") return "warn";
+  if (status === "DISCONNECTED" || status === "ERROR") return "bad";
+  return "warn";
 }
 
 export function orderTone(status: OrderStatus): "ok" | "warn" | "bad" | "info" {
