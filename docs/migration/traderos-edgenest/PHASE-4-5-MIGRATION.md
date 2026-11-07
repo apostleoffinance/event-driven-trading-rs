@@ -1,78 +1,31 @@
-# TraderOS → EdgeNest migration (Phases 4–5)
+# TraderOS → EdgeNest Journal migration (Phases 4–5)
 
-This is a historical Journal migration only. It never copies TraderOS users, password hashes,
-session/refresh tokens, MT5 connection tokens, API credentials, or other secrets. Source
-PostgreSQL is opened read-only. EdgeNest is written only through its authenticated Journal API.
+This is a historical Journal migration. TraderOS PostgreSQL is queried in read-only mode. EdgeNest writes happen only through authenticated, owner-scoped Journal APIs. No users, passwords, session/API tokens, MT5 connection tokens or execution state are migrated.
 
-See [RUNBOOK.md](RUNBOOK.md) for the step-by-step procedure and
-[MIGRATION-COVERAGE.md](MIGRATION-COVERAGE.md) for the complete coverage matrix.
+See [RUNBOOK.md](RUNBOOK.md) for operational steps and [MIGRATION-COVERAGE.md](MIGRATION-COVERAGE.md) for the source/native/archive-only coverage matrix.
 
-## Capabilities
+## Extraction
 
-- Read-only, per-user PostgreSQL extraction of accounts, risk profiles, setups, trades,
-  psychology, checklist templates/items/responses, and screenshot metadata/binaries.
-- Exact Decimal serialization and timezone-aware timestamp preservation.
-- Screenshot binary extraction to separate files with SHA-256 and byte-size manifest.
-- Account/setup creation with stable TraderOS external identity.
-- Retry-safe trade import using TraderOS source IDs, scoped to destination account.
-- Psychology upsert and checklist response preservation in trade JSON.
-- Optional S3-compatible object transfer with remote metadata checksum verification.
-- Dry-run planning that does not call EdgeNest and does not mutate checkpoint state.
-- Explicit warnings/errors for missing objects, incomplete screenshot transfer, unsupported data,
-  invalid source relationships, invalid financial values, and unmapped records.
+The per-user source snapshot includes accounts, risk profiles, setups, trades, psychology, checklists, screenshots, risk events, AI analyses/memories, market analyses, chart annotations, safe MT5 connection metadata, processed deals, sync snapshots, source deals and account-scoped broker candles. A separate global shared `market_candles` cache is intentionally excluded.
 
-## What is not automatically first-class in the current Journal API
+When screenshot binaries are stored in TraderOS S3/R2, extraction accepts `--source-storage-config` to retrieve them. The private config is not written into the export.
 
-Risk-profile attributes and selected TraderOS trade facts are preserved in source payload or account
-migration metadata. Checklist template definitions, market analyses, AI memories/analyses,
-chart annotations and raw MT5 source snapshots are not all exposed as first-class Journal resources.
-See MIGRATION-COVERAGE.md. Their presence in the source archive does not imply that EdgeNest UI
-currently renders them.
+## Archive preservation
 
-## Install
+Before apply, the tool requires private destination object storage. It packages the manifest, all per-table JSON files and exported screenshot binaries into a ZIP, derives a SHA-256 content-addressed key, uploads to R2/S3-compatible storage and verifies object metadata/size. The archive reference and checksum are attached to each EdgeNest Journal account through its owner-scoped migration metadata API. This also runs for accounts resumed from a previous checkpoint.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r scripts/traderos-migration/requirements.txt
-```
+## Native EdgeNest import
 
-## Configure
+- Accounts and setups.
+- Trades with source provenance, exact decimal strings, timestamps, risk facts, notes and checklist answers.
+- Psychology linked to the imported trade.
+- Screenshot binaries and attachment metadata when source bytes are available and destination object storage is configured.
 
-Copy `scripts/traderos-migration/config.example.json` to a private directory and set the EdgeNest
-API URL and explicit TraderOS-user-to-EdgeNest-JWT mapping. Store secrets in a secret manager or
-environment variables; never commit the private config, snapshot, checkpoint, report or JWT.
+Risk events, AI records, market analyses, annotations, MT5 historical raw evidence and full checklist template definitions remain preserved in the account-linked source archive until EdgeNest introduces dedicated first-class resource models/screens. This distinction is explicit in the migration report and coverage matrix.
 
-## Extract
+## Validation
 
-```bash
-export TRADEROS_DATABASE_URL='postgresql://READ_ONLY_USER:...@.../traderos'
-python scripts/traderos-migration/migrate.py extract --user-id '<TRADEROS_USER_UUID>' --out ./snapshot.json
-```
-
-The extractor produces table JSON files and a separate screenshot binary directory beside the
-manifest. It queries only the allow-listed journal tables, never authentication or MT5 credential
-tables.
-
-## Plan and dry-run
-
-```bash
-python scripts/traderos-migration/migrate.py plan --snapshot ./snapshot.json --config ./migration-config.json
-python scripts/traderos-migration/migrate.py apply --snapshot ./snapshot.json --config ./migration-config.json --dry-run
-```
-
-Dry-run performs no target API requests and does not write migration checkpoint state. Resolve all
-validation errors before applying.
-
-## Apply to staging
-
-```bash
-python scripts/traderos-migration/migrate.py apply --snapshot ./snapshot.json --config ./migration-config.json
-```
-
-The source remains untouched. Use a disposable EdgeNest staging database first. The report will
-not mark complete if warnings or errors remain. It is not safe to cut over until the reconciliation
-and screenshot verification are signed off.
+The utility validates source owner scope and relationships, rejects naive timestamps and invalid trade financial/lifecycle values, checks screenshot hashes, preserves source precision, and uses a dry-run that makes no API requests and changes no checkpoint state. Apply is gated on the full source archive being uploaded and verified. See the runbook for the reconciliation checklist.
 
 ## Tests
 
@@ -80,4 +33,4 @@ and screenshot verification are signed off.
 python -m unittest discover -s scripts/traderos-migration -p 'test_*.py' -v
 ```
 
-No production migration or deployment is performed by these repository changes.
+This repository change does not perform a production data migration or production deployment. Use a disposable staging API/database first and only cut over after the source/target reconciliation is approved.
