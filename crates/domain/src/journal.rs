@@ -248,3 +248,15 @@ mod tests {
         assert!(trade.validate().is_err());
     }
 }
+
+#[cfg(test)]
+mod discipline_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_discipline_score_above_hundred() {
+        let mut trade = tests::sample();
+        trade.discipline_score = Some(101);
+        assert!(trade.validate().is_err());
+    }
+}
