@@ -31,6 +31,11 @@ struct TradeFact {
     setup_name: String,
     mfe_r: Option<Decimal>,
     mae_r: Option<Decimal>,
+    setup_valid: Option<bool>,
+    rules_followed: Option<bool>,
+    emotional_trade: Option<bool>,
+    mistake: Option<bool>,
+    discipline_score: Option<i16>,
 }
 
 fn auth_error(error: ApiAuthError) -> Response {
@@ -56,7 +61,7 @@ pub async fn summary(
         r#"
         SELECT t.id, t.symbol, t.closed_at,
           COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
-          t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name, t.mfe_r, t.mae_r
+          t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name, t.mfe_r, t.mae_r, t.setup_valid, t.rules_followed, t.emotional_trade, t.mistake, t.discipline_score
         FROM journal_trades t
         LEFT JOIN journal_setups s ON s.owner_id=t.owner_id AND s.id=t.setup_id
         WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
@@ -138,6 +143,12 @@ pub async fn summary(
     let mut mfe_count = 0usize;
     let mut total_mae_r = Decimal::ZERO;
     let mut mae_count = 0usize;
+    let mut setup_valid_count = 0usize;
+    let mut rules_followed_count = 0usize;
+    let mut emotional_trade_count = 0usize;
+    let mut mistake_count = 0usize;
+    let mut total_discipline = 0i64;
+    let mut discipline_count = 0usize;
     for fact in &facts {
         symbols
             .entry(fact.symbol.clone())
@@ -167,10 +178,12 @@ pub async fn summary(
             total_mfe_r += r;
             mfe_count += 1;
         }
-        if let Some(r) = fact.mae_r {
-            total_mae_r += r;
-            mae_count += 1;
-        }
+        if let Some(r) = fact.mae_r { total_mae_r += r; mae_count += 1; }
+        if fact.setup_valid == Some(true) { setup_valid_count += 1; }
+        if fact.rules_followed == Some(true) { rules_followed_count += 1; }
+        if fact.emotional_trade == Some(true) { emotional_trade_count += 1; }
+        if fact.mistake == Some(true) { mistake_count += 1; }
+        if let Some(score) = fact.discipline_score { total_discipline += i64::from(score); discipline_count += 1; }
     }
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
@@ -196,6 +209,10 @@ pub async fn summary(
         "average_r":if r_count>0 {Some((total_r/Decimal::from(r_count as u64)).to_string())} else {None},
         "average_mfe_r":if mfe_count>0 {Some((total_mfe_r/Decimal::from(mfe_count as u64)).to_string())} else {None},
         "average_mae_r":if mae_count>0 {Some((total_mae_r/Decimal::from(mae_count as u64)).to_string())} else {None},
+        "setup_valid_count":setup_valid_count,"rules_followed_count":rules_followed_count,"emotional_trade_count":emotional_trade_count,"mistake_count":mistake_count,
+        "setup_valid_percent":(Decimal::from(setup_valid_count as u64)*Decimal::from(100)/Decimal::from(facts.len() as u64)).to_string(),
+        "rules_followed_percent":(Decimal::from(rules_followed_count as u64)*Decimal::from(100)/Decimal::from(facts.len() as u64)).to_string(),
+        "average_discipline_score":if discipline_count>0 {Some((Decimal::from(total_discipline)/Decimal::from(discipline_count as u64)).to_string())} else {None},
         "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
