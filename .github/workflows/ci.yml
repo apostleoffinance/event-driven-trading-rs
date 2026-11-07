@@ -64,6 +64,19 @@ jobs:
       - name: Run read-only adapter contract tests
         run: python -m unittest discover -s tests -v
 
+  traderos-migration:
+    name: TraderOS migration tooling tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Run migration transform tests
+        run: python -m unittest discover -s scripts/traderos-migration -p 'test_*.py' -v
+
   frontend:
     name: Frontend lint, typecheck, build
     runs-on: ubuntu-latest
