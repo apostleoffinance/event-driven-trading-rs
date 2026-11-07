@@ -38,6 +38,9 @@ struct JournalTradeRow {
     pnl_currency: String,
     risk_amount: Option<Decimal>,
     r_multiple: Option<Decimal>,
+    session: Option<String>,
+    timeframe: Option<String>,
+    timezone: Option<String>,
 }
 
 impl TryFrom<JournalTradeRow> for JournalTrade {
@@ -100,6 +103,9 @@ impl TryFrom<JournalTradeRow> for JournalTrade {
             pnl_currency: row.pnl_currency,
             risk_amount: row.risk_amount,
             r_multiple: row.r_multiple,
+            session: row.session,
+            timeframe: row.timeframe,
+            timezone: row.timezone,
         })
     }
 }
@@ -133,10 +139,10 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
             id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone
         ) VALUES (
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-            $22,$23,$24,$25
+            $22,$23,$24,$25,$26,$27,$28
         ) ON CONFLICT (journal_account_id, source_system, source_trade_id)
         WHERE source_system IS NOT NULL AND source_trade_id IS NOT NULL DO NOTHING"#,
     )
@@ -165,6 +171,9 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
     .bind(&trade.pnl_currency)
     .bind(trade.risk_amount)
     .bind(trade.r_multiple)
+    .bind(&trade.session)
+    .bind(&trade.timeframe)
+    .bind(&trade.timezone)
     .execute(pool)
     .await?;
     Ok(())
@@ -186,7 +195,7 @@ pub async fn list_for_owner(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone
           FROM journal_trades
           WHERE owner_id = $1 AND ($2::TEXT IS NULL OR journal_account_id = $2)
           ORDER BY opened_at DESC, id DESC LIMIT $3 OFFSET $4"#,
