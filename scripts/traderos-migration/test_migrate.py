@@ -50,7 +50,7 @@ class MigrationTransformTests(unittest.TestCase):
         self.assertEqual(result["source_trade_id"], "trade-42")
         self.assertEqual(result["quantity"], "0.010000000000000001")
         self.assertEqual(result["gross_pnl"], "2.35")
-        self.assertEqual(result["net_pnl"], "2.5")
+        self.assertEqual(result["net_pnl"], "2.50")
         self.assertEqual(result["source_payload"]["external_deal_id"], "deal-1")
 
     def test_trade_rejects_missing_direction(self):
