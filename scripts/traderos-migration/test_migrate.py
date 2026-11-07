@@ -28,7 +28,10 @@ class MigrationTransformTests(unittest.TestCase):
         class Response:
             status_code = 401
             content = b"secret response body"
-        with patch("requests.request", return_value=Response()):
+        import sys
+        import types
+        fake_requests = types.SimpleNamespace(request=lambda *args, **kwargs: Response())
+        with patch.dict(sys.modules, {"requests": fake_requests}):
             with self.assertRaisesRegex(RuntimeError, "JWT is invalid, expired"):
                 migrate.api_request("https://journal.example", "secret-token", "GET", "/api")
     def test_decimal_is_exact_string(self):
