@@ -155,6 +155,34 @@ class MigrationTransformTests(unittest.TestCase):
         self.assertIn("token_hash", source)  # documented exclusion in the source comment/manifest
         self.assertIn("token_prefix", source)
 
+    def test_archive_is_content_addressed_and_checksum_verified(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prefix = root / "snapshot.json"
+            migrate.dump_json(prefix, {"format":migrate.SOURCE_FORMAT,"source_user_id":"u","tables":{"accounts":1}})
+            migrate.dump_json(root / "snapshot_accounts.json", [{"id":"a"}])
+            storage = {"bucket":"bucket","access_key_id":"key","secret_access_key":"secret","provider":"r2"}
+            class FakeS3:
+                def __init__(self): self.objects = {}
+                def put_object(self, Bucket, Key, Body, ContentType, Metadata):
+                    self.objects[Key] = {"Body":Body.read(),"Metadata":Metadata}
+                def head_object(self, Bucket, Key):
+                    obj=self.objects[Key]
+                    return {"Metadata":obj["Metadata"],"ContentLength":len(obj["Body"])}
+            fake=FakeS3()
+            with patch("boto3.client", return_value=fake):
+                info=migrate.upload_snapshot_archive(prefix,"u",storage)
+            self.assertTrue(info["storage_key"].endswith(info["sha256"]+".zip"))
+            self.assertEqual(info["byte_size"],len(fake.objects[info["storage_key"]]["Body"]))
+            self.assertEqual(fake.objects[info["storage_key"]]["Metadata"]["sha256"],info["sha256"])
+
+    def test_snapshot_export_lists_full_account_owned_dataset(self):
+        expected={"risk_events","ai_analyses","ai_memories","market_analyses","chart_annotations",
+                  "mt5_connections","mt5_processed_deals","mt5_sync_snapshots","mt5_source_deals","broker_candles"}
+        self.assertTrue(expected.issubset(set(migrate.SOURCE_TABLES)))
+        self.assertNotIn("users",migrate.SOURCE_TABLES)
+        self.assertNotIn("market_candles",migrate.SOURCE_TABLES)
 
 if __name__ == "__main__":
     unittest.main()
