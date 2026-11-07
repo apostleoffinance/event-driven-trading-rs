@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS journal_trades (
     FOREIGN KEY (owner_id, setup_id) REFERENCES journal_setups(owner_id, id)
 );
 
+ALTER TABLE journal_trades
   ADD COLUMN IF NOT EXISTS venue TEXT,
   ADD COLUMN IF NOT EXISTS external_account_id TEXT,
   ADD COLUMN IF NOT EXISTS raw_symbol TEXT,
