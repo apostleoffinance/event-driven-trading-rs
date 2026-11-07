@@ -125,8 +125,8 @@ async fn journal_get_by_id_returns_all_trade_annotations(pool: PgPool) {
     assert_eq!(trade.session.as_deref(), Some("London"));
     assert_eq!(trade.timeframe.as_deref(), Some("M15"));
     assert_eq!(trade.timezone.as_deref(), Some("Africa/Lagos"));
-    assert_eq!(trade.mfe_r.unwrap().to_string(), "1.5");
-    assert_eq!(trade.mae_r.unwrap().to_string(), "-0.5");
+    assert_eq!(trade.mfe_r, Some(rust_decimal::Decimal::new(15, 1)));
+    assert_eq!(trade.mae_r, Some(rust_decimal::Decimal::new(-5, 1)));
     assert_eq!(trade.notes.as_deref(), Some("review notes"));
     assert_eq!(trade.tags, vec!["breakout"]);
     assert_eq!(trade.setup_valid, Some(true));
