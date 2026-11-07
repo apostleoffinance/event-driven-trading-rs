@@ -336,8 +336,8 @@ def validate_snapshot(prefix: Path, legacy_user_id: str, account_map: dict[str, 
             digest = hashlib.sha256(data).hexdigest()
             if row.get("file_sha256") and digest != row["file_sha256"]:
                 errors.append(f"Screenshot checksum mismatch for {row.get('id')}")
-        elif not row.get("storage_key"):
-            warnings.append(f"Screenshot {row.get('id')} has no binary file or remote storage key")
+        else:
+            warnings.append(f"Screenshot {row.get('id')} has metadata only; binary file was not exported")
     return {
         "legacy_user_id": legacy_user_id, "accounts": len(accounts), "setups": len(setups),
         "trades": len(trades), "psychology": len(psych), "screenshots": len(screenshots),
@@ -551,6 +551,7 @@ def main() -> int:
     ex.add_argument("--dsn", default=os.getenv("TRADEROS_DATABASE_URL"))
     ex.add_argument("--user-id", required=True)
     ex.add_argument("--out", type=Path, required=True)
+    ex.add_argument("--source-storage-config", type=Path, help="Private JSON config for downloading remote TraderOS screenshots")
     for name in ("plan", "apply"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--snapshot", type=Path, required=True)
@@ -561,7 +562,8 @@ def main() -> int:
     if args.command == "extract":
         if not args.dsn:
             parser.error("--dsn or TRADEROS_DATABASE_URL is required")
-        print(json.dumps(source_snapshot(args.dsn, args.user_id, args.out), indent=2))
+        source_storage = load_json(args.source_storage_config) if args.source_storage_config else None
+        print(json.dumps(source_snapshot(args.dsn, args.user_id, args.out, source_storage), indent=2))
         return 0
     config = load_json(args.config)
     prefix = args.snapshot
