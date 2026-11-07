@@ -130,6 +130,10 @@ pub async fn summary(
         std::collections::BTreeMap::new();
     let mut setups: std::collections::BTreeMap<String, Vec<Decimal>> =
         std::collections::BTreeMap::new();
+    let mut weekdays: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
+    let mut hours_utc: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
     let mut total_mfe_r = Decimal::ZERO;
@@ -186,7 +190,7 @@ pub async fn summary(
         "average_r":if r_count>0 {Some((total_r/Decimal::from(r_count as u64)).to_string())} else {None},
         "average_mfe_r":if mfe_count>0 {Some((total_mfe_r/Decimal::from(mfe_count as u64)).to_string())} else {None},
         "average_mae_r":if mae_count>0 {Some((total_mae_r/Decimal::from(mae_count as u64)).to_string())} else {None},
-        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),
+        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
 }
