@@ -21,6 +21,14 @@ type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
 
 export const journalApi = {
+  async getPsychology(tradeId: string) {
+    requireApiMode();
+    return (await apiRequest<DataEnvelope<JournalPsychology | null>>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/psychology\`, { baseUrl: journalBaseUrl() })).data;
+  },
+  async savePsychology(tradeId: string, input: JournalPsychology) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/psychology\`, { method:"PUT", baseUrl:journalBaseUrl(), body:JSON.stringify(input) });
+  },
   async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
@@ -84,4 +92,10 @@ export type JournalAnalytics = {
   by_session: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_setup?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   notice?: string;
+};
+
+export type JournalPsychology = {
+  emotion_before?: string | null; emotion_during?: string | null; emotion_after?: string | null;
+  confidence?: number | null; fear?: number | null; fomo?: number | null; frustration?: number | null;
+  revenge_intensity?: number | null; boredom?: number | null; notes?: string | null;
 };
