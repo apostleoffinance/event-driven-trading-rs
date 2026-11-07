@@ -48,6 +48,8 @@ export default function CalculatorPage() {
         <section className="panel">
           <h2 className="panel-title">INPUTS</h2>
           <div className="journal-form-grid">
+            <label className="journal-field"><span>Account currency</span><select value={currency} onChange={e=>setCurrency(e.target.value)}>{["USD","EUR","GBP","NGN","CHF","JPY","USDT"].map(x=><option key={x}>{x}</option>)}</select></label>
+            <label className="journal-field"><span>Instrument contract preset</span><select value={instrumentPreset} onChange={e=>applyPreset(e.target.value)}><option value="fx_usd_quote">FX standard contract · USD quote</option><option value="crypto_spot">Crypto spot · base-unit sizing</option><option value="index_cfd">Index/CFD · 1-unit contract</option><option value="custom">Custom broker contract</option></select></label>
             {fields.map(([label, value, setter]) => (
               <label className="journal-field" key={label}>
                 <span>{label}</span>
