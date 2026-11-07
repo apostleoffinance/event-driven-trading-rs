@@ -11,6 +11,7 @@ use serde::Deserialize;
 use sqlx::FromRow;
 
 use crate::{auth::ApiAuthError, AppState};
+use domain::{Account, AccountId, AccountState, AccountType, Venue, VenueId, VenueType};
 
 fn auth(state: &AppState, headers: &HeaderMap) -> Result<String, ApiAuthError> {
     state.auth.authenticate(headers).map(|claims| claims.sub)
@@ -122,6 +123,75 @@ fn account_json(a: AccountRow) -> serde_json::Value {
     })
 }
 use rust_decimal::prelude::ToPrimitive;
+
+#[derive(Debug, Deserialize)]
+pub struct PaperAccountWrite {
+    pub name: String,
+    pub initial_capital: Decimal,
+}
+
+pub async fn create_paper_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<PaperAccountWrite>,
+) -> Response {
+    let owner = match auth(&state, &headers) {
+        Ok(v) => v,
+        Err(e) => return e.into_response(),
+    };
+    let name = input.name.trim();
+    if name.is_empty() || name.len() > 80 || input.initial_capital <= Decimal::ZERO {
+        return error(
+            StatusCode::BAD_REQUEST,
+            "invalid_account",
+            "Name must be 1–80 characters and initial_capital must be positive.",
+        );
+    }
+
+    let now = Utc::now();
+    let account_id = match AccountId::new(uuid::Uuid::new_v4().to_string()) {
+        Ok(id) => id,
+        Err(_) => return internal(),
+    };
+    let venue_id = match VenueId::new("simulated") {
+        Ok(id) => id,
+        Err(_) => return internal(),
+    };
+    let account = Account::new(account_id.clone(), AccountType::Simulated, venue_id.clone(), now);
+    let account_state = match AccountState::new(account_id.clone(), input.initial_capital, now) {
+        Ok(state) => state,
+        Err(_) => return error(StatusCode::BAD_REQUEST, "invalid_capital", "initial_capital must be positive."),
+    };
+    let venue = Venue::new(venue_id, VenueType::Simulated, "Paper Simulator", now);
+
+    if state.store.upsert_venue(&venue).await.is_err()
+        || state.store.upsert_account(&account, input.initial_capital, Some(name), &account_state).await.is_err()
+    {
+        return internal();
+    }
+    if sqlx::query(
+        "INSERT INTO dashboard_account_access(owner_id,account_id,access_role,granted_by) VALUES($1,$2,'owner',$1)",
+    )
+    .bind(&owner)
+    .bind(account_id.as_str())
+    .execute(state.store.pool())
+    .await
+    .is_err()
+    {
+        return internal();
+    }
+
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({"data":{
+            "id":account_id.as_str(),"name":name,"type":"Simulated","venueId":"simulated",
+            "venueName":"Paper Simulator","environment":"PAPER","balance":dec(input.initial_capital),
+            "equity":dec(input.initial_capital),"availableCapital":dec(input.initial_capital),
+            "dailyPnl":"0","unrealizedPnl":"0","realizedPnl":"0","drawdownPct":0.0,
+            "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"DEGRADED"
+        }})),
+    ).into_response()
+}
 
 pub async fn accounts(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let owner = match auth(&state, &headers) {
