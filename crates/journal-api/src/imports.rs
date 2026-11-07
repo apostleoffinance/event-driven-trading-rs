@@ -10,7 +10,6 @@ use serde::Deserialize;
 use sqlx::Row;
 
 use crate::{
-    auth::ApiAuthError,
     http::{trade_from, TradeWrite},
     AppState,
 };
