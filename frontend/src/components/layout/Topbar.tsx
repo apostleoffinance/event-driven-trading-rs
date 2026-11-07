@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
+import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
 
@@ -27,7 +28,7 @@ export function Topbar({
   const [accountOpen, setAccountOpen] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);\n  const [backendStatus, setBackendStatus] = useState<"checking" | "connected" | "unavailable">("checking");
 
   // Auth state is stored in sessionStorage, so sync it after client-side route
   // changes (e.g. returning from login/register) rather than during SSR.
@@ -55,6 +56,26 @@ export function Topbar({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [accountOpen]);
+
+  useEffect(() => {
+    if (frontendConfig.dataMode !== "api") {
+      setBackendStatus("checking");
+      return;
+    }
+    let active = true;
+    const check = async () => {
+      try {
+        const origin = apiBaseUrl();
+        const response = await fetch(`${origin}/healthz`, { cache: "no-store", headers: { Accept: "text/plain" } });
+        if (active) setBackendStatus(response.ok ? "connected" : "unavailable");
+      } catch {
+        if (active) setBackendStatus("unavailable");
+      }
+    };
+    void check();
+    const id = window.setInterval(() => void check(), 30000);
+    return () => { active = false; window.clearInterval(id); };
+  }, []);
 
   async function handleSignOut() {
     if (signingOut) return;
