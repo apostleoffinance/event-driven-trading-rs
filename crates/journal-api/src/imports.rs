@@ -67,6 +67,23 @@ pub async fn import_trades(
         write.source_trade_id = Some(external_id.clone());
         write.source = domain::JournalTradeSource::LegacyImport;
         let trade = trade_from(claims.sub.clone(), uuid::Uuid::new_v4().to_string(), write);
+        if let Some(setup_id) = trade.setup_id.as_deref() {
+            let owned = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM journal_setups WHERE owner_id=$1 AND id=$2 AND archived=FALSE)",
+            )
+            .bind(&claims.sub)
+            .bind(setup_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or(false);
+            if !owned {
+                return (
+                    StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({"error":{"code":"setup_not_found","message":"Journal setup not found"}})),
+                )
+                    .into_response();
+            }
+        }
         if let Err(e) = trade.validate() {
             return (StatusCode::BAD_REQUEST,Json(serde_json::json!({"error":{"code":"invalid_trade","message":e.to_string(),"source_trade_id":external_id}}))).into_response();
         }
