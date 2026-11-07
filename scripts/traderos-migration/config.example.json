@@ -1,0 +1,8 @@
+{
+  "edgenest_api_url": "https://edgenest-api.onrender.com",
+  "state_file": "./migration-state.json",
+  "report_file": "./migration-report.json",
+  "owner_map": {
+    "TRADEROS_USER_UUID": { "jwt": "PASTE_EDGE_NEST_JWT_HERE" }
+  }
+}
