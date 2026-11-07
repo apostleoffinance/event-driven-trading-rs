@@ -67,6 +67,9 @@ pub struct JournalTrade {
     pub pnl_currency: String,
     pub risk_amount: Option<Decimal>,
     pub r_multiple: Option<Decimal>,
+    pub session: Option<String>,
+    pub timeframe: Option<String>,
+    pub timezone: Option<String>,
 }
 
 impl JournalTrade {
@@ -169,6 +172,9 @@ mod tests {
             pnl_currency: "USD".into(),
             risk_amount: Some(Decimal::new(50, 0)),
             r_multiple: Some(Decimal::new(2, 0)),
+            session: Some("London".into()),
+            timeframe: Some("4H".into()),
+            timezone: Some("UTC".into()),
         }
     }
 
