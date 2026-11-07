@@ -91,7 +91,7 @@ async fn main() {
     let app = Router::new()
         .route("/healthz", get(http::health))
         .route("/readyz", get(http::ready))
-        .route("/api/v1/trading/accounts", get(dashboard::accounts))
+        .route("/api/v1/trading/accounts", get(dashboard::accounts).post(dashboard::create_paper_account))
         .route("/api/v1/trading/accounts/{id}", get(dashboard::account))
         .route("/api/v1/trading/portfolio", get(dashboard::portfolio))
         .route("/api/v1/trading/strategies", get(dashboard::strategies))
