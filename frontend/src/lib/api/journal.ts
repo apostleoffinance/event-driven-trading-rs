@@ -27,25 +27,25 @@ export const journalApi = {
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.from) params.set("from", options.from);
     if (options.to) params.set("to", options.to);
-    const suffix = params.toString() ? \`?\${params.toString()}\` : "";
-    return (await apiRequest<DataEnvelope<JournalAnalytics>>(\`/api/v1/journal/analytics/summary\${suffix}\`, { baseUrl: journalBaseUrl() })).data;
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return (await apiRequest<DataEnvelope<JournalAnalytics>>(`/api/v1/journal/analytics/summary${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
   async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { baseUrl: journalBaseUrl() })).data; },
   async updateAccount(id: string, input: { name: string; broker?: string | null; account_type: string; currency: string; initial_balance: string }) {
-    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/accounts/\${encodeURIComponent(id)}\`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
   },
   async archiveAccount(id: string) {
-    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/accounts/\${encodeURIComponent(id)}\`, { method: "DELETE", baseUrl: journalBaseUrl() });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "DELETE", baseUrl: journalBaseUrl() });
   },
   async createAccount(input: { name: string; broker?: string; account_type?: string; currency?: string; initial_balance?: string }) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount>>("/api/v1/journal/accounts", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
   },
   async listSetups() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup[]>>("/api/v1/journal/setups", { baseUrl: journalBaseUrl() })).data; },
   async updateSetup(id: string, input: { name: string; description?: string | null; rules_json?: Record<string, unknown> }) {
-    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/setups/\${encodeURIComponent(id)}\`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/setups/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
   },
   async archiveSetup(id: string) {
-    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/setups/\${encodeURIComponent(id)}\`, { method: "DELETE", baseUrl: journalBaseUrl() });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/setups/${encodeURIComponent(id)}`, { method: "DELETE", baseUrl: journalBaseUrl() });
   },
   async createSetup(input: { name: string; description?: string; rules_json?: Record<string, unknown> }) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup>>("/api/v1/journal/setups", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
