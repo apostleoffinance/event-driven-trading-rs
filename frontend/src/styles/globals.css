@@ -777,3 +777,76 @@ table {
 @media (max-width: 900px) {
   .journal-form-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Accessible topbar account dropdown */
+.account-menu {
+  position: relative;
+  display: inline-flex;
+}
+.account-trigger {
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 32px;
+  cursor: pointer;
+}
+.account-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  width: min(260px, calc(100vw - 24px));
+  padding: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+}
+.account-menu-user {
+  display: grid;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  min-width: 0;
+}
+.account-menu-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.account-menu-email {
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.account-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.account-menu-item:hover,
+.account-menu-item:focus-visible {
+  background: var(--bg-2);
+  outline: none;
+}
+.account-menu-item:disabled {
+  opacity: .6;
+  cursor: wait;
+}
