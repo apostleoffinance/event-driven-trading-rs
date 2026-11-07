@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from uuid import UUID
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +15,22 @@ spec.loader.exec_module(migrate)
 
 
 class MigrationTransformTests(unittest.TestCase):
+    def test_uuid_is_serialized_as_string(self):
+        value = UUID("2af423a1-feab-4b9e-82bf-cfaf839c242e")
+        self.assertEqual(migrate.json_value({"id": value}), {"id": str(value)})
+
+    def test_auth_check_rejects_non_jwt_before_network(self):
+        with patch.object(migrate, "api_request", side_effect=AssertionError("must not call API")):
+            with self.assertRaisesRegex(RuntimeError, "not a JWT"):
+                migrate.check_destination("https://journal.example", "placeholder-token")
+
+    def test_api_request_401_message_is_safe_and_actionable(self):
+        class Response:
+            status_code = 401
+            content = b"secret response body"
+        with patch("requests.request", return_value=Response()):
+            with self.assertRaisesRegex(RuntimeError, "JWT is invalid, expired"):
+                migrate.api_request("https://journal.example", "secret-token", "GET", "/api")
     def test_decimal_is_exact_string(self):
         self.assertEqual(migrate.decimal_str("0.010000000000000001"), "0.010000000000000001")
 
