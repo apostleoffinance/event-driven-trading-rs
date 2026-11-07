@@ -21,6 +21,8 @@ function percent(value: string | null | undefined) {
 export default function AnalyticsLabPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [accountId, setAccountId] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   useEffect(() => {
     setAuthenticated(hasSession());
@@ -32,9 +34,16 @@ export default function AnalyticsLabPage() {
     queryFn: journalApi.listAccounts,
     enabled: authenticated && frontendConfig.dataMode === "api",
   });
+  const dateFilter = { from: fromDate ? fromDate + "T00:00:00.000Z" : undefined, to: toDate ? toDate + "T23:59:59.999Z" : undefined };
   const analytics = useQuery({
-    queryKey: ["journal", "analytics", accountId],
-    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined }),
+    queryKey: ["journal", "analytics", accountId, fromDate, toDate],
+    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
+    enabled: authenticated && frontendConfig.dataMode === "api",
+  });
+
+  const intelligence = useQuery({
+    queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate],
+    queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter }),
     enabled: authenticated && frontendConfig.dataMode === "api",
   });
 
@@ -76,12 +85,21 @@ export default function AnalyticsLabPage() {
         <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
         <label className="journal-field" style={{minWidth:240}}><span>Journal account</span>
           <select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">All accounts</option>{accounts.data?.map(x=><option key={x.id} value={x.id}>{x.name} · {x.currency}</option>)}</select>
+          <span>From UTC</span><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} />
+          <span>To UTC</span><input type="date" min={fromDate || undefined} value={toDate} onChange={e=>setToDate(e.target.value)} />
+          <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");}}>Reset</button>
         </label>
       </div>
       {analytics.isLoading ? <p>Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
     {a ? <>
+      {intelligence.data ? <section className="panel" style={{marginTop:14}}>
+        <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
+        <p className="muted">95% Wilson win-rate interval: {intelligence.data.win_rate_confidence_95 ? intelligence.data.win_rate_confidence_95.lower_percent.toFixed(1)+"%–"+intelligence.data.win_rate_confidence_95.upper_percent.toFixed(1)+"%" : "Not available"} · Sample: {intelligence.data.sample_status.replaceAll("_"," ")} · n={intelligence.data.trade_count}</p>
+        <div className="grid grid-dash"><div><h3>Process vs outcome</h3><p>Good process / win: {intelligence.data.process_outcomes.good_process_win}</p><p>Good process / loss: {intelligence.data.process_outcomes.good_process_loss}</p><p>Poor process / win: {intelligence.data.process_outcomes.poor_process_win}</p><p>Poor process / loss: {intelligence.data.process_outcomes.poor_process_loss}</p></div>
+        <div><h3>Behavioral markers</h3><p>Rule adherence: {intelligence.data.rule_adherence_percent == null ? "—" : intelligence.data.rule_adherence_percent.toFixed(1)+"%"}</p><p>Valid setup rate: {intelligence.data.valid_setup_percent == null ? "—" : intelligence.data.valid_setup_percent.toFixed(1)+"%"}</p><p>Emotional trades: {intelligence.data.emotional_trade_count}</p><p>Mistakes: {intelligence.data.mistake_count}</p><p>Average discipline: {intelligence.data.average_discipline_score == null ? "—" : intelligence.data.average_discipline_score.toFixed(1)+"/100"}</p></div></div>
+        <h3>Review insights</h3>{intelligence.data.insights.map((item,i)=><section key={item.type+"-"+i} className="panel" style={{marginTop:8}}><strong>{item.title}</strong><p>{item.message}</p></section>)}<p className="muted">{intelligence.data.notice}</p></section> : intelligence.isLoading ? <section className="panel" style={{marginTop:14}}>Calculating process intelligence…</section> : intelligence.error ? <section className="panel error" style={{marginTop:14}}>Process intelligence could not be loaded. <button className="btn" onClick={()=>void intelligence.refetch()}>Retry</button></section> : null}
       <div className="grid grid-kpi" style={{marginTop:14}}>{metrics.map(([label,value])=><section className="panel" key={label}><div className="metric"><span className="metric-label">{label}</span><span className="metric-value">{value}</span></div></section>)}</div>
       <div className="grid grid-dash" style={{marginTop:14}}>
         <section className="panel"><h2 className="panel-title">PERFORMANCE BY SYMBOL</h2>

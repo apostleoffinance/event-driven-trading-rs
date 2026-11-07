@@ -47,6 +47,15 @@ export const journalApi = {
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return (await apiRequest<DataEnvelope<JournalAnalytics>>(`/api/v1/journal/analytics/summary${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
+  async analyticsIntelligence(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
+    requireApiMode();
+    const params = new URLSearchParams();
+    if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
+    if (options.from) params.set("from", options.from);
+    if (options.to) params.set("to", options.to);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return (await apiRequest<DataEnvelope<JournalIntelligence>>(`/api/v1/journal/analytics/intelligence${suffix}`, { baseUrl: journalBaseUrl() })).data;
+  },
   async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { baseUrl: journalBaseUrl() })).data; },
   async updateAccount(id: string, input: { name: string; broker?: string | null; account_type: string; currency: string; initial_balance: string }) {
     requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
@@ -112,3 +121,17 @@ export type JournalPsychology = {
 };
 
 export type JournalAttachment = { id:string; attachment_type:string; storage_provider:string; storage_key:string; original_filename?:string|null; content_type?:string|null; byte_size?:number|null; captured_at?:string|null; metadata:Record<string,unknown> };
+
+export type JournalIntelligence = {
+  trade_count: number; wins: number; losses: number; breakeven: number;
+  win_rate_percent: string | null;
+  win_rate_confidence_95: { lower_percent: number; upper_percent: number } | null;
+  sample_status: "insufficient_sample" | "early_sample" | "more_stable_sample";
+  minimum_sample_recommendation: number;
+  rule_adherence_percent: number | null; rule_adherence_known_count: number;
+  valid_setup_percent: number | null; valid_setup_known_count: number;
+  emotional_trade_count: number; mistake_count: number; average_discipline_score: number | null;
+  process_outcomes: { good_process_win: number; good_process_loss: number; poor_process_win: number; poor_process_loss: number };
+  insights: Array<{ type: string; severity: "info" | "warning"; title: string; message: string }>;
+  notice: string;
+};

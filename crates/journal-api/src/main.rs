@@ -13,6 +13,7 @@ mod attachments;
 mod auth;
 mod http;
 mod imports;
+mod intelligence;
 mod psychology;
 mod resources;
 
@@ -112,6 +113,10 @@ async fn main() {
                 .delete(resources::archive_setup),
         )
         .route("/api/v1/journal/analytics/summary", get(analytics::summary))
+        .route(
+            "/api/v1/journal/analytics/intelligence",
+            get(intelligence::summary),
+        )
         .route(
             "/api/v1/journal/import",
             axum::routing::post(imports::import_trades),
