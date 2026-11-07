@@ -15,7 +15,7 @@ function money(value: string | null | undefined) {
 function percent(value: string | null | undefined) {
   if (value == null) return "—";
   const n = Number(value);
-  return Number.isFinite(n) ? \`\${n.toFixed(1)}%\` : "—";
+  return Number.isFinite(n) ? n.toFixed(1) + "%" : "—";
 }
 
 export default function AnalyticsLabPage() {
@@ -57,13 +57,13 @@ export default function AnalyticsLabPage() {
     ["Max drawdown", money(a?.max_drawdown)],
     ["Average winner", money(a?.average_win)],
     ["Average loser", money(a?.average_loss)],
-    ["Average R", a?.average_r == null ? "—" : \`\${Number(a.average_r).toFixed(2)}R\`],
+    ["Average R", a?.average_r == null ? "—" : `${Number(a.average_r).toFixed(2)}R`],
     ["Gross profit", money(a?.gross_profit)],
     ["Gross loss", money(a?.gross_loss)],
     ["Breakeven", String(a?.breakeven ?? "—")],
   ];
   return <div>
-    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? \`Signed in as \${userEmail}.\` : ""}</p></div><span className="badge ok">Journal-connected</span></header>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? `Signed in as ${userEmail}.` : ""}</p></div><span className="badge ok">Journal-connected</span></header>
     <section className="panel">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
