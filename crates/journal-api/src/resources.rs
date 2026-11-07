@@ -67,11 +67,11 @@ pub async fn list_accounts(State(state): State<AppState>, headers: HeaderMap) ->
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool)>(
-        "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
+    match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool, Value)>(
+        "SELECT id,name,broker,account_type,currency,initial_balance,archived,migration_metadata FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
         .bind(claims.sub).fetch_all(state.store.pool()).await {
-        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,broker,account_type,currency,initial_balance,archived)|serde_json::json!({
-            "id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived
+        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,broker,account_type,currency,initial_balance,archived,migration_metadata)|serde_json::json!({
+            "id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"migration_metadata":migration_metadata
         })).collect::<Vec<_>>()})).into_response(),
         Err(_) => internal(),
     }
@@ -126,10 +126,10 @@ pub async fn get_account(
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool)>(
-        "SELECT id,name,broker,account_type,currency,initial_balance,archived FROM journal_accounts WHERE owner_id=$1 AND id=$2")
+    match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool,Value)>(
+        "SELECT id,name,broker,account_type,currency,initial_balance,archived,migration_metadata FROM journal_accounts WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
-        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived}})).into_response(),
+        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived,migration_metadata))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"migration_metadata":migration_metadata}})).into_response(),
         Ok(None) => not_found(),
         Err(_) => internal(),
     }
@@ -162,6 +162,41 @@ pub async fn update_account(
         .bind(claims.sub).bind(id).bind(name).bind(input.broker).bind(input.account_type).bind(currency).bind(input.initial_balance)
         .execute(state.store.pool()).await {
         Ok(r) if r.rows_affected()==1 => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => not_found(),
+        Err(_) => internal(),
+    }
+}
+
+
+/// Merge owner-scoped migration metadata without overwriting ordinary account fields.
+/// Used to attach a source-archive reference after an interrupted import.
+pub async fn update_account_migration_metadata(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(patch): Json<Value>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    if !patch.is_object() {
+        return err(
+            StatusCode::BAD_REQUEST,
+            "invalid_migration_metadata",
+            "Migration metadata patch must be a JSON object",
+        );
+    }
+    match sqlx::query(
+        "UPDATE journal_accounts SET migration_metadata = migration_metadata || $3, updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE",
+    )
+    .bind(claims.sub)
+    .bind(id)
+    .bind(patch)
+    .execute(state.store.pool())
+    .await
+    {
+        Ok(result) if result.rows_affected() == 1 => StatusCode::NO_CONTENT.into_response(),
         Ok(_) => not_found(),
         Err(_) => internal(),
     }
