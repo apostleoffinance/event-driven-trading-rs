@@ -31,12 +31,28 @@ export const journalApi = {
     return (await apiRequest<DataEnvelope<JournalAnalytics>>(\`/api/v1/journal/analytics/summary\${suffix}\`, { baseUrl: journalBaseUrl() })).data;
   },
   async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { baseUrl: journalBaseUrl() })).data; },
+  async updateAccount(id: string, input: { name: string; broker?: string | null; account_type: string; currency: string; initial_balance: string }) {
+    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/accounts/\${encodeURIComponent(id)}\`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+  },
+  async archiveAccount(id: string) {
+    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/accounts/\${encodeURIComponent(id)}\`, { method: "DELETE", baseUrl: journalBaseUrl() });
+  },
   async createAccount(input: { name: string; broker?: string; account_type?: string; currency?: string; initial_balance?: string }) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount>>("/api/v1/journal/accounts", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
   },
   async listSetups() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup[]>>("/api/v1/journal/setups", { baseUrl: journalBaseUrl() })).data; },
+  async updateSetup(id: string, input: { name: string; description?: string | null; rules_json?: Record<string, unknown> }) {
+    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/setups/\${encodeURIComponent(id)}\`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+  },
+  async archiveSetup(id: string) {
+    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/setups/\${encodeURIComponent(id)}\`, { method: "DELETE", baseUrl: journalBaseUrl() });
+  },
   async createSetup(input: { name: string; description?: string; rules_json?: Record<string, unknown> }) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup>>("/api/v1/journal/setups", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
+  },
+  async importTrades(input: { journal_account_id: string; source_system: string; trades: Omit<JournalTrade, "id">[] }) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<{ batch_id: string; source_count: number; imported_count: number; skipped_count: number; failed_count: number; status: string }>>("/api/v1/journal/import", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) }).then(x=>x.data);
   },
   async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number } = {}) {
     requireApiMode();
