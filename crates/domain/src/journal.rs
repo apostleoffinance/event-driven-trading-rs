@@ -67,8 +67,11 @@ pub struct JournalTrade {
     pub pnl_currency: String,
     pub risk_amount: Option<Decimal>,
     pub r_multiple: Option<Decimal>,
+    #[serde(default)]
     pub session: Option<String>,
+    #[serde(default)]
     pub timeframe: Option<String>,
+    #[serde(default)]
     pub timezone: Option<String>,
 }
 
