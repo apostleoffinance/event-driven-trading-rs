@@ -119,14 +119,14 @@ export type Strategy = {
   version: string;
   status: StrategyStatus;
   environment: Environment;
-  instrumentId: string;
-  signals: number;
-  trades: number;
-  returnPct: number;
-  sharpe: number;
-  maxDrawdownPct: number;
-  winRatePct: number;
-  profitFactor: number;
+  instrumentId: string | null;
+  signals: number | null;
+  trades: number | null;
+  returnPct: number | null;
+  sharpe: number | null;
+  maxDrawdownPct: number | null;
+  winRatePct: number | null;
+  profitFactor: number | null;
   description: string;
   /** Config keys only — never secrets. */
   configuration: { key: string; value: string }[];
@@ -196,7 +196,7 @@ export type Fill = {
 export type Position = {
   id: string;
   accountId: string;
-  strategyId: string;
+  strategyId: string | null;
   instrumentId: string;
   side: PositionSide;
   quantity: Money;
@@ -205,7 +205,7 @@ export type Position = {
   unrealizedPnl: Money;
   realizedPnl: Money;
   exposure: Money;
-  riskPct: number;
+  riskPct: number | null;
   openedAt: string;
 };
 
