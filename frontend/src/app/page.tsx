@@ -184,7 +184,7 @@ export default function CommandCenterPage() {
                     >
                       {formatSignedMoney(p.unrealizedPnl)}
                     </td>
-                    <td>{p.strategyId}</td>
+                    <td>{p.strategyId ?? "Unattributed"}</td>
                   </tr>
                 ))}
               </tbody>
