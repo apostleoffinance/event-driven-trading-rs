@@ -322,9 +322,9 @@ CREATE TABLE IF NOT EXISTS journal_trade_source_records (
   FOREIGN KEY (owner_id, journal_account_id)
     REFERENCES journal_accounts(owner_id, id),
   FOREIGN KEY (owner_id, trade_id)
-    REFERENCES journal_trades(owner_id, id) ON DELETE SET NULL,
+    REFERENCES journal_trades(owner_id, id),
   FOREIGN KEY (owner_id, import_batch_id)
-    REFERENCES journal_import_batches(owner_id, id) ON DELETE SET NULL
+    REFERENCES journal_import_batches(owner_id, id)
 );
 CREATE INDEX IF NOT EXISTS journal_trade_source_records_owner_trade_idx
   ON journal_trade_source_records (owner_id, trade_id);
