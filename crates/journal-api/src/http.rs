@@ -64,7 +64,7 @@ fn owner(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> 
     state.auth.authenticate(headers)
 }
 
-fn trade_from(owner_id: String, id: String, input: TradeWrite) -> JournalTrade {
+pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> JournalTrade {
     JournalTrade {
         id,
         owner_id,
