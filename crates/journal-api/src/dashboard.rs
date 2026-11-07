@@ -658,7 +658,8 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
         ("venue", "Broker connectivity"),
         ("reconciliation", "Trade reconciliation"),
     ];
-    Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({
+    Json(
+        serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({
         "id":id,
         "name":name,
         "status":system_component_status(id, db),
@@ -666,7 +667,9 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
         "lastHeartbeat":null,
         "latencyMs":null,
         "errorCount":null
-    })).collect::<Vec<_>>()})).into_response()
+    })).collect::<Vec<_>>()}),
+    )
+    .into_response()
 }
 pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let owner = match auth(&state, &headers) {
