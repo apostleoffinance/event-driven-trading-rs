@@ -116,7 +116,7 @@ async fn journal_get_by_id_returns_all_trade_annotations(pool: PgPool) {
     .await
     .expect("trade insert");
 
-    let store = crate::TradingStore::new(pool);
+    let store = persistence::TradingStore::new(pool);
     let trade = store
         .get_journal_trade("get-owner", "get-trade")
         .await
