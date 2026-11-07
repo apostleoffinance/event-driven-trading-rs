@@ -510,6 +510,8 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
                              "metadata": {"legacy_screenshot_id": str(shot.get("id")), "sha256": digest, "source": "TraderOS"}})
                 report["screenshots_imported"] = report.get("screenshots_imported", 0) + 1
 
+        except Exception as exc:
+            report["errors"].append(f"Screenshot transfer failed: {type(exc).__name__}")
     report["complete"] = not report["errors"] and not report["warnings"]
     report["source_counts"] = manifest.get("tables", {})
     report["imported_counts"] = {
