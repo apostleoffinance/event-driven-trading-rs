@@ -103,7 +103,7 @@ export default function CommandCenterPage() {
   return (
     <>
       <PageHeader
-        title="Command Center"
+        title="Dashboard"
         description={frontendConfig.dataMode === "api" ? "Your trading accounts, performance and risk overview." : "What is happening in your PAPER trading simulation."}
       />
       <div style={{ marginBottom: 12 }}>
@@ -134,7 +134,7 @@ export default function CommandCenterPage() {
           <div className="panel-title">RISK STATUS</div>
           <div style={{ marginBottom: 8 }}>
             <StatusBadge tone={riskToneClass(risk.tone)}>
-              {risk.engineStatus === "HEALTHY" ? "Risk controls active" : risk.engineStatus === "NOT_CONFIGURED" ? "Risk limits not configured" : `Risk status: ${risk.engineStatus.toLowerCase().replaceAll("_", " ")}`}
+              {risk.engineStatus === "HEALTHY" ? "Risk limits configured" : risk.engineStatus === "NOT_CONFIGURED" ? "Risk limits not configured" : `Risk status: ${risk.engineStatus.toLowerCase().replaceAll("_", " ")}`}
             </StatusBadge>
           </div>
           <div className="metric-label">DAILY LOSS</div>
