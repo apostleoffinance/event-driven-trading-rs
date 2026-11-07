@@ -432,8 +432,6 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
                                  {"journal_account_id": acc_map[account_id],
                                   "source_system": "TraderOS", "trades": body_trades})
             report.setdefault("trade_batches", []).append(result.get("data", {}))
-            for row in trade_row for trade_row in []:
-                pass
         # Ensure retries can locate each imported trade by source ID and account, avoiding ID collisions across accounts.
         found_rows = []
         offset = 0
