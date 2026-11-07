@@ -117,6 +117,22 @@ class MigrationTransformTests(unittest.TestCase):
             self.assertFalse(plan["valid"])
             self.assertTrue(any("checksum mismatch" in e for e in plan["errors"]))
 
+    def test_validate_snapshot_allows_dry_run_placeholder_mappings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prefix = root / "snapshot.json"
+            migrate.dump_json(prefix, {"format":migrate.SOURCE_FORMAT,"source_user_id":"u","tables":{}})
+            migrate.dump_json(root / "snapshot_accounts.json", [{"id":"a"}])
+            migrate.dump_json(root / "snapshot_setups.json", [{"id":"s"}])
+            migrate.dump_json(root / "snapshot_trades.json", [{
+                "id":"t","account_id":"a","setup_id":"s",
+                "trade_timestamp":"2026-10-01T09:30:00+00:00","status":"open",
+                "direction":"long","lot_size":"0.1","entry_price":"1.2"}])
+            for table in ("psychology","trade_screenshots","trade_checklist_responses"):
+                migrate.dump_json(root / f"snapshot_{table}.json", [])
+            plan = migrate.validate_snapshot(prefix, "u", {"a":"DRYRUN:a"}, {"s":"DRYRUN:s"}, allow_placeholders=True)
+            self.assertTrue(plan["valid"])
+
 
 if __name__ == "__main__":
     unittest.main()
