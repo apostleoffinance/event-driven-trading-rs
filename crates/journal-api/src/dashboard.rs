@@ -298,7 +298,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         Err(_) => return internal(),
     };
 
-    let series = sqlx::query_as::<_, (DateTime<Utc>, Decimal, Decimal, Decimal)>(r#"
+    let series = sqlx::query_as::<_, (DateTime<Utc>, Decimal, Decimal, Decimal)>(
+        r#"
       WITH per_account_hour AS (
         SELECT DISTINCT ON (ps.account_id, date_trunc('hour', ps.captured_at))
           ps.account_id,date_trunc('hour', ps.captured_at) AS captured_at,
@@ -310,7 +311,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
       )
       SELECT captured_at,SUM(equity),SUM(realized_pnl),MAX(drawdown_pct)
       FROM per_account_hour GROUP BY captured_at ORDER BY captured_at DESC LIMIT 100
-    "#)
+    "#,
+    )
     .bind(&owner)
     .fetch_all(state.store.pool())
     .await;
@@ -318,18 +320,24 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         Ok(value) => value,
         Err(_) => return internal(),
     };
-    let equity_series = series.into_iter().rev().map(|(time, eq, pnl, dd)| {
-        serde_json::json!({
-            "time":time,"equity":dec(eq),"realizedPnl":dec(pnl),
-            "drawdownPct":dd.to_f64().unwrap_or(0.0)
+    let equity_series = series
+        .into_iter()
+        .rev()
+        .map(|(time, eq, pnl, dd)| {
+            serde_json::json!({
+                "time":time,"equity":dec(eq),"realizedPnl":dec(pnl),
+                "drawdownPct":dd.to_f64().unwrap_or(0.0)
+            })
         })
-    }).collect::<Vec<_>>();
+        .collect::<Vec<_>>();
 
-    let gross = sqlx::query_scalar::<_, Option<Decimal>>(r#"
+    let gross = sqlx::query_scalar::<_, Option<Decimal>>(
+        r#"
       SELECT SUM(ABS(p.quantity*p.mark_price))
       FROM positions p JOIN dashboard_account_access g ON g.account_id=p.account_id
       WHERE g.owner_id=$1
-    "#)
+    "#,
+    )
     .bind(&owner)
     .fetch_one(state.store.pool())
     .await;
@@ -351,11 +359,13 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         Err(_) => return internal(),
     };
 
-    let max_drawdown = sqlx::query_scalar::<_, Option<Decimal>>(r#"
+    let max_drawdown = sqlx::query_scalar::<_, Option<Decimal>>(
+        r#"
       SELECT MAX(ps.drawdown_pct)
       FROM performance_snapshots ps JOIN dashboard_account_access g ON g.account_id=ps.account_id
       WHERE g.owner_id=$1
-    "#)
+    "#,
+    )
     .bind(&owner)
     .fetch_one(state.store.pool())
     .await;
