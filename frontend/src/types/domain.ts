@@ -228,7 +228,7 @@ export type PortfolioSnapshot = {
   maxDrawdownPct: number | null;
   grossExposure: Money;
   netExposure: Money;
-  exposurePct: number | null;
+  exposurePct: number;
   equitySeries: EquityPoint[];
   pnlByStrategy: { strategyId: string; pnl: Money }[];
   pnlByInstrument: { instrumentId: string; pnl: Money }[];
@@ -241,7 +241,7 @@ export type RiskOverview = {
   maxDrawdownPct: number;
   maxDrawdownLimitPct: number | null;
   openRiskPct: number | null;
-  exposurePct: number;
+  exposurePct: number | null;
   killSwitch: boolean;
   tone: RiskTone;
   hierarchy: {
