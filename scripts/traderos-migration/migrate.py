@@ -282,6 +282,7 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         setup_map = state["setup_map"].setdefault(str(legacy_user_id), {})
         created_acc = created_setup = imported = skipped = psych = attachments = 0
 
+        risk_profiles = {str(r.get("account_id")): r for r in read_table(prefix, "account_risk_profiles")}
         for account in accounts:
             legacy_acc_id = str(account["id"])
             if legacy_acc_id in acc_map:
@@ -290,9 +291,17 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
                 acc_map[legacy_acc_id] = f"DRYRUN:{legacy_acc_id}"
                 continue
             acct_type = "funded" if account.get("firm") else "journal"
+            profile = risk_profiles.get(legacy_acc_id, {})
             payload = {"name": str(account.get("account_name") or "TraderOS account"), "broker": " / ".join(x for x in [str(account.get("firm") or "").strip(), str(account.get("program") or "").strip()] if x) or None,
                        "account_type": acct_type, "currency": str(account.get("currency") or "USD").upper(),
-                       "initial_balance": decimal_str(account.get("starting_balance"), "0")}
+                       "initial_balance": decimal_str(account.get("starting_balance"), "0"),
+                       "external_source": "TraderOS", "external_account_id": legacy_acc_id,
+                       "migration_metadata": {"legacy_account_id": legacy_acc_id, "legacy_firm": account.get("firm"),
+                                              "legacy_program": account.get("program"),
+                                              "legacy_status": account.get("status"),
+                                              "legacy_current_balance": decimal_str(account.get("current_balance")),
+                                              "legacy_current_equity": decimal_str(account.get("current_equity")),
+                                              "legacy_risk_profile": profile}}
             result = api_request(base, token, "POST", "/api/v1/journal/accounts", payload)
             acc_map[legacy_acc_id] = result["data"]["id"]
             created_acc += 1
