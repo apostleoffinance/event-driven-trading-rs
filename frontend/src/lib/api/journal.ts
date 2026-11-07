@@ -15,7 +15,7 @@ export type JournalTrade = {
   quantity: string; entry_price: string; exit_price?: string | null; stop_loss?: string | null;
   take_profit?: string | null; gross_pnl?: string | null; commission: string; swap: string;
   other_fees: string; net_pnl?: string | null; pnl_currency: string;
-  risk_amount?: string | null; r_multiple?: string | null;
+  risk_amount?: string | null; r_multiple?: string | null; session?: string | null; timeframe?: string | null; timezone?: string | null;
 };
 type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
