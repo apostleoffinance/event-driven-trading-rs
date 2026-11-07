@@ -21,7 +21,7 @@ import {
 
 const sections = [
   {
-    title: "COMMAND",
+    title: "OVERVIEW",
     items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
@@ -41,7 +41,7 @@ const sections = [
     ],
   },
   {
-    title: "CAPITAL",
+    title: "ACCOUNTS",
     items: [
       { href: "/accounts", label: "Accounts", icon: Wallet },
       { href: "/portfolio", label: "Portfolio", icon: Activity },
@@ -52,12 +52,12 @@ const sections = [
     items: [{ href: "/risk", label: "Risk Center", icon: Shield }],
   },
   {
-    title: "SYSTEM",
+    title: "TOOLS",
     items: [
       { href: "/market-data", label: "Market Data", icon: CandlestickChart },
-      { href: "/events", label: "Event Stream", icon: Radio },
-      { href: "/reconciliation", label: "Reconcile", icon: Scale },
-      { href: "/system", label: "System", icon: Server },
+      { href: "/events", label: "Activity", icon: Radio },
+      { href: "/reconciliation", label: "Reconciliation", icon: Scale },
+      { href: "/system", label: "Connections & Status", icon: Server },
     ],
   },
 ];

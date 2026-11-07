@@ -41,6 +41,50 @@ fn not_found() -> Response {
 fn dec(v: Decimal) -> String {
     v.to_string()
 }
+fn risk_status(
+    configured: bool,
+    kill_switch: bool,
+    daily_loss_pct: Decimal,
+    daily_loss_limit_pct: Option<Decimal>,
+    drawdown_pct: Decimal,
+    drawdown_limit_pct: Option<Decimal>,
+) -> (&'static str, &'static str) {
+    let daily_breach = daily_loss_limit_pct.is_some_and(|limit| daily_loss_pct >= limit);
+    let drawdown_breach = drawdown_limit_pct.is_some_and(|limit| drawdown_pct >= limit);
+    let tone = if kill_switch || daily_breach || drawdown_breach {
+        "BREACH"
+    } else if configured {
+        "HEALTHY"
+    } else {
+        "WARNING"
+    };
+    (
+        if configured {
+            "HEALTHY"
+        } else {
+            "NOT_CONFIGURED"
+        },
+        tone,
+    )
+}
+
+fn system_component_status(id: &str, database_healthy: bool) -> &'static str {
+    match id {
+        "api" => "HEALTHY",
+        "database" if database_healthy => "HEALTHY",
+        "database" => "ERROR",
+        _ => "UNKNOWN",
+    }
+}
+
+fn venue_connection_status(enabled: bool) -> &'static str {
+    if enabled {
+        "UNKNOWN"
+    } else {
+        "DISCONNECTED"
+    }
+}
+
 fn status_case(v: &str) -> String {
     v.split('_')
         .filter(|part| !part.is_empty())
@@ -102,11 +146,7 @@ fn account_json(a: AccountRow) -> serde_json::Value {
         0.0
     };
     let risk_status = if a.kill_switch { "BREACH" } else { "WARNING" };
-    let conn_status = if a.venue_enabled {
-        "DEGRADED"
-    } else {
-        "DISCONNECTED"
-    };
+    let conn_status = venue_connection_status(a.venue_enabled);
     serde_json::json!({
         "id":a.id,"name":a.label.unwrap_or_else(||a.id.clone()),
         "type":status_case(&a.account_type),"venueId":a.venue_id,"venueName":a.venue_name,
@@ -200,7 +240,7 @@ pub async fn create_paper_account(
             "venueName":"Paper Simulator","environment":"PAPER","balance":dec(input.initial_capital),
             "equity":dec(input.initial_capital),"availableCapital":dec(input.initial_capital),
             "dailyPnl":"0","unrealizedPnl":"0","realizedPnl":null,"drawdownPct":0.0,
-            "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"DEGRADED"
+            "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"UNKNOWN"
         }})),
     ).into_response()
 }
@@ -533,11 +573,11 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
     } else {
         Decimal::ZERO
     };
-    let engine_status = if count == 0 {
-        "DISCONNECTED"
-    } else {
-        "DEGRADED"
-    };
+    // Configuration state is distinct from service availability. Do not report
+    // DISCONNECTED/DEGRADED merely because a user has not configured accounts.
+    let configured = count > 0 && (daily_limit.is_some() || dd_limit.is_some());
+    let (engine_status, tone) =
+        risk_status(configured, kill, daily_loss, daily_limit, dd, dd_limit);
     Json(serde_json::json!({"data":{
       "engineStatus":engine_status,
       "dailyLossPct":daily_loss.to_f64().unwrap_or(0.0),
@@ -545,7 +585,7 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
       "maxDrawdownPct":dd.to_f64().unwrap_or(0.0),
       "maxDrawdownLimitPct":dd_limit.and_then(|v|v.to_f64()),
       "openRiskPct":null,"exposurePct":null,
-      "killSwitch":kill,"tone":if kill{"BREACH"}else{"WARNING"},"hierarchy":[]
+      "killSwitch":kill,"tone":tone,"hierarchy":[]
     }}))
     .into_response()
 }
@@ -582,7 +622,7 @@ pub async fn events(
       WHERE g.owner_id=$1 ORDER BY e.created_at DESC LIMIT $2
     "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time,account,strategy,instrument)|serde_json::json!({
-      "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":format!("Execution event for order {}",order.as_deref().unwrap_or("unknown")),"payload":payload,"correlationId":venue
+      "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":"Trading activity recorded","payload":payload,"correlationId":venue
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
@@ -609,38 +649,125 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
         .fetch_one(state.store.pool())
         .await
         .is_ok();
-    let status = if db { "DEGRADED" } else { "ERROR" };
     let components = vec![
         ("api", "EdgeNest API"),
         ("database", "PostgreSQL"),
-        ("risk", "Risk Engine"),
-        ("oms", "Order Management"),
-        ("market-data", "Market Data"),
-        ("venue", "Venue Connectivity"),
-        ("reconciliation", "Reconciliation"),
+        ("risk", "Risk controls"),
+        ("oms", "Order management"),
+        ("market-data", "Market data"),
+        ("venue", "Broker connectivity"),
+        ("reconciliation", "Trade reconciliation"),
     ];
-    Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({"id":id,"name":name,"status":if id=="api" || (id=="database" && db){"HEALTHY"}else{status},"uptime":"unknown","lastHeartbeat":null,"latencyMs":null,"errorCount":null})).collect::<Vec<_>>()})).into_response()
+    Json(
+        serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({
+        "id":id,
+        "name":name,
+        "status":system_component_status(id, db),
+        "uptime":null,
+        "lastHeartbeat":null,
+        "latencyMs":null,
+        "errorCount":null
+    })).collect::<Vec<_>>()}),
+    )
+    .into_response()
 }
 pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let _owner = match auth(&state, &headers) {
+    let owner = match auth(&state, &headers) {
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    let stages = [
-        "Market Data",
-        "Strategy",
-        "Trade Intent",
-        "Risk",
-        "OMS",
-        "Venue",
-        "Reconciliation",
-    ];
-    Json(serde_json::json!({"data":stages.iter().enumerate().map(|(i,label)|serde_json::json!({"id":format!("stage-{i}"),"label":label,"status":"DEGRADED","lastActivity":"unknown","metric":"No live activity reported","href":"/system"})).collect::<Vec<_>>()})).into_response()
-}
 
+    let account_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM dashboard_account_access WHERE owner_id=$1",
+    )
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+
+    let account_count = match account_count {
+        Ok(count) => count,
+        Err(_) => return internal(),
+    };
+
+    // There is no persisted end-to-end pipeline telemetry yet. Return an honest
+    // empty state when the user has no accounts, and UNKNOWN (not DEGRADED) when
+    // account-specific activity cannot be measured.
+    if account_count == 0 {
+        return Json(serde_json::json!({"data":[]})).into_response();
+    }
+
+    let stages = [
+        ("market-data", "Market updates"),
+        ("strategy", "Strategy signals"),
+        ("risk", "Risk checks"),
+        ("orders", "Order activity"),
+        ("venue", "Broker execution"),
+        ("reconciliation", "Trade reconciliation"),
+    ];
+    Json(
+        serde_json::json!({"data":stages.iter().map(|(id,label)|serde_json::json!({
+        "id":id,
+        "label":label,
+        "status":"UNKNOWN",
+        "lastActivity":null,
+        "metric":"Activity status is not available yet",
+        "href":"/system"
+    })).collect::<Vec<_>>()}),
+    )
+    .into_response()
+}
 #[cfg(test)]
 mod tests {
     use super::status_case;
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn risk_status_distinguishes_unconfigured_from_breach() {
+        assert_eq!(
+            super::risk_status(false, false, Decimal::ZERO, None, Decimal::ZERO, None),
+            ("NOT_CONFIGURED", "WARNING")
+        );
+        assert_eq!(
+            super::risk_status(
+                true,
+                false,
+                Decimal::from(2),
+                Some(Decimal::from(5)),
+                Decimal::from(1),
+                Some(Decimal::from(10))
+            ),
+            ("HEALTHY", "HEALTHY")
+        );
+        assert_eq!(
+            super::risk_status(
+                true,
+                false,
+                Decimal::from(5),
+                Some(Decimal::from(5)),
+                Decimal::ZERO,
+                None
+            ),
+            ("HEALTHY", "BREACH")
+        );
+        assert_eq!(
+            super::risk_status(true, true, Decimal::ZERO, None, Decimal::ZERO, None),
+            ("HEALTHY", "BREACH")
+        );
+    }
+
+    #[test]
+    fn system_health_reports_only_observed_components() {
+        assert_eq!(super::system_component_status("api", false), "HEALTHY");
+        assert_eq!(super::system_component_status("database", true), "HEALTHY");
+        assert_eq!(super::system_component_status("database", false), "ERROR");
+        assert_eq!(super::system_component_status("risk", true), "UNKNOWN");
+    }
+
+    #[test]
+    fn enabled_venue_does_not_claim_degraded_or_connected_without_telemetry() {
+        assert_eq!(super::venue_connection_status(true), "UNKNOWN");
+        assert_eq!(super::venue_connection_status(false), "DISCONNECTED");
+    }
 
     #[test]
     fn status_case_converts_snake_case_values() {

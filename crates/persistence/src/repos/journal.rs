@@ -251,7 +251,9 @@ pub async fn get_for_owner(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
             exit_price, stop_loss, take_profit, gross_pnl, commission, swap, other_fees,
-            net_pnl, pnl_currency, risk_amount, r_multiple
+            net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone,
+            mfe_r, mae_r, notes, tags, setup_valid, rules_followed, emotional_trade,
+            mistake, mistake_notes, discipline_score, acknowledged_warnings
           FROM journal_trades WHERE owner_id = $1 AND id = $2"#,
     )
     .bind(owner_id)

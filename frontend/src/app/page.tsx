@@ -11,15 +11,14 @@ import {
 } from "@/components/data-display/StatusBadge";
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { TradingPipeline } from "@/components/trading/TradingPipeline";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { SimulationControls } from "@/features/simulation/SimulationControls";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import { frontendConfig } from "@/config/frontend";
 import type {
+  Account,
   Order,
-  PipelineNode,
   PortfolioSnapshot,
   Position,
   RiskOverview,
@@ -28,11 +27,11 @@ import type {
 export default function CommandCenterPage() {
   const repos = getRepositories();
   const { events } = useSharedEventStream();
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioSnapshot | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [risk, setRisk] = useState<RiskOverview | null>(null);
-  const [pipeline, setPipeline] = useState<PipelineNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,19 +39,19 @@ export default function CommandCenterPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, pos, ord, r, pipe] = await Promise.all([
+        const [acct, p, pos, ord, r] = await Promise.all([
+          repos.accounts.listAccounts(),
           repos.portfolio.getSnapshot(),
           repos.positions.listPositions(),
           repos.orders.listOrders(),
           repos.risk.getOverview(),
-          repos.system.getPipeline(),
         ]);
         if (cancelled) return;
+        setAccounts(acct);
         setPortfolio(p);
         setPositions(pos);
         setOrders(ord.slice(0, 8));
         setRisk(r);
-        setPipeline(pipe);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Load failed");
       } finally {
@@ -62,7 +61,7 @@ export default function CommandCenterPage() {
     return () => {
       cancelled = true;
     };
-  }, [repos.portfolio, repos.positions, repos.orders, repos.risk, repos.system]);
+  }, [repos.accounts, repos.portfolio, repos.positions, repos.orders, repos.risk]);
 
   if (loading) return <div className="loading">Loading command center…</div>;
   if (error || !portfolio || !risk)
@@ -77,14 +76,30 @@ export default function CommandCenterPage() {
       </div>
     );
 
+  if (frontendConfig.dataMode === "api" && accounts.length === 0) {
+    return (
+      <>
+        <PageHeader title="Your trading dashboard" description="Your trading accounts, performance and risk overview in one place." />
+        <section className="panel" style={{ maxWidth: 760, margin: "24px auto", textAlign: "center", padding: 32 }}>
+          <h2>Welcome to EdgeNest</h2>
+          <p>You haven’t added a trading account yet. Create a paper account to start tracking your trading activity.</p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 16 }}>
+            <Link href="/accounts" className="btn primary">Set up a trading account</Link>
+            <Link href="/journal" className="btn">Start your trading journal</Link>
+          </div>
+        </section>
+      </>
+    );
+  }
+
   const util =
     risk.dailyLossLimitPct && risk.dailyLossLimitPct > 0 ? (risk.dailyLossPct / risk.dailyLossLimitPct) * 100 : 0;
 
   return (
     <>
       <PageHeader
-        title="Command Center"
-        description={frontendConfig.dataMode === "api" ? "Read-only trading state from the authenticated EdgeNest API. Execution remains server-side." : "What is happening in the trading system right now — PAPER simulation of Strategy → TradeIntent → Risk → OMS → Venue."}
+        title="Dashboard"
+        description={frontendConfig.dataMode === "api" ? "Your trading accounts, performance and risk overview." : "What is happening in your PAPER trading simulation."}
       />
       <div style={{ marginBottom: 12 }}>
         {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
@@ -114,7 +129,7 @@ export default function CommandCenterPage() {
           <div className="panel-title">RISK STATUS</div>
           <div style={{ marginBottom: 8 }}>
             <StatusBadge tone={riskToneClass(risk.tone)}>
-              Risk Engine {risk.engineStatus}
+              {risk.killSwitch ? "Trading halted by risk controls" : risk.tone === "BREACH" ? "Risk limit breached" : risk.engineStatus === "HEALTHY" ? "Risk limits configured" : risk.engineStatus === "NOT_CONFIGURED" ? "Risk limits not configured" : "Risk status unavailable"}
             </StatusBadge>
           </div>
           <div className="metric-label">DAILY LOSS</div>
@@ -138,15 +153,11 @@ export default function CommandCenterPage() {
             {risk.maxDrawdownPct.toFixed(2)}% / {risk.maxDrawdownLimitPct == null ? "Not configured" : `${risk.maxDrawdownLimitPct.toFixed(2)}%`}
           </div>
           <div className="metric-sub" style={{ marginTop: 12 }}>
-            Open risk {risk.openRiskPct == null ? "unknown" : `${risk.openRiskPct.toFixed(2)}%`} · Exposure{" "}
-            {risk.exposurePct == null ? "unknown" : `${risk.exposurePct.toFixed(1)}%`} · Kill switch{" "}
+            Open risk {risk.openRiskPct == null ? "Not available" : `${risk.openRiskPct.toFixed(2)}%`} · Exposure{" "}
+            {risk.exposurePct == null ? "Not available" : `${risk.exposurePct.toFixed(1)}%`} · Kill switch{" "}
             {risk.killSwitch ? "ON" : "OFF"}
           </div>
         </div>
-      </div>
-      <div className="panel" style={{ marginBottom: 12 }}>
-        <div className="panel-title">TRADING PIPELINE</div>
-        <TradingPipeline nodes={pipeline} />
       </div>
       <div className="grid grid-dash">
         <div className="panel">
@@ -173,6 +184,7 @@ export default function CommandCenterPage() {
                 </tr>
               </thead>
               <tbody>
+                {!positions.length ? <tr><td colSpan={7} className="muted">No open positions yet. Your positions will appear here when trades are opened.</td></tr> : null}
                 {positions.map((p) => (
                   <tr key={p.id}>
                     <td>{p.instrumentId}</td>
@@ -193,7 +205,7 @@ export default function CommandCenterPage() {
           </div>
         </div>
         <div className="panel">
-          <div className="panel-title">EVENT STREAM</div>
+          <div className="panel-title">RECENT ACTIVITY</div>
           <EventStreamList events={events} limit={8} />
         </div>
       </div>
@@ -221,6 +233,7 @@ export default function CommandCenterPage() {
               </tr>
             </thead>
             <tbody>
+              {!orders.length ? <tr><td colSpan={7} className="muted">No orders yet. Your order history will appear here when you start trading.</td></tr> : null}
               {orders.map((o) => (
                 <tr key={o.id}>
                   <td className="num">{new Date(o.updatedAt).toLocaleTimeString()}</td>

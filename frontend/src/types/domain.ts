@@ -39,7 +39,7 @@ export type StrategyStatus =
   | "PAPER"
   | "LIVE";
 
-export type HealthStatus = "HEALTHY" | "DEGRADED" | "DISCONNECTED" | "ERROR";
+export type HealthStatus = "HEALTHY" | "DEGRADED" | "DISCONNECTED" | "ERROR" | "UNKNOWN" | "NOT_CONFIGURED";
 
 export type RiskTone = "HEALTHY" | "WARNING" | "BREACH";
 
@@ -241,7 +241,7 @@ export type RiskOverview = {
   maxDrawdownPct: number;
   maxDrawdownLimitPct: number | null;
   openRiskPct: number | null;
-  exposurePct: number;
+  exposurePct: number | null;
   killSwitch: boolean;
   tone: RiskTone;
   hierarchy: {
@@ -291,7 +291,7 @@ export type SystemComponent = {
   id: string;
   name: string;
   status: HealthStatus;
-  uptime: string;
+  uptime: string | null;
   lastHeartbeat: string | null;
   lastEvent?: string;
   latencyMs: number | null;
@@ -303,7 +303,7 @@ export type PipelineNode = {
   id: string;
   label: string;
   status: HealthStatus;
-  lastActivity: string;
+  lastActivity: string | null;
   metric: string;
   href: string;
 };

@@ -8,7 +8,7 @@ export type FrontendConfig = {
 };
 
 export const frontendConfig: FrontendConfig = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "Quant OS",
+  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "EdgeNest",
   dataMode: (process.env.NEXT_PUBLIC_DATA_MODE as "mock" | "api") ?? "mock",
   eventMode:
     (process.env.NEXT_PUBLIC_EVENT_MODE as "mock" | "websocket" | "sse") ??

@@ -17,7 +17,7 @@ export default function MarketDataPage() {
   const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: frontendConfig.dataMode === "api" && Boolean(submitted.instrument) });
 
   if (frontendConfig.dataMode !== "api") {
-    return <div><PageHeader title="Market Data" description="Read-only Rust Market Data service." /><section className="panel"><h2>API mode disabled</h2><p>Set NEXT_PUBLIC_DATA_MODE=api and the Market Data API origin. No mock candles are displayed on this page.</p></section></div>;
+    return <div><PageHeader title="Market Data" description="Explore market prices and historical data." /><section className="panel"><h2>Market data is temporarily unavailable</h2><p>Please try again later. We’ll show verified market data when the service is connected.</p></section></div>;
   }
 
   const error = providers.error ?? instruments.error ?? candles.error;

@@ -87,3 +87,51 @@ async fn journal_schema_preserves_owner_scope_and_import_idempotency(pool: PgPoo
             .expect("journal count query should succeed");
     assert_eq!(row_count, 1);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn journal_get_by_id_returns_all_trade_annotations(pool: PgPool) {
+    sqlx::query(
+        "INSERT INTO journal_accounts (id, owner_id, name, currency) VALUES ('get-account', 'get-owner', 'Journal', 'USD')",
+    )
+    .execute(&pool)
+    .await
+    .expect("account insert");
+
+    sqlx::query(
+        r#"INSERT INTO journal_trades (
+            id, owner_id, journal_account_id, symbol, direction, status, source,
+            opened_at, closed_at, quantity, entry_price, exit_price, pnl_currency,
+            session, timeframe, timezone, mfe_r, mae_r, notes, tags,
+            setup_valid, rules_followed, emotional_trade, mistake, mistake_notes,
+            discipline_score, acknowledged_warnings
+        ) VALUES (
+            'get-trade', 'get-owner', 'get-account', 'EURUSD', 'long', 'closed', 'manual',
+            '2026-01-01T10:00:00Z', '2026-01-01T11:00:00Z', 0.1, 1.1, 1.105, 'USD',
+            'London', 'M15', 'Africa/Lagos', 1.5, -0.5, 'review notes', '["breakout"]',
+            TRUE, TRUE, FALSE, FALSE, NULL, 90, '[]'
+        )"#,
+    )
+    .execute(&pool)
+    .await
+    .expect("trade insert");
+
+    let store = persistence::TradingStore::new(pool);
+    let trade = store
+        .get_journal_trade("get-owner", "get-trade")
+        .await
+        .expect("owner-scoped trade lookup");
+
+    assert_eq!(trade.symbol, "EURUSD");
+    assert_eq!(trade.session.as_deref(), Some("London"));
+    assert_eq!(trade.timeframe.as_deref(), Some("M15"));
+    assert_eq!(trade.timezone.as_deref(), Some("Africa/Lagos"));
+    assert_eq!(trade.mfe_r, Some(rust_decimal::Decimal::new(15, 1)));
+    assert_eq!(trade.mae_r, Some(rust_decimal::Decimal::new(-5, 1)));
+    assert_eq!(trade.notes.as_deref(), Some("review notes"));
+    assert_eq!(trade.tags, vec!["breakout"]);
+    assert_eq!(trade.setup_valid, Some(true));
+    assert_eq!(trade.rules_followed, Some(true));
+    assert_eq!(trade.emotional_trade, Some(false));
+    assert_eq!(trade.mistake, Some(false));
+    assert_eq!(trade.discipline_score, Some(90));
+}
