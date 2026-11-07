@@ -498,8 +498,8 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
         SELECT g.account_id,s.daily_realized_pnl,s.balance,s.equity,s.peak_equity,s.kill_switch
         FROM dashboard_account_access g JOIN account_states s ON s.account_id=g.account_id WHERE g.owner_id=$1
       ), limits AS (
-        SELECT MAX(NULLIF(rp.policy_json->>'max_daily_loss_pct','')::NUMERIC) AS daily_limit,
-               MAX(NULLIF(rp.policy_json->>'max_drawdown_pct','')::NUMERIC) AS dd_limit
+        SELECT MIN(NULLIF(rp.policy_json->>'max_daily_loss_pct','')::NUMERIC) AS daily_limit,
+               MIN(NULLIF(rp.policy_json->>'max_drawdown_pct','')::NUMERIC) AS dd_limit
         FROM dashboard_account_access g
         JOIN strategy_deployments d ON d.account_id=g.account_id
         JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.owner_id=$1
