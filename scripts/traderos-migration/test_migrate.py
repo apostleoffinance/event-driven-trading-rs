@@ -171,7 +171,9 @@ class MigrationTransformTests(unittest.TestCase):
                     obj=self.objects[Key]
                     return {"Metadata":obj["Metadata"],"ContentLength":len(obj["Body"])}
             fake=FakeS3()
-            with patch("boto3.client", return_value=fake):
+            import sys, types
+            fake_module = types.SimpleNamespace(client=lambda *args, **kwargs: fake)
+            with patch.dict(sys.modules, {"boto3": fake_module}):
                 info=migrate.upload_snapshot_archive(prefix,"u",storage)
             self.assertTrue(info["storage_key"].endswith(info["sha256"]+".zip"))
             self.assertEqual(info["byte_size"],len(fake.objects[info["storage_key"]]["Body"]))
