@@ -86,7 +86,7 @@ export type JournalAnalytics = {
   trade_count: number; wins: number; losses: number; breakeven: number;
   win_rate_percent: string; gross_profit: string; gross_loss: string; net_profit: string;
   profit_factor: string | null; expectancy: string; average_win: string | null; average_loss: string | null;
-  max_drawdown: string; average_r: string | null; average_mfe_r?: string | null; average_mae_r?: string | null;
+  max_drawdown: string; average_r: string | null; average_mfe_r?: string | null; average_mae_r?: string | null; setup_valid_count?: number; rules_followed_count?: number; emotional_trade_count?: number; mistake_count?: number; setup_valid_percent?: string; rules_followed_percent?: string; average_discipline_score?: string | null;
   equity_curve: Array<{ trade_id: string; closed_at: string; net_pnl: string; equity: string; drawdown: string }>;
   by_symbol: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_session: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
