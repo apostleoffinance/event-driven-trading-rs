@@ -86,7 +86,7 @@ The following authenticated GET endpoints are currently implemented by the Journ
 
 The dashboard is intentionally read-only; these endpoints do not submit, cancel, or modify orders.
 
-**Account access:** the core execution accounts predate EdgeNest identity grants. Migration `202611070002_dashboard_account_access.sql` creates `dashboard_account_access`. Accounts are not automatically exposed to a JWT subject. A trusted provisioning/administrative workflow must explicitly grant an account to the authenticated owner; users must never be able to self-claim an arbitrary trading account. Without grants, API mode returns truthful empty account/position/order data and disconnected/degraded status rather than mock fixtures.
+**Account access:** the core execution accounts predate EdgeNest identity grants. Migration `20261107000002_dashboard_account_access.sql` creates `dashboard_account_access`. Accounts are not automatically exposed to a JWT subject. A trusted provisioning/administrative workflow must explicitly grant an account to the authenticated owner; users must never be able to self-claim an arbitrary trading account. Without grants, API mode returns truthful empty account/position/order data and disconnected/degraded status rather than mock fixtures.
 
 Risk limits are read from linked risk profile policy JSON. Missing risk limits are returned as `null` and rendered as “Not configured”; open risk and exposure values are unknown when the current schema cannot authoritatively calculate them. System health distinguishes the API/database checks from unavailable risk/OMS/venue runtime telemetry.
 
