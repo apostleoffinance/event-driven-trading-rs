@@ -133,6 +133,28 @@ class MigrationTransformTests(unittest.TestCase):
             plan = migrate.validate_snapshot(prefix, "u", {"a":"DRYRUN:a"}, {"s":"DRYRUN:s"}, allow_placeholders=True)
             self.assertTrue(plan["valid"])
 
+    def test_export_allowlist_contains_account_owned_history_without_auth_table(self):
+        self.assertIn("risk_events", migrate.SOURCE_TABLES)
+        self.assertIn("ai_analyses", migrate.SOURCE_TABLES)
+        self.assertIn("ai_memories", migrate.SOURCE_TABLES)
+        self.assertIn("market_analyses", migrate.SOURCE_TABLES)
+        self.assertIn("chart_annotations", migrate.SOURCE_TABLES)
+        self.assertIn("mt5_processed_deals", migrate.SOURCE_TABLES)
+        self.assertIn("mt5_sync_snapshots", migrate.SOURCE_TABLES)
+        self.assertIn("mt5_source_deals", migrate.SOURCE_TABLES)
+        self.assertIn("broker_candles", migrate.SOURCE_TABLES)
+        self.assertIn("mt5_connections", migrate.SOURCE_TABLES)
+        self.assertNotIn("users", migrate.SOURCE_TABLES)
+        self.assertNotIn("market_candles", migrate.SOURCE_TABLES)
+
+    def test_mt5_connection_export_query_omits_secret_columns(self):
+        import inspect
+        source = inspect.getsource(migrate.source_snapshot)
+        self.assertIn("SELECT id, user_id, account_id, status, mt5_login, mt5_server", source)
+        self.assertNotIn("SELECT * FROM mt5_connections", source)
+        self.assertIn("token_hash", source)  # documented exclusion in the source comment/manifest
+        self.assertIn("token_prefix", source)
+
 
 if __name__ == "__main__":
     unittest.main()
