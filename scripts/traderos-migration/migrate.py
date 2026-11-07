@@ -66,7 +66,7 @@ def connect_source(dsn: str):
 
 
 def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
-    """Export a selected user and related journal facts from a read-only snapshot."""
+    """Extract account-owned history, analytics and MT5 evidence; never auth secrets."""
     conn = connect_source(dsn)
     files_dir = out.with_suffix("").with_name(out.stem + "_screenshot_files")
     counts: dict[str, int] = {}
@@ -77,35 +77,44 @@ def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
                 if table == "account_risk_profiles":
                     sql = """SELECT arp.* FROM account_risk_profiles arp
                              JOIN accounts a ON a.id=arp.account_id WHERE a.user_id=%s"""
+                    args = (legacy_user_id,)
                 elif table == "checklist_items":
                     sql = """SELECT ci.* FROM checklist_items ci JOIN checklist_templates ct
                              ON ct.id=ci.template_id WHERE ct.user_id=%s"""
+                    args = (legacy_user_id,)
                 elif table == "trade_checklist_responses":
                     sql = """SELECT r.* FROM trade_checklist_responses r JOIN trades t
                              ON t.id=r.trade_id WHERE t.user_id=%s"""
+                    args = (legacy_user_id,)
                 elif table == "trade_screenshots":
                     sql = """SELECT s.* FROM trade_screenshots s JOIN trades t ON t.id=s.trade_id
                              WHERE s.user_id=%s AND t.user_id=%s"""
+                    args = (legacy_user_id, legacy_user_id)
                 elif table == "psychology":
                     sql = """SELECT p.* FROM psychology p JOIN trades t ON t.id=p.trade_id
                              WHERE p.user_id=%s AND t.user_id=%s"""
+                    args = (legacy_user_id, legacy_user_id)
                 elif table == "mt5_processed_deals":
                     sql = """SELECT d.id, d.connection_id, d.deal_id, d.trade_id, d.volume,
                                     d.price, d.profit, d.commission, d.swap, d.processed_at
                              FROM mt5_processed_deals d
                              JOIN mt5_connections c ON c.id=d.connection_id
                              JOIN accounts a ON a.id=c.account_id WHERE a.user_id=%s"""
+                    args = (legacy_user_id,)
                 elif table == "broker_candles":
                     sql = """SELECT b.* FROM broker_candles b
                              JOIN accounts a ON a.id=b.account_id WHERE a.user_id=%s"""
+                    args = (legacy_user_id,)
                 elif table == "mt5_connections":
+                    # Explicit allowlist: token_hash and token_prefix are never selected.
                     sql = """SELECT id, user_id, account_id, status, mt5_login, mt5_server,
                                     broker_name, last_seen_at, last_sync_at, broker_utc_offset_seconds,
                                     created_at, updated_at, revoked_at
                              FROM mt5_connections WHERE user_id=%s"""
+                    args = (legacy_user_id,)
                 else:
                     sql = f"SELECT * FROM {table} WHERE user_id=%s"
-                args = (legacy_user_id, legacy_user_id) if table in ("trade_screenshots", "psychology") else (legacy_user_id,)
+                    args = (legacy_user_id,)
                 rows = conn.execute(sql, args).fetchall()
                 clean_rows = []
                 for row in rows:
@@ -139,6 +148,9 @@ def source_snapshot(dsn: str, legacy_user_id: str, out: Path) -> dict[str, Any]:
         "screenshots": screenshot_manifest,
         "screenshot_files_dir": str(files_dir) if files_dir.exists() else None,
         "snapshot_prefix": out.stem,
+        "excluded_global_reference_tables": ["market_candles"],
+        "excluded_sensitive_tables": ["users"],
+        "sensitive_columns_excluded": {"mt5_connections": ["token_hash", "token_prefix"]},
     }
     dump_json(out, manifest)
     return manifest
