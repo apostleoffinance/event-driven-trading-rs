@@ -529,7 +529,7 @@ pub async fn events(
         Err(e) => return e.into_response(),
     };
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
-    let rows=sqlx::query_as::<_,(i64,Option<String>,Option<String>,String,serde_json::Value,DateTime<Utc>)>(r#"
+    let rows=sqlx::query_as::<_,(i64,Option<String>,Option<String>,String,serde_json::Value,DateTime<Utc>,String,String,String)>(r#"
       SELECT e.id,e.order_id,e.venue_id,e.event_type,e.payload_json,e.created_at,o.account_id,o.strategy_id,i.symbol FROM execution_events e
       JOIN orders o ON o.id=e.order_id JOIN instruments i ON i.id=o.instrument_id JOIN dashboard_account_access g ON g.account_id=o.account_id
       WHERE g.owner_id=$1 ORDER BY e.created_at DESC LIMIT $2
