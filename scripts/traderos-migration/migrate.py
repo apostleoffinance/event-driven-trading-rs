@@ -129,7 +129,7 @@ def parse_time(value: Any) -> str | None:
         dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if dt.tzinfo is None:
         raise ValueError(f"Naive timestamp encountered: {value!r}; source timezone cannot be inferred")
-    return dt.astimezone().isoformat()
+    return dt.isoformat()
 
 
 def decimal_str(value: Any, default: str | None = None) -> str | None:
@@ -163,7 +163,7 @@ def read_table(prefix: Path, table: str) -> list[dict[str, Any]]:
     return load_json(p) if p.exists() else []
 
 
-def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str], legacy_user_id: str) -> dict[str, Any]:
+def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str], legacy_user_id: str, pnl_currency: str = "USD") -> dict[str, Any]:
     legacy_id = str(row["id"])
     opened = parse_time(row.get("trade_timestamp"))
     closed = parse_time(row.get("exit_timestamp"))
@@ -198,7 +198,7 @@ def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str], 
         "swap": decimal_str(row.get("swap"), "0"),
         "other_fees": "0",
         "net_pnl": decimal_str(row.get("realized_pnl")),
-        "pnl_currency": "USD",
+        "pnl_currency": str(pnl_currency or "USD").upper(),
         "risk_amount": decimal_str(row.get("risk_amount")),
         "r_multiple": decimal_str(row.get("realized_r")),
         "session": row.get("session"),
@@ -335,18 +335,24 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
             continue
 
         # Import <=10k per batch. API transaction is atomic per batch and source IDs are idempotent.
-        for start in range(0, len(trades), 10000):
-            batch = trades[start:start + 10000]
-            body_trades = []
-            for t in batch:
-                body = make_trade(t, acc_map[str(t["account_id"])], setup_map, legacy_user_id)
-                body.pop("_migration", None)
-                body_trades.append(body)
-            result = api_request(base, token, "POST", "/api/v1/journal/import",
-                                 {"journal_account_id": body_trades[0]["journal_account_id"],
-                                  "source_system": "TraderOS", "trades": body_trades})
-            imported += int(result["data"].get("imported_count", 0))
-            skipped += int(result["data"].get("skipped_count", 0))
+        trades_by_account: dict[str, list[dict[str, Any]]] = {}
+        for trade_row in trades:
+            trades_by_account.setdefault(str(trade_row["account_id"]), []).append(trade_row)
+        for source_account_id, account_trades in trades_by_account.items():
+            for start in range(0, len(account_trades), 10000):
+                batch = account_trades[start:start + 10000]
+                body_trades = []
+                source_account = next(a for a in accounts if str(a["id"]) == source_account_id)
+                currency = str(source_account.get("currency") or "USD")
+                for trade_row in batch:
+                    body = make_trade(trade_row, acc_map[source_account_id], setup_map, legacy_user_id, currency)
+                    body.pop("_migration", None)
+                    body_trades.append(body)
+                result = api_request(base, token, "POST", "/api/v1/journal/import",
+                                     {"journal_account_id": acc_map[source_account_id],
+                                      "source_system": "TraderOS", "trades": body_trades})
+                imported += int(result["data"].get("imported_count", 0))
+                skipped += int(result["data"].get("skipped_count", 0))
         dump_json(state_path, state)
 
         # Source psych entries are mapped to per-trade psychology endpoints.
