@@ -59,6 +59,10 @@ All `/api/v1/journal/**` endpoints require `Authorization: Bearer <EdgeNest JWT>
 | GET | `/api/v1/journal/trades/{id}` | Owner scoped |
 | PUT / PATCH | `/api/v1/journal/trades/{id}` | Full replacement payload (PATCH is currently an alias; send all fields) |
 | DELETE | `/api/v1/journal/trades/{id}` | Owner scoped, returns 204 |
+| GET | `/api/v1/journal/trades/{trade_id}/psychology` | Owner-scoped psychology detail |
+| PUT | `/api/v1/journal/trades/{trade_id}/psychology` | Upsert emotion/rating annotations (ratings 0–10) |
+| POST | `/api/v1/journal/import` | Transactional idempotent legacy/TraderOS import with source lineage |
+| GET | `/api/v1/journal/analytics/summary` | Read-only account/date-filtered closed-trade analytics |
 | GET | `/healthz` | Liveness |
 | GET | `/readyz` | DB readiness |
 
@@ -71,4 +75,6 @@ Journal account must already exist and belong to the authenticated owner. Cross-
 - Journal account/setup CRUD is available in this service. These are separate journal entities and do not create EdgeNest OMS accounts or broker connections.
 - JWT key discovery/JWKS and key rotation are not implemented; the API accepts one configured RSA public key.
 - `PATCH` is full replacement, not partial JSON Merge Patch.
-- Screenshot upload/storage and journal analytics endpoints are not part of this API phase.
+- Screenshot binary upload to R2/S3 is not implemented yet; screenshot/attachment metadata tables are present but object storage needs a separate configured upload service.
+- Analytics endpoint is descriptive only; it does not predict outcomes or authorize execution.
+- Legacy CSV import requires a stable source trade ID for deduplication and must not contain broker credentials or tokens.
