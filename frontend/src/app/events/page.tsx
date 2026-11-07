@@ -8,11 +8,13 @@ import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { formatDateTime } from "@/lib/format";
 import type { TradingEvent } from "@/types/domain";
 
+function eventLabel(type: string) {
+  return type.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 export default function EventsPage() {
   const { events, connected } = useSharedEventStream();
   const [selected, setSelected] = useState<TradingEvent | null>(null);
-
-  const eventLabel = (type: string) => type.replace(/([a-z])([A-Z])/g, "$1 $2");
 
   const columns = useMemo<ColumnDef<TradingEvent>[]>(
     () => [
@@ -25,33 +27,9 @@ export default function EventsPage() {
       },
       { accessorKey: "type", header: "Activity", cell: ({ row }) => eventLabel(row.original.type) },
       {
-        accessorKey: "entity",
-        header: "Entity",
-        cell: ({ row }) => (
-          <span className="num">{row.original.entity ?? "—"}</span>
-        ),
-      },
-      {
-        accessorKey: "accountId",
-        header: "Account",
-        cell: ({ row }) => row.original.accountId ?? "—",
-      },
-      {
-        accessorKey: "strategyId",
-        header: "Strategy",
-        cell: ({ row }) => row.original.strategyId ?? "—",
-      },
-      {
         accessorKey: "instrumentId",
         header: "Instrument",
         cell: ({ row }) => row.original.instrumentId ?? "—",
-      },
-      {
-        accessorKey: "correlationId",
-        header: "Correlation",
-        cell: ({ row }) => (
-          <span className="num">{row.original.correlationId ?? "—"}</span>
-        ),
       },
       {
         accessorKey: "status",
@@ -86,34 +64,17 @@ export default function EventsPage() {
           <button
             type="button"
             className="drawer-backdrop"
-            aria-label="Close event"
+            aria-label="Close activity details"
             onClick={() => setSelected(null)}
           />
-          <aside className="drawer" role="dialog" aria-label="Event detail">
+          <aside className="drawer" role="dialog" aria-label="Activity details">
             <h2 style={{ marginTop: 0, fontSize: 16, fontWeight: 500 }}>
               {eventLabel(selected.type)}
             </h2>
             <div className="metric-sub">{formatDateTime(selected.timestamp)}</div>
-            <div className="metric-sub num">
-              Correlation {selected.correlationId ?? "—"}
-            </div>
-            <div className="metric-sub">Strategy {selected.strategyId ?? "—"}</div>
-            <div className="metric-sub">
-              Instrument {selected.instrumentId ?? "—"}
-            </div>
-            <div className="metric-sub">Account {selected.accountId ?? "—"}</div>
+            <div className="metric-sub">Instrument {selected.instrumentId ?? "—"}</div>
+            <div className="metric-sub">Status {selected.status ?? "Recorded"}</div>
             <p style={{ fontSize: 13 }}>{selected.detail}</p>
-            {selected.payload ? (
-              <>
-                <div className="panel-title">PAYLOAD (REDACTED)</div>
-                <pre
-                  className="metric-sub"
-                  style={{ whiteSpace: "pre-wrap", margin: 0 }}
-                >
-                  {JSON.stringify(selected.payload, null, 2)}
-                </pre>
-              </>
-            ) : null}
             <button
               type="button"
               className="btn"
