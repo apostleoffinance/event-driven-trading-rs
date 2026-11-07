@@ -171,7 +171,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
-    fn sample() -> JournalTrade {
+    pub(super) fn sample() -> JournalTrade {
         JournalTrade {
             id: "journal-1".into(),
             owner_id: "user-1".into(),
