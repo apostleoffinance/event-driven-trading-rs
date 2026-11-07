@@ -164,6 +164,14 @@ table {
   font-weight: 500;
 }
 
+
+.environment-switcher { display:flex; align-items:center; gap:2px; padding:2px; border:1px solid var(--border); border-radius:6px; background:var(--bg-2); }
+.environment-option { border:0; background:transparent; color:var(--text-muted); padding:5px 7px; border-radius:4px; font:600 10px var(--font-mono); letter-spacing:.04em; cursor:pointer; }
+.environment-option:hover { color:var(--text); background:var(--panel); }
+.environment-option.active { background:var(--panel); color:var(--text); box-shadow:0 0 0 1px var(--border-strong) inset; }
+.environment-option.active.live { color:var(--danger); }
+@media (max-width: 900px) { .environment-switcher { gap:0; } .environment-option { padding:4px 5px; } }
+
 .search {
   flex: 1;
   max-width: 520px;

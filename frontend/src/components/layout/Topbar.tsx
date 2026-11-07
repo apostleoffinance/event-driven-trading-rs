@@ -8,6 +8,7 @@ import { environmentLabel, frontendConfig } from "@/config/frontend";
 import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
+import { useTradingEnvironment, type TradingEnvironment } from "@/features/environment/EnvironmentProvider";
 
 export function Topbar({
   collapsed,
@@ -21,6 +22,7 @@ export function Topbar({
   onToggleMobile: () => void;
 }) {
   const env = environmentLabel(frontendConfig.environment);
+  const { environment, setEnvironment } = useTradingEnvironment();
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
   const router = useRouter();
@@ -102,10 +104,15 @@ export function Topbar({
       <button type="button" className="icon-btn" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={onToggleCollapse}><PanelLeft size={16} /></button>
       <div className="brand">
         <span className="brand-name">{frontendConfig.appName.toUpperCase()}</span>
-        <span className={`env-pill${env === "LIVE" ? " live" : env === "SHADOW" ? " shadow" : ""}`} title="Execution environment — PAPER is simulated, never identical to live">{env}</span>
+        <span className={`env-pill${environment === "LIVE" ? " live" : environment === "DEMO" ? " shadow" : ""}`} title="Selected trading data environment">{environment}</span>
       </div>
       <div className="search" role="search"><Search size={14} aria-hidden /><span>Search accounts, strategies, instruments…</span><kbd>⌘</kbd><kbd>K</kbd></div>
       <div className="topbar-right">
+        <div className="environment-switcher" role="group" aria-label="Trading environment">
+          {(["LIVE", "DEMO", "PAPER"] as TradingEnvironment[]).map((item) => (
+            <button key={item} type="button" className={`environment-option${environment === item ? " active" : ""}${item === "LIVE" ? " live" : ""}`} aria-pressed={environment === item} onClick={() => setEnvironment(item)} title={`Show ${item.toLowerCase()} trading data`}>{item}</button>
+          ))}
+        </div>
         <span aria-live="polite"><span className={`status-dot ${frontendConfig.dataMode === "mock" ? "warn" : backendStatus === "connected" ? "ok" : backendStatus === "checking" ? "warn" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "DEMO MODE" : backendStatus === "connected" ? "SERVICE CONNECTED" : backendStatus === "checking" ? "CONNECTING" : "CONNECTION ISSUE"}</span>
         <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{frontendConfig.dataMode === "mock" ? "SIMULATION EVENTS" : eventConnected ? "LIVE UPDATES" : "UPDATES PAUSED"}</span>
         <button type="button" className="icon-btn" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
