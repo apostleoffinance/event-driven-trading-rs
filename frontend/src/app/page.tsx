@@ -137,8 +137,8 @@ export default function CommandCenterPage() {
             {risk.maxDrawdownPct.toFixed(2)}% / {risk.maxDrawdownLimitPct == null ? "Not configured" : `${risk.maxDrawdownLimitPct.toFixed(2)}%`}
           </div>
           <div className="metric-sub" style={{ marginTop: 12 }}>
-            Open risk {risk.openRiskPct.toFixed(2)}% · Exposure{" "}
-            {risk.exposurePct.toFixed(1)}% · Kill switch{" "}
+            Open risk {risk.openRiskPct == null ? "unknown" : `${risk.openRiskPct.toFixed(2)}%`} · Exposure{" "}
+            {risk.exposurePct == null ? "unknown" : `${risk.exposurePct.toFixed(1)}%`} · Kill switch{" "}
             {risk.killSwitch ? "ON" : "OFF"}
           </div>
         </div>
