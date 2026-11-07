@@ -63,13 +63,13 @@ struct AccountRow {
     venue_id: String,
     venue_name: String,
     venue_enabled: bool,
-    starting_capital: Decimal,
     label: Option<String>,
     balance: Decimal,
     equity: Decimal,
     used_margin: Decimal,
     open_position_count: i32,
     daily_realized_pnl: Decimal,
+    realized_pnl: Option<Decimal>,
     peak_equity: Decimal,
     kill_switch: bool,
     updated_at: DateTime<Utc>,
@@ -82,8 +82,9 @@ async fn account_rows(
 ) -> Result<Vec<AccountRow>, sqlx::Error> {
     sqlx::query_as::<_,AccountRow>(r#"
         SELECT a.id,a.account_type,a.environment,a.status,a.venue_id,v.name AS venue_name,v.enabled AS venue_enabled,
-               a.starting_capital,a.label,s.balance,s.equity,s.used_margin,s.open_position_count,
-               s.daily_realized_pnl,s.peak_equity,s.kill_switch,s.updated_at
+               a.label,s.balance,s.equity,s.used_margin,s.open_position_count,
+               s.daily_realized_pnl,(SELECT ps.realized_pnl FROM performance_snapshots ps WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1) AS realized_pnl,
+               s.peak_equity,s.kill_switch,s.updated_at
         FROM dashboard_account_access g
         JOIN accounts a ON a.id=g.account_id
         JOIN venues v ON v.id=a.venue_id
@@ -105,10 +106,6 @@ fn account_json(a: AccountRow) -> serde_json::Value {
         "DEGRADED"
     } else {
         "DISCONNECTED"
-    };
-    let environment = match a.account_type.as_str() {
-        "simulated" => "PAPER",
-        _ => "SHADOW",
     };
     serde_json::json!({
         "id":a.id,"name":a.label.unwrap_or_else(||a.id.clone()),
