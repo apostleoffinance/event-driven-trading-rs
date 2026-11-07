@@ -116,7 +116,7 @@ fn account_json(a: AccountRow) -> serde_json::Value {
         "environment":a.environment,"balance":dec(a.balance),"equity":dec(a.equity),
         "availableCapital":dec((a.equity-a.used_margin).max(Decimal::ZERO)),
         "dailyPnl":dec(a.daily_realized_pnl),"unrealizedPnl":dec(a.equity-a.balance),
-        "realizedPnl":dec(a.daily_realized_pnl),"drawdownPct":drawdown,
+        "realizedPnl":a.realized_pnl.map(dec),"drawdownPct":drawdown,
         "openPositionCount":a.open_position_count,"status":status_case(&a.status),
         "riskStatus":risk_status,"connectionStatus":conn_status,
         "lastUpdatedAt":a.updated_at
@@ -455,7 +455,7 @@ pub async fn events(
       WHERE g.owner_id=$1 ORDER BY e.created_at DESC LIMIT $2
     "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time)|serde_json::json!({
-      "id":id.to_string(),"timestamp":time,"type":kind,"entity":order,"status":"RECORDED","detail":format!("Execution event for order {}",order.as_deref().unwrap_or("unknown")),"payload":payload,"correlationId":venue
+      "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"status":"RECORDED","detail":format!("Execution event for order {}",order.as_deref().unwrap_or("unknown")),"payload":payload,"correlationId":venue
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
