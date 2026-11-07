@@ -73,7 +73,8 @@ Current client implementation stores access and refresh tokens in tab-scoped `se
 
 The following authenticated GET endpoints are currently implemented by the Journal API service and proxied by the combined gateway:
 
-- `/api/v1/trading/accounts` and `/accounts/:id`
+- `GET /api/v1/trading/accounts` and `GET /accounts/:id`
+- `POST /api/v1/trading/accounts` creates an authenticated owner-scoped PAPER account only
 - `/api/v1/trading/portfolio`
 - `/api/v1/trading/strategies`
 - `/api/v1/trading/positions`
