@@ -34,7 +34,7 @@ export default function JournalPage(){
  const addSetup=useMutation({mutationFn:()=>journalApi.createSetup({name:setupName,description:setupDesc||undefined,rules_json:{}}),onSuccess:()=>{setSetupForm(false);setSetupName("");void refresh();}});
  const updateSetup=useMutation({mutationFn:({id,input}:{id:string;input:{name:string;description?:string|null;rules_json?:Record<string,unknown>}})=>journalApi.updateSetup(id,input),onSuccess:()=>void refresh()});
  const archiveSetup=useMutation({mutationFn:journalApi.archiveSetup,onSuccess:()=>void refresh()});
- const saveTrade=useMutation({mutationFn:()=>editingId?journalApi.updateTrade(editingId,tradePayload(draft)):journalApi.createTrade(tradePayload(draft)),onSuccess:()=>{setTradeForm(false);setDraft(blank);setEditingId(null);void refresh();}});
+ const saveTrade=useMutation({mutationFn:async()=>{if(editingId){await journalApi.updateTrade(editingId,tradePayload(draft));return;}await journalApi.createTrade(tradePayload(draft));},onSuccess:()=>{setTradeForm(false);setDraft(blank);setEditingId(null);void refresh();}});
  const removeTrade=useMutation({mutationFn:journalApi.deleteTrade,onSuccess:()=>void refresh()});
  const importer=useMutation({mutationFn:journalApi.importTrades,onSuccess:x=>{setImportMsg("Imported "+x.imported_count+"; skipped duplicates "+x.skipped_count+"; batch "+x.batch_id);setImportErr("");void refresh();},onError:e=>setImportErr(e instanceof Error?e.message:"Import failed.")});
  const savePsychology=useMutation({mutationFn:()=>journalApi.savePsychology(psychTradeId!,psychDraft),onSuccess:()=>{void qc.invalidateQueries({queryKey:["journal","psychology",psychTradeId]});}});
