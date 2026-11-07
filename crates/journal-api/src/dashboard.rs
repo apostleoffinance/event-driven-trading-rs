@@ -536,7 +536,11 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
     // Configuration state is distinct from service availability. Do not report
     // DISCONNECTED/DEGRADED merely because a user has not configured accounts.
     let configured = count > 0 && (daily_limit.is_some() || dd_limit.is_some());
-    let engine_status = if configured { "HEALTHY" } else { "NOT_CONFIGURED" };
+    let engine_status = if configured {
+        "HEALTHY"
+    } else {
+        "NOT_CONFIGURED"
+    };
     let daily_limit_breached = daily_limit.is_some_and(|limit| daily_loss >= limit);
     let drawdown_limit_breached = dd_limit.is_some_and(|limit| dd >= limit);
     let tone = if kill || daily_limit_breached || drawdown_limit_breached {
@@ -662,14 +666,17 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
         ("venue", "Broker execution"),
         ("reconciliation", "Trade reconciliation"),
     ];
-    Json(serde_json::json!({"data":stages.iter().map(|(id,label)|serde_json::json!({
+    Json(
+        serde_json::json!({"data":stages.iter().map(|(id,label)|serde_json::json!({
         "id":id,
         "label":label,
         "status":"UNKNOWN",
         "lastActivity":null,
         "metric":"Activity status is not available yet",
         "href":"/system"
-    })).collect::<Vec<_>>()})).into_response()
+    })).collect::<Vec<_>>()}),
+    )
+    .into_response()
 }
 #[cfg(test)]
 mod tests {
