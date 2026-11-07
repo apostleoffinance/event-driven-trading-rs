@@ -145,3 +145,59 @@ pub async fn upsert(
         Err(_)=>internal(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_boundary_ratings() {
+        let input = PsychologyWrite {
+            emotion_before: Some("calm".into()),
+            emotion_during: None,
+            emotion_after: None,
+            confidence: Some(0),
+            fear: Some(10),
+            fomo: None,
+            frustration: None,
+            revenge_intensity: None,
+            boredom: None,
+            notes: None,
+        };
+        assert!(ratings_valid(&input));
+    }
+
+    #[test]
+    fn rejects_rating_outside_zero_to_ten() {
+        let input = PsychologyWrite {
+            emotion_before: None,
+            emotion_during: None,
+            emotion_after: None,
+            confidence: Some(11),
+            fear: None,
+            fomo: None,
+            frustration: None,
+            revenge_intensity: None,
+            boredom: None,
+            notes: None,
+        };
+        assert!(!ratings_valid(&input));
+    }
+
+    #[test]
+    fn rejects_emotion_label_over_one_hundred_chars() {
+        let input = PsychologyWrite {
+            emotion_before: Some("x".repeat(101)),
+            emotion_during: None,
+            emotion_after: None,
+            confidence: None,
+            fear: None,
+            fomo: None,
+            frustration: None,
+            revenge_intensity: None,
+            boredom: None,
+            notes: None,
+        };
+        assert!(!ratings_valid(&input));
+    }
+}
