@@ -15,7 +15,7 @@ import { TradingPipeline } from "@/components/trading/TradingPipeline";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { SimulationControls } from "@/features/simulation/SimulationControls";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
-import { getRepositories } from "@/lib/repositories";
+import { getRepositories } from "@/lib/repositories";\nimport { frontendConfig } from "@/config/frontend";
 import type {
   Order,
   PipelineNode,
@@ -83,10 +83,10 @@ export default function CommandCenterPage() {
     <>
       <PageHeader
         title="Command Center"
-        description="What is happening in the trading system right now — PAPER simulation of Strategy → TradeIntent → Risk → OMS → Venue."
+        description={frontendConfig.dataMode === "api" ? "Read-only trading state from the authenticated EdgeNest API. Execution remains server-side." : "What is happening in the trading system right now — PAPER simulation of Strategy → TradeIntent → Risk → OMS → Venue."}
       />
       <div style={{ marginBottom: 12 }}>
-        <SimulationControls />
+        {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
       </div>
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
         <Metric
