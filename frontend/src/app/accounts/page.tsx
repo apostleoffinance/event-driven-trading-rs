@@ -18,6 +18,12 @@ import { getRepositories } from "@/lib/repositories";
 import type { Account } from "@/types/domain";
 
 export default function AccountsPage() {
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [accountName, setAccountName] = useState("My Paper Account");
+  const [initialCapital, setInitialCapital] = useState("10000");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Account | null>(null);
   const { data = [], isLoading, isError, error } = useQuery({
     queryKey: ["accounts"],
