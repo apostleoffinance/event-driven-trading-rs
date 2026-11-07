@@ -125,8 +125,13 @@ impl JournalTrade {
         if let Some(value) = self.take_profit {
             require_positive(value, "journal take profit")?;
         }
-        if self.discipline_score.is_some_and(|score| !(0..=100).contains(&score)) {
-            return Err(DomainError::Validation("discipline_score must be between 0 and 100".to_string()));
+        if self
+            .discipline_score
+            .is_some_and(|score| !(0..=100).contains(&score))
+        {
+            return Err(DomainError::Validation(
+                "discipline_score must be between 0 and 100".to_string(),
+            ));
         }
         if let Some(value) = self.risk_amount {
             require_non_negative(value, "journal risk amount")?;

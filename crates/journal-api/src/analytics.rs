@@ -178,12 +178,26 @@ pub async fn summary(
             total_mfe_r += r;
             mfe_count += 1;
         }
-        if let Some(r) = fact.mae_r { total_mae_r += r; mae_count += 1; }
-        if fact.setup_valid == Some(true) { setup_valid_count += 1; }
-        if fact.rules_followed == Some(true) { rules_followed_count += 1; }
-        if fact.emotional_trade == Some(true) { emotional_trade_count += 1; }
-        if fact.mistake == Some(true) { mistake_count += 1; }
-        if let Some(score) = fact.discipline_score { total_discipline += i64::from(score); discipline_count += 1; }
+        if let Some(r) = fact.mae_r {
+            total_mae_r += r;
+            mae_count += 1;
+        }
+        if fact.setup_valid == Some(true) {
+            setup_valid_count += 1;
+        }
+        if fact.rules_followed == Some(true) {
+            rules_followed_count += 1;
+        }
+        if fact.emotional_trade == Some(true) {
+            emotional_trade_count += 1;
+        }
+        if fact.mistake == Some(true) {
+            mistake_count += 1;
+        }
+        if let Some(score) = fact.discipline_score {
+            total_discipline += i64::from(score);
+            discipline_count += 1;
+        }
     }
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
