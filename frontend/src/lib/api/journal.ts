@@ -22,13 +22,13 @@ export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { lim
 
 export const journalApi = {
   async listAttachments(tradeId: string) {
-    requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/attachments\`,{baseUrl:journalBaseUrl()})).data;
+    requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{baseUrl:journalBaseUrl()})).data;
   },
   async createAttachment(tradeId: string,input:Omit<JournalAttachment,"id">) {
-    requireApiMode(); return apiRequest<DataEnvelope<{id:string;trade_id:string;saved:boolean}>>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/attachments\`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+    requireApiMode(); return apiRequest<DataEnvelope<{id:string;trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
   },
   async deleteAttachment(tradeId:string,id:string) {
-    requireApiMode(); return apiRequest<void>(\`/api/v1/journal/trades/\${encodeURIComponent(tradeId)}/attachments/\${encodeURIComponent(id)}\`,{method:"DELETE",baseUrl:journalBaseUrl()});
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(id)}`,{method:"DELETE",baseUrl:journalBaseUrl()});
   },
   async getPsychology(tradeId: string) {
     requireApiMode();
