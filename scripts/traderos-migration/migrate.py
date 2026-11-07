@@ -346,6 +346,57 @@ def validate_snapshot(prefix: Path, legacy_user_id: str, account_map: dict[str, 
     }
 
 
+def upload_snapshot_archive(prefix: Path, source_user_id: str, storage_cfg: dict[str, Any]) -> dict[str, Any] | None:
+    """Upload all per-user JSON exports and screenshot binaries to private object storage."""
+    required = ("bucket", "access_key_id", "secret_access_key")
+    if not all(storage_cfg.get(key) for key in required):
+        return None
+    files = [prefix]
+    files.extend(sorted(prefix.parent.glob(f"{prefix.stem}_*.json")))
+    screenshot_dir = prefix.with_suffix("").with_name(prefix.stem + "_screenshot_files")
+    if screenshot_dir.exists():
+        files.extend(sorted(path for path in screenshot_dir.rglob("*") if path.is_file()))
+    files = [path for path in files if path.is_file()]
+    if not files:
+        raise ValueError("No snapshot files are available to archive")
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp:
+            temp_path = Path(temp.name)
+        with zipfile.ZipFile(temp_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+            for path in files:
+                archive.write(path, arcname=path.relative_to(prefix.parent).as_posix())
+        digest_state = hashlib.sha256()
+        with temp_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+                digest_state.update(chunk)
+        digest = digest_state.hexdigest()
+        size = temp_path.stat().st_size
+        import boto3
+        client = boto3.client("s3", endpoint_url=storage_cfg.get("endpoint_url"),
+            region_name=storage_cfg.get("region", "auto"),
+            aws_access_key_id=storage_cfg["access_key_id"],
+            aws_secret_access_key=storage_cfg["secret_access_key"])
+        archive_prefix = str(storage_cfg.get("archive_prefix", "traderos-migration")).strip("/")
+        key = f"{archive_prefix}/{source_user_id}/archives/{digest}.zip"
+        with temp_path.open("rb") as handle:
+            client.put_object(Bucket=storage_cfg["bucket"], Key=key, Body=handle,
+                ContentType="application/zip", Metadata={"sha256": digest, "source-format": SOURCE_FORMAT})
+        head = client.head_object(Bucket=storage_cfg["bucket"], Key=key)
+        remote_meta = head.get("Metadata") or {}
+        if remote_meta.get("sha256") != digest or int(head.get("ContentLength", -1)) != size:
+            raise RuntimeError("Uploaded archive checksum or size verification failed")
+        manifest = load_json(prefix)
+        return {
+            "format": SOURCE_FORMAT, "storage_provider": str(storage_cfg.get("provider", "r2")),
+            "storage_key": key, "sha256": digest, "byte_size": size,
+            "table_counts": manifest.get("tables", {}),
+            "uploaded_at": datetime.now().astimezone().isoformat(),
+        }
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
 def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     manifest = load_json(prefix)
     source_user = str(manifest["source_user_id"])
@@ -387,6 +438,21 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         report["complete"] = not report["errors"]
         return report
 
+    # Validate the complete source snapshot before creating any destination data.
+    preflight_accounts = {**acc_map, **{str(a["id"]): f"DRYRUN:{a['id']}" for a in accounts if str(a["id"]) not in acc_map}}
+    preflight_setups = {**setup_map, **{str(s["id"]): f"DRYRUN:{s['id']}" for s in setups if str(s["id"]) not in setup_map}}
+    preflight = validate_snapshot(prefix, source_user, preflight_accounts, preflight_setups, allow_placeholders=True)
+    report["users"].append({"plan": user_plan, "validation": preflight})
+    report["warnings"].extend(preflight["warnings"])
+    report["errors"].extend(preflight["errors"])
+    if report["errors"]:
+        return report
+    archive_info = upload_snapshot_archive(prefix, source_user, config.get("object_storage", {}))
+    if archive_info is None:
+        report["errors"].append("Complete source archive required: configure private object_storage before apply")
+        return report
+    report["source_archive"] = archive_info
+
     # Destination creates are idempotent using external source IDs. Persist checkpoints only after success.
     for account in accounts:
         old_id = str(account["id"])
@@ -407,6 +473,7 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
                 "legacy_current_balance": decimal_str(account.get("current_balance")),
                 "legacy_current_equity": decimal_str(account.get("current_equity")),
                 "legacy_risk_profile": json_value(profile),
+                "traderos_source_archive": archive_info,
             },
         }
         result = api_request(base, token, "POST", "/api/v1/journal/accounts", body)
@@ -426,6 +493,13 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, An
         result = api_request(base, token, "POST", "/api/v1/journal/setups", body)
         setup_map[old_id] = result["data"]["id"]
         dump_json(state_path, state)
+
+    # Attach the immutable source archive to all mapped accounts, including resumed imports.
+    for account in accounts:
+        source_id = str(account["id"])
+        api_request(base, token, "PUT",
+                    f"/api/v1/journal/accounts/{quote(acc_map[source_id])}/migration-metadata",
+                    {"traderos_source_archive": archive_info})
 
     plan = validate_snapshot(prefix, source_user, acc_map, setup_map)
     report["users"].append({"plan": user_plan, "validation": plan})
