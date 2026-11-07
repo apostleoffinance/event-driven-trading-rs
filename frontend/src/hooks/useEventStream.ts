@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { frontendConfig } from "@/config/frontend";
-import { mockEvents } from "@/mocks/events";
+import { mockEvents } from "@/mocks/events";\nimport { getRepositories } from "@/lib/repositories";
 import type { TradingEvent } from "@/types/domain";
 
 export type EventStreamState = {
@@ -22,6 +22,22 @@ export function useEventStream(limit = 40): EventStreamState {
   const seq = useRef(100);
 
   useEffect(() => {
+    if (frontendConfig.dataMode === "api") {
+      let active = true;
+      const refresh = async () => {
+        try {
+          const latest = await getRepositories().events.listEvents(limit);
+          if (!active) return;
+          setEvents(latest.slice(0, limit));
+          setConnected(true);
+        } catch {
+          if (active) setConnected(false);
+        }
+      };
+      void refresh();
+      const id = window.setInterval(() => void refresh(), 10000);
+      return () => { active = false; window.clearInterval(id); };
+    }
     if (frontendConfig.dataMode !== "mock" || frontendConfig.eventMode !== "mock") {
       setConnected(false);
       return;
