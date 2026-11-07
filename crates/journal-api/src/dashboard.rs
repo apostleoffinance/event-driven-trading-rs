@@ -241,60 +241,143 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    let totals=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<Decimal>)>(r#"
-      SELECT COALESCE(SUM(s.equity),0),COALESCE(SUM(s.balance),0),COALESCE(SUM(s.equity-s.used_margin),0),
-             COALESCE(SUM(s.daily_realized_pnl),0),COALESCE(SUM(s.equity-s.balance),0),
-             COALESCE(SUM(a.starting_capital),0),COALESCE(SUM(s.used_margin),0),
+
+    let totals = sqlx::query_as::<
+        _,
+        (
+            Option<Decimal>,
+            Option<Decimal>,
+            Option<Decimal>,
+            Option<Decimal>,
+            Option<Decimal>,
+            Option<Decimal>,
+            Option<Decimal>,
+        ),
+    >(r#"
+      SELECT COALESCE(SUM(s.equity),0),COALESCE(SUM(s.balance),0),
+             COALESCE(SUM(s.equity-s.used_margin),0),COALESCE(SUM(s.daily_realized_pnl),0),
+             COALESCE(SUM(s.equity-s.balance),0),COALESCE(SUM(a.starting_capital),0),
              COALESCE(MAX(CASE WHEN s.peak_equity>0 THEN (s.peak_equity-s.equity)/s.peak_equity*100 ELSE 0 END),0)
-      FROM dashboard_account_access g JOIN accounts a ON a.id=g.account_id JOIN account_states s ON s.account_id=a.id
+      FROM dashboard_account_access g
+      JOIN accounts a ON a.id=g.account_id
+      JOIN account_states s ON s.account_id=a.id
       WHERE g.owner_id=$1
-    "#).bind(&owner).fetch_one(state.store.pool()).await;
-    let (equity, balance, available, daily, unrealized, starting, margin, drawdown) = match totals {
-        Ok((e, b, av, d, u, st, m, dd)) => (
+    "#)
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+
+    let (equity, balance, available, daily, unrealized, starting, drawdown) = match totals {
+        Ok((e, b, av, d, u, st, dd)) => (
             e.unwrap_or_default(),
             b.unwrap_or_default(),
             av.unwrap_or_default(),
             d.unwrap_or_default(),
             u.unwrap_or_default(),
             st.unwrap_or_default(),
-            m.unwrap_or_default(),
             dd.unwrap_or_default(),
         ),
         Err(_) => return internal(),
     };
-    let realized=sqlx::query_scalar::<_,Option<Decimal>>(r#"
-      SELECT SUM(ps.realized_pnl) FROM performance_snapshots ps
-      JOIN dashboard_account_access g ON g.account_id=ps.account_id
-      WHERE g.owner_id=$1 AND ps.id=(SELECT MAX(p2.id) FROM performance_snapshots p2 WHERE p2.account_id=ps.account_id)
-    "#).bind(&owner).fetch_one(state.store.pool()).await.unwrap_or(None).unwrap_or(daily);
-    let series = sqlx::query_as::<_, (DateTime<Utc>, Decimal, Decimal, Decimal)>(
-        r#"
-      SELECT ps.captured_at,ps.equity,ps.realized_pnl,ps.drawdown_pct
-      FROM performance_snapshots ps JOIN dashboard_account_access g ON g.account_id=ps.account_id
-      WHERE g.owner_id=$1 ORDER BY ps.captured_at DESC LIMIT 100
-    "#,
-    )
+
+    let realized = sqlx::query_scalar::<_, Option<Decimal>>(r#"
+      SELECT CASE WHEN COUNT(*)=COUNT(latest.realized_pnl) THEN SUM(latest.realized_pnl) ELSE NULL END
+      FROM dashboard_account_access g
+      JOIN accounts a ON a.id=g.account_id
+      LEFT JOIN LATERAL (
+        SELECT ps.realized_pnl FROM performance_snapshots ps
+        WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1
+      ) latest ON TRUE
+      WHERE g.owner_id=$1
+    "#)
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+    let realized = match realized {
+        Ok(value) => value,
+        Err(_) => return internal(),
+    };
+
+    let series = sqlx::query_as::<_, (DateTime<Utc>, Decimal, Decimal, Decimal)>(r#"
+      WITH per_account_hour AS (
+        SELECT DISTINCT ON (ps.account_id, date_trunc('hour', ps.captured_at))
+          ps.account_id,date_trunc('hour', ps.captured_at) AS captured_at,
+          ps.equity,ps.realized_pnl,ps.drawdown_pct
+        FROM performance_snapshots ps
+        JOIN dashboard_account_access g ON g.account_id=ps.account_id
+        WHERE g.owner_id=$1
+        ORDER BY ps.account_id,date_trunc('hour', ps.captured_at),ps.captured_at DESC
+      )
+      SELECT captured_at,SUM(equity),SUM(realized_pnl),MAX(drawdown_pct)
+      FROM per_account_hour GROUP BY captured_at ORDER BY captured_at DESC LIMIT 100
+    "#)
     .bind(&owner)
     .fetch_all(state.store.pool())
-    .await
-    .unwrap_or_default();
-    let equity_series=series.into_iter().rev().map(|(t,e,r,d)|serde_json::json!({"time":t,"equity":dec(e),"realizedPnl":dec(r),"drawdownPct":d.to_f64().unwrap_or(0.0)})).collect::<Vec<_>>();
-    let gross=sqlx::query_scalar::<_,Option<Decimal>>(r#"
-      SELECT SUM(ABS(p.quantity*p.mark_price)) FROM positions p JOIN dashboard_account_access g ON g.account_id=p.account_id WHERE g.owner_id=$1
-    "#).bind(&owner).fetch_one(state.store.pool()).await.unwrap_or(None).unwrap_or_default();
-    let cumret = if starting > Decimal::ZERO {
+    .await;
+    let series = match series {
+        Ok(value) => value,
+        Err(_) => return internal(),
+    };
+    let equity_series = series.into_iter().rev().map(|(time, eq, pnl, dd)| {
+        serde_json::json!({
+            "time":time,"equity":dec(eq),"realizedPnl":dec(pnl),
+            "drawdownPct":dd.to_f64().unwrap_or(0.0)
+        })
+    }).collect::<Vec<_>>();
+
+    let gross = sqlx::query_scalar::<_, Option<Decimal>>(r#"
+      SELECT SUM(ABS(p.quantity*p.mark_price))
+      FROM positions p JOIN dashboard_account_access g ON g.account_id=p.account_id
+      WHERE g.owner_id=$1
+    "#)
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+    let gross = match gross {
+        Ok(value) => value.unwrap_or_default(),
+        Err(_) => return internal(),
+    };
+
+    let net = sqlx::query_scalar::<_, Option<Decimal>>(r#"
+      SELECT SUM(CASE WHEN p.side='long' THEN p.quantity*p.mark_price ELSE -(p.quantity*p.mark_price) END)
+      FROM positions p JOIN dashboard_account_access g ON g.account_id=p.account_id
+      WHERE g.owner_id=$1
+    "#)
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+    let net = match net {
+        Ok(value) => value.unwrap_or_default(),
+        Err(_) => return internal(),
+    };
+
+    let max_drawdown = sqlx::query_scalar::<_, Option<Decimal>>(r#"
+      SELECT MAX(ps.drawdown_pct)
+      FROM performance_snapshots ps JOIN dashboard_account_access g ON g.account_id=ps.account_id
+      WHERE g.owner_id=$1
+    "#)
+    .bind(&owner)
+    .fetch_one(state.store.pool())
+    .await;
+    let max_drawdown = match max_drawdown {
+        Ok(value) => value.and_then(|v| v.to_f64()),
+        Err(_) => return internal(),
+    };
+
+    let cumulative_return = if starting > Decimal::ZERO {
         ((equity - starting) / starting * Decimal::from(100))
             .to_f64()
             .unwrap_or(0.0)
     } else {
         0.0
     };
+
     Json(serde_json::json!({"data":{
       "totalEquity":dec(equity),"balance":dec(balance),"availableCapital":dec(available),
-      "dailyPnl":dec(daily),"unrealizedPnl":dec(unrealized),"realizedPnl":dec(realized),
-      "cumulativeReturnPct":cumret,"drawdownPct":drawdown.to_f64().unwrap_or(0.0),
-      "maxDrawdownPct":drawdown.to_f64().unwrap_or(0.0),"grossExposure":dec(gross),
-      "netExposure":dec(gross),"exposurePct":if equity>Decimal::ZERO{(gross/equity*Decimal::from(100)).to_f64().unwrap_or(0.0)}else{0.0},
+      "dailyPnl":dec(daily),"unrealizedPnl":dec(unrealized),"realizedPnl":realized.map(dec),
+      "cumulativeReturnPct":cumulative_return,"drawdownPct":drawdown.to_f64().unwrap_or(0.0),
+      "maxDrawdownPct":max_drawdown,"grossExposure":dec(gross),"netExposure":dec(net),
+      "exposurePct":if equity>Decimal::ZERO{(gross/equity*Decimal::from(100)).to_f64().unwrap_or(0.0)}else{0.0},
       "equitySeries":equity_series,"pnlByStrategy":[],"pnlByInstrument":[]
     }})).into_response()
 }
