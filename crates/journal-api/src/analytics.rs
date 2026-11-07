@@ -30,6 +30,7 @@ struct TradeFact {
     risk_amount: Option<Decimal>,
     r_multiple: Option<Decimal>,
     session: Option<String>,
+    setup_name: String,
 }
 
 fn auth_error(error: ApiAuthError) -> Response {
@@ -53,16 +54,17 @@ pub async fn summary(
 
     let facts = sqlx::query_as::<_, TradeFact>(
         r#"
-        SELECT id, symbol, direction, closed_at,
-          COALESCE(net_pnl, gross_pnl + commission + swap + other_fees) AS net_pnl,
-          risk_amount, r_multiple, session
-        FROM journal_trades
-        WHERE owner_id=$1 AND status='closed' AND closed_at IS NOT NULL
-          AND (net_pnl IS NOT NULL OR gross_pnl IS NOT NULL)
-          AND ($2::TEXT IS NULL OR journal_account_id=$2)
-          AND ($3::TIMESTAMPTZ IS NULL OR closed_at >= $3)
-          AND ($4::TIMESTAMPTZ IS NULL OR closed_at <= $4)
-        ORDER BY closed_at ASC, id ASC
+        SELECT t.id, t.symbol, t.direction, t.closed_at,
+          COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
+          t.risk_amount, t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name
+        FROM journal_trades t
+        LEFT JOIN journal_setups s ON s.owner_id=t.owner_id AND s.id=t.setup_id
+        WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
+          AND (t.net_pnl IS NOT NULL OR t.gross_pnl IS NOT NULL)
+          AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
+          AND ($3::TIMESTAMPTZ IS NULL OR t.closed_at >= $3)
+          AND ($4::TIMESTAMPTZ IS NULL OR t.closed_at <= $4)
+        ORDER BY t.closed_at ASC, t.id ASC
     "#,
     )
     .bind(&claims.sub)
@@ -124,6 +126,8 @@ pub async fn summary(
         std::collections::BTreeMap::new();
     let mut sessions: std::collections::BTreeMap<String, Vec<Decimal>> =
         std::collections::BTreeMap::new();
+    let mut setups: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
     for fact in &facts {
@@ -135,6 +139,7 @@ pub async fn summary(
             .entry(fact.session.clone().unwrap_or_else(|| "unspecified".into()))
             .or_default()
             .push(fact.net_pnl);
+        setups.entry(fact.setup_name.clone()).or_default().push(fact.net_pnl);
         if let Some(r) = fact.r_multiple {
             total_r += r;
             r_count += 1;
@@ -162,7 +167,7 @@ pub async fn summary(
         "expectancy":stats.expectancy.to_string(),"average_win":stats.average_win.map(|v|v.to_string()),
         "average_loss":stats.average_loss.map(|v|v.to_string()),"max_drawdown":stats.max_drawdown.to_string(),
         "average_r":if r_count>0 {Some((total_r/Decimal::from(r_count as u64)).to_string())} else {None},
-        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),
+        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
 }
