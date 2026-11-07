@@ -58,6 +58,8 @@ export default function AnalyticsLabPage() {
     ["Average winner", money(a?.average_win)],
     ["Average loser", money(a?.average_loss)],
     ["Average R", a?.average_r == null ? "—" : `${Number(a.average_r).toFixed(2)}R`],
+    ["Avg. MFE", a?.average_mfe_r == null ? "—" : `${Number(a.average_mfe_r).toFixed(2)}R`],
+    ["Avg. MAE", a?.average_mae_r == null ? "—" : `${Number(a.average_mae_r).toFixed(2)}R`],
     ["Gross profit", money(a?.gross_profit)],
     ["Gross loss", money(a?.gross_loss)],
     ["Breakeven", String(a?.breakeven ?? "—")],
