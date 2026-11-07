@@ -12,6 +12,7 @@ mod analytics;
 mod auth;
 mod http;
 mod imports;
+mod psychology;
 mod resources;
 
 #[derive(Clone)]
@@ -115,6 +116,10 @@ async fn main() {
             axum::routing::post(imports::import_trades),
         )
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
+        .route(
+            "/api/v1/journal/trades/{trade_id}/psychology",
+            get(psychology::get).put(psychology::upsert),
+        )
         .route(
             "/api/v1/journal/trades/{trade_id}",
             get(http::get_one)
