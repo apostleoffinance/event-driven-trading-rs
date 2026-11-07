@@ -13,6 +13,8 @@ import json
 import os
 import re
 import time
+import tempfile
+import zipfile
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -22,7 +24,9 @@ from urllib.parse import quote
 SOURCE_TABLES = (
     "accounts", "account_risk_profiles", "setups", "trades", "psychology",
     "checklist_templates", "checklist_items", "trade_checklist_responses",
-    "trade_screenshots",
+    "trade_screenshots", "risk_events", "ai_analyses", "ai_memories",
+    "market_analyses", "chart_annotations", "mt5_connections", "mt5_processed_deals",
+    "mt5_sync_snapshots", "mt5_source_deals", "broker_candles",
 )
 SECRETISH = re.compile(r"(password|token|secret|credential|private.?key|refresh.?token)", re.I)
 SOURCE_FORMAT = "traderos-edgenest-migration-v2"
