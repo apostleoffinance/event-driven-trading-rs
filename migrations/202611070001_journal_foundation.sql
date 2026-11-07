@@ -1,6 +1,7 @@
 -- EdgeNest Journal foundation extension (Phase 1)
 -- Backward-compatible additions; existing journal trade CRUD remains valid.
 
+-- journal_trades is created in 20261106000001_journal_domain.sql
 ALTER TABLE journal_trades
   ADD COLUMN IF NOT EXISTS venue TEXT,
   ADD COLUMN IF NOT EXISTS external_account_id TEXT,
