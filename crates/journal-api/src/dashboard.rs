@@ -257,11 +257,11 @@ pub async fn system_components(State(state):State<AppState>,headers:HeaderMap)->
     let components=vec![
       ("api","EdgeNest API"),("database","PostgreSQL"),("risk","Risk Engine"),("oms","Order Management"),("market-data","Market Data"),("venue","Venue Connectivity"),("reconciliation","Reconciliation")
     ];
-    Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({"id":id,"name":name,"status":if id=="database"&&db{"HEALTHY"}else{status},"uptime":"unknown","lastHeartbeat":now,"latencyMs":0,"errorCount":0})).collect::<Vec<_>>()})).into_response()
+    Json(serde_json::json!({"data":components.into_iter().map(|(id,name)|serde_json::json!({"id":id,"name":name,"status":if id=="api"{"HEALTHY"}else if id=="database"&&db{"HEALTHY"}else{status},"uptime":"unknown","lastHeartbeat":null,"latencyMs":null,"errorCount":null})).collect::<Vec<_>>()})).into_response()
 }
 pub async fn system_pipeline(State(state):State<AppState>,headers:HeaderMap)->Response {
     let _owner=match auth(&state,&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
     let now=Utc::now();
     let stages=["Market Data","Strategy","Trade Intent","Risk","OMS","Venue","Reconciliation"];
-    Json(serde_json::json!({"data":stages.iter().enumerate().map(|(i,label)|serde_json::json!({"id":format!("stage-{i}"),"label":label,"status":"DEGRADED","lastActivity":now,"metric":"No live activity reported","href":"/system"})).collect::<Vec<_>>()})).into_response()
+    Json(serde_json::json!({"data":stages.iter().enumerate().map(|(i,label)|serde_json::json!({"id":format!("stage-{i}"),"label":label,"status":"DEGRADED","lastActivity":"unknown","metric":"No live activity reported","href":"/system"})).collect::<Vec<_>>()})).into_response()
 }
