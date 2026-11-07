@@ -41,6 +41,26 @@ fn not_found() -> Response {
 fn dec(v: Decimal) -> String {
     v.to_string()
 }
+fn risk_status(
+    configured: bool,
+    kill_switch: bool,
+    daily_loss_pct: Decimal,
+    daily_loss_limit_pct: Option<Decimal>,
+    drawdown_pct: Decimal,
+    drawdown_limit_pct: Option<Decimal>,
+) -> (&'static str, &'static str) {
+    let daily_breach = daily_loss_limit_pct.is_some_and(|limit| daily_loss_pct >= limit);
+    let drawdown_breach = drawdown_limit_pct.is_some_and(|limit| drawdown_pct >= limit);
+    let tone = if kill_switch || daily_breach || drawdown_breach {
+        "BREACH"
+    } else if configured {
+        "HEALTHY"
+    } else {
+        "WARNING"
+    };
+    (if configured { "HEALTHY" } else { "NOT_CONFIGURED" }, tone)
+}
+
 fn status_case(v: &str) -> String {
     v.split('_')
         .filter(|part| !part.is_empty())
@@ -536,20 +556,8 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
     // Configuration state is distinct from service availability. Do not report
     // DISCONNECTED/DEGRADED merely because a user has not configured accounts.
     let configured = count > 0 && (daily_limit.is_some() || dd_limit.is_some());
-    let engine_status = if configured {
-        "HEALTHY"
-    } else {
-        "NOT_CONFIGURED"
-    };
-    let daily_limit_breached = daily_limit.is_some_and(|limit| daily_loss >= limit);
-    let drawdown_limit_breached = dd_limit.is_some_and(|limit| dd >= limit);
-    let tone = if kill || daily_limit_breached || drawdown_limit_breached {
-        "BREACH"
-    } else if configured {
-        "HEALTHY"
-    } else {
-        "WARNING"
-    };
+    let (engine_status, tone) =
+        risk_status(configured, kill, daily_loss, daily_limit, dd, dd_limit);
     Json(serde_json::json!({"data":{
       "engineStatus":engine_status,
       "dailyLossPct":daily_loss.to_f64().unwrap_or(0.0),
@@ -681,6 +689,26 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
 #[cfg(test)]
 mod tests {
     use super::status_case;
+
+    #[test]
+    fn risk_status_distinguishes_unconfigured_from_breach() {
+        assert_eq!(
+            super::risk_status(false, false, Decimal::ZERO, None, Decimal::ZERO, None),
+            ("NOT_CONFIGURED", "WARNING")
+        );
+        assert_eq!(
+            super::risk_status(true, false, Decimal::from(2), Some(Decimal::from(5)), Decimal::from(1), Some(Decimal::from(10))),
+            ("HEALTHY", "HEALTHY")
+        );
+        assert_eq!(
+            super::risk_status(true, false, Decimal::from(5), Some(Decimal::from(5)), Decimal::ZERO, None),
+            ("HEALTHY", "BREACH")
+        );
+        assert_eq!(
+            super::risk_status(true, true, Decimal::ZERO, None, Decimal::ZERO, None),
+            ("HEALTHY", "BREACH")
+        );
+    }
 
     #[test]
     fn status_case_converts_snake_case_values() {
