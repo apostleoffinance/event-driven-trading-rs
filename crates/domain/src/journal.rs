@@ -73,6 +73,8 @@ pub struct JournalTrade {
     pub timeframe: Option<String>,
     #[serde(default)]
     pub timezone: Option<String>,
+    pub mfe_r: Option<Decimal>,
+    pub mae_r: Option<Decimal>,
 }
 
 impl JournalTrade {
@@ -178,6 +180,8 @@ mod tests {
             session: Some("London".into()),
             timeframe: Some("4H".into()),
             timezone: Some("UTC".into()),
+            mfe_r: Some(Decimal::new(25, 1)),
+            mae_r: Some(Decimal::new(-5, 1)),
         }
     }
 
