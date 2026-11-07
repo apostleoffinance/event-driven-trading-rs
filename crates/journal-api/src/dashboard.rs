@@ -594,7 +594,7 @@ pub async fn events(
       WHERE g.owner_id=$1 ORDER BY e.created_at DESC LIMIT $2
     "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time,account,strategy,instrument)|serde_json::json!({
-      "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":format!("Execution event for order {}",order.as_deref().unwrap_or("unknown")),"payload":payload,"correlationId":venue
+      "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":"Trading activity recorded","payload":payload,"correlationId":venue
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
