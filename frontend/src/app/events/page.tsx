@@ -12,6 +12,8 @@ export default function EventsPage() {
   const { events, connected } = useSharedEventStream();
   const [selected, setSelected] = useState<TradingEvent | null>(null);
 
+  const eventLabel = (type: string) => type.replace(/([a-z])([A-Z])/g, "$1 $2");
+
   const columns = useMemo<ColumnDef<TradingEvent>[]>(
     () => [
       {
@@ -21,7 +23,7 @@ export default function EventsPage() {
           <span className="num">{formatDateTime(String(getValue()))}</span>
         ),
       },
-      { accessorKey: "type", header: "Type" },
+      { accessorKey: "type", header: "Activity", cell: ({ row }) => eventLabel(row.original.type) },
       {
         accessorKey: "entity",
         header: "Entity",
@@ -63,11 +65,11 @@ export default function EventsPage() {
   return (
     <>
       <PageHeader
-        title="Event Stream"
-        description="Immutable TradingEvent facts with correlation IDs. Live mock ticks append while EVENT STREAM is connected."
+        title="Recent activity"
+        description="Review updates to your orders, positions and trading accounts."
         actions={
           <span className={`badge ${connected ? "ok" : "warn"}`}>
-            {connected ? "CONNECTED" : "DISCONNECTED"}
+            {connected ? "Live updates" : "Updates paused"}
           </span>
         }
       />
@@ -76,7 +78,7 @@ export default function EventsPage() {
           data={events}
           columns={columns}
           onRowClick={setSelected}
-          emptyMessage="No events yet."
+          emptyMessage="No recent trading activity."
         />
       </div>
       {selected ? (
@@ -89,7 +91,7 @@ export default function EventsPage() {
           />
           <aside className="drawer" role="dialog" aria-label="Event detail">
             <h2 style={{ marginTop: 0, fontSize: 16, fontWeight: 500 }}>
-              {selected.type}
+              {eventLabel(selected.type)}
             </h2>
             <div className="metric-sub">{formatDateTime(selected.timestamp)}</div>
             <div className="metric-sub num">
