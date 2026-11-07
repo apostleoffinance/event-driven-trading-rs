@@ -31,6 +31,8 @@ struct TradeFact {
     r_multiple: Option<Decimal>,
     session: Option<String>,
     setup_name: String,
+    mfe_r: Option<Decimal>,
+    mae_r: Option<Decimal>,
 }
 
 fn auth_error(error: ApiAuthError) -> Response {
@@ -56,7 +58,7 @@ pub async fn summary(
         r#"
         SELECT t.id, t.symbol, t.direction, t.closed_at,
           COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
-          t.risk_amount, t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name
+          t.risk_amount, t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name, t.mfe_r, t.mae_r
         FROM journal_trades t
         LEFT JOIN journal_setups s ON s.owner_id=t.owner_id AND s.id=t.setup_id
         WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
@@ -130,6 +132,10 @@ pub async fn summary(
         std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
+    let mut total_mfe_r = Decimal::ZERO;
+    let mut mfe_count = 0usize;
+    let mut total_mae_r = Decimal::ZERO;
+    let mut mae_count = 0usize;
     for fact in &facts {
         symbols
             .entry(fact.symbol.clone())
@@ -143,10 +149,9 @@ pub async fn summary(
             .entry(fact.setup_name.clone())
             .or_default()
             .push(fact.net_pnl);
-        if let Some(r) = fact.r_multiple {
-            total_r += r;
-            r_count += 1;
-        }
+        if let Some(r) = fact.r_multiple { total_r += r; r_count += 1; }
+        if let Some(r) = fact.mfe_r { total_mfe_r += r; mfe_count += 1; }
+        if let Some(r) = fact.mae_r { total_mae_r += r; mae_count += 1; }
     }
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
@@ -170,6 +175,8 @@ pub async fn summary(
         "expectancy":stats.expectancy.to_string(),"average_win":stats.average_win.map(|v|v.to_string()),
         "average_loss":stats.average_loss.map(|v|v.to_string()),"max_drawdown":stats.max_drawdown.to_string(),
         "average_r":if r_count>0 {Some((total_r/Decimal::from(r_count as u64)).to_string())} else {None},
+        "average_mfe_r":if mfe_count>0 {Some((total_mfe_r/Decimal::from(mfe_count as u64)).to_string())} else {None},
+        "average_mae_r":if mae_count>0 {Some((total_mae_r/Decimal::from(mae_count as u64)).to_string())} else {None},
         "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
