@@ -75,6 +75,24 @@ pub struct JournalTrade {
     pub timezone: Option<String>,
     pub mfe_r: Option<Decimal>,
     pub mae_r: Option<Decimal>,
+    #[serde(default)]
+    pub notes: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub setup_valid: Option<bool>,
+    #[serde(default)]
+    pub rules_followed: Option<bool>,
+    #[serde(default)]
+    pub emotional_trade: Option<bool>,
+    #[serde(default)]
+    pub mistake: Option<bool>,
+    #[serde(default)]
+    pub mistake_notes: Option<String>,
+    #[serde(default)]
+    pub discipline_score: Option<i16>,
+    #[serde(default)]
+    pub acknowledged_warnings: Vec<String>,
 }
 
 impl JournalTrade {
@@ -106,6 +124,9 @@ impl JournalTrade {
         }
         if let Some(value) = self.take_profit {
             require_positive(value, "journal take profit")?;
+        }
+        if self.discipline_score.is_some_and(|score| !(0..=100).contains(&score)) {
+            return Err(DomainError::Validation("discipline_score must be between 0 and 100".to_string()));
         }
         if let Some(value) = self.risk_amount {
             require_non_negative(value, "journal risk amount")?;
@@ -182,6 +203,15 @@ mod tests {
             timezone: Some("UTC".into()),
             mfe_r: Some(Decimal::new(25, 1)),
             mae_r: Some(Decimal::new(-5, 1)),
+            notes: Some("test journal note".into()),
+            tags: vec!["breakout".into()],
+            setup_valid: Some(true),
+            rules_followed: Some(true),
+            emotional_trade: Some(false),
+            mistake: Some(false),
+            mistake_notes: None,
+            discipline_score: Some(90),
+            acknowledged_warnings: vec![],
         }
     }
 
