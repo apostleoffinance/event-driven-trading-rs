@@ -707,6 +707,7 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
 #[cfg(test)]
 mod tests {
     use super::status_case;
+    use rust_decimal::Decimal;
 
     #[test]
     fn risk_status_distinguishes_unconfigured_from_breach() {
