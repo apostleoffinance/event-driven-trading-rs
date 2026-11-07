@@ -129,7 +129,7 @@ export default function CommandCenterPage() {
           <div className="panel-title">RISK STATUS</div>
           <div style={{ marginBottom: 8 }}>
             <StatusBadge tone={riskToneClass(risk.tone)}>
-              {risk.engineStatus === "HEALTHY" ? "Risk limits configured" : risk.engineStatus === "NOT_CONFIGURED" ? "Risk limits not configured" : `Risk status: ${risk.engineStatus.toLowerCase().replaceAll("_", " ")}`}
+              {risk.killSwitch ? "Trading halted by risk controls" : risk.tone === "BREACH" ? "Risk limit breached" : risk.engineStatus === "HEALTHY" ? "Risk limits configured" : risk.engineStatus === "NOT_CONFIGURED" ? "Risk limits not configured" : "Risk status unavailable"}
             </StatusBadge>
           </div>
           <div className="metric-label">DAILY LOSS</div>
