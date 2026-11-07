@@ -607,7 +607,6 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
         .fetch_one(state.store.pool())
         .await
         .is_ok();
-    let now = Utc::now();
     let status = if db { "DEGRADED" } else { "ERROR" };
     let components = vec![
         ("api", "EdgeNest API"),
@@ -625,7 +624,6 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
         Ok(v) => v,
         Err(e) => return e.into_response(),
     };
-    let now = Utc::now();
     let stages = [
         "Market Data",
         "Strategy",
