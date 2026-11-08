@@ -24,6 +24,7 @@ pub struct ListQuery {
     pub closed_to: Option<DateTime<Utc>>,
     pub symbol: Option<String>,
     pub setup_id: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct TradeWrite {
