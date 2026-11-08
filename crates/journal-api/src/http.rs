@@ -9,6 +9,7 @@ use domain::{JournalDirection, JournalTrade, JournalTradeSource, JournalTradeSta
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::PgPool;
+use persistence::repos::JournalTradeListQuery;
 
 use crate::{
     auth::{ApiAuthError, Claims},
@@ -186,20 +187,16 @@ pub async fn list(
     {
         return bad_request("closed_from must be earlier than or equal to closed_to");
     }
-    match state
-        .store
-        .list_journal_trades(
-            &claims.sub,
-            query.journal_account_id.as_deref(),
-            query.symbol.as_deref(),
-            query.setup_id.as_deref(),
-            query.closed_from,
-            query.closed_to,
-            query.limit.unwrap_or(100),
-            query.offset.unwrap_or(0),
-        )
-        .await
-    {
+    let list_query = JournalTradeListQuery {
+        account_id: query.journal_account_id.clone(),
+        symbol: query.symbol.clone(),
+        setup_id: query.setup_id.clone(),
+        closed_from: query.closed_from,
+        closed_to: query.closed_to,
+        limit: query.limit.unwrap_or(100),
+        offset: query.offset.unwrap_or(0),
+    };
+    match state.store.list_journal_trades(&claims.sub, list_query).await {
         Ok(trades) => Json(serde_json::json!({"data":trades,"pagination":{"limit":query.limit.unwrap_or(100).clamp(1,500),"offset":query.offset.unwrap_or(0).max(0)}})).into_response(),
         Err(_) => internal(),
     }
