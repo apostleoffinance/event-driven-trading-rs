@@ -52,7 +52,7 @@ Journal (JWT bearer):
 - `GET /api/v1/journal/analytics/intelligence?journal_account_id=...&from=...&to=...`
 - `GET/PUT /api/v1/journal/trades/:trade_id/psychology`
 - `GET/POST/DELETE /api/v1/journal/trades/:trade_id/attachments`
-- Trade listing accepts optional `closed_from` and `closed_to` UTC timestamps for date-bounded closed-trade drill-down.
+- Analytics summary/intelligence accept optional `symbol` and `setup_id` filters. Trade listing accepts `symbol`, `setup_id`, and optional `closed_from`/`closed_to` UTC timestamps for date-bounded closed-trade drill-down.
 
 Market Data (read-only):
 - `GET /api/v1/market-data/providers`
