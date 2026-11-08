@@ -46,7 +46,7 @@ export function MarketAnalysisChart() {
     if (!node) return;
     const chart = createChart(node, {
       width: node.clientWidth, height: 480,
-      layout: { background: { color: "transparent" }, textColor: "var(--foreground, #d1d4dc)" },
+      layout: { attributionLogo: true, background: { color: "transparent" }, textColor: "var(--foreground, #d1d4dc)" },
       grid: { vertLines: { color: "rgba(130,130,130,.12)" }, horzLines: { color: "rgba(130,130,130,.12)" } },
       rightPriceScale: { borderColor: "rgba(130,130,130,.25)" },
       timeScale: { borderColor: "rgba(130,130,130,.25)", timeVisible: true, secondsVisible: false },
@@ -88,7 +88,7 @@ export function MarketAnalysisChart() {
 
   return <section className="panel market-analysis">
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-      <div><h2 className="panel-title" style={{marginBottom:4}}>MARKET ANALYSIS</h2><p style={{margin:0,fontSize:12,opacity:.7}}>Powered by TradingView Lightweight Charts · Read-only analysis</p></div>
+      <div><h2 className="panel-title" style={{marginBottom:4}}>MARKET ANALYSIS</h2><p style={{margin:0,fontSize:12,opacity:.7}}>TradingView Lightweight Charts · Read-only analysis</p></div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><label className="journal-field"><span>Instrument</span><select value={selectedSymbol} onChange={e=>setSymbol(e.target.value)}>{(instruments.data??[]).map(i=><option key={i.id} value={i.id}>{i.symbol??i.id}</option>)}</select></label><label className="journal-field"><span>Provider</span><select value={selectedProvider} onChange={e=>setProvider(e.target.value)}>{(providers.data??[]).map(p=><option key={p.id} value={p.id}>{p.name??p.id}</option>)}</select></label></div>
     </div>
     <div style={{display:"flex",gap:5,flexWrap:"wrap",margin:"14px 0"}}>{FRAMES.map(f=><button key={f} className={frame===f?"btn primary":"btn"} onClick={()=>setFrame(f)}>{f}</button>)}<span style={{flex:1}}/><label style={{display:"flex",alignItems:"center",gap:5,fontSize:12}}><input type="checkbox" checked={showVolume} onChange={e=>setShowVolume(e.target.checked)}/> Volume</label><label style={{display:"flex",alignItems:"center",gap:5,fontSize:12}}><input type="checkbox" checked={showSma} onChange={e=>setShowSma(e.target.checked)}/> SMA 20</label></div>
@@ -98,6 +98,6 @@ export function MarketAnalysisChart() {
     {!candles.isLoading&&!candles.error&&chartData.length===0?<p>No candle history available from the selected provider/instrument/timeframe. Connect a data provider or MT5 bridge; chart will not fabricate prices.</p>:null}
     <div ref={containerRef} style={{width:"100%",minHeight:480}} aria-label="Interactive candlestick chart"/>
     <div style={{display:"flex",gap:10,alignItems:"end",flexWrap:"wrap",marginTop:12}}><label className="journal-field"><span>Stop Loss price</span><input inputMode="decimal" value={sl} onChange={e=>setSl(e.target.value)} placeholder="Draw SL line"/></label><label className="journal-field"><span>Take Profit price</span><input inputMode="decimal" value={tp} onChange={e=>setTp(e.target.value)} placeholder="Draw TP line"/></label><button className="btn" onClick={()=>{setSl("");setTp("");}}>Clear levels</button><span style={{fontSize:12,opacity:.65}}>Horizontal SL/TP lines are visual analysis only; they do not place broker orders.</span></div>
-    <p style={{fontSize:11,opacity:.65,marginTop:12}}>Data source: {candles.data?.last_updated_at??"provider timestamp unavailable"} · {candles.data?.count??chartData.length} candles · Historical price data may be delayed or classified by the provider.</p>
+    <p style={{fontSize:11,opacity:.65,marginTop:12}}>TradingView Lightweight Charts™ · Copyright © 2024 TradingView, Inc. <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">TradingView</a></p><p style={{fontSize:11,opacity:.65,marginTop:12}}>Data source: {candles.data?.last_updated_at??"provider timestamp unavailable"} · {candles.data?.count??chartData.length} candles · Historical price data may be delayed or classified by the provider.</p>
   </section>;
 }
