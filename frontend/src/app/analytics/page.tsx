@@ -120,7 +120,7 @@ export default function AnalyticsLabPage() {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
         <label className="journal-field" style={{minWidth:240}}><span>Journal account</span>
-          <select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">All accounts</option>{accounts.data?.map(x=><option key={x.id} value={x.id}>{x.name} · {x.currency}</option>)}</select>
+          <select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">All accounts</option>{accounts.data?.filter(x=>!x.archived).map(x=><option key={x.id} value={x.id}>{x.name} · {x.currency}</option>)}</select>
           <span>Date range</span><select value={datePreset} onChange={e=>applyDatePreset(e.target.value)}><option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="month">This month</option><option value="lastmonth">Last month</option><option value="ytd">Year to date</option><option value="custom">Custom range</option></select>
           <span>From UTC</span><input type="date" value={fromDate} onChange={e=>{setFromDate(e.target.value);setDatePreset("custom");}} />
           <span>To UTC</span><input type="date" min={fromDate || undefined} value={toDate} onChange={e=>{setToDate(e.target.value);setDatePreset("custom");}} />
@@ -131,7 +131,7 @@ export default function AnalyticsLabPage() {
       {accounts.error ? <div className="error" role="alert"><p>Could not load your Journal accounts. Check your connection and try again.</p><button className="btn" onClick={()=>void accounts.refetch()}>Retry accounts</button></div> : null}
       {mixedCurrencies ? <div className="error" role="status"><strong>Select a single account to continue.</strong><p>These accounts use different currencies ({accountCurrencies.join(", ")}). EdgeNest will not combine unlike currencies into misleading P&amp;L totals. Choose an account above to see its analytics.</p></div> : null}
       {analytics.isLoading && !mixedCurrencies ? <p>Calculating your Journal analytics…</p> : null}
-      {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
+      {analytics.error ? <div className="error" role="alert"><p>{"Could not load analytics from your Journal. Check your connection and retry."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
     {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs" style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0",marginTop:10}}>
         {(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"btn primary":"btn"} aria-current={activeTab===tab?"page":undefined} onClick={()=>setActiveTab(tab)} style={{whiteSpace:"nowrap",textTransform:"capitalize"}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab}</button>)}
