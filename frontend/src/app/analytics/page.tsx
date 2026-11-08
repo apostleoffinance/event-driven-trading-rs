@@ -25,6 +25,7 @@ export default function AnalyticsLabPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "edge" | "execution" | "behaviour" | "risk">("overview");
   useEffect(() => {
     setAuthenticated(hasSession());
     setUserEmail(getSessionUser()?.email ?? null);
@@ -110,15 +111,15 @@ export default function AnalyticsLabPage() {
       {analytics.isLoading && !mixedCurrencies ? <p>Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
-    {a && !mixedCurrencies ? <>
-      {intelligence.data ? <section className="panel" style={{marginTop:14}}>
+    {a && !mixedCurrencies ? <>{nav}
+      {activeTab==="behaviour" && intelligence.data ? <section className="panel" style={{marginTop:14}}>
         <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
         <p className="muted">95% Wilson win-rate interval: {intelligence.data.win_rate_confidence_95 ? intelligence.data.win_rate_confidence_95.lower_percent.toFixed(1)+"%–"+intelligence.data.win_rate_confidence_95.upper_percent.toFixed(1)+"%" : "Not available"} · Sample: {intelligence.data.sample_status.replaceAll("_"," ")} · n={intelligence.data.trade_count}</p>
         <div className="grid grid-dash"><div><h3>Process vs outcome</h3><p>Good process / win: {intelligence.data.process_outcomes.good_process_win}</p><p>Good process / loss: {intelligence.data.process_outcomes.good_process_loss}</p><p>Poor process / win: {intelligence.data.process_outcomes.poor_process_win}</p><p>Poor process / loss: {intelligence.data.process_outcomes.poor_process_loss}</p></div>
         <div><h3>Behavioral markers</h3><p>Rule adherence: {intelligence.data.rule_adherence_percent == null ? "—" : intelligence.data.rule_adherence_percent.toFixed(1)+"%"}</p><p>Valid setup rate: {intelligence.data.valid_setup_percent == null ? "—" : intelligence.data.valid_setup_percent.toFixed(1)+"%"}</p><p>Emotional trades: {intelligence.data.emotional_trade_count}</p><p>Mistakes: {intelligence.data.mistake_count}</p><p>Average discipline: {intelligence.data.average_discipline_score == null ? "—" : intelligence.data.average_discipline_score.toFixed(1)+"/100"}</p></div></div>
-        <h3>Review insights</h3>{intelligence.data.insights.map((item,i)=><section key={item.type+"-"+i} className="panel" style={{marginTop:8}}><strong>{item.title}</strong><p>{item.message}</p></section>)}<p className="muted">{intelligence.data.notice}</p></section> : intelligence.isLoading ? <section className="panel" style={{marginTop:14}}>Calculating process intelligence…</section> : intelligence.error ? <section className="panel error" style={{marginTop:14}}>Process intelligence could not be loaded. <button className="btn" onClick={()=>void intelligence.refetch()}>Retry</button></section> : null}
-      <div className="grid grid-kpi" style={{marginTop:14}}>{metrics.map(([label,value])=><section className="panel" key={label}><div className="metric"><span className="metric-label">{label}</span><span className="metric-value">{value}</span></div></section>)}</div>
-      <div className="grid grid-dash" style={{marginTop:14}}>
+        <h3>Review insights</h3>{intelligence.data.insights.map((item,i)=><section key={item.type+"-"+i} className="panel" style={{marginTop:8}}><strong>{item.title}</strong><p>{item.message}</p></section>)}<p className="muted">{intelligence.data.notice}</p></section> : activeTab==="behaviour" && intelligence.isLoading ? <section className="panel" style={{marginTop:14}}>Calculating process intelligence…</section> : activeTab==="behaviour" && intelligence.error ? <section className="panel error" style={{marginTop:14}}>Process intelligence could not be loaded. <button className="btn" onClick={()=>void intelligence.refetch()}>Retry</button></section> : activeTab==="behaviour" ? <section className="panel" style={{marginTop:14}}><h2 className="panel-title">BEHAVIOUR</h2><p>Behavioral analytics require recorded rule adherence, setup validity, emotion, mistake and discipline fields. No missing data is inferred.</p><Link href="/journal" className="btn">Review Journal records</Link></section> : null}
+      <div className="grid grid-kpi" style={{marginTop:14,display:activeTab==="overview"||activeTab==="performance"?"":"none"}}>{metrics.map(([label,value])=><section className="panel" key={label}><div className="metric"><span className="metric-label">{label}</span><span className="metric-value">{value}</span></div></section>)}</div>
+      <div className="grid grid-dash" style={{marginTop:14,display:activeTab==="edge"?"":"none"}}>
         <section className="panel"><h2 className="panel-title">PERFORMANCE BY SYMBOL</h2>
           {a.by_symbol.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th><th>Expectancy</th></tr></thead><tbody>{a.by_symbol.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td className="num">{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td><td className="num">{money(x.expectancy)}</td></tr>)}</tbody></table></div>:<p>No symbol data yet.</p>}
         </section>
@@ -130,14 +131,14 @@ export default function AnalyticsLabPage() {
         </section>
       </div>
 
-      <div className="grid grid-dash" style={{marginTop:14}}>
+      <div className="grid grid-dash" style={{marginTop:14,display:activeTab==="edge"?"":"none"}}>
         <section className="panel"><h2 className="panel-title">PERFORMANCE BY WEEKDAY</h2>{a.by_weekday?.length?<div className="data-table-wrap"><table className="data-table"><thead><tr><th>Weekday</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th></tr></thead><tbody>{a.by_weekday.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td>{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td></tr>)}</tbody></table></div>:<p>No weekday data.</p>}</section>
         <section className="panel"><h2 className="panel-title">PERFORMANCE BY HOUR (UTC)</h2>{a.by_hour_utc?.length?<div className="data-table-wrap"><table className="data-table"><thead><tr><th>Hour</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th></tr></thead><tbody>{a.by_hour_utc.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td>{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td></tr>)}</tbody></table></div>:<p>No hour data.</p>}</section>
       </div>
-      <section className="panel" style={{marginTop:14}}><h2 className="panel-title">CUMULATIVE JOURNAL P&amp;L · CLOSED TRADES</h2><p className="muted">Realized Journal P&amp;L accumulated from closed trades. This is not broker-reported account equity.</p>
+      <section className="panel" style={{marginTop:14,display:activeTab==="overview"||activeTab==="performance"?"":"none"}}><h2 className="panel-title">CUMULATIVE JOURNAL P&amp;L · CLOSED TRADES</h2><p className="muted">Realized Journal P&amp;L accumulated from closed trades. This is not broker-reported account equity.</p>
         {a.equity_curve.length ? <><AnalyticsEquityChart curve={a.equity_curve} currency={displayCurrency} /><details><summary>Inspect underlying trade series</summary><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Closed</th><th>Trade</th><th>Net P&amp;L</th><th>Cumulative P&amp;L</th><th>Drawdown</th></tr></thead><tbody>{a.equity_curve.map((x,i)=><tr key={x.trade_id}><td>{new Date(x.closed_at).toLocaleString()}</td><td>{i+1}</td><td className="num">{money(x.net_pnl)}</td><td className="num">{money(x.equity)}</td><td className="num">{money(x.drawdown)}</td></tr>)}</tbody></table></div></details></>:<p>No closed trades with realized P&amp;L yet. Add trades or import historical records in the Journal.</p>}
       </section>
-      <section className="panel" style={{marginTop:14}}><p className="muted">{a.notice ?? "Analytics are descriptive historical calculations, not forecasts or trading advice."}</p></section>
+      <section className="panel" style={{marginTop:14,display:activeTab==="overview"||activeTab==="risk"?"":"none"}}><p className="muted">{a.notice ?? "Analytics are descriptive historical calculations, not forecasts or trading advice."}</p></section>
     </>:null}
   </div>;
 }
