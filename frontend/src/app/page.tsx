@@ -64,9 +64,11 @@ export default function CommandCenterPage() {
     };
   }, [repos.accounts, repos.portfolio, repos.positions, repos.orders, repos.risk]);
 
-  if (loading) return <div className="loading">Loading command center…</div>;
+  if (loading) return <><JournalDashboardSummary /><div className="loading">Loading command center…</div></>;
   if (error || !portfolio || !risk)
     return (
+      <>
+      <JournalDashboardSummary />
       <div className="error">
         Unable to load data. {error}
         <div style={{ marginTop: 8 }}>
@@ -75,6 +77,7 @@ export default function CommandCenterPage() {
           </button>
         </div>
       </div>
+      </>
     );
 
   if (frontendConfig.dataMode === "api" && accounts.length === 0) {
