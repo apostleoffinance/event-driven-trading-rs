@@ -24,6 +24,7 @@ export default function AnalyticsLabPage() {
   const [accountId, setAccountId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [datePreset, setDatePreset] = useState("all");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "edge" | "execution" | "behaviour" | "risk">("overview");
   useEffect(() => {
@@ -42,12 +43,31 @@ export default function AnalyticsLabPage() {
   const accountCurrencies = [...new Set((accounts.data ?? []).filter(x => !x.archived).map(x => x.currency.toUpperCase()))];
   const mixedCurrencies = !accountId && accountCurrencies.length > 1;
   const selectedAccount = accounts.data?.find(x => x.id === accountId);
-  const displayCurrency = selectedAccount?.currency ?? accountCurrencies[0] ?? "USD";
+  const displayCurrency = selectedAccount?.currency ?? accountCurrencies[0] ?? "USD"; 
+  const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+  const applyDatePreset = (preset: string) => {
+    setDatePreset(preset);
+    const now = new Date();
+    const end = dateKey(now);
+    const startOfMonth = dateKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+    let start = "";
+    if (preset === "today") start = end;
+    else if (preset === "yesterday") { const d = new Date(now); d.setUTCDate(d.getUTCDate()-1); start = dateKey(d); setToDate(dateKey(d)); }
+    else if (preset === "7d") { const d = new Date(now); d.setUTCDate(d.getUTCDate()-6); start = dateKey(d); }
+    else if (preset === "30d") { const d = new Date(now); d.setUTCDate(d.getUTCDate()-29); start = dateKey(d); }
+    else if (preset === "90d") { const d = new Date(now); d.setUTCDate(d.getUTCDate()-89); start = dateKey(d); }
+    else if (preset === "month") start = startOfMonth;
+    else if (preset === "lastmonth") { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()-1, 1)); start = dateKey(d); setToDate(dateKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)))); }
+    else if (preset === "ytd") start = dateKey(new Date(Date.UTC(now.getUTCFullYear(),0,1)));
+    if (preset === "all") { setFromDate(""); setToDate(""); return; }
+    setFromDate(start);
+    if (preset !== "yesterday" && preset !== "lastmonth") setToDate(end);
+  };
   const dateFilter = { from: fromDate ? fromDate + "T00:00:00.000Z" : undefined, to: toDate ? toDate + "T23:59:59.999Z" : undefined };
   const analytics = useQuery({
     queryKey: ["journal", "analytics", accountId, fromDate, toDate],
     queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
-    enabled: authenticated && frontendConfig.dataMode === "api" && !mixedCurrencies,
+    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -100,9 +120,10 @@ export default function AnalyticsLabPage() {
         <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
         <label className="journal-field" style={{minWidth:240}}><span>Journal account</span>
           <select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">All accounts</option>{accounts.data?.map(x=><option key={x.id} value={x.id}>{x.name} · {x.currency}</option>)}</select>
-          <span>From UTC</span><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} />
-          <span>To UTC</span><input type="date" min={fromDate || undefined} value={toDate} onChange={e=>setToDate(e.target.value)} />
-          <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");}}>Reset</button>
+          <span>Date range</span><select value={datePreset} onChange={e=>applyDatePreset(e.target.value)}><option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="month">This month</option><option value="lastmonth">Last month</option><option value="ytd">Year to date</option><option value="custom">Custom range</option></select>
+          <span>From UTC</span><input type="date" value={fromDate} onChange={e=>{setFromDate(e.target.value);setDatePreset("custom");}} />
+          <span>To UTC</span><input type="date" min={fromDate || undefined} value={toDate} onChange={e=>{setToDate(e.target.value);setDatePreset("custom");}} />
+          <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");setDatePreset("all");}}>Reset</button>
         </label>
       </div>
       {accounts.isLoading ? <p className="muted">Loading your Journal accounts…</p> : null}
