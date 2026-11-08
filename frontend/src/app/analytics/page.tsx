@@ -88,7 +88,7 @@ export default function AnalyticsLabPage() {
   });
   const analyticsOptions = useQuery({
     queryKey: ["journal", "analytics-filter-options", accountId, fromDate, toDate],
-    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
+    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
     enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -96,7 +96,7 @@ export default function AnalyticsLabPage() {
   });
   const analytics = useQuery({
     queryKey: ["journal", "analytics", accountId, fromDate, toDate, symbolFilter, setupFilter],
-    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
+    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
     enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -115,7 +115,7 @@ export default function AnalyticsLabPage() {
   const intelligence = useQuery({
     queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate, symbolFilter, setupFilter],
     queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
-    enabled: authenticated && frontendConfig.dataMode === "api" && !mixedCurrencies,
+    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     retry: 1,
