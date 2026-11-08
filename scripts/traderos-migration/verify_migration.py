@@ -70,11 +70,17 @@ def main():
             dest.extend(batch)
             if len(batch)<500: break
             offset+=len(batch)
-    lineage={str(t.get("source_trade_id")):t for t in dest if t.get("source_system")=="TraderOS" and t.get("source_trade_id")}
+    lineage_rows=[t for t in dest if t.get("source_system")=="TraderOS" and t.get("source_trade_id")]
+    lineage_counts={}
+    for row in lineage_rows:
+        key=str(row.get("source_trade_id"))
+        lineage_counts[key]=lineage_counts.get(key,0)+1
+    lineage={key: next(t for t in lineage_rows if str(t.get("source_trade_id"))==key) for key in lineage_counts}
     expected_ids={str(t.get("id")) for t in valid}
     actual_ids=set(lineage)
     check("trade lineage IDs",len(expected_ids),len(expected_ids & actual_ids),f"missing={sorted(expected_ids-actual_ids)[:10]}")
-    check("duplicate destination lineage",0,len(actual_ids)-len(lineage))
+    duplicate_rows=sum(count-1 for count in lineage_counts.values() if count>1)
+    check("duplicate destination lineage",0,duplicate_rows,f"duplicated source IDs={[k for k,v in lineage_counts.items() if v>1][:10]}")
     check("quarantine count",1,len(quarantined),"Chronology-conflicted trades intentionally excluded")
     src_psy=m.read_table(args.snapshot,"psychology")
     psy_by_trade={str(p.get("trade_id")):p for p in src_psy}
