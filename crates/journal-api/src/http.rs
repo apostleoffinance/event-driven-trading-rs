@@ -6,10 +6,10 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use domain::{JournalDirection, JournalTrade, JournalTradeSource, JournalTradeStatus};
+use persistence::repos::JournalTradeListQuery;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::PgPool;
-use persistence::repos::JournalTradeListQuery;
 
 use crate::{
     auth::{ApiAuthError, Claims},
