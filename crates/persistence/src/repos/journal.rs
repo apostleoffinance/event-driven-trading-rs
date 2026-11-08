@@ -215,19 +215,13 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
 pub async fn list_for_owner(
     pool: &PgPool,
     owner_id: &str,
-    account_id: Option<&str>,
-    symbol: Option<&str>,
-    setup_id: Option<&str>,
-    closed_from: Option<DateTime<Utc>>,
-    closed_to: Option<DateTime<Utc>>,
-    limit: i64,
-    offset: i64,
+    query: &super::JournalTradeListQuery,
 ) -> PersistenceResult<Vec<JournalTrade>> {
     if owner_id.trim().is_empty() {
         return Err(PersistenceError::Other("owner_id must be non-empty".into()));
     }
-    let limit = limit.clamp(1, 500);
-    let offset = offset.max(0);
+    let limit = query.limit.clamp(1, 500);
+    let offset = query.offset.max(0);
     let rows = sqlx::query_as::<_, JournalTradeRow>(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
@@ -242,11 +236,11 @@ pub async fn list_for_owner(
           ORDER BY closed_at DESC NULLS LAST, opened_at DESC, id DESC LIMIT $7 OFFSET $8"#,
     )
     .bind(owner_id)
-    .bind(account_id)
-    .bind(symbol)
-    .bind(setup_id)
-    .bind(closed_from)
-    .bind(closed_to)
+    .bind(query.account_id.as_deref())
+    .bind(query.symbol.as_deref())
+    .bind(query.setup_id.as_deref())
+    .bind(query.closed_from)
+    .bind(query.closed_to)
     .bind(limit)
     .bind(offset)
     .fetch_all(pool)
