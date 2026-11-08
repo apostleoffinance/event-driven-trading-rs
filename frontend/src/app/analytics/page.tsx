@@ -133,7 +133,7 @@ export default function AnalyticsLabPage() {
       {analytics.isLoading && !mixedCurrencies ? <p>Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
-    {a && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs" style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0",marginTop:10}}>
+    {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs" style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0",marginTop:10}}>
         {(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"btn primary":"btn"} aria-current={activeTab===tab?"page":undefined} onClick={()=>setActiveTab(tab)} style={{whiteSpace:"nowrap",textTransform:"capitalize"}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab}</button>)}
       </nav>
       {activeTab==="behaviour" && intelligence.data ? <section className="panel" style={{marginTop:14}}>
@@ -168,5 +168,6 @@ export default function AnalyticsLabPage() {
       </section>
       <section className="panel" style={{marginTop:14,display:activeTab==="overview"||activeTab==="risk"?"":"none"}}><p className="muted">{a.notice ?? "Analytics are descriptive historical calculations, not forecasts or trading advice."}</p></section>
     </>:null}
+    {a && a.trade_count === 0 && !mixedCurrencies ? <section className="panel" style={{marginTop:14}}><h2>No closed trades in this range</h2><p className="muted">Analytics Lab only calculates performance from closed Journal trades with realized P&amp;L. No placeholder or sample results are shown.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Link href="/journal" className="btn primary">Add or import Journal trades</Link><button type="button" className="btn" onClick={()=>{setFromDate("");setToDate("");setDatePreset("all");}}>View all time</button></div></section> : null}
   </div>;
 }
