@@ -20,7 +20,17 @@ spec.loader.exec_module(m)
 
 PSY_FIELDS = ("emotion_before","emotion_during","emotion_after","confidence","fear","fomo","frustration","revenge_intensity","boredom","notes")
 
+def unwrap_psy(row):
+    """Normalize common API envelope shapes to the psychology record."""
+    if not isinstance(row, dict): return row
+    for key in ("psychology", "data"):
+        nested = row.get(key)
+        if isinstance(nested, dict):
+            return nested
+    return row
+
 def norm_psy(row):
+    row = unwrap_psy(row)
     if not isinstance(row, dict): return None
     out = {k: row.get(k) for k in PSY_FIELDS}
     out["revenge_intensity"] = row.get("revenge", row.get("revenge_intensity"))
@@ -105,10 +115,15 @@ def main():
         except Exception: att=[]
         if isinstance(att,dict): att=att.get("attachments",att.get("data",[]))
         if not isinstance(att,list): att=[]
-        bylegacy={str(a.get("legacy_screenshot_id")):a for a in att if a.get("legacy_screenshot_id")}
+        def attachment_meta(a):
+            meta=a.get("metadata") if isinstance(a.get("metadata"),dict) else {}
+            legacy_id=a.get("legacy_screenshot_id",meta.get("legacy_screenshot_id"))
+            sha=a.get("sha256",meta.get("sha256"))
+            return (str(legacy_id) if legacy_id is not None else None, str(sha or "").lower())
+        bylegacy={legacy_id:a for a in att if (legacy_id:=attachment_meta(a)[0])}
         for s in [x for x in expected_screens if str(x.get("trade_id"))==sid]:
             a=bylegacy.get(str(s.get("id")))
-            if a and str(a.get("sha256","")).lower()==str(s.get("file_sha256","")).lower(): attach_ok+=1
+            if a and attachment_meta(a)[1]==str(s.get("file_sha256","")).lower(): attach_ok+=1
             else: attach_missing.append(str(s.get("id")))
     check("screenshot attachment ID+SHA metadata",len(expected_screens),attach_ok,f"missing/mismatch={attach_missing[:10]}")
     report={}
