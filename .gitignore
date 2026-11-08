@@ -35,3 +35,9 @@ build/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+
+# TraderOS -> EdgeNest migration exports, checkpoints, reports, and private config
+/migration/
+/migration-state.json
+/migration-report.json
+/scripts/traderos-migration/config.private.json
