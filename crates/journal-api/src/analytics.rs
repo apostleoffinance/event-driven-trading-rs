@@ -210,9 +210,12 @@ pub async fn summary(
             .or_default()
             .push(fact.net_pnl);
         days.entry(fact.closed_at.format("%Y-%m-%d").to_string())
-            .or_default().push(fact.net_pnl);
-        months.entry(fact.closed_at.format("%Y-%m").to_string())
-            .or_default().push(fact.net_pnl);
+            .or_default()
+            .push(fact.net_pnl);
+        months
+            .entry(fact.closed_at.format("%Y-%m").to_string())
+            .or_default()
+            .push(fact.net_pnl);
         if let Some(r) = fact.r_multiple {
             total_r += r;
             r_count += 1;
