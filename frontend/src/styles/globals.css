@@ -850,3 +850,163 @@ table {
   opacity: .6;
   cursor: wait;
 }
+
+
+/* Analytics Lab — intentional dashboard hierarchy and responsive filter controls */
+.analytics-filter-panel {
+  padding: 20px;
+  margin-bottom: 14px;
+}
+.analytics-filter-header,
+.analytics-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.analytics-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.analytics-filter-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.analytics-filter-header .muted {
+  margin: 5px 0 0;
+  font-size: 12px;
+}
+.analytics-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+.analytics-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.analytics-filter-field > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.analytics-filter-field select,
+.analytics-filter-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.analytics-filter-field select:focus,
+.analytics-filter-field input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.analytics-inline-status { margin-top: 14px; }
+.analytics-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 0 12px;
+  margin: 4px 0 14px;
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+.analytics-tab {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 9px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.analytics-tab:hover { background: var(--bg-2); color: var(--text); }
+.analytics-tab.active {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+.analytics-kpi-card {
+  min-width: 0;
+  padding: 16px;
+}
+.analytics-kpi-card .metric { min-width: 0; gap: 8px; }
+.analytics-kpi-card .metric-label {
+  display: block;
+  line-height: 1.4;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.analytics-kpi-card .metric-value {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: clamp(17px, 1.4vw, 22px);
+}
+.analytics-secondary-metrics { margin-top: 14px; }
+.analytics-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.analytics-secondary-metric {
+  min-width: 0;
+  padding: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.analytics-secondary-metric .metric-label {
+  display: block;
+  margin-bottom: 7px;
+  line-height: 1.4;
+}
+.analytics-secondary-metric .metric-value {
+  display: block;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.analytics-risk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.analytics-risk-grid .metric-value { font-size: clamp(16px, 1.35vw, 21px); }
+.analytics-risk-grid .metric-label { line-height: 1.45; }
+@media (max-width: 1100px) {
+  .analytics-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-secondary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .analytics-filter-panel { padding: 16px; }
+  .analytics-filter-header { align-items: stretch; flex-direction: column; }
+  .analytics-filter-header .btn { align-self: flex-start; }
+  .analytics-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-risk-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .analytics-filter-grid,
+  .analytics-secondary-grid { grid-template-columns: 1fr; }
+  .analytics-tabs { margin-left: -4px; margin-right: -4px; }
+  .analytics-tab { padding: 8px 11px; }
+}
