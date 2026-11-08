@@ -1,11 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { frontendConfig } from "@/config/frontend";
 import { marketDataApi } from "@/lib/api/market-data";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { MarketAnalysisChart } from "@/components/charts/MarketAnalysisChart";
+import { MarketAnalysisChartBoundary } from "@/components/charts/MarketAnalysisChartBoundary";
+
+// Lightweight Charts depends on browser canvas APIs. Keep it out of the server-rendered
+// route bundle and load it only after the Market Data page mounts in the browser.
+const MarketAnalysisChart = dynamic(
+  () => import("@/components/charts/MarketAnalysisChart").then((module) => module.MarketAnalysisChart),
+  {
+    ssr: false,
+    loading: () => <section className="panel"><h2 className="panel-title">MARKET ANALYSIS</h2><p>Initializing interactive chart…</p></section>,
+  },
+);
 
 export default function MarketDataPage() {
   const [instrument, setInstrument] = useState("EURUSD");
@@ -25,7 +36,7 @@ export default function MarketDataPage() {
   const candleData = candles.data;
   return <div>
     <PageHeader title="Market Data" description="Read-only provider registry, instrument metadata, and candle retrieval from Rust API." />
-    <MarketAnalysisChart />
+    <MarketAnalysisChartBoundary><MarketAnalysisChart /></MarketAnalysisChartBoundary>
     {error ? <section className="panel error" role="alert"><h2>Market Data API error</h2><p>{error instanceof Error ? error.message : "Unable to load market data."}</p><p>Verify service URL, provider configuration, CORS, and service readiness.</p><button className="btn" onClick={() => { void providers.refetch(); void instruments.refetch(); void candles.refetch(); }}>Retry</button></section> : null}
     <section className="panel">
       <h2 className="panel-title">CANDLE QUERY</h2>
