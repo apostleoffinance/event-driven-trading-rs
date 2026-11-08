@@ -57,6 +57,39 @@ pub async fn summary(
         }))).into_response();
     }
 
+    // Do not calculate monetary totals across unlike P&L currencies. Account
+    // ownership remains enforced by the owner_id predicate in every query.
+    let currency_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(DISTINCT COALESCE(t.pnl_currency, 'USD'))
+        FROM journal_trades t
+        WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
+          AND (t.net_pnl IS NOT NULL OR t.gross_pnl IS NOT NULL)
+          AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
+          AND ($3::TIMESTAMPTZ IS NULL OR t.closed_at >= $3)
+          AND ($4::TIMESTAMPTZ IS NULL OR t.closed_at <= $4)
+        "#,
+    )
+    .bind(&claims.sub)
+    .bind(query.journal_account_id.as_deref())
+    .bind(query.from)
+    .bind(query.to)
+    .fetch_one(state.store.pool())
+    .await;
+    match currency_count {
+        Ok(count) if count > 1 => return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "error":{"code":"mixed_currency_analytics","message":"Select a single account or currency before calculating monetary analytics."}
+            })),
+        ).into_response(),
+        Err(_) => return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error":{"code":"internal_error","message":"Unable to validate analytics currency"}})),
+        ).into_response(),
+        _ => {}
+    }
+
     let facts = sqlx::query_as::<_, TradeFact>(
         r#"
         SELECT t.id, t.symbol, t.closed_at,
