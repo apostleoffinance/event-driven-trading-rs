@@ -171,6 +171,74 @@ def decimal_str(value: Any, default: str | None = None) -> str | None:
         raise ValueError(f"Invalid decimal value: {value!r}") from exc
 
 
+def persist_private_config(config: dict[str, Any], config_path: Path) -> None:
+    """Atomically persist token-bearing config with owner-only file permissions."""
+    target = config_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = target.with_name(target.name + ".tmp")
+    try:
+        temp_path.write_text(json.dumps(config, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+        os.chmod(temp_path, 0o600)
+        temp_path.replace(target)
+        os.chmod(target, 0o600)
+    except OSError as exc:
+        temp_path.unlink(missing_ok=True)
+        raise RuntimeError("Could not securely persist EdgeNest token credentials to the private config") from exc
+
+
+def identity_login(config: dict[str, Any], config_path: Path, source_user_id: str) -> dict[str, Any]:
+    """Prompt interactively for credentials and persist the initial token pair."""
+    import getpass
+    try:
+        import requests
+    except ImportError as exc:
+        raise SystemExit("Missing requests. Install scripts/traderos-migration/requirements.txt") from exc
+
+    identity_url = str(
+        config.get("edgenest_identity_api_url") or config.get("identity_api_url") or ""
+    ).strip().rstrip("/")
+    if not identity_url:
+        raise RuntimeError("Configure edgenest_identity_api_url in the private migration config first")
+    if not identity_url.startswith("https://") and not identity_url.startswith("http://localhost"):
+        raise RuntimeError("EdgeNest Identity API URL must use HTTPS (localhost is allowed for tests)")
+
+    email = input("EdgeNest email: ").strip()
+    password = getpass.getpass("EdgeNest password (input hidden): ")
+    if not email or not password:
+        raise RuntimeError("Email and password are required")
+    try:
+        response = requests.post(
+            identity_url + "/api/v1/auth/login",
+            json={"email": email, "password": password},
+            headers={"Content-Type": "application/json"},
+            timeout=(10, 30),
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError(f"EdgeNest Identity login failed: {type(exc).__name__}") from exc
+    finally:
+        password = ""
+
+    if response.status_code == 401:
+        raise RuntimeError("EdgeNest Identity login rejected the supplied credentials")
+    if response.status_code >= 400:
+        raise RuntimeError(f"EdgeNest Identity login failed with HTTP {response.status_code}")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise RuntimeError("EdgeNest Identity login returned invalid JSON") from exc
+    access_token = payload.get("access_token") if isinstance(payload, dict) else None
+    refresh_token = payload.get("refresh_token") if isinstance(payload, dict) else None
+    if not isinstance(access_token, str) or not access_token or not isinstance(refresh_token, str) or not refresh_token:
+        raise RuntimeError("EdgeNest Identity login response is missing access_token or refresh_token")
+
+    owner_cfg = config.setdefault("owner_map", {}).setdefault(str(source_user_id), {})
+    owner_cfg["jwt"] = access_token
+    owner_cfg["refresh_token"] = refresh_token
+    persist_private_config(config, config_path)
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
+    return {"expires_in": payload.get("expires_in"), "identity_user_id": user.get("id")}
+
+
 class TokenManager:
     """Manage EdgeNest access-token refresh and securely persist token rotation.
 
@@ -245,21 +313,12 @@ class TokenManager:
         owner_cfg["refresh_token"] = new_refresh
 
         if self.config_path is not None:
-            # Write to a same-directory temp file, chmod before replacement, and
-            # atomically replace the private config so rotated refresh tokens survive.
-            target = self.config_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            temp_path = target.with_name(target.name + ".tmp")
             try:
-                temp_path.write_text(json.dumps(self.config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-                os.chmod(temp_path, 0o600)
-                temp_path.replace(target)
-                os.chmod(target, 0o600)
-            except OSError as exc:
-                temp_path.unlink(missing_ok=True)
+                persist_private_config(self.config, self.config_path)
+            except RuntimeError as exc:
                 raise RuntimeError(
                     "EdgeNest rotated the refresh token, but the private config could not be updated. "
-                    "Restore the new token pair from your Identity login session before retrying."
+                    "Re-authenticate using the migration login command before retrying."
                 ) from exc
 
         self.token = new_access
@@ -796,6 +855,9 @@ def main() -> int:
     ex.add_argument("--user-id", required=True)
     ex.add_argument("--out", type=Path, required=True)
     ex.add_argument("--source-storage-config", type=Path, help="Private JSON config for downloading remote TraderOS screenshots")
+    login_cmd = sub.add_parser("login", help="Interactive EdgeNest Identity login; save access + refresh tokens securely")
+    login_cmd.add_argument("--snapshot", type=Path, required=True)
+    login_cmd.add_argument("--config", type=Path, required=True)
     auth_cmd = sub.add_parser("auth-check", help="Read-only EdgeNest API readiness and JWT authentication check")
     auth_cmd.add_argument("--snapshot", type=Path, required=True)
     auth_cmd.add_argument("--config", type=Path, required=True)
@@ -814,6 +876,23 @@ def main() -> int:
         return 0
     config = load_json(args.config)
     prefix = args.snapshot
+    if args.command == "login":
+        manifest = load_json(prefix)
+        user_id = str(manifest["source_user_id"])
+        try:
+            result = identity_login(config, args.config, user_id)
+            print(json.dumps({
+                "success": True,
+                "source_user_id": user_id,
+                "identity_user_id": result.get("identity_user_id"),
+                "expires_in_seconds": result.get("expires_in"),
+                "credentials_saved": True,
+                "config_permissions": "0600",
+            }, indent=2))
+            return 0
+        except Exception as exc:
+            print(json.dumps({"success": False, "error": str(exc)}, indent=2))
+            return 2
     if args.command == "auth-check":
         manifest = load_json(prefix)
         user_id = str(manifest["source_user_id"])
