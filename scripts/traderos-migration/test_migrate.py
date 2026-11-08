@@ -15,6 +15,38 @@ spec.loader.exec_module(migrate)
 
 
 class MigrationTransformTests(unittest.TestCase):
+    def test_api_request_refreshes_token_on_401_and_retries_once(self):
+        import sys
+        import types
+        calls = []
+        class Response:
+            def __init__(self, status_code, payload=None):
+                self.status_code = status_code
+                self.content = b"{}" if payload is not None else b""
+                self._payload = payload
+            def json(self):
+                return self._payload
+        def request(method, url, headers=None, json=None, timeout=None):
+            calls.append(headers.get("Authorization"))
+            if len(calls) == 1:
+                return Response(401, {"error": "unauthorized"})
+            return Response(200, {"ok": True})
+        fake_requests = types.SimpleNamespace(request=request)
+        manager = migrate.TokenManager(
+            access_token="old.jwt.token", refresh_token="refresh-token",
+            identity_api_url="https://identity.example", config={},
+            config_path=None, source_user_id="legacy-user",
+        )
+        def refresh():
+            manager.token = "new.jwt.token"
+            manager.refresh_token = "rotated-refresh-token"
+            return manager.token
+        with patch.dict(sys.modules, {"requests": fake_requests}), patch.object(manager, "refresh", side_effect=refresh):
+            result = migrate.api_request("https://api.example", manager, "GET", "/test")
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(calls, ["Bearer old.jwt.token", "Bearer new.jwt.token"])
+
+
     def test_uuid_is_serialized_as_string(self):
         value = UUID("2af423a1-feab-4b9e-82bf-cfaf839c242e")
         self.assertEqual(migrate.json_value({"id": value}), {"id": str(value)})
