@@ -132,7 +132,9 @@ export default function AnalyticsLabPage() {
       {analytics.isLoading && !mixedCurrencies ? <p>Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
-    {a && !mixedCurrencies ? <>{nav}
+    {a && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs" style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0",marginTop:10}}>
+        {(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"btn primary":"btn"} aria-current={activeTab===tab?"page":undefined} onClick={()=>setActiveTab(tab)} style={{whiteSpace:"nowrap",textTransform:"capitalize"}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab}</button>)}
+      </nav>
       {activeTab==="behaviour" && intelligence.data ? <section className="panel" style={{marginTop:14}}>
         <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
         <p className="muted">95% Wilson win-rate interval: {intelligence.data.win_rate_confidence_95 ? intelligence.data.win_rate_confidence_95.lower_percent.toFixed(1)+"%–"+intelligence.data.win_rate_confidence_95.upper_percent.toFixed(1)+"%" : "Not available"} · Sample: {intelligence.data.sample_status.replaceAll("_"," ")} · n={intelligence.data.trade_count}</p>
