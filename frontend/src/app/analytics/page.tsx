@@ -34,18 +34,31 @@ export default function AnalyticsLabPage() {
     queryKey: ["journal", "accounts"],
     queryFn: journalApi.listAccounts,
     enabled: authenticated && frontendConfig.dataMode === "api",
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
   });
+  const accountCurrencies = [...new Set((accounts.data ?? []).filter(x => !x.archived).map(x => x.currency.toUpperCase()))];
+  const mixedCurrencies = !accountId && accountCurrencies.length > 1;
+  const selectedAccount = accounts.data?.find(x => x.id === accountId);
+  const displayCurrency = selectedAccount?.currency ?? accountCurrencies[0] ?? "USD";
   const dateFilter = { from: fromDate ? fromDate + "T00:00:00.000Z" : undefined, to: toDate ? toDate + "T23:59:59.999Z" : undefined };
   const analytics = useQuery({
     queryKey: ["journal", "analytics", accountId, fromDate, toDate],
     queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
-    enabled: authenticated && frontendConfig.dataMode === "api",
+    enabled: authenticated && frontendConfig.dataMode === "api" && !mixedCurrencies,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
   });
 
   const intelligence = useQuery({
     queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate],
     queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter }),
-    enabled: authenticated && frontendConfig.dataMode === "api",
+    enabled: authenticated && frontendConfig.dataMode === "api" && !mixedCurrencies,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
   });
 
   if (frontendConfig.dataMode !== "api") return <div>
@@ -80,7 +93,7 @@ export default function AnalyticsLabPage() {
     ["Breakeven", String(a?.breakeven ?? "—")],
   ];
   return <div>
-    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? `Signed in as ${userEmail}.` : ""}</p></div><span className="badge ok">Journal-connected</span></header>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? `Signed in as ${userEmail}.` : ""}</p></div><span className="badge ok">Journal-connected · {accounts.data?.length ?? 0} accounts</span></header>
     <section className="panel">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div><h2 className="panel-title">ANALYTICS FILTER</h2><p className="muted">Account selection changes all metrics and charts.</p></div>
@@ -91,10 +104,13 @@ export default function AnalyticsLabPage() {
           <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");}}>Reset</button>
         </label>
       </div>
-      {analytics.isLoading ? <p>Calculating your Journal analytics…</p> : null}
+      {accounts.isLoading ? <p className="muted">Loading your Journal accounts…</p> : null}
+      {accounts.error ? <div className="error" role="alert"><p>Could not load your Journal accounts. Check your connection and try again.</p><button className="btn" onClick={()=>void accounts.refetch()}>Retry accounts</button></div> : null}
+      {mixedCurrencies ? <div className="error" role="status"><strong>Select a single account to continue.</strong><p>These accounts use different currencies ({accountCurrencies.join(", ")}). EdgeNest will not combine unlike currencies into misleading P&amp;L totals. Choose an account above to see its analytics.</p></div> : null}
+      {analytics.isLoading && !mixedCurrencies ? <p>Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof Error ? analytics.error.message : "Could not load analytics."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
-    {a ? <>
+    {a && !mixedCurrencies ? <>
       {intelligence.data ? <section className="panel" style={{marginTop:14}}>
         <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
         <p className="muted">95% Wilson win-rate interval: {intelligence.data.win_rate_confidence_95 ? intelligence.data.win_rate_confidence_95.lower_percent.toFixed(1)+"%–"+intelligence.data.win_rate_confidence_95.upper_percent.toFixed(1)+"%" : "Not available"} · Sample: {intelligence.data.sample_status.replaceAll("_"," ")} · n={intelligence.data.trade_count}</p>
@@ -119,7 +135,7 @@ export default function AnalyticsLabPage() {
         <section className="panel"><h2 className="panel-title">PERFORMANCE BY HOUR (UTC)</h2>{a.by_hour_utc?.length?<div className="data-table-wrap"><table className="data-table"><thead><tr><th>Hour</th><th>Trades</th><th>Net P&amp;L</th><th>Win rate</th></tr></thead><tbody>{a.by_hour_utc.map(x=><tr key={x.key}><td>{x.key}</td><td>{x.trades}</td><td>{money(x.net_pnl)}</td><td>{percent(x.win_rate_percent)}</td></tr>)}</tbody></table></div>:<p>No hour data.</p>}</section>
       </div>
       <section className="panel" style={{marginTop:14}}><h2 className="panel-title">CUMULATIVE JOURNAL P&amp;L · CLOSED TRADES</h2><p className="muted">Realized Journal P&amp;L accumulated from closed trades. This is not broker-reported account equity.</p>
-        {a.equity_curve.length ? <><AnalyticsEquityChart curve={a.equity_curve} currency={accounts.data?.find(x=>x.id===accountId)?.currency ?? "USD"} /><details><summary>Inspect underlying trade series</summary><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Closed</th><th>Trade</th><th>Net P&amp;L</th><th>Cumulative P&amp;L</th><th>Drawdown</th></tr></thead><tbody>{a.equity_curve.map((x,i)=><tr key={x.trade_id}><td>{new Date(x.closed_at).toLocaleString()}</td><td>{i+1}</td><td className="num">{money(x.net_pnl)}</td><td className="num">{money(x.equity)}</td><td className="num">{money(x.drawdown)}</td></tr>)}</tbody></table></div></details></>:<p>No closed trades with realized P&amp;L yet. Add trades or import historical records in the Journal.</p>}
+        {a.equity_curve.length ? <><AnalyticsEquityChart curve={a.equity_curve} currency={displayCurrency} /><details><summary>Inspect underlying trade series</summary><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Closed</th><th>Trade</th><th>Net P&amp;L</th><th>Cumulative P&amp;L</th><th>Drawdown</th></tr></thead><tbody>{a.equity_curve.map((x,i)=><tr key={x.trade_id}><td>{new Date(x.closed_at).toLocaleString()}</td><td>{i+1}</td><td className="num">{money(x.net_pnl)}</td><td className="num">{money(x.equity)}</td><td className="num">{money(x.drawdown)}</td></tr>)}</tbody></table></div></details></>:<p>No closed trades with realized P&amp;L yet. Add trades or import historical records in the Journal.</p>}
       </section>
       <section className="panel" style={{marginTop:14}}><p className="muted">{a.notice ?? "Analytics are descriptive historical calculations, not forecasts or trading advice."}</p></section>
     </>:null}
