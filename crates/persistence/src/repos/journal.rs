@@ -216,6 +216,8 @@ pub async fn list_for_owner(
     pool: &PgPool,
     owner_id: &str,
     account_id: Option<&str>,
+    symbol: Option<&str>,
+    setup_id: Option<&str>,
     closed_from: Option<DateTime<Utc>>,
     closed_to: Option<DateTime<Utc>>,
     limit: i64,
@@ -233,12 +235,16 @@ pub async fn list_for_owner(
             net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone, mfe_r, mae_r, notes, tags, setup_valid, rules_followed, emotional_trade, mistake, mistake_notes, discipline_score, acknowledged_warnings
           FROM journal_trades
           WHERE owner_id = $1 AND ($2::TEXT IS NULL OR journal_account_id = $2)
-            AND ($3::TIMESTAMPTZ IS NULL OR closed_at >= $3)
-            AND ($4::TIMESTAMPTZ IS NULL OR closed_at <= $4)
-          ORDER BY closed_at DESC NULLS LAST, opened_at DESC, id DESC LIMIT $5 OFFSET $6"#,
+            AND ($3::TEXT IS NULL OR symbol = $3)
+            AND ($4::TEXT IS NULL OR setup_id = $4)
+            AND ($5::TIMESTAMPTZ IS NULL OR closed_at >= $5)
+            AND ($6::TIMESTAMPTZ IS NULL OR closed_at <= $6)
+          ORDER BY closed_at DESC NULLS LAST, opened_at DESC, id DESC LIMIT $7 OFFSET $8"#,
     )
     .bind(owner_id)
     .bind(account_id)
+    .bind(symbol)
+    .bind(setup_id)
     .bind(closed_from)
     .bind(closed_to)
     .bind(limit)
