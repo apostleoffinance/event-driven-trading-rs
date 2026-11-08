@@ -4,6 +4,14 @@ The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin
 
 ## Origins
 
+## Data mode selection
+
+- An explicit `NEXT_PUBLIC_DATA_MODE=mock` always opts into demo fixtures.
+- An explicit `NEXT_PUBLIC_DATA_MODE=api` uses the authenticated backend.
+- If the mode is omitted, the frontend selects API mode when any API origin is configured; otherwise it remains in mock/demo mode for local development.
+- Do not set `NEXT_PUBLIC_DATA_MODE=mock` in production when you expect imported Journal records to appear.
+
+
 Configure one gateway origin or the three service origins:
 
 | Variable | Service | Required routes |
