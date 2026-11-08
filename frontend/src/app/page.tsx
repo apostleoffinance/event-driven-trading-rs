@@ -81,6 +81,7 @@ export default function CommandCenterPage() {
     return (
       <>
         <PageHeader title="Your trading dashboard" description="Your trading accounts, performance and risk overview in one place." />
+        <JournalDashboardSummary />
         <section className="panel" style={{ maxWidth: 760, margin: "24px auto", textAlign: "center", padding: 32 }}>
           <h2>Welcome to EdgeNest</h2>
           <p>You haven’t added a trading account yet. Create a paper account to start tracking your trading activity.</p>
