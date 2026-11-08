@@ -332,7 +332,8 @@ def check_destination(base: str, token: str | TokenManager) -> dict[str, Any]:
     """Check API liveness/readiness and verify JWT on an owner-scoped read route."""
     if not base.startswith("https://") and not base.startswith("http://localhost"):
         raise RuntimeError("EdgeNest API URL must use HTTPS (localhost is allowed for tests)")
-    parts = token.split(".")
+    access_token = token.token if isinstance(token, TokenManager) else token
+    parts = access_token.split(".")
     if len(parts) != 3 or not all(parts):
         raise RuntimeError("EdgeNest access token is not a JWT (expected three non-empty dot-separated segments); obtain a fresh EdgeNest Identity access token")
     try:
@@ -816,7 +817,7 @@ def main() -> int:
     if args.command == "auth-check":
         manifest = load_json(prefix)
         user_id = str(manifest["source_user_id"])
-        token = config.get("owner_map", {}).get(user_id, {}).get("jwt")
+        token = make_token_manager(config, user_id, args.config)
         if not token:
             print(json.dumps({"valid": False, "error": "Missing EdgeNest owner/JWT mapping for snapshot user"}, indent=2))
             return 2
