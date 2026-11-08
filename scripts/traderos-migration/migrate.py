@@ -706,7 +706,10 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool, config_path: Pa
     if not user_cfg or not user_cfg.get("jwt"):
         report["errors"].append("Missing explicit EdgeNest owner/JWT mapping for snapshot user")
         return report
-    token = user_cfg["jwt"]
+    # Use the token manager for apply as well as auth-check. Access tokens expire
+    # (default TTL is 15 minutes), and api_request can refresh once on HTTP 401.
+    # Persist refresh-token rotation in the private config before continuing.
+    token = make_token_manager(config, source_user, config_path) or user_cfg["jwt"]
     base = str(config.get("edgenest_api_url", "")).strip()
     if not base.startswith("https://") and not base.startswith("http://localhost"):
         report["errors"].append("EdgeNest API URL must use HTTPS (localhost is allowed for tests)")
