@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
+import { createChart, type IChartApi, type ISeriesApi, type Time, type IPriceLine } from "lightweight-charts";
 import { useQuery } from "@tanstack/react-query";
 import { frontendConfig } from "@/config/frontend";
 import { marketDataApi } from "@/lib/api/market-data";
@@ -28,7 +28,7 @@ export function MarketAnalysisChart() {
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const smaRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const smaRef = useRef<ISeriesApi<"Line"> | null>(null);\n  const slLineRef = useRef<IPriceLine | null>(null);\n  const tpLineRef = useRef<IPriceLine | null>(null);
 
   const providers = useQuery({ queryKey: ["market-analysis", "providers"], queryFn: () => marketDataApi.providers(), enabled: frontendConfig.dataMode === "api" });
   const instruments = useQuery({ queryKey: ["market-analysis", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: frontendConfig.dataMode === "api" });
@@ -50,10 +50,10 @@ export function MarketAnalysisChart() {
       timeScale: { borderColor: "rgba(130,130,130,.25)", timeVisible: true, secondsVisible: false },
       crosshair: { mode: 1 },
     });
-    const candlesSeries = chart.addSeries(CandlestickSeries, { upColor: "#26a69a", downColor: "#ef5350", borderUpColor: "#26a69a", borderDownColor: "#ef5350", wickUpColor: "#26a69a", wickDownColor: "#ef5350" });
-    const volumeSeries = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume" });
+    const candlesSeries = chart.addCandlestickSeries( { upColor: "#26a69a", downColor: "#ef5350", borderUpColor: "#26a69a", borderDownColor: "#ef5350", wickUpColor: "#26a69a", wickDownColor: "#ef5350" });
+    const volumeSeries = chart.addHistogramSeries( { priceFormat: { type: "volume" }, priceScaleId: "volume" });
     chart.priceScale("volume").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    const smaSeries = chart.addSeries(LineSeries, { color: "#f59e0b", lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+    const smaSeries = chart.addLineSeries( { color: "#f59e0b", lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     chartRef.current = chart; candleRef.current = candlesSeries; volumeRef.current = volumeSeries; smaRef.current = smaSeries;
     const resize = new ResizeObserver(entries => { const width = entries[0]?.contentRect.width; if (width) chart.applyOptions({ width }); });
     resize.observe(node);
@@ -74,10 +74,10 @@ export function MarketAnalysisChart() {
   useEffect(() => {
     const series = candleRef.current;
     if (!series) return;
-    series.applyOptions({ priceLines: [] });
+    if (slLineRef.current) series.removePriceLine(slLineRef.current);\n    if (tpLineRef.current) series.removePriceLine(tpLineRef.current);\n    slLineRef.current = null; tpLineRef.current = null;
     const stop = Number(sl), target = Number(tp);
-    if (sl.trim() && Number.isFinite(stop) && stop > 0) series.createPriceLine({ price: stop, color: "#ef5350", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "SL" });
-    if (tp.trim() && Number.isFinite(target) && target > 0) series.createPriceLine({ price: target, color: "#26a69a", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "TP" });
+    if (sl.trim() && Number.isFinite(stop) && stop > 0) slLineRef.current = series.createPriceLine({ price: stop, color: "#ef5350", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "SL" });
+    if (tp.trim() && Number.isFinite(target) && target > 0) tpLineRef.current = series.createPriceLine({ price: target, color: "#26a69a", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "TP" });
   }, [sl, tp, chartData]);
 
   if (frontendConfig.dataMode !== "api") return <section className="panel"><h2 className="panel-title">MARKET ANALYSIS CHART</h2><p>Connect the Market Data API to render real OHLC candles. No synthetic candles are shown.</p></section>;
