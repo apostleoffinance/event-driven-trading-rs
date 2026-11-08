@@ -38,21 +38,25 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { method:"PUT", baseUrl:journalBaseUrl(), body:JSON.stringify(input) });
   },
-  async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
+  async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.from) params.set("from", options.from);
     if (options.to) params.set("to", options.to);
+    if (options.symbol) params.set("symbol", options.symbol);
+    if (options.setup_id) params.set("setup_id", options.setup_id);
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return (await apiRequest<DataEnvelope<JournalAnalytics>>(`/api/v1/journal/analytics/summary${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
-  async analyticsIntelligence(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
+  async analyticsIntelligence(options: { journal_account_id?: string; from?: string; to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.from) params.set("from", options.from);
     if (options.to) params.set("to", options.to);
+    if (options.symbol) params.set("symbol", options.symbol);
+    if (options.setup_id) params.set("setup_id", options.setup_id);
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return (await apiRequest<DataEnvelope<JournalIntelligence>>(`/api/v1/journal/analytics/intelligence${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
@@ -80,7 +84,7 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<DataEnvelope<{ batch_id: string; source_count: number; imported_count: number; skipped_count: number; failed_count: number; status: string }>>("/api/v1/journal/import", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) }).then(x=>x.data);
   },
-  async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number; closed_from?: string; closed_to?: string } = {}) {
+  async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number; closed_from?: string; closed_to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
@@ -88,6 +92,8 @@ export const journalApi = {
     if (options.offset !== undefined) params.set("offset", String(options.offset));
     if (options.closed_from) params.set("closed_from", options.closed_from);
     if (options.closed_to) params.set("closed_to", options.closed_to);
+    if (options.symbol) params.set("symbol", options.symbol);
+    if (options.setup_id) params.set("setup_id", options.setup_id);
     const query = params.toString();
     const suffix = query ? `?${query}` : "";
     return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { baseUrl: journalBaseUrl() });
