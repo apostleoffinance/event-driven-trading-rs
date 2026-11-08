@@ -54,7 +54,7 @@ export function JournalDashboardSummary() {
             <div><h3>{account.name}</h3><p className="muted">{account.broker || "Journal"} · {account.account_type} · {account.currency}</p></div>
             <span className="badge">{result?.isError ? "Unavailable" : result?.isLoading ? "Loading" : "Loaded"}</span>
           </div>
-          {result?.isError ? <p className="muted">Analytics unavailable. Open Analytics Lab to retry.</p> : result?.isLoading || !stats ? <p className="muted">Loading closed-trade performance…</p> : <div className="grid grid-kpi" style={{ marginTop: 8 }}>
+          {result?.isError ? <p className="muted">Analytics unavailable. Open Analytics Lab to retry.</p> : result?.isLoading || !stats ? <p className="muted">Loading closed-trade performance…</p> : stats.trade_count === 0 ? <p className="muted">No closed Journal trades recorded for this account yet. <Link href="/journal">Add or import trades</Link>.</p> : <div className="grid grid-kpi" style={{ marginTop: 8 }}>
             <div><span className="metric-label">Closed trades</span><strong className="metric-value">{stats.trade_count}</strong></div>
             <div><span className="metric-label">Journal net P&amp;L</span><strong className="metric-value">{money(stats.net_profit, account.currency)}</strong></div>
             <div><span className="metric-label">Win rate</span><strong className="metric-value">{stats.win_rate_percent == null ? "—" : Number(stats.win_rate_percent).toFixed(1)+"%"}</strong></div>
