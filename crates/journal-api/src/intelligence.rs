@@ -39,6 +39,14 @@ struct Fact {
     boredom: Option<i16>,
 }
 
+fn mean_rating(values: &[i16]) -> Option<f64> {
+    if values.is_empty() {
+        None
+    } else {
+        Some(values.iter().map(|v| i64::from(*v)).sum::<i64>() as f64 / values.len() as f64)
+    }
+}
+
 fn wilson_interval(wins: usize, n: usize) -> Option<(f64, f64)> {
     if n == 0 {
         return None;
@@ -116,19 +124,18 @@ pub async fn summary(
     let mistakes = rows.iter().filter(|r| r.mistake == Some(true)).count();
     let discipline: Vec<i16> = rows.iter().filter_map(|r| r.discipline_score).collect();
     let psychology_record_count = rows.iter().filter(|r| r.psychology_record).count();
-    let mean_rating = |values: Vec<i16>| -> Option<f64> {
-        if values.is_empty() {
-            None
-        } else {
-            Some(values.iter().map(|v| i64::from(*v)).sum::<i64>() as f64 / values.len() as f64)
-        }
-    };
-    let avg_confidence = mean_rating(rows.iter().filter_map(|r| r.confidence).collect());
-    let avg_fear = mean_rating(rows.iter().filter_map(|r| r.fear).collect());
-    let avg_fomo = mean_rating(rows.iter().filter_map(|r| r.fomo).collect());
-    let avg_frustration = mean_rating(rows.iter().filter_map(|r| r.frustration).collect());
-    let avg_revenge = mean_rating(rows.iter().filter_map(|r| r.revenge_intensity).collect());
-    let avg_boredom = mean_rating(rows.iter().filter_map(|r| r.boredom).collect());
+    let confidence: Vec<i16> = rows.iter().filter_map(|r| r.confidence).collect();
+    let fear: Vec<i16> = rows.iter().filter_map(|r| r.fear).collect();
+    let fomo: Vec<i16> = rows.iter().filter_map(|r| r.fomo).collect();
+    let frustration: Vec<i16> = rows.iter().filter_map(|r| r.frustration).collect();
+    let revenge: Vec<i16> = rows.iter().filter_map(|r| r.revenge_intensity).collect();
+    let boredom: Vec<i16> = rows.iter().filter_map(|r| r.boredom).collect();
+    let avg_confidence = mean_rating(&confidence);
+    let avg_fear = mean_rating(&fear);
+    let avg_fomo = mean_rating(&fomo);
+    let avg_frustration = mean_rating(&frustration);
+    let avg_revenge = mean_rating(&revenge);
+    let avg_boredom = mean_rating(&boredom);
     let emotion_before_count = rows
         .iter()
         .filter_map(|r| r.emotion_before.as_deref())
@@ -219,7 +226,13 @@ pub async fn summary(
 
 #[cfg(test)]
 mod tests {
-    use super::wilson_interval;
+    use super::{mean_rating, wilson_interval};
+
+    #[test]
+    fn psychology_rating_mean_ignores_missing_values_and_returns_none_when_empty() {
+        assert_eq!(mean_rating(&[]), None);
+        assert_eq!(mean_rating(&[2, 4, 6]), Some(4.0));
+    }
 
     #[test]
     fn wilson_interval_is_bounded_and_contains_observed_rate() {
