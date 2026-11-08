@@ -19,6 +19,7 @@ pub struct IntelligenceQuery {
     pub to: Option<DateTime<Utc>>,
     pub symbol: Option<String>,
     pub setup_id: Option<String>,
+}
 
 #[derive(Debug, FromRow)]
 struct Fact {
