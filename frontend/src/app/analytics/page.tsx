@@ -33,6 +33,16 @@ export default function AnalyticsLabPage() {
     setAuthenticated(hasSession());
     setUserEmail(getSessionUser()?.email ?? null);
   }, []);
+  useEffect(() => {
+    const allowed = ["overview", "performance", "edge", "execution", "behaviour", "risk"];
+    const syncTabFromUrl = () => {
+      const candidate = window.location.hash.slice(1);
+      if (allowed.includes(candidate)) setActiveTab(candidate as typeof activeTab);
+    };
+    syncTabFromUrl();
+    window.addEventListener("hashchange", syncTabFromUrl);
+    return () => window.removeEventListener("hashchange", syncTabFromUrl);
+  }, []);
 
   const accounts = useQuery({
     queryKey: ["journal", "accounts"],
@@ -146,7 +156,7 @@ export default function AnalyticsLabPage() {
       {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof ApiError && analytics.error.code === "mixed_currency_analytics" ? "Your selected Journal records contain different P&L currencies. Select a single account/currency or correct trade currency fields before calculating monetary analytics." : "Could not load analytics from your Journal. Check your connection and retry."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
     {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs" style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0",marginTop:10}}>
-        {(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"btn primary":"btn"} aria-current={activeTab===tab?"page":undefined} onClick={()=>setActiveTab(tab)} style={{whiteSpace:"nowrap",textTransform:"capitalize"}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab}</button>)}
+        {(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"btn primary":"btn"} aria-current={activeTab===tab?"page":undefined} onClick={()=>{setActiveTab(tab);if(window.location.hash!==`#${tab}`)window.location.hash=tab;}} style={{whiteSpace:"nowrap",textTransform:"capitalize"}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab}</button>)}
       </nav>
       {activeTab==="behaviour" && intelligence.data ? <section className="panel" style={{marginTop:14}}>
         <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
