@@ -372,12 +372,44 @@ def api_request(base: str, token: str | TokenManager, method: str, path: str,
             time.sleep(min(2 ** attempt, 20))
             continue
         if response.status_code >= 400:
-            # Never include response body: gateways sometimes echo sensitive request data.
+            # API validation responses are structured. Expose only a small allowlist
+            # of error fields; never dump arbitrary gateway/request echoes.
             if response.status_code == 401:
                 raise RuntimeError(f"{method} {path} failed with HTTP 401: EdgeNest JWT is invalid, expired, or not accepted by this API")
             if response.status_code == 403:
                 raise RuntimeError(f"{method} {path} failed with HTTP 403: authenticated identity is not authorized")
-            raise RuntimeError(f"{method} {path} failed with HTTP {response.status_code}")
+            details = "response body unavailable"
+            try:
+                payload = response.json()
+
+                def sanitize_error(value: Any, depth: int = 0) -> Any:
+                    if depth > 5:
+                        return "[truncated]"
+                    if isinstance(value, dict):
+                        allowed = {
+                            "error", "code", "message", "msg", "detail", "details",
+                            "errors", "loc", "type", "field", "source_trade_id",
+                        }
+                        return {
+                            key: sanitize_error(item, depth + 1)
+                            for key, item in value.items()
+                            if key in allowed
+                        }
+                    if isinstance(value, list):
+                        return [sanitize_error(item, depth + 1) for item in value[:10]]
+                    if isinstance(value, (str, int, float, bool)) or value is None:
+                        return str(value)[:300] if isinstance(value, str) else value
+                    return type(value).__name__
+
+                sanitized = sanitize_error(payload)
+                details = json.dumps(sanitized, ensure_ascii=False)[:1200]
+            except (ValueError, TypeError):
+                # Avoid exposing arbitrary non-JSON response bodies.
+                details = "non-JSON response body omitted"
+            raise RuntimeError(
+                f"{method} {path} failed with HTTP {response.status_code}; "
+                f"sanitized API error={details}"
+            )
         if response.status_code == 204 or not response.content:
             return None
         try:
