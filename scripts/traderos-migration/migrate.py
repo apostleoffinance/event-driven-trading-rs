@@ -454,6 +454,39 @@ def read_table(prefix: Path, table: str) -> list[dict[str, Any]]:
     return load_json(path) if path.exists() else []
 
 
+class InvalidTradeChronology(ValueError):
+    """Source trade timestamps conflict; quarantine instead of guessing dates."""
+
+
+def has_invalid_trade_chronology(row: dict[str, Any]) -> bool:
+    """Return true when a closed timestamp precedes the selected opened timestamp."""
+    opened_raw = row.get("trade_timestamp") or row.get("entry_timestamp")
+    closed_raw = row.get("exit_timestamp")
+    if not opened_raw or not closed_raw:
+        return False
+    opened = datetime.fromisoformat(str(opened_raw).replace("Z", "+00:00"))
+    closed = datetime.fromisoformat(str(closed_raw).replace("Z", "+00:00"))
+    if opened.tzinfo is None or closed.tzinfo is None:
+        return False
+    return closed < opened
+
+
+def quarantine_trade_record(row: dict[str, Any]) -> dict[str, Any]:
+    """Describe an anomalous source record without modifying its raw timestamps."""
+    return {
+        "source_trade_id": str(row.get("id")),
+        "reason": "exit_timestamp_before_opened_at",
+        "opened_at_source": row.get("trade_timestamp") or row.get("entry_timestamp"),
+        "entry_timestamp_source": row.get("entry_timestamp"),
+        "exit_timestamp_source": row.get("exit_timestamp"),
+        "source_status": row.get("status"),
+        "source_result": row.get("result"),
+        "created_at_source": row.get("created_at"),
+        "updated_at_source": row.get("updated_at"),
+        "action": "Not imported as a journal trade; source archive preserves original row. Resolve date in source and rerun migration.",
+    }
+
+
 def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str],
                legacy_user_id: str, pnl_currency: str = "USD") -> dict[str, Any]:
     legacy_id = str(row["id"])
@@ -461,6 +494,10 @@ def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str],
     if not opened:
         raise ValueError(f"Trade {legacy_id} has no entry timestamp")
     closed = parse_time(row.get("exit_timestamp"))
+    if closed and datetime.fromisoformat(closed) < datetime.fromisoformat(opened):
+        raise InvalidTradeChronology(
+            f"Trade {legacy_id} has exit timestamp earlier than opened_at; source dates require review"
+        )
     status_src = str(row.get("status") or row.get("result") or "open").lower()
     closed_trade = status_src in {"closed", "complete", "completed", "win", "loss", "breakeven"} or closed is not None
     status = "closed" if closed_trade else "open"
@@ -496,6 +533,9 @@ def make_trade(row: dict[str, Any], account_id: str, setup_map: dict[str, str],
         "holding_time_seconds": row.get("holding_time_seconds"),
         "source_analysis_id": row.get("source_analysis_id"),
         "created_at": row.get("created_at"), "updated_at": row.get("updated_at"),
+        "source_trade_timestamp": row.get("trade_timestamp"),
+        "source_entry_timestamp": row.get("entry_timestamp"),
+        "source_exit_timestamp": row.get("exit_timestamp"),
     }
     return {
         "journal_account_id": account_id, "setup_id": setup_id,
@@ -571,6 +611,8 @@ def validate_snapshot(prefix: Path, legacy_user_id: str, account_map: dict[str, 
             errors.append(f"Missing destination account mapping for source account {trade.get('account_id')}")
         try:
             make_trade(trade, account_map.get(str(trade.get("account_id")), ""), setup_map, legacy_user_id)
+        except InvalidTradeChronology as exc:
+            warnings.append(f"Trade {trade.get('id')} quarantined due to invalid source chronology: {exc}")
         except Exception as exc:
             errors.append(str(exc))
         if trade.get("setup_id") and str(trade.get("setup_id")) not in {str(s.get("id")) for s in setups}:
@@ -769,10 +811,19 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool, config_path: Pa
     if report["errors"]:
         return report
 
+    quarantined_trades = [quarantine_trade_record(row) for row in trades if has_invalid_trade_chronology(row)]
+    quarantined_ids = {item["source_trade_id"] for item in quarantined_trades}
+    report["quarantined_trades"] = quarantined_trades
+    if quarantined_trades:
+        report["warnings"].append(
+            f"{len(quarantined_trades)} trade(s) quarantined for timestamp review; original source records remain in the uploaded archive."
+        )
+
+    importable_trades = [row for row in trades if str(row.get("id")) not in quarantined_ids]
     trades_by_account: dict[str, list[dict[str, Any]]] = {}
-    for row in trades:
+    for row in importable_trades:
         trades_by_account.setdefault(str(row["account_id"]), []).append(row)
-    checks = checklist_by_trade(prefix, {str(t["id"]) for t in trades})
+    checks = checklist_by_trade(prefix, {str(t["id"]) for t in importable_trades})
     trade_lookup: dict[str, dict[str, Any]] = {}
     for account_id, rows in trades_by_account.items():
         account = next(a for a in accounts if str(a["id"]) == account_id)
@@ -803,6 +854,9 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool, config_path: Pa
 
     for psych_row in read_table(prefix, "psychology"):
         old_trade_id = str(psych_row.get("trade_id"))
+        if old_trade_id in quarantined_ids:
+            report["warnings"].append(f"Psychology record for quarantined trade {old_trade_id} was preserved in the source archive but not attached to a destination trade.")
+            continue
         source_account = next((t.get("account_id") for t in trades if str(t.get("id")) == old_trade_id), None)
         target = trade_lookup.get(f"{source_account}:{old_trade_id}")
         if not target:
@@ -836,6 +890,9 @@ def migrate(prefix: Path, config: dict[str, Any], dry_run: bool, config_path: Pa
                 old_trade_id = str(shot.get("trade_id"))
                 source_trade = next((t for t in trades if str(t.get("id")) == old_trade_id), None)
                 target = trade_lookup.get(f"{source_trade.get('account_id')}:{old_trade_id}") if source_trade else None
+                if old_trade_id in quarantined_ids:
+                    report["warnings"].append(f"Screenshot {shot.get('id')} belongs to quarantined trade {old_trade_id}; original file remains in the source archive and was not attached.")
+                    continue
                 if not target:
                     report["errors"].append(f"Screenshot {shot.get('id')} has no destination trade mapping")
                     continue
