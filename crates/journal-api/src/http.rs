@@ -20,6 +20,8 @@ pub struct ListQuery {
     pub journal_account_id: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub closed_from: Option<DateTime<Utc>>,
+    pub closed_to: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -175,7 +177,10 @@ pub async fn list(
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match state.store.list_journal_trades(&claims.sub, query.journal_account_id.as_deref(), query.limit.unwrap_or(100), query.offset.unwrap_or(0)).await {
+    if query.closed_from.zip(query.closed_to).is_some_and(|(from, to)| from > to) {
+        return bad_request("closed_from must be earlier than or equal to closed_to");
+    }
+    match state.store.list_journal_trades(&claims.sub, query.journal_account_id.as_deref(), query.closed_from, query.closed_to, query.limit.unwrap_or(100), query.offset.unwrap_or(0)).await {
         Ok(trades) => Json(serde_json::json!({"data":trades,"pagination":{"limit":query.limit.unwrap_or(100).clamp(1,500),"offset":query.offset.unwrap_or(0).max(0)}})).into_response(),
         Err(_) => internal(),
     }
