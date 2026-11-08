@@ -22,6 +22,18 @@ pub use mt5_bridge::{
     Mt5DurableOrderState, Mt5OrderClaim, Mt5SequenceObservation, Mt5StreamReadiness,
 };
 
+/// Bounded, owner-scoped filters for Journal trade listing.
+#[derive(Debug, Clone, Default)]
+pub struct JournalTradeListQuery {
+    pub account_id: Option<String>,
+    pub symbol: Option<String>,
+    pub setup_id: Option<String>,
+    pub closed_from: Option<chrono::DateTime<chrono::Utc>>,
+    pub closed_to: Option<chrono::DateTime<chrono::Utc>>,
+    pub limit: i64,
+    pub offset: i64,
+}
+
 /// Aggregated store used by the trading runtime.
 #[derive(Clone)]
 pub struct TradingStore {
@@ -45,26 +57,9 @@ impl TradingStore {
     pub async fn list_journal_trades(
         &self,
         owner_id: &str,
-        account_id: Option<&str>,
-        symbol: Option<&str>,
-        setup_id: Option<&str>,
-        closed_from: Option<chrono::DateTime<chrono::Utc>>,
-        closed_to: Option<chrono::DateTime<chrono::Utc>>,
-        limit: i64,
-        offset: i64,
+        query: JournalTradeListQuery,
     ) -> PersistenceResult<Vec<domain::JournalTrade>> {
-        journal::list_for_owner(
-            &self.pool,
-            owner_id,
-            account_id,
-            symbol,
-            setup_id,
-            closed_from,
-            closed_to,
-            limit,
-            offset,
-        )
-        .await
+        journal::list_for_owner(&self.pool, owner_id, &query).await
     }
 
     pub async fn get_journal_trade(
