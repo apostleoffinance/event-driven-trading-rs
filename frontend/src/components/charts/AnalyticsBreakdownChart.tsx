@@ -13,7 +13,7 @@ function css(name: string, fallback: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-export function AnalyticsBreakdownChart({ title, groups, currency = "USD" }: { title: string; groups: Group[]; currency?: string }) {
+export function AnalyticsBreakdownChart({ title, groups, currency = "USD", onSelect }: { title: string; groups: Group[]; currency?: string; onSelect?: (key: string) => void }) {
   const { theme } = useTheme();
   const option = useMemo(() => {
     const dim = css("--chart-dim", "#7d8a9a");
@@ -38,5 +38,5 @@ export function AnalyticsBreakdownChart({ title, groups, currency = "USD" }: { t
       ]
     };
   }, [currency, groups, theme, title]);
-  return <ReactECharts option={option} style={{ height: 320, width: "100%" }} opts={{ renderer: "canvas" }} notMerge />;
+  return <ReactECharts option={option} onEvents={{ click: (params: { dataIndex: number }) => { const group = groups[params.dataIndex]; if (group) onSelect?.(group.key); } }} style={{ height: 320, width: "100%" }} opts={{ renderer: "canvas" }} notMerge />;
 }
