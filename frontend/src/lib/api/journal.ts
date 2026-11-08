@@ -80,12 +80,14 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<DataEnvelope<{ batch_id: string; source_count: number; imported_count: number; skipped_count: number; failed_count: number; status: string }>>("/api/v1/journal/import", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) }).then(x=>x.data);
   },
-  async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number } = {}) {
+  async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number; closed_from?: string; closed_to?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.limit !== undefined) params.set("limit", String(options.limit));
     if (options.offset !== undefined) params.set("offset", String(options.offset));
+    if (options.closed_from) params.set("closed_from", options.closed_from);
+    if (options.closed_to) params.set("closed_to", options.closed_to);
     const query = params.toString();
     const suffix = query ? `?${query}` : "";
     return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { baseUrl: journalBaseUrl() });
