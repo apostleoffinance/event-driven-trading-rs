@@ -28,7 +28,9 @@ export function MarketAnalysisChart() {
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const smaRef = useRef<ISeriesApi<"Line"> | null>(null);\n  const slLineRef = useRef<IPriceLine | null>(null);\n  const tpLineRef = useRef<IPriceLine | null>(null);
+  const smaRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const slLineRef = useRef<IPriceLine | null>(null);
+  const tpLineRef = useRef<IPriceLine | null>(null);
 
   const providers = useQuery({ queryKey: ["market-analysis", "providers"], queryFn: () => marketDataApi.providers(), enabled: frontendConfig.dataMode === "api" });
   const instruments = useQuery({ queryKey: ["market-analysis", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: frontendConfig.dataMode === "api" });
@@ -74,7 +76,9 @@ export function MarketAnalysisChart() {
   useEffect(() => {
     const series = candleRef.current;
     if (!series) return;
-    if (slLineRef.current) series.removePriceLine(slLineRef.current);\n    if (tpLineRef.current) series.removePriceLine(tpLineRef.current);\n    slLineRef.current = null; tpLineRef.current = null;
+    if (slLineRef.current) series.removePriceLine(slLineRef.current);
+    if (tpLineRef.current) series.removePriceLine(tpLineRef.current);
+    slLineRef.current = null; tpLineRef.current = null;
     const stop = Number(sl), target = Number(tp);
     if (sl.trim() && Number.isFinite(stop) && stop > 0) slLineRef.current = series.createPriceLine({ price: stop, color: "#ef5350", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "SL" });
     if (tp.trim() && Number.isFinite(target) && target > 0) tpLineRef.current = series.createPriceLine({ price: target, color: "#26a69a", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "TP" });
