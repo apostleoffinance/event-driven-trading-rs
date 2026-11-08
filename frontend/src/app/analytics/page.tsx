@@ -8,10 +8,10 @@ import { journalApi } from "@/lib/api/journal";
 import { getSessionUser, hasSession } from "@/lib/auth/session";
 import { AnalyticsEquityChart } from "@/components/charts/AnalyticsEquityChart";
 
-function money(value: string | null | undefined) {
+function money(value: string | null | undefined, currency = "USD") {
   if (value == null) return "—";
   const n = Number(value);
-  return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }) : "—";
+  return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 2 }) : "—";
 }
 function percent(value: string | null | undefined) {
   if (value == null) return "—";
@@ -74,12 +74,12 @@ export default function AnalyticsLabPage() {
   const metrics: [string, string][] = [
     ["Closed trades", String(a?.trade_count ?? "—")],
     ["Win rate", percent(a?.win_rate_percent)],
-    ["Net P&L", money(a?.net_profit)],
-    ["Expectancy / trade", money(a?.expectancy)],
-    ["Profit factor", a?.profit_factor == null ? (a?.trade_count ? "∞" : "—") : Number(a.profit_factor).toFixed(2)],
-    ["Max drawdown", money(a?.max_drawdown)],
-    ["Average winner", money(a?.average_win)],
-    ["Average loser", money(a?.average_loss)],
+    ["Net P&L", money(a?.net_profit, displayCurrency)],
+    ["Expectancy / trade", money(a?.expectancy, displayCurrency)],
+    ["Profit factor", a?.profit_factor == null ? "—" : Number(a.profit_factor).toFixed(2)],
+    ["Max drawdown", money(a?.max_drawdown, displayCurrency)],
+    ["Average winner", money(a?.average_win, displayCurrency)],
+    ["Average loser", money(a?.average_loss, displayCurrency)],
     ["Average R", a?.average_r == null ? "—" : `${Number(a.average_r).toFixed(2)}R`],
     ["Avg. MFE", a?.average_mfe_r == null ? "—" : `${Number(a.average_mfe_r).toFixed(2)}R`],
     ["Avg. MAE", a?.average_mae_r == null ? "—" : `${Number(a.average_mae_r).toFixed(2)}R`],
@@ -88,8 +88,8 @@ export default function AnalyticsLabPage() {
     ["Avg. discipline", a?.average_discipline_score == null ? "—" : Number(a.average_discipline_score).toFixed(0) + "/100"],
     ["Emotional trades", String(a?.emotional_trade_count ?? "—")],
     ["Mistakes", String(a?.mistake_count ?? "—")],
-    ["Gross profit", money(a?.gross_profit)],
-    ["Gross loss", money(a?.gross_loss)],
+    ["Gross profit", money(a?.gross_profit, displayCurrency)],
+    ["Gross loss", money(a?.gross_loss, displayCurrency)],
     ["Breakeven", String(a?.breakeven ?? "—")],
   ];
   return <div>
