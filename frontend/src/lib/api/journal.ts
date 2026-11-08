@@ -135,6 +135,8 @@ export type JournalIntelligence = {
   rule_adherence_percent: number | null; rule_adherence_known_count: number;
   valid_setup_percent: number | null; valid_setup_known_count: number;
   emotional_trade_count: number; mistake_count: number; average_discipline_score: number | null;
+  psychology_record_count?: number; average_confidence?: number | null; average_fear?: number | null; average_fomo?: number | null; average_frustration?: number | null; average_revenge_intensity?: number | null; average_boredom?: number | null;
+  emotion_before_record_count?: number; emotion_during_record_count?: number; emotion_after_record_count?: number;
   process_outcomes: { good_process_win: number; good_process_loss: number; poor_process_win: number; poor_process_loss: number };
   insights: Array<{ type: string; severity: "info" | "warning"; title: string; message: string }>;
   notice: string;
