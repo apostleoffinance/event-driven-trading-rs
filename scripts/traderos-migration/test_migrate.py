@@ -249,9 +249,12 @@ class MigrationTransformTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             config_path = root / "config.private.json"
-            config = {"owner_map": {"legacy-user": {
-                "jwt": "expired.access.jwt", "refresh_token": "old-refresh-token"
-            }}}
+            config = {
+                "edgenest_identity_api_url": "https://identity.example",
+                "owner_map": {"legacy-user": {
+                    "jwt": "expired.access.jwt", "refresh_token": "old-refresh-token"
+                }},
+            }
             config_path.write_text(json.dumps(config), encoding="utf-8")
             manager = migrate.make_token_manager(
                 config, "legacy-user", config_path
@@ -279,7 +282,8 @@ class MigrationTransformTests(unittest.TestCase):
             self.assertEqual(os.stat(config_path).st_mode & 0o777, 0o600)
 
     def test_api_request_refreshes_after_401_and_retries_once(self):
-        import requests
+        import sys
+        import types
         config = {"owner_map": {"legacy-user": {
             "jwt": "expired.access.jwt", "refresh_token": "old-refresh-token"
         }}}
@@ -302,7 +306,8 @@ class MigrationTransformTests(unittest.TestCase):
             manager.refresh_token = "rotated-refresh-token"
             return manager.token
 
-        with patch.object(requests, "request", side_effect=request), patch.object(manager, "refresh", side_effect=refresh) as refresh_mock:
+        fake_requests = types.SimpleNamespace(request=request, RequestException=Exception)
+        with patch.dict(sys.modules, {"requests": fake_requests}), patch.object(manager, "refresh", side_effect=refresh) as refresh_mock:
             result = migrate.api_request("https://journal.example", manager, "GET", "/accounts")
 
         self.assertEqual(result, {"ok": True})
