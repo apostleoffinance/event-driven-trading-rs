@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { frontendConfig } from "@/config/frontend";
 import { journalApi } from "@/lib/api/journal";
+import { ApiError } from "@/lib/api/client";
 import { getSessionUser, hasSession } from "@/lib/auth/session";
 import { AnalyticsEquityChart } from "@/components/charts/AnalyticsEquityChart";
 import { AnalyticsBreakdownChart } from "@/components/charts/AnalyticsBreakdownChart";
@@ -131,7 +132,7 @@ export default function AnalyticsLabPage() {
       {accounts.error ? <div className="error" role="alert"><p>Could not load your Journal accounts. Check your connection and try again.</p><button className="btn" onClick={()=>void accounts.refetch()}>Retry accounts</button></div> : null}
       {mixedCurrencies ? <div className="error" role="status"><strong>Select a single account to continue.</strong><p>These accounts use different currencies ({accountCurrencies.join(", ")}). EdgeNest will not combine unlike currencies into misleading P&amp;L totals. Choose an account above to see its analytics.</p></div> : null}
       {analytics.isLoading && !mixedCurrencies ? <p>Calculating your Journal analytics…</p> : null}
-      {analytics.error ? <div className="error" role="alert"><p>{"Could not load analytics from your Journal. Check your connection and retry."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
+      {analytics.error ? <div className="error" role="alert"><p>{analytics.error instanceof ApiError && analytics.error.code === "mixed_currency_analytics" ? "Your selected Journal records contain different P&L currencies. Select a single account/currency or correct trade currency fields before calculating monetary analytics." : "Could not load analytics from your Journal. Check your connection and retry."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
     {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs" style={{display:"flex",gap:8,overflowX:"auto",padding:"12px 0",marginTop:10}}>
         {(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"btn primary":"btn"} aria-current={activeTab===tab?"page":undefined} onClick={()=>setActiveTab(tab)} style={{whiteSpace:"nowrap",textTransform:"capitalize"}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab}</button>)}
