@@ -46,6 +46,33 @@ async fn health() -> &'static str {
     "ok"
 }
 
+/// Report readiness only after the Identity, Journal, and Market Data services
+/// are accepting requests. Identity and Journal expose DB-backed /readyz;
+/// Market Data currently exposes /healthz only.
+async fn readiness(State(state): State<GatewayState>) -> Response<Body> {
+    let checks = [
+        ("identity-api", "http://127.0.0.1:8081/readyz"),
+        ("journal-api", "http://127.0.0.1:8080/readyz"),
+        ("market-data-api", "http://127.0.0.1:8787/healthz"),
+    ];
+
+    for (service, url) in checks {
+        match state.client.get(url).send().await {
+            Ok(response) if response.status().is_success() => {}
+            Ok(response) => {
+                tracing::warn!(service, status = %response.status(), "upstream readiness check failed");
+                return (StatusCode::SERVICE_UNAVAILABLE, "EdgeNest API not ready").into_response();
+            }
+            Err(error) => {
+                tracing::warn!(service, %error, "upstream readiness request failed");
+                return (StatusCode::SERVICE_UNAVAILABLE, "EdgeNest API not ready").into_response();
+            }
+        }
+    }
+
+    (StatusCode::OK, "ready").into_response()
+}
+
 async fn proxy(State(state): State<GatewayState>, request: Request<Body>) -> Response<Body> {
     let path = request.uri().path().to_owned();
     let target = if path.starts_with("/api/v1/auth/") {
@@ -157,6 +184,7 @@ async fn main() {
         });
     let app = Router::new()
         .route("/healthz", get(health))
+        .route("/readyz", get(readiness))
         .fallback(proxy)
         .with_state(GatewayState { client });
 
