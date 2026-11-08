@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EquityChart } from "@/components/charts/EquityChart";
+import { JournalDashboardSummary } from "@/components/dashboard/JournalDashboardSummary";
 import { Metric } from "@/components/data-display/Metric";
 import {
   orderTone,
@@ -101,6 +102,7 @@ export default function CommandCenterPage() {
         title="Dashboard"
         description={frontendConfig.dataMode === "api" ? "Your trading accounts, performance and risk overview." : "What is happening in your PAPER trading simulation."}
       />
+      <JournalDashboardSummary />
       <div style={{ marginBottom: 12 }}>
         {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
       </div>
