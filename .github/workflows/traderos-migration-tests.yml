@@ -1,0 +1,27 @@
+name: TraderOS Migration Python Tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/traderos-migration/**'
+      - '.github/workflows/traderos-migration-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/traderos-migration/**'
+      - '.github/workflows/traderos-migration-tests.yml'
+
+jobs:
+  migration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/traderos-migration/requirements.txt
+      - name: Install migration dependencies
+        run: python -m pip install -r scripts/traderos-migration/requirements.txt
+      - name: Run migration unit tests
+        run: python -m unittest discover -s scripts/traderos-migration -p 'test_*.py' -v
