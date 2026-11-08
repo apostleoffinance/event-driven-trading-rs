@@ -41,7 +41,7 @@ def main():
     state=m.load_json(state_path) if state_path.exists() else {}
     accounts=m.api_request(base,tm,"GET","/api/v1/journal/accounts")
     if isinstance(accounts,dict): accounts=accounts.get("accounts",accounts.get("data",[]))
-    account_map=state.get("account_map",{})
+    account_map=state.get("account_map",{}).get(source_user,{})
     if not isinstance(accounts,list): raise RuntimeError(f"Unexpected accounts response: {type(accounts).__name__}")
     source_accounts=m.read_table(args.snapshot,"accounts")
     account_ids=set()
