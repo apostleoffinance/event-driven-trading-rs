@@ -242,5 +242,78 @@ class MigrationTransformTests(unittest.TestCase):
         self.assertNotIn("users",migrate.SOURCE_TABLES)
         self.assertNotIn("market_candles",migrate.SOURCE_TABLES)
 
+    def test_token_manager_refresh_rotates_and_persists_credentials_securely(self):
+        import os
+        import sys
+        import types
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config_path = root / "config.private.json"
+            config = {"owner_map": {"legacy-user": {
+                "jwt": "expired.access.jwt", "refresh_token": "old-refresh-token"
+            }}}
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            manager = migrate.make_token_manager(
+                config, "legacy-user", config_path
+            )
+            self.assertIsNotNone(manager)
+
+            class Response:
+                status_code = 200
+                content = b'{"access_token":"new.access.jwt","refresh_token":"rotated-refresh-token"}'
+                def json(self):
+                    return {"access_token": "new.access.jwt", "refresh_token": "rotated-refresh-token"}
+
+            fake_requests = types.SimpleNamespace(
+                post=lambda *args, **kwargs: Response(),
+                RequestException=Exception,
+            )
+            with patch.dict(sys.modules, {"requests": fake_requests}):
+                manager.refresh()
+
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            self.assertEqual(manager.token, "new.access.jwt")
+            self.assertEqual(manager.refresh_token, "rotated-refresh-token")
+            self.assertEqual(persisted["owner_map"]["legacy-user"]["jwt"], "new.access.jwt")
+            self.assertEqual(persisted["owner_map"]["legacy-user"]["refresh_token"], "rotated-refresh-token")
+            self.assertEqual(os.stat(config_path).st_mode & 0o777, 0o600)
+
+    def test_api_request_refreshes_after_401_and_retries_once(self):
+        import requests
+        config = {"owner_map": {"legacy-user": {
+            "jwt": "expired.access.jwt", "refresh_token": "old-refresh-token"
+        }}}
+        manager = migrate.make_token_manager(config, "legacy-user")
+        calls = []
+
+        class Response:
+            def __init__(self, status_code, content=b'{"ok":true}'):
+                self.status_code = status_code
+                self.content = content
+            def json(self):
+                return {"ok": True}
+
+        def request(method, url, headers, json, timeout):
+            calls.append(headers["Authorization"])
+            return Response(401, b'') if len(calls) == 1 else Response(200)
+
+        def refresh():
+            manager.token = "fresh.access.jwt"
+            manager.refresh_token = "rotated-refresh-token"
+            return manager.token
+
+        with patch.object(requests, "request", side_effect=request), patch.object(manager, "refresh", side_effect=refresh) as refresh_mock:
+            result = migrate.api_request("https://journal.example", manager, "GET", "/accounts")
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(calls, ["Bearer expired.access.jwt", "Bearer fresh.access.jwt"])
+        refresh_mock.assert_called_once()
+
+    def test_token_manager_requires_refresh_token_on_expired_access(self):
+        config = {"owner_map": {"legacy-user": {"jwt": "expired.access.jwt"}}}
+        manager = migrate.make_token_manager(config, "legacy-user")
+        with self.assertRaisesRegex(RuntimeError, "no refresh_token is configured"):
+            manager.refresh()
+
 if __name__ == "__main__":
     unittest.main()
