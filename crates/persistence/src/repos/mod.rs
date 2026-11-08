@@ -51,7 +51,16 @@ impl TradingStore {
         limit: i64,
         offset: i64,
     ) -> PersistenceResult<Vec<domain::JournalTrade>> {
-        journal::list_for_owner(&self.pool, owner_id, account_id, closed_from, closed_to, limit, offset).await
+        journal::list_for_owner(
+            &self.pool,
+            owner_id,
+            account_id,
+            closed_from,
+            closed_to,
+            limit,
+            offset,
+        )
+        .await
     }
 
     pub async fn get_journal_trade(
