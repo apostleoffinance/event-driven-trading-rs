@@ -11,10 +11,7 @@ Add the Identity API base URL and the refresh token returned from an EdgeNest Id
   "edgenest_api_url": "https://<journal-api-host>",
   "edgenest_identity_api_url": "https://<identity-api-host>",
   "owner_map": {
-    "<legacy-traderos-user-id>": {
-      "jwt": "<access-token>",
-      "refresh_token": "<refresh-token>"
-    }
+    "<legacy-traderos-user-id>": {}
   }
 }
 ```
@@ -25,8 +22,15 @@ Refresh tokens are single-use and rotate on refresh. The CLI saves the new refre
 
 ## First-time setup
 
-1. Sign in to EdgeNest Identity (or use the Identity login endpoint) to obtain the initial access + refresh token pair.
-2. Put both values in the private config as shown above.
+1. Set `edgenest_identity_api_url` to your deployed Identity API base URL and ensure the snapshot's legacy user ID has an `owner_map` entry (it can initially be an empty object).
+2. Run the interactive login command. It prompts for email and password (password input is hidden), obtains the access + refresh pair, and saves both tokens to the private config with owner-only file permissions:
+
+```bash
+python scripts/traderos-migration/migrate.py login \
+  --snapshot migration/traderos/snapshot.json \
+  --config migration/traderos/config.private.json
+```
+
 3. Run `auth-check` before migration:
 
 ```bash
