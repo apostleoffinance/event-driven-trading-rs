@@ -22,7 +22,8 @@ pub struct ListQuery {
     pub offset: Option<i64>,
     pub closed_from: Option<DateTime<Utc>>,
     pub closed_to: Option<DateTime<Utc>>,
-}
+    pub symbol: Option<String>,
+    pub setup_id: Option<String>,
 
 #[derive(Debug, Deserialize)]
 pub struct TradeWrite {
@@ -189,6 +190,8 @@ pub async fn list(
         .list_journal_trades(
             &claims.sub,
             query.journal_account_id.as_deref(),
+            query.symbol.as_deref(),
+            query.setup_id.as_deref(),
             query.closed_from,
             query.closed_to,
             query.limit.unwrap_or(100),
