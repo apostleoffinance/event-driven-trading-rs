@@ -314,6 +314,49 @@ class MigrationTransformTests(unittest.TestCase):
         self.assertEqual(calls, ["Bearer expired.access.jwt", "Bearer fresh.access.jwt"])
         refresh_mock.assert_called_once()
 
+    def test_identity_login_saves_initial_token_pair_without_echoing_secrets(self):
+        import builtins
+        import getpass
+        import sys
+        import types
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.private.json"
+            config = {
+                "edgenest_identity_api_url": "https://identity.example",
+                "owner_map": {"legacy-user": {}},
+            }
+            seen = {}
+
+            class Response:
+                status_code = 200
+                content = b'{"access_token":"access-secret","refresh_token":"refresh-secret"}'
+                def json(self):
+                    return {
+                        "access_token": "access-secret",
+                        "refresh_token": "refresh-secret",
+                        "expires_in": 900,
+                        "user": {"id": "identity-user"},
+                    }
+
+            def post(url, json, headers, timeout):
+                seen.update(url=url, email=json["email"], password=json["password"])
+                return Response()
+
+            fake_requests = types.SimpleNamespace(post=post, RequestException=Exception)
+            with patch.dict(sys.modules, {"requests": fake_requests}), \
+                 patch.object(builtins, "input", return_value="user@example.com"), \
+                 patch.object(getpass, "getpass", return_value="not-logged"):
+                result = migrate.identity_login(config, config_path, "legacy-user")
+
+            saved = json.loads(config_path.read_text(encoding="utf-8"))
+            self.assertEqual(seen["url"], "https://identity.example/api/v1/auth/login")
+            self.assertEqual(seen["email"], "user@example.com")
+            self.assertEqual(seen["password"], "not-logged")
+            self.assertEqual(saved["owner_map"]["legacy-user"]["jwt"], "access-secret")
+            self.assertEqual(saved["owner_map"]["legacy-user"]["refresh_token"], "refresh-secret")
+            self.assertEqual(result["identity_user_id"], "identity-user")
+            self.assertEqual(result["expires_in"], 900)
+
     def test_token_manager_requires_refresh_token_on_expired_access(self):
         config = {"owner_map": {"legacy-user": {"jwt": "expired.access.jwt"}}}
         manager = migrate.make_token_manager(config, "legacy-user")
