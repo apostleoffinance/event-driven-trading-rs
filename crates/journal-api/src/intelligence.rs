@@ -117,19 +117,33 @@ pub async fn summary(
     let discipline: Vec<i16> = rows.iter().filter_map(|r| r.discipline_score).collect();
     let psychology_record_count = rows.iter().filter(|r| r.psychology_record).count();
     let mean_rating = |values: Vec<i16>| -> Option<f64> {
-        if values.is_empty() { None } else {
+        if values.is_empty() {
+            None
+        } else {
             Some(values.iter().map(|v| i64::from(*v)).sum::<i64>() as f64 / values.len() as f64)
         }
     };
-    let avg_confidence = mean_rating(rows.iter().filter_map(|r|r.confidence).collect());
-    let avg_fear = mean_rating(rows.iter().filter_map(|r|r.fear).collect());
-    let avg_fomo = mean_rating(rows.iter().filter_map(|r|r.fomo).collect());
-    let avg_frustration = mean_rating(rows.iter().filter_map(|r|r.frustration).collect());
-    let avg_revenge = mean_rating(rows.iter().filter_map(|r|r.revenge_intensity).collect());
-    let avg_boredom = mean_rating(rows.iter().filter_map(|r|r.boredom).collect());
-    let emotion_before_count = rows.iter().filter_map(|r|r.emotion_before.as_deref()).filter(|s|!s.trim().is_empty()).count();
-    let emotion_during_count = rows.iter().filter_map(|r|r.emotion_during.as_deref()).filter(|s|!s.trim().is_empty()).count();
-    let emotion_after_count = rows.iter().filter_map(|r|r.emotion_after.as_deref()).filter(|s|!s.trim().is_empty()).count();
+    let avg_confidence = mean_rating(rows.iter().filter_map(|r| r.confidence).collect());
+    let avg_fear = mean_rating(rows.iter().filter_map(|r| r.fear).collect());
+    let avg_fomo = mean_rating(rows.iter().filter_map(|r| r.fomo).collect());
+    let avg_frustration = mean_rating(rows.iter().filter_map(|r| r.frustration).collect());
+    let avg_revenge = mean_rating(rows.iter().filter_map(|r| r.revenge_intensity).collect());
+    let avg_boredom = mean_rating(rows.iter().filter_map(|r| r.boredom).collect());
+    let emotion_before_count = rows
+        .iter()
+        .filter_map(|r| r.emotion_before.as_deref())
+        .filter(|s| !s.trim().is_empty())
+        .count();
+    let emotion_during_count = rows
+        .iter()
+        .filter_map(|r| r.emotion_during.as_deref())
+        .filter(|s| !s.trim().is_empty())
+        .count();
+    let emotion_after_count = rows
+        .iter()
+        .filter_map(|r| r.emotion_after.as_deref())
+        .filter(|s| !s.trim().is_empty())
+        .count();
 
     let good_process_wins = rows
         .iter()
