@@ -27,6 +27,16 @@ struct Fact {
     emotional_trade: Option<bool>,
     mistake: Option<bool>,
     discipline_score: Option<i16>,
+    psychology_record: bool,
+    emotion_before: Option<String>,
+    emotion_during: Option<String>,
+    emotion_after: Option<String>,
+    confidence: Option<i16>,
+    fear: Option<i16>,
+    fomo: Option<i16>,
+    frustration: Option<i16>,
+    revenge_intensity: Option<i16>,
+    boredom: Option<i16>,
 }
 
 fn wilson_interval(wins: usize, n: usize) -> Option<(f64, f64)> {
@@ -60,8 +70,12 @@ pub async fn summary(
     let rows = sqlx::query_as::<_, Fact>(
         r#"
         SELECT COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
-          t.rules_followed, t.setup_valid, t.emotional_trade, t.mistake, t.discipline_score
+          t.rules_followed, t.setup_valid, t.emotional_trade, t.mistake, t.discipline_score,
+          (p.trade_id IS NOT NULL) AS psychology_record,
+          p.emotion_before, p.emotion_during, p.emotion_after,
+          p.confidence, p.fear, p.fomo, p.frustration, p.revenge_intensity, p.boredom
         FROM journal_trades t
+        LEFT JOIN journal_trade_psychology p ON p.owner_id=t.owner_id AND p.trade_id=t.id
         WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
           AND (t.net_pnl IS NOT NULL OR t.gross_pnl IS NOT NULL)
           AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
@@ -101,6 +115,21 @@ pub async fn summary(
         .count();
     let mistakes = rows.iter().filter(|r| r.mistake == Some(true)).count();
     let discipline: Vec<i16> = rows.iter().filter_map(|r| r.discipline_score).collect();
+    let psychology_record_count = rows.iter().filter(|r| r.psychology_record).count();
+    let mean_rating = |values: Vec<i16>| -> Option<f64> {
+        if values.is_empty() { None } else {
+            Some(values.iter().map(|v| i64::from(*v)).sum::<i64>() as f64 / values.len() as f64)
+        }
+    };
+    let avg_confidence = mean_rating(rows.iter().filter_map(|r|r.confidence).collect());
+    let avg_fear = mean_rating(rows.iter().filter_map(|r|r.fear).collect());
+    let avg_fomo = mean_rating(rows.iter().filter_map(|r|r.fomo).collect());
+    let avg_frustration = mean_rating(rows.iter().filter_map(|r|r.frustration).collect());
+    let avg_revenge = mean_rating(rows.iter().filter_map(|r|r.revenge_intensity).collect());
+    let avg_boredom = mean_rating(rows.iter().filter_map(|r|r.boredom).collect());
+    let emotion_before_count = rows.iter().filter_map(|r|r.emotion_before.as_deref()).filter(|s|!s.trim().is_empty()).count();
+    let emotion_during_count = rows.iter().filter_map(|r|r.emotion_during.as_deref()).filter(|s|!s.trim().is_empty()).count();
+    let emotion_after_count = rows.iter().filter_map(|r|r.emotion_after.as_deref()).filter(|s|!s.trim().is_empty()).count();
 
     let good_process_wins = rows
         .iter()
@@ -166,6 +195,8 @@ pub async fn summary(
         "rule_adherence_known_count":known_rules,"valid_setup_percent":if known_valid>0 {Some(valid as f64*100.0/known_valid as f64)} else {None},
         "valid_setup_known_count":known_valid,"emotional_trade_count":emotional,"mistake_count":mistakes,
         "average_discipline_score":if !discipline.is_empty(){Some(discipline.iter().map(|v|i64::from(*v)).sum::<i64>() as f64/discipline.len() as f64)}else{None},
+        "psychology_record_count":psychology_record_count,"average_confidence":avg_confidence,"average_fear":avg_fear,"average_fomo":avg_fomo,"average_frustration":avg_frustration,"average_revenge_intensity":avg_revenge,"average_boredom":avg_boredom,
+        "emotion_before_record_count":emotion_before_count,"emotion_during_record_count":emotion_during_count,"emotion_after_record_count":emotion_after_count,
         "process_outcomes":{"good_process_win":good_process_wins,"good_process_loss":good_process_losses,"poor_process_win":poor_process_wins,"poor_process_loss":poor_process_losses},
         "insights":insights,
         "notice":"Historical descriptive heuristics only. No diagnoses, intent inference, forecasts, or trade recommendations."
