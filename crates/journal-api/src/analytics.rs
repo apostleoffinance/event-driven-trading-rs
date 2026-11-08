@@ -95,7 +95,7 @@ pub async fn summary(
             "win_rate_percent":"0","gross_profit":"0","gross_loss":"0",
             "net_profit":"0","profit_factor":null,"expectancy":"0",
             "average_win":null,"average_loss":null,"max_drawdown":"0",
-            "average_r":null,"equity_curve":[],"by_symbol":[],"by_session":[],
+            "average_r":null,"equity_curve":[],"by_symbol":[],"by_session":[],"by_setup":[],"by_weekday":[],"by_hour_utc":[],"by_day":[],"by_month":[],
             "notice":"No closed trades with realized P&L match the selected filters."
         }}))
         .into_response();
@@ -137,6 +137,10 @@ pub async fn summary(
         std::collections::BTreeMap::new();
     let mut hours_utc: std::collections::BTreeMap<String, Vec<Decimal>> =
         std::collections::BTreeMap::new();
+    let mut days: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
+    let mut months: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
     let mut total_mfe_r = Decimal::ZERO;
@@ -172,6 +176,10 @@ pub async fn summary(
             .entry(fact.closed_at.format("%H:00 UTC").to_string())
             .or_default()
             .push(fact.net_pnl);
+        days.entry(fact.closed_at.format("%Y-%m-%d").to_string())
+            .or_default().push(fact.net_pnl);
+        months.entry(fact.closed_at.format("%Y-%m").to_string())
+            .or_default().push(fact.net_pnl);
         if let Some(r) = fact.r_multiple {
             total_r += r;
             r_count += 1;
@@ -235,7 +243,7 @@ pub async fn summary(
         "setup_valid_percent":if setup_valid_known>0 {Some((Decimal::from(setup_valid_count as u64)*Decimal::from(100)/Decimal::from(setup_valid_known as u64)).to_string())} else {None},
         "rules_followed_percent":if rules_followed_known>0 {Some((Decimal::from(rules_followed_count as u64)*Decimal::from(100)/Decimal::from(rules_followed_known as u64)).to_string())} else {None},
         "average_discipline_score":if discipline_count>0 {Some((Decimal::from(total_discipline)/Decimal::from(discipline_count as u64)).to_string())} else {None},
-        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),
+        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),"by_day":group_stats(days),"by_month":group_stats(months),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
 }
