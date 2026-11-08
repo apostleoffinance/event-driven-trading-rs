@@ -251,7 +251,7 @@ class TokenManager:
             target.parent.mkdir(parents=True, exist_ok=True)
             temp_path = target.with_name(target.name + ".tmp")
             try:
-                temp_path.write_text(json.dumps(self.config, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+                temp_path.write_text(json.dumps(self.config, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
                 os.chmod(temp_path, 0o600)
                 temp_path.replace(target)
                 os.chmod(target, 0o600)
