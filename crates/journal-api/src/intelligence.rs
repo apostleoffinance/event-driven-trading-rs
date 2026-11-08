@@ -17,7 +17,8 @@ pub struct IntelligenceQuery {
     pub journal_account_id: Option<String>,
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
-}
+    pub symbol: Option<String>,
+    pub setup_id: Option<String>,
 
 #[derive(Debug, FromRow)]
 struct Fact {
@@ -89,6 +90,8 @@ pub async fn summary(
           AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
           AND ($3::TIMESTAMPTZ IS NULL OR t.closed_at >= $3)
           AND ($4::TIMESTAMPTZ IS NULL OR t.closed_at <= $4)
+          AND ($5::TEXT IS NULL OR t.symbol=$5)
+          AND ($6::TEXT IS NULL OR t.setup_id=$6)
         ORDER BY t.closed_at ASC, t.id ASC
     "#,
     )
@@ -96,6 +99,8 @@ pub async fn summary(
     .bind(query.journal_account_id.as_deref())
     .bind(query.from)
     .bind(query.to)
+    .bind(query.symbol.as_deref())
+    .bind(query.setup_id.as_deref())
     .fetch_all(state.store.pool())
     .await;
 
