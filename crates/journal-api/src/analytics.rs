@@ -18,6 +18,8 @@ pub struct AnalyticsQuery {
     pub journal_account_id: Option<String>,
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
+    pub symbol: Option<String>,
+    pub setup_id: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
@@ -57,6 +59,43 @@ pub async fn summary(
         }))).into_response();
     }
 
+    // Do not calculate monetary totals across unlike P&L currencies. Account
+    // ownership remains enforced by the owner_id predicate in every query.
+    let currency_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(DISTINCT COALESCE(t.pnl_currency, 'USD'))
+        FROM journal_trades t
+        WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
+          AND (t.net_pnl IS NOT NULL OR t.gross_pnl IS NOT NULL)
+          AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
+          AND ($3::TIMESTAMPTZ IS NULL OR t.closed_at >= $3)
+          AND ($4::TIMESTAMPTZ IS NULL OR t.closed_at <= $4)
+          AND ($5::TEXT IS NULL OR t.symbol=$5)
+          AND ($6::TEXT IS NULL OR t.setup_id=$6)
+        "#,
+    )
+    .bind(&claims.sub)
+    .bind(query.journal_account_id.as_deref())
+    .bind(query.from)
+    .bind(query.to)
+    .bind(query.symbol.as_deref())
+    .bind(query.setup_id.as_deref())
+    .fetch_one(state.store.pool())
+    .await;
+    match currency_count {
+        Ok(count) if count > 1 => return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "error":{"code":"mixed_currency_analytics","message":"Select a single account or currency before calculating monetary analytics."}
+            })),
+        ).into_response(),
+        Err(_) => return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error":{"code":"internal_error","message":"Unable to validate analytics currency"}})),
+        ).into_response(),
+        _ => {}
+    }
+
     let facts = sqlx::query_as::<_, TradeFact>(
         r#"
         SELECT t.id, t.symbol, t.closed_at,
@@ -69,6 +108,8 @@ pub async fn summary(
           AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
           AND ($3::TIMESTAMPTZ IS NULL OR t.closed_at >= $3)
           AND ($4::TIMESTAMPTZ IS NULL OR t.closed_at <= $4)
+          AND ($5::TEXT IS NULL OR t.symbol=$5)
+          AND ($6::TEXT IS NULL OR t.setup_id=$6)
         ORDER BY t.closed_at ASC, t.id ASC
     "#,
     )
@@ -76,6 +117,8 @@ pub async fn summary(
     .bind(query.journal_account_id.as_deref())
     .bind(query.from)
     .bind(query.to)
+    .bind(query.symbol.as_deref())
+    .bind(query.setup_id.as_deref())
     .fetch_all(state.store.pool())
     .await;
 
@@ -95,7 +138,7 @@ pub async fn summary(
             "win_rate_percent":"0","gross_profit":"0","gross_loss":"0",
             "net_profit":"0","profit_factor":null,"expectancy":"0",
             "average_win":null,"average_loss":null,"max_drawdown":"0",
-            "average_r":null,"equity_curve":[],"by_symbol":[],"by_session":[],
+            "average_r":null,"equity_curve":[],"by_symbol":[],"by_session":[],"by_setup":[],"by_weekday":[],"by_hour_utc":[],"by_day":[],"by_month":[],
             "notice":"No closed trades with realized P&L match the selected filters."
         }}))
         .into_response();
@@ -137,6 +180,10 @@ pub async fn summary(
         std::collections::BTreeMap::new();
     let mut hours_utc: std::collections::BTreeMap<String, Vec<Decimal>> =
         std::collections::BTreeMap::new();
+    let mut days: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
+    let mut months: std::collections::BTreeMap<String, Vec<Decimal>> =
+        std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
     let mut total_mfe_r = Decimal::ZERO;
@@ -170,6 +217,13 @@ pub async fn summary(
             .push(fact.net_pnl);
         hours_utc
             .entry(fact.closed_at.format("%H:00 UTC").to_string())
+            .or_default()
+            .push(fact.net_pnl);
+        days.entry(fact.closed_at.format("%Y-%m-%d").to_string())
+            .or_default()
+            .push(fact.net_pnl);
+        months
+            .entry(fact.closed_at.format("%Y-%m").to_string())
             .or_default()
             .push(fact.net_pnl);
         if let Some(r) = fact.r_multiple {
@@ -235,7 +289,7 @@ pub async fn summary(
         "setup_valid_percent":if setup_valid_known>0 {Some((Decimal::from(setup_valid_count as u64)*Decimal::from(100)/Decimal::from(setup_valid_known as u64)).to_string())} else {None},
         "rules_followed_percent":if rules_followed_known>0 {Some((Decimal::from(rules_followed_count as u64)*Decimal::from(100)/Decimal::from(rules_followed_known as u64)).to_string())} else {None},
         "average_discipline_score":if discipline_count>0 {Some((Decimal::from(total_discipline)/Decimal::from(discipline_count as u64)).to_string())} else {None},
-        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),
+        "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),"by_day":group_stats(days),"by_month":group_stats(months),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
 }

@@ -4,6 +4,14 @@ The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin
 
 ## Origins
 
+## Data mode selection
+
+- An explicit `NEXT_PUBLIC_DATA_MODE=mock` always opts into demo fixtures.
+- An explicit `NEXT_PUBLIC_DATA_MODE=api` uses the authenticated backend.
+- If the mode is omitted, the frontend selects API mode when any API origin is configured; otherwise it remains in mock/demo mode for local development.
+- Do not set `NEXT_PUBLIC_DATA_MODE=mock` in production when you expect imported Journal records to appear.
+
+
 Configure one gateway origin or the three service origins:
 
 | Variable | Service | Required routes |
@@ -40,6 +48,11 @@ Journal (JWT bearer):
 - `GET/POST /api/v1/journal/setups`
 - `GET/POST /api/v1/journal/trades`
 - `GET/PUT/PATCH/DELETE /api/v1/journal/trades/:trade_id`
+- `GET /api/v1/journal/analytics/summary?journal_account_id=...&from=...&to=...`
+- `GET /api/v1/journal/analytics/intelligence?journal_account_id=...&from=...&to=...`
+- `GET/PUT /api/v1/journal/trades/:trade_id/psychology`
+- `GET/POST/DELETE /api/v1/journal/trades/:trade_id/attachments`
+- Analytics summary/intelligence accept optional `symbol` and `setup_id` filters. Trade listing accepts `symbol`, `setup_id`, and optional `closed_from`/`closed_to` UTC timestamps for date-bounded closed-trade drill-down.
 
 Market Data (read-only):
 - `GET /api/v1/market-data/providers`

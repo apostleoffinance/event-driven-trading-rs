@@ -215,15 +215,13 @@ pub async fn insert(pool: &PgPool, trade: &JournalTrade) -> PersistenceResult<()
 pub async fn list_for_owner(
     pool: &PgPool,
     owner_id: &str,
-    account_id: Option<&str>,
-    limit: i64,
-    offset: i64,
+    query: &super::JournalTradeListQuery,
 ) -> PersistenceResult<Vec<JournalTrade>> {
     if owner_id.trim().is_empty() {
         return Err(PersistenceError::Other("owner_id must be non-empty".into()));
     }
-    let limit = limit.clamp(1, 500);
-    let offset = offset.max(0);
+    let limit = query.limit.clamp(1, 500);
+    let offset = query.offset.max(0);
     let rows = sqlx::query_as::<_, JournalTradeRow>(
         r#"SELECT id, owner_id, journal_account_id, setup_id, symbol, direction, status, source,
             source_system, source_trade_id, opened_at, closed_at, quantity, entry_price,
@@ -231,10 +229,18 @@ pub async fn list_for_owner(
             net_pnl, pnl_currency, risk_amount, r_multiple, session, timeframe, timezone, mfe_r, mae_r, notes, tags, setup_valid, rules_followed, emotional_trade, mistake, mistake_notes, discipline_score, acknowledged_warnings
           FROM journal_trades
           WHERE owner_id = $1 AND ($2::TEXT IS NULL OR journal_account_id = $2)
-          ORDER BY opened_at DESC, id DESC LIMIT $3 OFFSET $4"#,
+            AND ($3::TEXT IS NULL OR symbol = $3)
+            AND ($4::TEXT IS NULL OR setup_id = $4)
+            AND ($5::TIMESTAMPTZ IS NULL OR closed_at >= $5)
+            AND ($6::TIMESTAMPTZ IS NULL OR closed_at <= $6)
+          ORDER BY closed_at DESC NULLS LAST, opened_at DESC, id DESC LIMIT $7 OFFSET $8"#,
     )
     .bind(owner_id)
-    .bind(account_id)
+    .bind(query.account_id.as_deref())
+    .bind(query.symbol.as_deref())
+    .bind(query.setup_id.as_deref())
+    .bind(query.closed_from)
+    .bind(query.closed_to)
     .bind(limit)
     .bind(offset)
     .fetch_all(pool)

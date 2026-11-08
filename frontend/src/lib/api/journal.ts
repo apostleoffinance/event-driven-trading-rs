@@ -38,21 +38,25 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { method:"PUT", baseUrl:journalBaseUrl(), body:JSON.stringify(input) });
   },
-  async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
+  async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.from) params.set("from", options.from);
     if (options.to) params.set("to", options.to);
+    if (options.symbol) params.set("symbol", options.symbol);
+    if (options.setup_id) params.set("setup_id", options.setup_id);
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return (await apiRequest<DataEnvelope<JournalAnalytics>>(`/api/v1/journal/analytics/summary${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
-  async analyticsIntelligence(options: { journal_account_id?: string; from?: string; to?: string } = {}) {
+  async analyticsIntelligence(options: { journal_account_id?: string; from?: string; to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.from) params.set("from", options.from);
     if (options.to) params.set("to", options.to);
+    if (options.symbol) params.set("symbol", options.symbol);
+    if (options.setup_id) params.set("setup_id", options.setup_id);
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return (await apiRequest<DataEnvelope<JournalIntelligence>>(`/api/v1/journal/analytics/intelligence${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
@@ -80,12 +84,16 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<DataEnvelope<{ batch_id: string; source_count: number; imported_count: number; skipped_count: number; failed_count: number; status: string }>>("/api/v1/journal/import", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) }).then(x=>x.data);
   },
-  async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number } = {}) {
+  async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number; closed_from?: string; closed_to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
     const params = new URLSearchParams();
     if (options.journal_account_id) params.set("journal_account_id", options.journal_account_id);
     if (options.limit !== undefined) params.set("limit", String(options.limit));
     if (options.offset !== undefined) params.set("offset", String(options.offset));
+    if (options.closed_from) params.set("closed_from", options.closed_from);
+    if (options.closed_to) params.set("closed_to", options.closed_to);
+    if (options.symbol) params.set("symbol", options.symbol);
+    if (options.setup_id) params.set("setup_id", options.setup_id);
     const query = params.toString();
     const suffix = query ? `?${query}` : "";
     return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { baseUrl: journalBaseUrl() });
@@ -111,6 +119,8 @@ export type JournalAnalytics = {
   by_setup?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_weekday?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_hour_utc?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
+  by_day?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
+  by_month?: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   notice?: string;
 };
 
@@ -131,6 +141,8 @@ export type JournalIntelligence = {
   rule_adherence_percent: number | null; rule_adherence_known_count: number;
   valid_setup_percent: number | null; valid_setup_known_count: number;
   emotional_trade_count: number; mistake_count: number; average_discipline_score: number | null;
+  psychology_record_count?: number; average_confidence?: number | null; average_fear?: number | null; average_fomo?: number | null; average_frustration?: number | null; average_revenge_intensity?: number | null; average_boredom?: number | null;
+  emotion_before_record_count?: number; emotion_during_record_count?: number; emotion_after_record_count?: number;
   process_outcomes: { good_process_win: number; good_process_loss: number; poor_process_win: number; poor_process_loss: number };
   insights: Array<{ type: string; severity: "info" | "warning"; title: string; message: string }>;
   notice: string;

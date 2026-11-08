@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EquityChart } from "@/components/charts/EquityChart";
+import { JournalDashboardSummary } from "@/components/dashboard/JournalDashboardSummary";
 import { Metric } from "@/components/data-display/Metric";
 import {
   orderTone,
@@ -63,9 +64,11 @@ export default function CommandCenterPage() {
     };
   }, [repos.accounts, repos.portfolio, repos.positions, repos.orders, repos.risk]);
 
-  if (loading) return <div className="loading">Loading command center…</div>;
+  if (loading) return <><JournalDashboardSummary /><div className="loading">Loading command center…</div></>;
   if (error || !portfolio || !risk)
     return (
+      <>
+      <JournalDashboardSummary />
       <div className="error">
         Unable to load data. {error}
         <div style={{ marginTop: 8 }}>
@@ -74,15 +77,17 @@ export default function CommandCenterPage() {
           </button>
         </div>
       </div>
+      </>
     );
 
   if (frontendConfig.dataMode === "api" && accounts.length === 0) {
     return (
       <>
         <PageHeader title="Your trading dashboard" description="Your trading accounts, performance and risk overview in one place." />
+        <JournalDashboardSummary />
         <section className="panel" style={{ maxWidth: 760, margin: "24px auto", textAlign: "center", padding: 32 }}>
-          <h2>Welcome to EdgeNest</h2>
-          <p>You haven’t added a trading account yet. Create a paper account to start tracking your trading activity.</p>
+          <h2>No execution account connected</h2>
+          <p>Your Journal accounts and imported TraderOS history are shown above. Execution accounts are a separate connection and are not created by a Journal import.</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 16 }}>
             <Link href="/accounts" className="btn primary">Set up a trading account</Link>
             <Link href="/journal" className="btn">Start your trading journal</Link>
@@ -101,6 +106,7 @@ export default function CommandCenterPage() {
         title="Dashboard"
         description={frontendConfig.dataMode === "api" ? "Your trading accounts, performance and risk overview." : "What is happening in your PAPER trading simulation."}
       />
+      <JournalDashboardSummary />
       <div style={{ marginBottom: 12 }}>
         {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
       </div>
