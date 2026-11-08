@@ -52,6 +52,35 @@ class MigrationTransformTests(unittest.TestCase):
         self.assertEqual(migrate.json_value({"api_token":"nope","ok":1,"nested":{"refresh_token":"x","v":2}}),
                          {"ok":1,"nested":{"v":2}})
 
+    def test_invalid_trade_chronology_is_quarantinable_without_rewriting_source(self):
+        row = {
+            "id": "legacy-bad-date", "status": "closed", "result": "loss",
+            "trade_timestamp": "2026-10-17T21:11:00+00:00",
+            "entry_timestamp": None, "exit_timestamp": "2026-10-14T20:18:00+00:00",
+            "created_at": "2026-10-17T21:14:50+00:00",
+        }
+        self.assertTrue(migrate.has_invalid_trade_chronology(row))
+        quarantine = migrate.quarantine_trade_record(row)
+        self.assertEqual(quarantine["source_trade_id"], "legacy-bad-date")
+        self.assertEqual(quarantine["opened_at_source"], row["trade_timestamp"])
+        self.assertEqual(quarantine["exit_timestamp_source"], row["exit_timestamp"])
+        with self.assertRaises(migrate.InvalidTradeChronology):
+            migrate.make_trade(
+                {**row, "direction": "long", "lot_size": "0.01", "entry_price": "1.2",
+                 "exit_price": "1.1"},
+                "account", {}, "user"
+            )
+
+    def test_trade_source_payload_retains_original_timestamps(self):
+        row = {"id":"legacy-1","trade_timestamp":"2026-10-01T09:30:00+00:00",
+               "entry_timestamp":"2026-10-01T09:30:00+00:00",
+               "exit_timestamp":"2026-10-01T10:00:00+00:00","status":"closed",
+               "direction":"long","lot_size":"0.1","entry_price":"1.2","exit_price":"1.3"}
+        result = migrate.make_trade(row, "account", {}, "user")
+        self.assertEqual(result["source_payload"]["source_trade_timestamp"], row["trade_timestamp"])
+        self.assertEqual(result["source_payload"]["source_entry_timestamp"], row["entry_timestamp"])
+        self.assertEqual(result["source_payload"]["source_exit_timestamp"], row["exit_timestamp"])
+
     def test_closed_trade_requires_close_timestamp_and_exit_price(self):
         row = {"id":"trade-1","trade_timestamp":"2026-10-01T09:30:00+00:00",
                "exit_timestamp":None,"status":"closed","direction":"long","account_id":"a1",
