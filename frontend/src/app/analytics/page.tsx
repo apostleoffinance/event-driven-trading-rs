@@ -24,6 +24,8 @@ function percent(value: string | null | undefined) {
 export default function AnalyticsLabPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [accountId, setAccountId] = useState("");
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const [setupFilter, setSetupFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [datePreset, setDatePreset] = useState("all");
@@ -76,8 +78,24 @@ export default function AnalyticsLabPage() {
     if (preset !== "yesterday" && preset !== "lastmonth") setToDate(end);
   };
   const dateFilter = { from: fromDate ? fromDate + "T00:00:00.000Z" : undefined, to: toDate ? toDate + "T23:59:59.999Z" : undefined };
+  const setups = useQuery({
+    queryKey: ["journal", "setups"],
+    queryFn: journalApi.listSetups,
+    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const analyticsOptions = useQuery({
+    queryKey: ["journal", "analytics-filter-options", accountId, fromDate, toDate],
+    queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
+    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
   const analytics = useQuery({
-    queryKey: ["journal", "analytics", accountId, fromDate, toDate],
+    queryKey: ["journal", "analytics", accountId, fromDate, toDate, symbolFilter, setupFilter],
     queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
     enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
@@ -86,8 +104,8 @@ export default function AnalyticsLabPage() {
   });
 
   const recentTrades = useQuery({
-    queryKey: ["journal", "recent-closed-trades", accountId, fromDate, toDate],
-    queryFn: () => journalApi.listTrades({ journal_account_id: accountId || undefined, limit: 10, offset: 0, closed_from: dateFilter.from, closed_to: dateFilter.to }),
+    queryKey: ["journal", "recent-closed-trades", accountId, fromDate, toDate, symbolFilter, setupFilter],
+    queryFn: () => journalApi.listTrades({ journal_account_id: accountId || undefined, limit: 10, offset: 0, closed_from: dateFilter.from, closed_to: dateFilter.to, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
     enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -95,8 +113,8 @@ export default function AnalyticsLabPage() {
   });
 
   const intelligence = useQuery({
-    queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate],
-    queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter }),
+    queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate, symbolFilter, setupFilter],
+    queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
     enabled: authenticated && frontendConfig.dataMode === "api" && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -146,7 +164,9 @@ export default function AnalyticsLabPage() {
           <span>Date range</span><select value={datePreset} onChange={e=>applyDatePreset(e.target.value)}><option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="month">This month</option><option value="lastmonth">Last month</option><option value="ytd">Year to date</option><option value="custom">Custom range</option></select>
           <span>From UTC</span><input type="date" value={fromDate} onChange={e=>{setFromDate(e.target.value);setDatePreset("custom");}} />
           <span>To UTC</span><input type="date" min={fromDate || undefined} value={toDate} onChange={e=>{setToDate(e.target.value);setDatePreset("custom");}} />
-          <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");setDatePreset("all");}}>Reset</button>
+          <span>Instrument</span><select value={symbolFilter} onChange={e=>setSymbolFilter(e.target.value)}><option value="">All instruments</option>{analyticsOptions.data?.by_symbol.map(x=><option key={x.key} value={x.key}>{x.key}</option>)}</select>
+          <span>Setup</span><select value={setupFilter} onChange={e=>setSetupFilter(e.target.value)}><option value="">All setups</option>{setups.data?.filter(x=>!x.archived).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+          <button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");setDatePreset("all");setSymbolFilter("");setSetupFilter("");}}>Reset</button>
         </label>
       </div>
       {accounts.isLoading ? <p className="muted">Loading your Journal accounts…</p> : null}
