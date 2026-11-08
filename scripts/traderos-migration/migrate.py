@@ -171,18 +171,144 @@ def decimal_str(value: Any, default: str | None = None) -> str | None:
         raise ValueError(f"Invalid decimal value: {value!r}") from exc
 
 
-def api_request(base: str, token: str, method: str, path: str, body: Any = None, retries: int = 5) -> Any:
+class TokenManager:
+    """Manage EdgeNest access-token refresh and securely persist token rotation.
+
+    The Identity API consumes each refresh token exactly once. Persist the rotated
+    token pair to the private config before using the new access token.
+    """
+
+    def __init__(
+        self,
+        access_token: str,
+        refresh_token: str | None,
+        identity_api_url: str | None,
+        config: dict[str, Any],
+        config_path: Path | None,
+        source_user_id: str,
+    ) -> None:
+        self.token = str(access_token or "")
+        self.refresh_token = str(refresh_token or "")
+        self.identity_api_url = str(identity_api_url or "").strip().rstrip("/")
+        self.config = config
+        self.config_path = config_path
+        self.source_user_id = str(source_user_id)
+
+    def refresh(self) -> str:
+        if not self.refresh_token:
+            raise RuntimeError(
+                "EdgeNest access token was rejected and no refresh_token is configured. "
+                "Obtain an EdgeNest Identity login token pair and add owner_map[legacy_user_id].refresh_token "
+                "to the private config."
+            )
+        if not self.identity_api_url:
+            raise RuntimeError(
+                "Cannot refresh EdgeNest access token: configure edgenest_identity_api_url "
+                "with the EdgeNest Identity API base URL in the private migration config."
+            )
+        if not self.identity_api_url.startswith("https://") and not self.identity_api_url.startswith("http://localhost"):
+            raise RuntimeError("EdgeNest Identity API URL must use HTTPS (localhost is allowed for tests)")
+        try:
+            import requests
+        except ImportError as exc:
+            raise SystemExit("Missing requests. Install scripts/traderos-migration/requirements.txt") from exc
+
+        try:
+            response = requests.post(
+                self.identity_api_url + "/api/v1/auth/refresh",
+                json={"refresh_token": self.refresh_token},
+                headers={"Content-Type": "application/json"},
+                timeout=(10, 30),
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError(f"EdgeNest token refresh failed: {type(exc).__name__}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError(
+                "EdgeNest refresh token was rejected or expired. Re-authenticate with EdgeNest Identity "
+                "and replace both access_token and refresh_token in the private config."
+            )
+        if response.status_code >= 400:
+            raise RuntimeError(f"EdgeNest token refresh failed with HTTP {response.status_code}")
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise RuntimeError("EdgeNest token refresh returned invalid JSON") from exc
+        new_access = payload.get("access_token") if isinstance(payload, dict) else None
+        new_refresh = payload.get("refresh_token") if isinstance(payload, dict) else None
+        if not isinstance(new_access, str) or not new_access or not isinstance(new_refresh, str) or not new_refresh:
+            raise RuntimeError("EdgeNest token refresh response is missing access_token or refresh_token")
+
+        owner_map = self.config.setdefault("owner_map", {})
+        owner_cfg = owner_map.setdefault(self.source_user_id, {})
+        owner_cfg["jwt"] = new_access
+        owner_cfg["refresh_token"] = new_refresh
+
+        if self.config_path is not None:
+            # Write to a same-directory temp file, chmod before replacement, and
+            # atomically replace the private config so rotated refresh tokens survive.
+            target = self.config_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = target.with_name(target.name + ".tmp")
+            try:
+                temp_path.write_text(json.dumps(self.config, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+                os.chmod(temp_path, 0o600)
+                temp_path.replace(target)
+                os.chmod(target, 0o600)
+            except OSError as exc:
+                temp_path.unlink(missing_ok=True)
+                raise RuntimeError(
+                    "EdgeNest rotated the refresh token, but the private config could not be updated. "
+                    "Restore the new token pair from your Identity login session before retrying."
+                ) from exc
+
+        self.token = new_access
+        self.refresh_token = new_refresh
+        return self.token
+
+
+def make_token_manager(config: dict[str, Any], source_user_id: str,
+                       config_path: Path | None = None) -> TokenManager | None:
+    owner_cfg = config.get("owner_map", {}).get(str(source_user_id), {})
+    access_token = owner_cfg.get("jwt")
+    if not access_token:
+        return None
+    identity_url = (
+        config.get("edgenest_identity_api_url")
+        or config.get("identity_api_url")
+        or owner_cfg.get("identity_api_url")
+    )
+    return TokenManager(
+        access_token=access_token,
+        refresh_token=owner_cfg.get("refresh_token"),
+        identity_api_url=identity_url,
+        config=config,
+        config_path=config_path,
+        source_user_id=str(source_user_id),
+    )
+
+
+def api_request(base: str, token: str | TokenManager, method: str, path: str,
+                body: Any = None, retries: int = 5) -> Any:
     try:
         import requests
     except ImportError as exc:
         raise SystemExit("Missing requests. Install scripts/traderos-migration/requirements.txt") from exc
     url = base.rstrip("/") + path
+    refreshed = False
     for attempt in range(retries):
+        current_token = token.token if isinstance(token, TokenManager) else token
         response = requests.request(
             method, url,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {current_token}", "Content-Type": "application/json"},
             json=body, timeout=(10, 90),
         )
+        # Refresh exactly once per request on 401. Identity refresh rotates the
+        # opaque refresh token, and TokenManager persists that rotation securely.
+        if response.status_code == 401 and isinstance(token, TokenManager) and not refreshed:
+            token.refresh()
+            refreshed = True
+            continue
         if response.status_code in (429, 502, 503, 504) and attempt < retries - 1:
             time.sleep(min(2 ** attempt, 20))
             continue
@@ -202,7 +328,7 @@ def api_request(base: str, token: str, method: str, path: str, body: Any = None,
     raise RuntimeError(f"Retry exhaustion for {method} {path}")
 
 
-def check_destination(base: str, token: str) -> dict[str, Any]:
+def check_destination(base: str, token: str | TokenManager) -> dict[str, Any]:
     """Check API liveness/readiness and verify JWT on an owner-scoped read route."""
     if not base.startswith("https://") and not base.startswith("http://localhost"):
         raise RuntimeError("EdgeNest API URL must use HTTPS (localhost is allowed for tests)")
@@ -433,7 +559,7 @@ def upload_snapshot_archive(prefix: Path, source_user_id: str, storage_cfg: dict
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
 
-def migrate(prefix: Path, config: dict[str, Any], dry_run: bool) -> dict[str, Any]:
+def migrate(prefix: Path, config: dict[str, Any], dry_run: bool, config_path: Path | None = None) -> dict[str, Any]:
     manifest = load_json(prefix)
     source_user = str(manifest["source_user_id"])
     owner_map = config.get("owner_map", {})
@@ -739,7 +865,7 @@ def main() -> int:
         plan["valid"] = plan["valid"] and owner_ok
         print(json.dumps(plan, indent=2))
         return 0 if plan["valid"] else 2
-    report = migrate(prefix, config, args.dry_run)
+    report = migrate(prefix, config, args.dry_run, args.config)
     dump_json(Path(config.get("report_file", "migration-report.json")), report)
     print(json.dumps(report, indent=2))
     return 0 if (args.dry_run and not report["errors"]) or report["complete"] else 2
