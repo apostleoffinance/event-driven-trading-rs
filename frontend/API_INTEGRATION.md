@@ -4,12 +4,9 @@ The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin
 
 ## Origins
 
-## Data mode selection
+## Data source
 
-- An explicit `NEXT_PUBLIC_DATA_MODE=mock` always opts into demo fixtures.
-- An explicit `NEXT_PUBLIC_DATA_MODE=api` uses the authenticated backend.
-- If the mode is omitted, the frontend defaults to API mode. Sample data is never selected automatically.
-- Do not set `NEXT_PUBLIC_DATA_MODE=mock` in production when you expect imported Journal records to appear.
+The frontend is API-only. It does not load seeded or fabricated trading records. If an API is unavailable, the interface displays a loading, error, or empty state rather than substituting sample data.
 
 
 Configure one gateway origin or the three service origins:
@@ -25,7 +22,6 @@ Service-specific origin wins over `NEXT_PUBLIC_API_URL`. Origins should be HTTPS
 
 Set:
 ```env
-NEXT_PUBLIC_DATA_MODE=api
 NEXT_PUBLIC_ENVIRONMENT=PAPER
 NEXT_PUBLIC_IDENTITY_API_URL=https://<identity-api-host>
 NEXT_PUBLIC_JOURNAL_API_URL=https://<journal-api-host>
@@ -77,8 +73,8 @@ Current client implementation stores access and refresh tokens in tab-scoped `se
 ## API mode behavior
 
 - Sample mode (`NEXT_PUBLIC_DATA_MODE=mock`) is available only when explicitly selected.
-- API mode never silently substitutes seeded dashboard fixtures.
-- Trading dashboard read endpoints are exposed by the Rust API under `/api/v1/trading/*` and use bearer JWT authentication plus explicit `dashboard_account_access` ownership grants. Mock data is never substituted in API mode.
+- The frontend never substitutes seeded dashboard fixtures.
+- Trading dashboard read endpoints are exposed by the Rust API under `/api/v1/trading/*` and use bearer JWT authentication plus explicit `dashboard_account_access` ownership grants. No mock data is used in the frontend.
 - Journal and Market Data API routes use real API clients and display loading/error/empty states.
 - Market Data classification/freshness must be checked; a response is not automatically production/live feed data.
 
@@ -99,7 +95,7 @@ The following authenticated GET endpoints are currently implemented by the Journ
 
 The dashboard is intentionally read-only; these endpoints do not submit, cancel, or modify orders.
 
-**Account access:** the core execution accounts predate EdgeNest identity grants. Migration `20261107000002_dashboard_account_access.sql` creates `dashboard_account_access`. Accounts are not automatically exposed to a JWT subject. A trusted provisioning/administrative workflow must explicitly grant an account to the authenticated owner; users must never be able to self-claim an arbitrary trading account. Without grants, API mode returns truthful empty account/position/order data and disconnected/degraded status rather than mock fixtures.
+**Account access:** the core execution accounts predate EdgeNest identity grants. Migration `20261107000002_dashboard_account_access.sql` creates `dashboard_account_access`. Accounts are not automatically exposed to a JWT subject. A trusted provisioning/administrative workflow must explicitly grant an account to the authenticated owner; users must never be able to self-claim an arbitrary trading account. Without grants, The API returns truthful empty account/position/order data and disconnected/degraded status rather than fabricated fixtures.
 
 Risk limits are read from linked risk profile policy JSON. Missing risk limits are returned as `null` and rendered as “Not configured”; open risk and exposure values are unknown when the current schema cannot authoritatively calculate them. System health distinguishes the API/database checks from unavailable risk/OMS/venue runtime telemetry.
 
@@ -123,6 +119,6 @@ Test the deployed frontend from browser devtools/network:
 - Load Journal accounts and trade list; verify empty state if no records.
 - Load Market Data provider/instrument list and request a candle batch.
 - Verify CORS preflight and expired-token refresh.
-- Confirm no mock dashboard figures are shown in API mode.
+- Confirm dashboard figures originate from authenticated API responses.
 
 Backend API hosts are **deployment-specific** and cannot be inferred from the Cloudflare frontend Worker URL. Deploy/route the Rust services first, then set their actual public HTTPS origins. Do not put private service hosts or database ports directly in the browser if a public gateway is available.
