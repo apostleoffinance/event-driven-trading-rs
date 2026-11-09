@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod error;
+pub mod fx_conversion;
 pub mod http;
 pub mod instruments;
 pub mod model;
