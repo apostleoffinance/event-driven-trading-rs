@@ -155,6 +155,7 @@ mod tests {
         let c = cfg(&[]).unwrap();
         assert_eq!(c.bind.to_string(), "127.0.0.1:8787");
         assert!(!c.binance_enabled);
+        assert!(c.biquote_enabled);
         assert_eq!(c.request_timeout, Duration::from_millis(5000));
     }
 
