@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api/client";
 import { getSessionUser, hasSession } from "@/lib/auth/session";
 import { AnalyticsEquityChart } from "@/components/charts/AnalyticsEquityChart";
 import { AnalyticsBreakdownChart } from "@/components/charts/AnalyticsBreakdownChart";
+import { CalendarAnalytics } from "@/components/analytics/CalendarAnalytics";
 
 function money(value: string | null | undefined, currency = "USD") {
   if (value == null) return "—";
@@ -29,13 +30,13 @@ export default function AnalyticsLabPage() {
   const [toDate, setToDate] = useState("");
   const [datePreset, setDatePreset] = useState("all");
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "edge" | "execution" | "behaviour" | "risk">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "edge" | "execution" | "behaviour" | "risk" | "calendar">("overview");
   useEffect(() => {
     setAuthenticated(hasSession());
     setUserEmail(getSessionUser()?.email ?? null);
   }, []);
   useEffect(() => {
-    const allowed = ["overview", "performance", "edge", "execution", "behaviour", "risk"];
+    const allowed = ["overview", "performance", "edge", "execution", "behaviour", "risk", "calendar"];
     const syncTabFromUrl = () => {
       const candidate = window.location.hash.slice(1);
       if (allowed.includes(candidate)) setActiveTab(candidate as typeof activeTab);
@@ -167,7 +168,8 @@ export default function AnalyticsLabPage() {
       {analytics.isLoading && !mixedCurrencies ? <p className="muted analytics-inline-status">Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error analytics-inline-status" role="alert"><p>{analytics.error instanceof ApiError && analytics.error.code === "mixed_currency_analytics" ? "Your selected Journal records contain different P&amp;L currencies. Select a single account/currency or correct trade currency fields before calculating monetary analytics." : "Could not load analytics from your Journal. Check your connection and retry."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
-    {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs">{(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"analytics-tab active":"analytics-tab"} aria-current={activeTab===tab?"page":undefined} onClick={()=>{setActiveTab(tab);if(window.location.hash!==`#${tab}`)window.location.hash=tab;}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab.charAt(0).toUpperCase()+tab.slice(1)}</button>)}</nav>
+    {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs">{(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"analytics-tab active":"analytics-tab"} aria-current={activeTab===tab?"page":undefined} onClick={()=>{setActiveTab(tab);if(window.location.hash!==`#${tab}`)window.location.hash=tab;}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab==="calendar"?"Calendar":tab.charAt(0).toUpperCase()+tab.slice(1)}</button>)}</nav>
+      {activeTab==="calendar" ? <CalendarAnalytics curve={a.equity_curve} currency={displayCurrency} onSelectDate={date=>{setFromDate(date);setToDate(date);setDatePreset("custom");}} /> : null}
       {activeTab==="behaviour" && intelligence.data ? <section className="panel" style={{marginTop:14}}>
         <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
         <p className="muted">95% Wilson win-rate interval: {intelligence.data.win_rate_confidence_95 ? intelligence.data.win_rate_confidence_95.lower_percent.toFixed(1)+"%–"+intelligence.data.win_rate_confidence_95.upper_percent.toFixed(1)+"%" : "Not available"} · Sample: {intelligence.data.sample_status.replaceAll("_"," ")} · n={intelligence.data.trade_count}</p>
