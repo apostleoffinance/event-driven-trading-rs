@@ -8,7 +8,7 @@ import { journalApi, type JournalRiskPolicy } from "@/lib/api/journal";
 type PolicyForm = Record<keyof JournalRiskPolicy, string>;
 const defaultForm: PolicyForm = {
   profile_name:"My risk policy",firm_name:"",program_name:"",account_type:"personal",risk_appetite:"balanced",
-  risk_per_trade_pct:"0.5",max_risk_per_trade_amount:"",max_daily_loss_pct:"",daily_loss_basis:"start_of_day_equity",
+  risk_per_trade_pct:"0.5",max_risk_per_trade_amount:"",max_daily_loss_pct:"",max_daily_risk_pct:"",daily_loss_basis:"start_of_day_equity",
   max_total_drawdown_pct:"",drawdown_basis:"trailing_high_water",max_trades_per_day:"",max_open_positions:"",
   max_total_open_risk_pct:"",minimum_rr:"1",max_lot_size:"",max_leverage:"",
   firm_limits_enforcement:"block",personal_limits_enforcement:"warn",daily_reset_timezone:"Africa/Lagos",notes:"",
@@ -52,7 +52,7 @@ export default function RiskPoliciesPage() {
       profile_name:form.profile_name.trim(),firm_name:form.firm_name.trim()||null,program_name:form.program_name.trim()||null,
       account_type:form.account_type as JournalRiskPolicy["account_type"],risk_appetite:form.risk_appetite as JournalRiskPolicy["risk_appetite"],
       risk_per_trade_pct:number(form.risk_per_trade_pct),max_risk_per_trade_amount:optionalNumber(form.max_risk_per_trade_amount),
-      max_daily_loss_pct:optionalNumber(form.max_daily_loss_pct),daily_loss_basis:form.daily_loss_basis as JournalRiskPolicy["daily_loss_basis"],
+      max_daily_loss_pct:optionalNumber(form.max_daily_loss_pct),max_daily_risk_pct:optionalNumber(form.max_daily_risk_pct),daily_loss_basis:form.daily_loss_basis as JournalRiskPolicy["daily_loss_basis"],
       max_total_drawdown_pct:optionalNumber(form.max_total_drawdown_pct),drawdown_basis:form.drawdown_basis as JournalRiskPolicy["drawdown_basis"],
       max_trades_per_day:optionalNumber(form.max_trades_per_day),max_open_positions:optionalNumber(form.max_open_positions),
       max_total_open_risk_pct:optionalNumber(form.max_total_open_risk_pct),minimum_rr:optionalNumber(form.minimum_rr),
@@ -92,7 +92,7 @@ export default function RiskPoliciesPage() {
         </div><p className="muted">Risk percentage and absolute risk cap are both applied. The effective cap is the stricter limit.</p></section>
         <section className="panel"><h2 className="panel-title">PROP-FIRM / ACCOUNT LIMITS</h2><div className="journal-form-grid">
           <label className="journal-field"><span>Max daily loss (%)</span><input type="number" min="0.001" max="100" step="0.001" value={form.max_daily_loss_pct} onChange={e=>update("max_daily_loss_pct",e.target.value)} placeholder="Optional"/></label>
-          <label className="journal-field"><span>Daily loss basis</span><select value={form.daily_loss_basis} onChange={e=>update("daily_loss_basis",e.target.value)}><option value="initial_balance">Initial account balance</option><option value="start_of_day_balance">Start-of-day balance</option><option value="start_of_day_equity">Start-of-day equity</option></select></label>
+          <label className="journal-field"><span>Max daily risk budget (% equity)</span><input type="number" min="0.001" max="100" step="0.001" value={form.max_daily_risk_pct} onChange={e=>update("max_daily_risk_pct",e.target.value)} placeholder="Optional"/></label><label className="journal-field"><span>Daily loss basis</span><select value={form.daily_loss_basis} onChange={e=>update("daily_loss_basis",e.target.value)}><option value="initial_balance">Initial account balance</option><option value="start_of_day_balance">Start-of-day balance</option><option value="start_of_day_equity">Start-of-day equity</option></select></label>
           <label className="journal-field"><span>Max total drawdown (%)</span><input type="number" min="0.001" max="100" step="0.001" value={form.max_total_drawdown_pct} onChange={e=>update("max_total_drawdown_pct",e.target.value)} placeholder="Optional"/></label>
           <label className="journal-field"><span>Drawdown basis</span><select value={form.drawdown_basis} onChange={e=>update("drawdown_basis",e.target.value)}><option value="static_initial">Static initial balance</option><option value="trailing_high_water">Trailing high-water mark</option></select></label>
           <label className="journal-field"><span>Max trades / day</span><input type="number" min="1" step="1" value={form.max_trades_per_day} onChange={e=>update("max_trades_per_day",e.target.value)} placeholder="Optional"/></label>
