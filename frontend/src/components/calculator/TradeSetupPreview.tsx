@@ -166,8 +166,8 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
   const targetDistance = Math.abs(props.target - props.entry);
   const distancesValid = stopDistance > 0 && targetDistance > 0 && Number.isFinite(stopDistance + targetDistance);
   const totalDistance = stopDistance + targetDistance;
-  const profitPct = distancesValid ? targetDistance / totalDistance * 100 : 50;
-  const lossPct = distancesValid ? stopDistance / totalDistance * 100 : 50;
+  const profitPct = distancesValid ? targetDistance / totalDistance * 100 : 0;
+  const lossPct = distancesValid ? stopDistance / totalDistance * 100 : 0;
   const entryPosition = isLong ? profitPct : lossPct;
   const topIsTarget = isLong;
   const topPrice = topIsTarget ? props.target : props.stop;
@@ -178,7 +178,7 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
   const bottomZone = topIsTarget ? "loss" : "profit";
   const topZonePct = topIsTarget ? profitPct : lossPct;
   const bottomZonePct = topIsTarget ? lossPct : profitPct;
-  const canCopy = props.valid && Number.isFinite(props.entry) && Number.isFinite(props.stop) && Number.isFinite(props.target);
+  const hasRatio = props.rr !== null && Number.isFinite(props.rr) && props.rr > 0;\n  const canCopy = props.valid && Number.isFinite(props.entry) && Number.isFinite(props.stop) && Number.isFinite(props.target);
 
   const copySetup = async () => {
     const lines = [
@@ -296,7 +296,7 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
             <div><span>Potential reward</span><strong className="profit-text">{money(props.reward, props.currency)}</strong></div>
             <div><span>Risk / reward</span><strong>{props.rr === null ? "—" : `1 : ${props.rr.toFixed(2)}`}</strong></div>
             <div><span>Risk / equity</span><strong>{props.riskPct === null ? "—" : props.riskPct.toFixed(3) + "%"}</strong></div>
-            <div><span>Account equity</span><strong>{props.balance === null ? "Not provided" : money(props.balance, props.currency)}</strong></div>
+            <div><span>Account balance / equity</span><strong>{props.balance === null ? "Not provided" : money(props.balance, props.currency)}</strong></div>
             <div><span>Trade direction</span><strong>{isLong ? "Long / Buy" : "Short / Sell"}</strong></div>
           </div>
           <p className="trade-preview-disclaimer">Potential outcomes are estimates before commissions, swaps, slippage and execution differences. They are not guaranteed returns or maximum-loss guarantees.</p>
