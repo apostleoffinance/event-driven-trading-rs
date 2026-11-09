@@ -93,7 +93,7 @@ impl Default for AccountRiskPolicy {
             max_leverage: None,
             firm_limits_enforcement: "block".into(),
             personal_limits_enforcement: "warn".into(),
-            daily_reset_timezone: "UTC".into(),
+            daily_reset_timezone: "Africa/Lagos".into(),
             notes: None,
         }
     }
