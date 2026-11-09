@@ -32,10 +32,13 @@ const money = (value: number | null, currency: string) =>
     ? "—"
     : value.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 2 });
 
-const price = (value: number) =>
-  Number.isFinite(value)
-    ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 8 })
-    : "—";
+const price = (value: number, symbol = "") => {
+  if (!Number.isFinite(value)) return "—";
+  const fxCurrencies = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY"];
+  const isFx = symbol.length === 6 && fxCurrencies.includes(symbol.slice(0, 3)) && fxCurrencies.includes(symbol.slice(3));
+  const decimals = ["XAUUSD", "XAGUSD"].includes(symbol) ? 2 : isFx && symbol.endsWith("JPY") ? 3 : isFx ? 5 : Math.min(8, Math.max(2, value.toString().split(".")[1]?.length ?? 2));
+  return value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
 
 function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: string; entry: number; stop: number; target: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -180,9 +183,9 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
   const copySetup = async () => {
     const lines = [
       `${props.symbol} · ${isLong ? "LONG" : "SHORT"}`,
-      `Entry: ${price(props.entry)}`,
-      `Stop Loss: ${price(props.stop)}`,
-      `Take Profit: ${price(props.target)}`,
+      `Entry: ${price(props.entry, props.symbol)}`,
+      `Stop Loss: ${price(props.stop, props.symbol)}`,
+      `Take Profit: ${price(props.target, props.symbol)}`,
       `Position size: ${props.quantity}`,
       `Risk: ${money(props.risk, props.currency)}`,
       `Potential reward: ${money(props.reward, props.currency)}`,
@@ -230,13 +233,13 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
         <div className="trade-preview-setup-view">
           {props.validationMessage ? <p className="trade-preview-validation" role="alert">{props.validationMessage}</p> : null}
           <div className="trade-preview-level-summary">
-            <div><span>ENTRY PRICE</span><strong>{price(props.entry)}</strong></div>
+            <div><span>ENTRY PRICE</span><strong>{price(props.entry, props.symbol)}</strong></div>
             <span className="trade-preview-rr-pill">{props.rr !== null && Number.isFinite(props.rr) ? `1 : ${props.rr.toFixed(2)} R/R` : "R/R —"}</span>
           </div>
           <div className="trade-preview-plot" aria-label="Price-level visualization">
             <div className="trade-preview-zone-label top">
               <span className={topZone === "profit" ? "profit-text" : "loss-text"}>{topLabel}</span>
-              <strong>{price(topPrice)}</strong>
+              <strong>{price(topPrice, props.symbol)}</strong>
             </div>
             <div className="trade-preview-track" style={{ height: 264 }}>
               <div className={`trade-preview-zone ${topZone}`} style={{ top: 0, height: `${topZonePct}%` }}>
@@ -244,7 +247,7 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
                 <small>{topZone === "profit" ? `Potential reward · ${props.targetPips === null ? "—" : props.targetPips.toFixed(1) + " pips"}` : `Potential loss · ${props.stopPips === null ? "—" : props.stopPips.toFixed(1) + " pips"}`}</small>
               </div>
               <div className="trade-preview-entry-line" style={{ top: `${entryPosition}%` }}>
-                <span>ENTRY</span><strong>{price(props.entry)}</strong>
+                <span>ENTRY</span><strong>{price(props.entry, props.symbol)}</strong>
               </div>
               <div className={`trade-preview-zone ${bottomZone}`} style={{ top: `${entryPosition}%`, height: `${bottomZonePct}%` }}>
                 <span>{bottomZone === "profit" ? `+${money(props.reward, props.currency)}` : `−${money(props.risk, props.currency)}`}</span>
@@ -253,7 +256,7 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
             </div>
             <div className="trade-preview-zone-label bottom">
               <span className={bottomZone === "profit" ? "profit-text" : "loss-text"}>{bottomLabel}</span>
-              <strong>{price(bottomPrice)}</strong>
+              <strong>{price(bottomPrice, props.symbol)}</strong>
             </div>
           </div>
           {!distancesValid ? <p className="trade-preview-validation">Enter valid Stop Loss and Take Profit prices to complete the proportional setup visualization.</p> : null}
@@ -273,9 +276,9 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
       {tab === "chart" ? (
         <div className="trade-preview-chart-view">
           <div className="trade-preview-chart-levels">
-            <span><i className="entry-dot" /> Entry {price(props.entry)}</span>
-            <span><i className="stop-dot" /> Stop {price(props.stop)}</span>
-            <span><i className="target-dot" /> Target {price(props.target)}</span>
+            <span><i className="entry-dot" /> Entry {price(props.entry, props.symbol)}</span>
+            <span><i className="stop-dot" /> Stop {price(props.stop, props.symbol)}</span>
+            <span><i className="target-dot" /> Target {price(props.target, props.symbol)}</span>
           </div>
           <PreviewCandlestickChart symbol={props.symbol} entry={props.entry} stop={props.stop} target={props.target} />
           <p className="trade-preview-disclaimer">Historical candles are retrieved from the configured EdgeNest market-data provider. This preview does not simulate or fabricate market prices.</p>
@@ -286,7 +289,7 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
         <div className="trade-preview-analysis">
           <div className="trade-preview-analysis-grid">
             <div><span>Position size</span><strong>{props.quantity.toLocaleString(undefined, { maximumFractionDigits: 8 })}</strong></div>
-            <div><span>Entry price</span><strong>{price(props.entry)}</strong></div>
+            <div><span>Entry price</span><strong>{price(props.entry, props.symbol)}</strong></div>
             <div><span>Stop distance</span><strong>{props.stopPips === null ? "—" : props.stopPips.toFixed(2) + " pips"}</strong></div>
             <div><span>Target distance</span><strong>{props.targetPips === null ? "—" : props.targetPips.toFixed(2) + " pips"}</strong></div>
             <div><span>Estimated risk</span><strong className="loss-text">{money(props.risk, props.currency)}</strong></div>
