@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { journalApi, type JournalRiskPolicy } from "@/lib/api/journal";
@@ -45,7 +45,7 @@ export default function RiskPoliciesPage() {
   },[policyQuery.data]);
 
   function update<K extends keyof PolicyForm>(key:K,value:PolicyForm[K]){setForm(current=>({...current,[key]:value}));setSaved(false);setError(null);}
-  async function save(event:React.FormEvent<HTMLFormElement>){
+  async function save(event:FormEvent<HTMLFormElement>){
     event.preventDefault();if(!accountId)return;
     setSaving(true);setSaved(false);setError(null);
     const payload:JournalRiskPolicy={
