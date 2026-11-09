@@ -11,9 +11,9 @@ const symbols = [
   { symbol: "GBPUSD", kind: "FX · USD quote", contract: "100000", step: "0.01", pip: "0.0001" },
   { symbol: "AUDUSD", kind: "FX · USD quote", contract: "100000", step: "0.01", pip: "0.0001" },
   { symbol: "NZDUSD", kind: "FX · USD quote", contract: "100000", step: "0.01", pip: "0.0001" },
-  { symbol: "USDJPY", kind: "FX · JPY quote", contract: "100000", step: "0.01", pip: "0.01" },
-  { symbol: "USDCHF", kind: "FX · CHF quote", contract: "100000", step: "0.01", pip: "0.0001" },
-  { symbol: "USDCAD", kind: "FX · CAD quote", contract: "100000", step: "0.01", pip: "0.0001" },
+  { symbol: "USDJPY", kind: "FX · JPY quote · conversion required", contract: "0", step: "0.01", pip: "0.01" },
+  { symbol: "USDCHF", kind: "FX · CHF quote · conversion required", contract: "0", step: "0.01", pip: "0.0001" },
+  { symbol: "USDCAD", kind: "FX · CAD quote · conversion required", contract: "0", step: "0.01", pip: "0.0001" },
   { symbol: "XAUUSD", kind: "Gold · broker contract", contract: "100", step: "0.01", pip: "0.01" },
   { symbol: "BTCUSD", kind: "Crypto · broker contract", contract: "1", step: "0.001", pip: "1" },
   { symbol: "US100", kind: "Index CFD · broker contract", contract: "1", step: "1", pip: "1" },
@@ -57,7 +57,7 @@ export default function CalculatorPage() {
     if (![b,r,e,s,v,qStep,pip].every(Number.isFinite)||b<=0||r<=0||r>100||e<=0||s<=0||e===s||v<=0||qStep<=0||pip<=0) return null;
     if (direction==="long"&&s>=e || direction==="short"&&s<=e) return null;
     const budget=b*r/100, distance=Math.abs(e-s), raw=budget/(distance*v);
-    const quantity=Math.floor((raw+Number.EPSILON)/qStep)*qStep;
+    const quantity=Math.floor(raw/qStep+1e-9)*qStep;
     const risk=quantity*distance*v;
     return {budget,distance,pips:distance/pip,raw,quantity,risk};
   },[balance,riskPct,entry,stop,contractValue,step,pipSize,direction]);
@@ -74,7 +74,7 @@ export default function CalculatorPage() {
         <div className="journal-form-grid">
           <label className="journal-field"><span>Instrument / symbol</span><select value={symbol} onChange={e=>selectSymbol(e.target.value)}>{symbols.map(x=><option key={x.symbol} value={x.symbol}>{x.symbol} · {x.kind}</option>)}</select></label>
           <label className="journal-field"><span>Direction</span><select value={direction} onChange={e=>setDirection(e.target.value as "long"|"short")}><option value="long">Buy / Long</option><option value="short">Sell / Short</option></select></label>
-          <label className="journal-field"><span>Account currency</span><select value={currency} onChange={e=>setCurrency(e.target.value)}>{["USD","EUR","GBP","NGN","CHF","JPY","USDT"].map(x=><option key={x}>{x}</option>)}</select></label>
+          <label className="journal-field"><span>Account currency</span><select value={currency} onChange={e=>{const next=e.target.value;setCurrency(next);if(next!=="USD")setContractValue("0");else setContractValue(symbols.find(x=>x.symbol===symbol)?.contract||"0");}}>{["USD","EUR","GBP","NGN","CHF","JPY","USDT"].map(x=><option key={x}>{x}</option>)}</select></label>
           <label className="journal-field"><span>Account balance</span><input type="number" min="0" step="any" value={balance} onChange={e=>setBalance(e.target.value)}/></label>
           <label className="journal-field"><span>Risk per trade (%)</span><input type="number" min="0" max="100" step="any" value={riskPct} onChange={e=>setRiskPct(e.target.value)}/></label>
           <label className="journal-field"><span>Entry price</span><input type="number" min="0" step="any" value={entry} onChange={e=>setEntry(e.target.value)}/></label>
@@ -100,7 +100,7 @@ export default function CalculatorPage() {
             <label className="journal-field"><span>Journal account (optional)</span><select value={accountId} onChange={e=>setAccountId(e.target.value)}><option value="">Choose account later</option>{accounts.data?.filter(a=>!a.archived).map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
             <Link className="btn primary" href={journalHref}>Add planned trade to Journal</Link>
           </div>
-        </> : <p className="badge warn">Risk budget is smaller than the minimum quantity step. Reduce step size or increase risk budget.</p> : <p className="error">Check inputs: positive values are required, and stop loss must be below entry for Long or above entry for Short.</p>}
+        </> : <p className="badge warn">Risk budget is smaller than the minimum quantity step. Reduce step size or increase risk budget.</p> : <p className="error">Check inputs: positive values are required. Confirm contract value in account currency (set it manually when conversion is required); SL must be below entry for Long or above entry for Short.</p>}
         <p className="muted" style={{marginTop:16,fontSize:12}}>Calculation: risk budget ÷ (absolute entry-to-stop distance × contract value), rounded down to the configured quantity step. No broker order is placed.</p>
       </section>
     </div>
