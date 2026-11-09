@@ -192,18 +192,9 @@ pub struct PolicyEvaluationInput {
     pub risk_amount: Decimal,
     pub potential_reward: Option<Decimal>,
     pub equity: Decimal,
-    pub initial_balance: Option<Decimal>,
     pub start_of_day_balance: Option<Decimal>,
     pub start_of_day_equity: Option<Decimal>,
     pub peak_equity: Option<Decimal>,
-    #[serde(default)]
-    pub daily_pnl: Decimal,
-    #[serde(default)]
-    pub daily_risk_used: Decimal,
-    #[serde(default)]
-    pub trades_today: u32,
-    #[serde(default)]
-    pub open_positions: u32,
     pub lot_size: Option<Decimal>,
     pub trade_notional: Option<Decimal>,
     pub current_open_notional: Option<Decimal>,
