@@ -218,12 +218,15 @@ pub async fn convert(
                     to: to.clone(),
                     source: "BiQuote Live".into(),
                     method: "USD_triangulation".into(),
-                    freshness: if first.freshness == "fresh" && second.freshness == "fresh" {
-                        "fresh"
+                    freshness: if first.freshness == "not_required" {
+                        second.freshness.clone()
+                    } else if second.freshness == "not_required" {
+                        first.freshness.clone()
+                    } else if first.freshness == "fresh" && second.freshness == "fresh" {
+                        "fresh".into()
                     } else {
-                        "stale"
-                    }
-                    .into(),
+                        "stale".into()
+                    },
                     age_seconds: Some(
                         first
                             .age_seconds
