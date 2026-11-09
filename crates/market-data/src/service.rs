@@ -351,6 +351,7 @@ mod tests {
     use crate::providers::binance::{
         BinanceConfig, BinanceProvider, HttpError, HttpGet, HttpResponse,
     };
+    use crate::providers::biquote::{BiQuoteConfig, BiQuoteProvider};
     use crate::providers::demo::DemoProvider;
     use crate::providers::mt5::Mt5Provider;
     use async_trait::async_trait;
@@ -437,6 +438,10 @@ mod tests {
                 Arc::new(DemoProvider),
                 Arc::new(Mt5Provider),
                 Arc::new(BinanceProvider::new(BinanceConfig::default(), NeverCalled)),
+                Arc::new(BiQuoteProvider::new(
+                    BiQuoteConfig { enabled: false, ..Default::default() },
+                    NeverCalled,
+                )),
             ],
             ServiceConfig::default(),
             Arc::new(FixedClock),
