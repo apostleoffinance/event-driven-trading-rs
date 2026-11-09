@@ -1034,3 +1034,17 @@ table {
 .data-table td .btn {
   white-space: nowrap;
 }
+
+.journal-trade-history-table {
+  min-width: 1120px;
+}
+.journal-trade-history-table td.journal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.journal-trade-history-table td.journal-actions .btn {
+  padding: 6px 9px;
+  font-size: 12px;
+}
