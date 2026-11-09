@@ -13,7 +13,7 @@ import {
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
-import { formatMoney, formatNumber, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
+import { formatMoney, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import { frontendConfig } from "@/config/frontend";
 import type {
