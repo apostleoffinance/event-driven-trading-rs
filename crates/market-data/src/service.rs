@@ -439,7 +439,10 @@ mod tests {
                 Arc::new(Mt5Provider),
                 Arc::new(BinanceProvider::new(BinanceConfig::default(), NeverCalled)),
                 Arc::new(BiQuoteProvider::new(
-                    BiQuoteConfig { enabled: false, ..Default::default() },
+                    BiQuoteConfig {
+                        enabled: false,
+                        ..Default::default()
+                    },
                     NeverCalled,
                 )),
             ],
