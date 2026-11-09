@@ -3,7 +3,6 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { marketDataApi } from "@/lib/api/market-data";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MarketAnalysisChartBoundary } from "@/components/charts/MarketAnalysisChartBoundary";
@@ -20,24 +19,20 @@ const MarketAnalysisChart = dynamic(
 
 export default function MarketDataPage() {
   const [instrument, setInstrument] = useState("EURUSD");
-  const [timeframe, setTimeframe] = useState("1m");
+  const [timeframe, setTimeframe] = useState("M1");
   const [provider, setProvider] = useState("mt5-bridge");
-  const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "1m", provider: "mt5-bridge" });
+  const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "M1", provider: "mt5-bridge" });
 
-  const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers(), enabled: frontendConfig.dataMode === "api" });
-  const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: frontendConfig.dataMode === "api" });
-  const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: frontendConfig.dataMode === "api" && Boolean(submitted.instrument) });
-
-  if (frontendConfig.dataMode !== "api") {
-    return <div><PageHeader title="Market Data" description="Explore market prices and historical data." /><section className="panel"><h2>Market data is temporarily unavailable</h2><p>Please try again later. We’ll show verified market data when the service is connected.</p></section></div>;
-  }
+  const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers(), enabled: true });
+  const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: true });
+  const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: true && Boolean(submitted.instrument) });
 
   const error = providers.error ?? instruments.error ?? candles.error;
   const candleData = candles.data;
   return <div>
-    <PageHeader title="Market Data" description="Read-only provider registry, instrument metadata, and candle retrieval from Rust API." />
+    <PageHeader title="Market Data" description="Browse market data providers, instruments, and historical price candles." />
     <MarketAnalysisChartBoundary><MarketAnalysisChart /></MarketAnalysisChartBoundary>
-    {error ? <section className="panel error" role="alert"><h2>Market Data API error</h2><p>{error instanceof Error ? error.message : "Unable to load market data."}</p><p>Verify service URL, provider configuration, CORS, and service readiness.</p><button className="btn" onClick={() => { void providers.refetch(); void instruments.refetch(); void candles.refetch(); }}>Retry</button></section> : null}
+    {error ? <section className="panel error" role="alert"><h2>Market data could not be loaded</h2><p>{error instanceof Error ? error.message : "Unable to load market data."}</p><p>Check your market data connection or try again shortly.</p><button className="btn" onClick={() => { void providers.refetch(); void instruments.refetch(); void candles.refetch(); }}>Retry</button></section> : null}
     <section className="panel">
       <h2 className="panel-title">CANDLE QUERY</h2>
       <form onSubmit={e => { e.preventDefault(); setSubmitted({ instrument, timeframe, provider }); }} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
