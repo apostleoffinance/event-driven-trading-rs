@@ -1434,3 +1434,5 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
   .trade-preview-analysis-grid { grid-template-columns: 1fr 1fr; }
   .trade-preview-chart-meta { flex-wrap: wrap; }
 }
+
+.trade-preview-ratio-empty { color: var(--text-dim); font-size: 10px; text-align: right; }
