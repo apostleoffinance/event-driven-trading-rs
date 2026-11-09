@@ -11,6 +11,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { frontendConfig } from "@/config/frontend";
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
+import { formatPrice } from "@/lib/format";
 
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"] as const;
 type Frame = (typeof FRAMES)[number];
@@ -297,10 +298,10 @@ export function MarketAnalysisChart() {
       {latest ? (
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, marginBottom: 8 }}>
           <strong>{selectedSymbol}</strong>
-          <span>O {latest.open}</span>
-          <span>H {latest.high}</span>
-          <span>L {latest.low}</span>
-          <span style={{ color: latest.close >= latest.open ? "#26a69a" : "#ef5350" }}>C {latest.close}</span>
+          <span>O {formatPrice(latest.open)}</span>
+          <span>H {formatPrice(latest.high)}</span>
+          <span>L {formatPrice(latest.low)}</span>
+          <span style={{ color: latest.close >= latest.open ? "#26a69a" : "#ef5350" }}>C {formatPrice(latest.close)}</span>
           <span>{candles.data?.classification ?? "Source classification unavailable"}</span>
         </div>
       ) : null}
