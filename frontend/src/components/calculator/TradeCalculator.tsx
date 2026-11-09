@@ -62,7 +62,7 @@ export default function TradeCalculator(){
  },[mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction]);
  const stopValue=result&&!('error' in result)&&('stopPrice' in result)?result.stopPrice:stop;
  const targetValue=result&&!('error' in result)&&('targetPrice' in result)?result.targetPrice:target;
- const journalLink=result&&!('error' in result)&&('size' in result)?"/journal?newTrade=1&symbol="+encodeURIComponent(symbol)+"&direction="+direction+"&entry="+encodeURIComponent(entry)+"&stop="+encodeURIComponent(String(stopValue))+"&quantity="+encodeURIComponent(String(result.size))+"&risk="+encodeURIComponent(String(("risk" in result ? result.risk : "")))+"&target="+encodeURIComponent(String(targetValue))+"&account="+encodeURIComponent(account)+"&currency="+encodeURIComponent(currency):"/journal";
+ const journalLink=result&&!('error' in result)&&('size' in result)?"/journal?newTrade=1&symbol="+encodeURIComponent(symbol)+"&direction="+direction+"&entry="+encodeURIComponent(entry)+"&stop="+encodeURIComponent(String(stopValue))+"&quantity="+encodeURIComponent(String(result.size))+"&risk="+encodeURIComponent(String(("risk" in result ? result.risk : "")))+"&take_profit="+encodeURIComponent(String(targetValue))+"&account="+encodeURIComponent(account)+"&currency="+encodeURIComponent(currency):"/journal";
  const needQty=mode==="risk_to_levels"||mode==="trade_analysis"||mode==="target_distance";
  const needSL=mode!=="risk_to_levels"&&mode!=="target_distance";
  const needTP=mode==="trade_analysis";
