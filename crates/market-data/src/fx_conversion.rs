@@ -65,6 +65,27 @@ fn currency(raw: &str) -> Result<String, MarketDataError> {
     Ok(code)
 }
 
+fn resolve_pair(from: &str, to: &str) -> Result<(String, bool), MarketDataError> {
+    let direct = format!("{from}{to}");
+    let inverse = format!("{to}{from}");
+    if INSTRUMENTS
+        .iter()
+        .any(|i| i.id == direct && i.asset_class == AssetClass::Forex)
+    {
+        Ok((direct, false))
+    } else if INSTRUMENTS
+        .iter()
+        .any(|i| i.id == inverse && i.asset_class == AssetClass::Forex)
+    {
+        Ok((inverse, true))
+    } else {
+        Err(MarketDataError::Unsupported {
+            provider: crate::model::ProviderId::BiQuote,
+            reason: format!("No live FX pair mapping is available for {from}/{to}."),
+        })
+    }
+}
+
 async fn pair_rate(
     service: &MarketDataService,
     from: &str,
@@ -85,24 +106,7 @@ async fn pair_rate(
         });
     }
 
-    let direct = format!("{from}{to}");
-    let inverse = format!("{to}{from}");
-    let (symbol, inverted) = if INSTRUMENTS
-        .iter()
-        .any(|i| i.id == direct && i.asset_class == AssetClass::Forex)
-    {
-        (direct, false)
-    } else if INSTRUMENTS
-        .iter()
-        .any(|i| i.id == inverse && i.asset_class == AssetClass::Forex)
-    {
-        (inverse, true)
-    } else {
-        return Err(MarketDataError::Unsupported {
-            provider: crate::model::ProviderId::BiQuote,
-            reason: format!("No live FX pair mapping is available for {from}/{to}."),
-        });
-    };
+    let (symbol, inverted) = resolve_pair(from, to)?;
 
     let query = CandleQuery {
         instrument: Some(symbol.clone()),
@@ -262,6 +266,13 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+
+    #[test]
+    fn resolves_direct_and_inverse_pairs() {
+        assert_eq!(resolve_pair("USD", "JPY").unwrap(), ("USDJPY".into(), false));
+        assert_eq!(resolve_pair("JPY", "USD").unwrap(), ("USDJPY".into(), true));
+        assert_eq!(resolve_pair("USD", "NGN").unwrap(), ("USDNGN".into(), false));
+    }
 
     #[test]
     fn validates_currency_code() {
