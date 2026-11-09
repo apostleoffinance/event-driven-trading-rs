@@ -24,7 +24,7 @@ export default function JournalPage(){
  const [attachmentTradeId,setAttachmentTradeId]=useState<string|null>(null),[attachmentUrl,setAttachmentUrl]=useState(""),[attachmentName,setAttachmentName]=useState("");
  useEffect(()=>{setAuth(hasSession());setEmail(getSessionUser()?.email??null);},[]);
  const accounts=useQuery({queryKey:["journal","accounts"],queryFn:journalApi.listAccounts,enabled:auth});
- const setups=useQuery({queryKey:["journal","setups"],queryFn:journalApi.listSetups,enabled:auth&&frontendConfig.dataMode==="api"});
+ const setups=useQuery({queryKey:["journal","setups"],queryFn:journalApi.listSetups,enabled:auth});
  const trades=useQuery({queryKey:["journal","trades",tradeOffset],queryFn:()=>journalApi.listTrades({limit:100,offset:tradeOffset}),enabled:auth&&frontendConfig.dataMode==="api"});
  const psychology=useQuery({queryKey:["journal","psychology",psychTradeId],queryFn:()=>journalApi.getPsychology(psychTradeId!),enabled:auth&&!!psychTradeId});
  const attachments=useQuery({queryKey:["journal","attachments",attachmentTradeId],queryFn:()=>journalApi.listAttachments(attachmentTradeId!),enabled:auth&&!!attachmentTradeId});
