@@ -13,7 +13,6 @@ import {
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
-import { SimulationControls } from "@/features/simulation/SimulationControls";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import { frontendConfig } from "@/config/frontend";
@@ -104,11 +103,10 @@ export default function CommandCenterPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description={frontendConfig.dataMode === "api" ? "Your trading accounts, performance and risk overview." : "What is happening in your PAPER trading simulation."}
+        description="Your trading accounts, performance and risk overview."
       />
       <JournalDashboardSummary />
       <div style={{ marginBottom: 12 }}>
-        {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
       </div>
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
         <Metric
