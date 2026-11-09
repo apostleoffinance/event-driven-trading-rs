@@ -8,7 +8,7 @@ The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin
 
 - An explicit `NEXT_PUBLIC_DATA_MODE=mock` always opts into demo fixtures.
 - An explicit `NEXT_PUBLIC_DATA_MODE=api` uses the authenticated backend.
-- If the mode is omitted, the frontend selects API mode when any API origin is configured; otherwise it remains in mock/demo mode for local development.
+- If the mode is omitted, the frontend defaults to API mode. Sample data is never selected automatically.
 - Do not set `NEXT_PUBLIC_DATA_MODE=mock` in production when you expect imported Journal records to appear.
 
 
@@ -76,7 +76,7 @@ Current client implementation stores access and refresh tokens in tab-scoped `se
 
 ## API mode behavior
 
-- Mock mode (`NEXT_PUBLIC_DATA_MODE=mock`) remains the explicit demo mode.
+- Sample mode (`NEXT_PUBLIC_DATA_MODE=mock`) is available only when explicitly selected.
 - API mode never silently substitutes seeded dashboard fixtures.
 - Trading dashboard read endpoints are exposed by the Rust API under `/api/v1/trading/*` and use bearer JWT authentication plus explicit `dashboard_account_access` ownership grants. Mock data is never substituted in API mode.
 - Journal and Market Data API routes use real API clients and display loading/error/empty states.
