@@ -83,7 +83,7 @@ export function MarketAnalysisChart() {
   const instruments = useQuery({
     queryKey: ["market-data", "instruments"],
     queryFn: () => marketDataApi.instruments(),
-    enabled: frontendConfig.dataMode === "api",
+    enabled: true,
   });
   const selectedProvider = providers.data?.some((item) => item.id === provider)
     ? provider
