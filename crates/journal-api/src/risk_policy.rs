@@ -169,6 +169,9 @@ pub async fn put(State(state): State<AppState>, headers: HeaderMap, Path(id): Pa
         Err(_) => return not_found(),
     };
     if let Err(message) = validate(&policy) { return error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_policy", message); }
+    let timezone_exists = match sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)")
+        .bind(&policy.daily_reset_timezone).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    if !timezone_exists { return error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_timezone", "Daily reset timezone must be a valid IANA timezone (e.g. Africa/Lagos)."); }
     let json = match serde_json::to_value(&policy) { Ok(v) => v, Err(_) => return internal() };
     match sqlx::query(
         "INSERT INTO journal_account_risk_policies(owner_id,account_id,policy_json,version,updated_at) VALUES($1,$2,$3,1,NOW()) ON CONFLICT(owner_id,account_id) DO UPDATE SET policy_json=EXCLUDED.policy_json,version=journal_account_risk_policies.version+1,updated_at=NOW() RETURNING version,updated_at"
