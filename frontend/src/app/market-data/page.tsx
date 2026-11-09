@@ -20,10 +20,11 @@ const MarketAnalysisChart = dynamic(
 export default function MarketDataPage() {
   const [instrument, setInstrument] = useState("EURUSD");
   const [timeframe, setTimeframe] = useState("M1");
-  const [provider, setProvider] = useState("biquote-live");
+  const [providerOverride, setProviderOverride] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "M1", provider: "biquote-live" });
 
   const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers() });
+  const provider = providerOverride ?? String(instruments.data?.find(i => i.id === instrument)?.default_provider ?? "biquote-live");
   const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: true });
   const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: Boolean(submitted.instrument) });
 
@@ -36,9 +37,9 @@ export default function MarketDataPage() {
     <section className="panel">
       <h2 className="panel-title">CANDLE QUERY</h2>
       <form onSubmit={e => { e.preventDefault(); setSubmitted({ instrument, timeframe, provider }); }} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-        <label className="journal-field"><span>Instrument</span><select value={instrument} onChange={e => setInstrument(e.target.value)}>{(instruments.data ?? []).map(i => <option key={i.id} value={i.id}>{i.symbol ?? i.id}</option>)}</select></label>
+        <label className="journal-field"><span>Instrument</span><select value={instrument} onChange={e => { setInstrument(e.target.value); setProviderOverride(null); }}>{(instruments.data ?? []).map(i => <option key={i.id} value={i.id}>{i.symbol ?? i.id}</option>)}</select></label>
         <label className="journal-field"><span>Timeframe</span><select value={timeframe} onChange={e => setTimeframe(e.target.value)}>{["M1","M5","M15","M30","H1","H4","D1","W1"].map(t => <option key={t}>{t}</option>)}</select></label>
-        <label className="journal-field"><span>Provider</span><select value={provider} onChange={e => setProvider(e.target.value)}>{(providers.data ?? []).filter(isProviderSelectable).map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}</select></label>
+        <label className="journal-field"><span>Provider</span><select value={provider} onChange={e => setProviderOverride(e.target.value)}>{(providers.data ?? []).filter(isProviderSelectable).map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}</select></label>
         <button className="btn primary" type="submit" disabled={providers.isLoading || instruments.isLoading}>Fetch candles</button>
       </form>
       {providers.isLoading || instruments.isLoading ? <p>Loading provider/instrument registry…</p> : null}
