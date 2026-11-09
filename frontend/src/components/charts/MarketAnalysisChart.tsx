@@ -238,7 +238,7 @@ export function MarketAnalysisChart() {
     return (
       <section className="panel">
         <h2 className="panel-title">MARKET ANALYSIS CHART</h2>
-        <p>Connect the Market Data API to render verified OHLC candles. No synthetic candles are shown.</p>
+        <p>Market prices are not available right now. Please check your market data connection and try again.</p>
       </section>
     );
   }
