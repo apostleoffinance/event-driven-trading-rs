@@ -158,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn defaults_are_local_and_binance_disabled() {
+    fn defaults_enable_public_live_market_data() {
         let c = cfg(&[]).unwrap();
         assert_eq!(c.bind.to_string(), "127.0.0.1:8787");
         assert!(c.binance_enabled);
