@@ -9,7 +9,6 @@ import {
   type Time,
 } from "lightweight-charts";
 import { useQuery } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
 import { formatPrice } from "@/lib/format";
 
@@ -79,7 +78,7 @@ export function MarketAnalysisChart() {
   const providers = useQuery({
     queryKey: ["market-data", "providers"],
     queryFn: () => marketDataApi.providers(),
-    enabled: frontendConfig.dataMode === "api",
+    enabled: true,
   });
   const instruments = useQuery({
     queryKey: ["market-data", "instruments"],
@@ -101,7 +100,7 @@ export function MarketAnalysisChart() {
       provider: selectedProvider,
       limit: 500,
     }),
-    enabled: frontendConfig.dataMode === "api" && Boolean(selectedSymbol && selectedProvider),
+    enabled: Boolean(selectedSymbol && selectedProvider),
   });
 
   const chartData = useMemo(
@@ -244,15 +243,6 @@ export function MarketAnalysisChart() {
       });
     }
   }, [sl, tp, chartData, chartReady]);
-
-  if (frontendConfig.dataMode !== "api") {
-    return (
-      <section className="panel">
-        <h2 className="panel-title">MARKET ANALYSIS CHART</h2>
-        <p>Market prices are not available right now. Please check your market data connection and try again.</p>
-      </section>
-    );
-  }
 
   const error = providers.error ?? instruments.error ?? candles.error;
   return (
