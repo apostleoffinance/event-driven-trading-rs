@@ -109,7 +109,7 @@ export function MarketAnalysisChart() {
     [candles.data?.candles],
   );
   const latest = chartData.at(-1);
-  const normalizedSymbol = selectedSymbol.replace(/[^A-Z]/gi, "").toUpperCase();
+  const selectedInstrument = instruments.data?.find((item) => item.id === selectedSymbol);\n  const normalizedSymbol = (selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol).replace(/[^A-Z]/gi, "").toUpperCase();
   const pricePrecision = /JPY$/.test(normalizedSymbol) && normalizedSymbol.length === 6
     ? 3
     : /^[A-Z]{6}$/.test(normalizedSymbol)
