@@ -158,7 +158,8 @@ export function MarketAnalysisChart() {
       borderUpColor: "#26a69a",
       borderDownColor: "#ef5350",
       wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",\n      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
+      wickDownColor: "#ef5350",
+      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
     });
     volumeRef.current = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
