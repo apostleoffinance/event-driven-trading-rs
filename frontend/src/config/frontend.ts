@@ -7,19 +7,12 @@ export type FrontendConfig = {
   eventStreamUrl: string;
 };
 
-const configuredApiOrigin = Boolean(
-  process.env.NEXT_PUBLIC_API_URL?.trim() ||
-  process.env.NEXT_PUBLIC_IDENTITY_API_URL?.trim() ||
-  process.env.NEXT_PUBLIC_JOURNAL_API_URL?.trim() ||
-  process.env.NEXT_PUBLIC_MARKET_DATA_API_URL?.trim()
-);
 const configuredDataMode = process.env.NEXT_PUBLIC_DATA_MODE as "mock" | "api" | undefined;
 
 export const frontendConfig: FrontendConfig = {
   appName: process.env.NEXT_PUBLIC_APP_NAME ?? "EdgeNest",
-  // Explicit mode always wins. If a deployment has configured API origins but
-  // omitted the mode flag, prefer live API-backed data over silent mock mode.
-  dataMode: configuredDataMode ?? (configuredApiOrigin ? "api" : "mock"),
+  // Production defaults to backend-backed data. Sample data is only enabled explicitly.
+  dataMode: configuredDataMode ?? "api",
   eventMode:
     (process.env.NEXT_PUBLIC_EVENT_MODE as "mock" | "websocket" | "sse") ??
     "mock",
