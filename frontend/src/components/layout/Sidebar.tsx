@@ -49,7 +49,7 @@ const sections = [
   },
   {
     title: "RISK",
-    items: [{ href: "/risk", label: "Risk Center", icon: Shield }],
+    items: [{ href: "/risk", label: "Risk Center", icon: Shield }, { href: "/risk/policies", label: "Account Policies", icon: SlidersHorizontal }],
   },
   {
     title: "TOOLS",
