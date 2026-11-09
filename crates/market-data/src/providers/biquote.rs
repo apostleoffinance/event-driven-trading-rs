@@ -116,3 +116,21 @@ impl<H: HttpGet> CandleProvider for BiQuoteProvider<H> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn parses_candles_with_utc_open_times_and_tick_volume() {
+        let body = r#"{"symbol":"EURUSD","interval":"1h","bars":[{"openTime":"2026-11-09T10:00:00Z","open":1.1,"high":1.2,"low":1.0,"close":1.15,"volume":0,"tickVolume":25,"isOpen":true}]}"#;
+        let bars = parse_bars(body).unwrap();
+        assert_eq!(bars.len(), 1);
+        assert_eq!(bars[0].timestamp_ms, 1794218400000);
+        assert_eq!(bars[0].volume, Some(25.0));
+        assert_eq!(bars[0].high, 1.2);
+    }
+    #[test]
+    fn weekly_interval_uses_daily_bars_for_aggregation() {
+        assert_eq!(BiQuoteProvider::<super::super::binance::ReqwestHttp>::interval(Timeframe::W1), "1d");
+    }
+}
