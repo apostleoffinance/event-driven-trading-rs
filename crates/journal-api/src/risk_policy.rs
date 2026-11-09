@@ -286,7 +286,7 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     }
     if let Some(max_dd)=policy.max_total_drawdown_pct {
         let peak=match policy.drawdown_basis.as_str() {
-            "static_initial"=>Some(input.initial_balance.unwrap_or(initial_balance)),
+            "static_initial"=>Some(initial_balance),
             _=>input.peak_equity,
         };
         if let Some(peak)=peak {
