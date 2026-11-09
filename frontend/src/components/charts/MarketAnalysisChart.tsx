@@ -338,7 +338,7 @@ export function MarketAnalysisChart() {
           <label className="journal-field">
             <span>Provider</span>
             <select value={selectedProvider} onChange={(event) => setProviderOverride(event.target.value)}>
-              {(providers.data ?? []).map((item) => (
+              {(providers.data ?? []).filter(isProviderSelectable).map((item) => (
                 <option key={item.id} value={item.id}>{item.name ?? item.id}</option>
               ))}
             </select>
