@@ -272,9 +272,15 @@ mod tests {
 
     #[test]
     fn resolves_direct_and_inverse_pairs() {
-        assert_eq!(resolve_pair("USD", "JPY").unwrap(), ("USDJPY".into(), false));
+        assert_eq!(
+            resolve_pair("USD", "JPY").unwrap(),
+            ("USDJPY".into(), false)
+        );
         assert_eq!(resolve_pair("JPY", "USD").unwrap(), ("USDJPY".into(), true));
-        assert_eq!(resolve_pair("USD", "NGN").unwrap(), ("USDNGN".into(), false));
+        assert_eq!(
+            resolve_pair("USD", "NGN").unwrap(),
+            ("USDNGN".into(), false)
+        );
     }
 
     #[test]
