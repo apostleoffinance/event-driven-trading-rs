@@ -39,7 +39,7 @@ export default function TradeCalculator(){
  const [peakEquity,setPeakEquity]=useState(""),[startDayBalance,setStartDayBalance]=useState(""),[startDayEquity,setStartDayEquity]=useState(""),[currentOpenNotional,setCurrentOpenNotional]=useState("");
  const [entry,setEntry]=useState("1.08500"),[stop,setStop]=useState("1.08000"),[target,setTarget]=useState("1.09500"),[qty,setQty]=useState("0.20");
  const [risk,setRisk]=useState("100"),[reward,setReward]=useState("200"),[contract,setContract]=useState("100000"),[step,setStep]=useState("0.01"),[pip,setPip]=useState("0.0001");
- useEffect(()=>{const a=accounts.data?.find(x=>x.id===account);if(a){setCurrency(a.currency.toUpperCase());setBalance(a.initial_balance);setPolicyAssessmentInput(null);setAssessmentFingerprint("");}},[account,accounts.data]);
+ useEffect(()=>{const a=accounts.data?.find(x=>x.id===account);if(a){setCurrency(a.currency.toUpperCase());setBalance(a.initial_balance);setPeakEquity("");setStartDayBalance("");setStartDayEquity("");setCurrentOpenNotional("");setPolicyAssessmentInput(null);setAssessmentFingerprint("");}},[account,accounts.data]);
  const riskPolicy=useQuery({queryKey:["journal","risk-policy",account],queryFn:()=>journalApi.getRiskPolicy(account),enabled:auth&&Boolean(account)});
  const policyRiskPct=riskPolicy.data?.policy.risk_per_trade_pct;
  useEffect(()=>{if(policyRiskPct!==undefined){setRiskPct(String(policyRiskPct));}},[account,policyRiskPct,riskPolicy.data?.version]);
