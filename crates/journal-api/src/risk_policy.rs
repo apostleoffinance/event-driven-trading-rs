@@ -266,27 +266,35 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     }
     if let Some(max_daily_pct)=policy.max_daily_loss_pct {
         let base=match policy.daily_loss_basis.as_str() {
-            "initial_balance"=>input.initial_balance.unwrap_or(initial_balance),
-            "start_of_day_balance"=>input.start_of_day_balance.unwrap_or(input.equity),
-            _=>input.start_of_day_equity.unwrap_or(input.equity),
+            "initial_balance"=>Some(input.initial_balance.unwrap_or(initial_balance)),
+            "start_of_day_balance"=>input.start_of_day_balance,
+            _=>input.start_of_day_equity,
         };
-        if base <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_daily_loss_basis","Daily-loss calculation base must be positive."); }
-        let max_daily=base*max_daily_pct/Decimal::from(100);
-        let used_loss=(-daily_pnl).max(Decimal::ZERO);
-        if used_loss >= max_daily || used_loss + input.risk_amount >= max_daily {
-            push("daily_loss_limit",format!("Daily loss budget {} {} ({}%) is reached or would be breached by this planned risk.",max_daily,currency,max_daily_pct),&policy.firm_limits_enforcement);
+        if let Some(base)=base {
+            if base <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_daily_loss_basis","Daily-loss calculation base must be positive."); }
+            let max_daily=base*max_daily_pct/Decimal::from(100);
+            let used_loss=(-daily_pnl).max(Decimal::ZERO);
+            if used_loss >= max_daily || used_loss + input.risk_amount >= max_daily {
+                push("daily_loss_limit",format!("Daily loss budget {} {} ({}%) is reached or would be breached by this planned risk.",max_daily,currency,max_daily_pct),&policy.firm_limits_enforcement);
+            }
+        } else {
+            push("daily_loss_reference_missing",format!("Start-of-day account value is required for the configured {} daily-loss basis.",policy.daily_loss_basis),&policy.firm_limits_enforcement);
         }
     }
     if let Some(max_dd)=policy.max_total_drawdown_pct {
         let peak=match policy.drawdown_basis.as_str() {
-            "static_initial"=>input.initial_balance.unwrap_or(initial_balance),
-            _=>input.peak_equity.unwrap_or(input.equity),
+            "static_initial"=>Some(input.initial_balance.unwrap_or(initial_balance)),
+            _=>input.peak_equity,
         };
-        if peak <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_drawdown_basis","Drawdown reference must be positive."); }
-        let dd=(peak-input.equity).max(Decimal::ZERO)/peak*Decimal::from(100);
-        let projected=(peak-input.equity+input.risk_amount).max(Decimal::ZERO)/peak*Decimal::from(100);
-        if dd >= max_dd || projected >= max_dd {
-            push("max_drawdown",format!("Current/projected drawdown {:.4}% / {:.4}% meets or exceeds the configured {}% limit.",dd,projected,max_dd),&policy.firm_limits_enforcement);
+        if let Some(peak)=peak {
+            if peak <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_drawdown_basis","Drawdown reference must be positive."); }
+            let dd=(peak-input.equity).max(Decimal::ZERO)/peak*Decimal::from(100);
+            let projected=(peak-input.equity+input.risk_amount).max(Decimal::ZERO)/peak*Decimal::from(100);
+            if dd >= max_dd || projected >= max_dd {
+                push("max_drawdown",format!("Current/projected drawdown {:.4}% / {:.4}% meets or exceeds the configured {}% limit.",dd,projected,max_dd),&policy.firm_limits_enforcement);
+            }
+        } else {
+            push("peak_equity_missing","Peak equity is required to assess trailing high-water-mark drawdown.".into(),&policy.firm_limits_enforcement);
         }
     }
     if policy.max_trades_per_day.is_some_and(|n| trades_today >= i64::from(n)) {
@@ -304,13 +312,16 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     }
     if let Some(max_leverage)=policy.max_leverage {
         if let Some(trade_notional)=input.trade_notional {
-            let max_notional=input.equity*max_leverage;
-            let current_notional=input.current_open_notional.unwrap_or(Decimal::ZERO);
-            if current_notional+trade_notional > max_notional {
-                push("max_leverage",format!("Current open notional plus planned notional exceeds {}x leverage capacity.",max_leverage),&policy.firm_limits_enforcement);
+            if let Some(current_notional)=input.current_open_notional {
+                let max_notional=input.equity*max_leverage;
+                if current_notional+trade_notional > max_notional {
+                    push("max_leverage",format!("Current open notional plus planned notional exceeds {}x leverage capacity.",max_leverage),&policy.firm_limits_enforcement);
+                }
+            } else {
+                push("current_exposure_missing","Current open notional is required to verify account leverage.".into(),&policy.firm_limits_enforcement);
             }
         } else {
-            push("notional_missing","Trade notional is required to assess leverage.".into(),"warn");
+            push("notional_missing","Trade notional is required to assess leverage.".into(),&policy.firm_limits_enforcement);
         }
     }
     if unconverted_pnl_count > 0 {
