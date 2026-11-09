@@ -34,7 +34,8 @@ export type JournalTrade = {
 type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
 
-export const journalApi = {\n  async getRiskPolicy(accountId: string) {
+export const journalApi = {
+  async getRiskPolicy(accountId: string) {
     requireApiMode();
     return apiRequest<{policy:JournalRiskPolicy;version:number;updated_at:string|null;account_currency?:string}>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {baseUrl:journalBaseUrl()});
   },
