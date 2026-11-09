@@ -132,17 +132,25 @@ async fn pair_rate(
             reason: format!("No current quote available for {symbol}."),
         })?;
 
-    if matches!(
-        quote.freshness,
-        Freshness::Stale | Freshness::Unknown | Freshness::Historical
-    ) && !allow_stale
-    {
-        return Err(MarketDataError::ProviderUnavailable {
-            provider: crate::model::ProviderId::BiQuote,
-            reason: format!(
-                "FX quote {symbol} is stale or unavailable. Explicit stale-data override is required for an estimate."
-            ),
-        });
+    match quote.freshness {
+        Freshness::Fresh => {}
+        Freshness::Stale if allow_stale => {}
+        Freshness::Stale => {
+            return Err(MarketDataError::ProviderUnavailable {
+                provider: crate::model::ProviderId::BiQuote,
+                reason: format!(
+                    "FX quote {symbol} is stale. Explicit stale-data override is required for an estimate."
+                ),
+            });
+        }
+        Freshness::Unknown | Freshness::Historical | Freshness::Demo => {
+            return Err(MarketDataError::ProviderUnavailable {
+                provider: crate::model::ProviderId::BiQuote,
+                reason: format!(
+                    "FX quote {symbol} is not a current live quote; historical/unknown data cannot be used for conversion."
+                ),
+            });
+        }
     }
 
     let raw = Decimal::from_str(&candle.close.to_string()).map_err(|_| {
