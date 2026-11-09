@@ -13,10 +13,8 @@ import {
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
-import { SimulationControls } from "@/features/simulation/SimulationControls";
-import { formatMoney, formatSignedMoney } from "@/lib/format";
+import { formatMoney, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
-import { frontendConfig } from "@/config/frontend";
 import type {
   Account,
   Order,
@@ -80,7 +78,7 @@ export default function CommandCenterPage() {
       </>
     );
 
-  if (frontendConfig.dataMode === "api" && accounts.length === 0) {
+  if (accounts.length === 0) {
     return (
       <>
         <PageHeader title="Your trading dashboard" description="Your trading accounts, performance and risk overview in one place." />
@@ -104,12 +102,9 @@ export default function CommandCenterPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description={frontendConfig.dataMode === "api" ? "Your trading accounts, performance and risk overview." : "What is happening in your PAPER trading simulation."}
+        description="Your trading accounts, performance and risk overview."
       />
       <JournalDashboardSummary />
-      <div style={{ marginBottom: 12 }}>
-        {frontendConfig.dataMode === "mock" ? <SimulationControls /> : null}
-      </div>
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
         <Metric
           label="TOTAL EQUITY"
@@ -195,9 +190,9 @@ export default function CommandCenterPage() {
                   <tr key={p.id}>
                     <td>{p.instrumentId}</td>
                     <td>{p.side}</td>
-                    <td className="num">{p.quantity}</td>
-                    <td className="num">{p.entryPrice}</td>
-                    <td className="num">{p.markPrice}</td>
+                    <td className="num">{formatQuantity(p.quantity)}</td>
+                    <td className="num">{formatPrice(p.entryPrice)}</td>
+                    <td className="num">{formatPrice(p.markPrice)}</td>
                     <td
                       className={`num ${Number(p.unrealizedPnl) >= 0 ? "pos" : "neg"}`}
                     >
@@ -245,7 +240,7 @@ export default function CommandCenterPage() {
                   <td className="num">{new Date(o.updatedAt).toLocaleTimeString()}</td>
                   <td>{o.instrumentId}</td>
                   <td>{o.side}</td>
-                  <td className="num">{o.quantity}</td>
+                  <td className="num">{formatQuantity(o.quantity)}</td>
                   <td>
                     <StatusBadge tone={orderTone(o.status)}>{o.status}</StatusBadge>
                   </td>

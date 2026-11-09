@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatSignedMoney } from "@/lib/format";
+import { formatMoney, formatNumber, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import type { Position } from "@/types/domain";
 
@@ -32,17 +32,17 @@ export default function PositionsPage() {
       {
         accessorKey: "quantity",
         header: "Qty",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+        cell: ({ getValue }) => <span className="num">{formatQuantity(getValue() as string | number)}</span>,
       },
       {
         accessorKey: "entryPrice",
         header: "Entry",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+        cell: ({ getValue }) => <span className="num">{formatPrice(getValue() as string | number)}</span>,
       },
       {
         accessorKey: "markPrice",
         header: "Mark",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+        cell: ({ getValue }) => <span className="num">{formatPrice(getValue() as string | number)}</span>,
       },
       {
         accessorKey: "unrealizedPnl",
@@ -65,13 +65,13 @@ export default function PositionsPage() {
       {
         accessorKey: "exposure",
         header: "Exposure",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+        cell: ({ getValue }) => <span className="num">{formatMoney(String(getValue()))}</span>,
       },
       {
         accessorKey: "riskPct",
         header: "Risk %",
         cell: ({ getValue }) => (
-          <span className="num">{getValue() == null ? "Unknown" : Number(getValue()).toFixed(2)}</span>
+          <span className="num">{getValue() == null ? "Unknown" : formatNumber(Number(getValue()), 2)}</span>
         ),
       },
       {
@@ -131,9 +131,9 @@ export default function PositionsPage() {
             </h2>
             <div className="metric-sub">Account {selected.accountId}</div>
             <div className="metric-sub">Strategy {selected.strategyId ?? "Not attributed"}</div>
-            <div className="metric-sub num">Qty {selected.quantity}</div>
+            <div className="metric-sub num">Qty {formatQuantity(selected.quantity)}</div>
             <div className="metric-sub num">
-              Entry {selected.entryPrice} · Mark {selected.markPrice}
+              Entry {formatPrice(selected.entryPrice)} · Mark {formatPrice(selected.markPrice)}
             </div>
             <div className="metric-sub num">
               uP&L {formatSignedMoney(selected.unrealizedPnl)}

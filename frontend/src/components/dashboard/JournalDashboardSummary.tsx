@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { journalApi } from "@/lib/api/journal";
 import { hasSession } from "@/lib/auth/session";
 
@@ -19,7 +18,7 @@ export function JournalDashboardSummary() {
   const accounts = useQuery({
     queryKey: ["journal", "accounts"],
     queryFn: journalApi.listAccounts,
-    enabled: authenticated && frontendConfig.dataMode === "api",
+    enabled: authenticated,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -29,14 +28,14 @@ export function JournalDashboardSummary() {
     queries: activeAccounts.map(account => ({
       queryKey: ["journal", "analytics", account.id, "dashboard-summary"],
       queryFn: () => journalApi.analyticsSummary({ journal_account_id: account.id }),
-      enabled: authenticated && frontendConfig.dataMode === "api",
+      enabled: authenticated,
       staleTime: 15_000,
       refetchOnWindowFocus: true,
       retry: 1,
     })),
   });
 
-  if (frontendConfig.dataMode !== "api" || !authenticated) return null;
+  if (!authenticated) return null;
   return <section className="panel" style={{ marginBottom: 14 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
       <div><h2 className="panel-title">JOURNAL ACCOUNTS</h2><p className="muted">Imported and manually recorded trading history. These are Journal records—not broker balance/equity.</p></div>

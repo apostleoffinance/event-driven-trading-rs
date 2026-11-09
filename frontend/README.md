@@ -2,8 +2,8 @@
 
 Operational control plane for the Rust quantitative trading infrastructure.
 
-**Mode:** PAPER · mock repositories · mock event stream  
-**Does not** execute trades, evaluate risk, or hold secrets.
+**Mode:** PAPER · API-backed dashboard and Journal  
+The dashboard is read-only for execution. Journal records are owner-scoped; Paper account creation is supported.
 
 ## Setup
 
@@ -28,10 +28,9 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Architecture
 
 ```text
-UI → repository interfaces → MockDataProvider (today)
-                          → ApiDataProvider (future Rust REST)
-UI → useEventStream → MockEventStream (today)
-                   → WebSocket/SSE (future)
+UI → API repository interfaces → authenticated Rust REST services
+UI → TanStack Query (cache/loading) + TanStack Table (sortable grids)
+Event history → authenticated trading-events API (polling)
 UI → TanStack Query (cache/loading) + TanStack Table (sortable grids)
 ```
 
@@ -64,7 +63,7 @@ npm run cloudflare:build
 npx opennextjs-cloudflare preview
 ```
 
-Mock mode works without the Rust backend.
+The frontend uses authenticated API responses only. When a service is unavailable, it displays an explicit error or empty state; it never substitutes fabricated trading records.
 
 ## Related docs
 

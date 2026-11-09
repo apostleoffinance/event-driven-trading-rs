@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { frontendConfig } from "@/config/frontend";
 import { login, register } from "@/lib/auth/session";
 
 export default function LoginPage() {
@@ -26,10 +24,6 @@ export default function LoginPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Authentication failed.");
     } finally { setBusy(false); }
-  }
-
-  if (frontendConfig.dataMode !== "api") {
-    return <section className="panel"><h1>EdgeNest sign in</h1><p>Sign-in is temporarily unavailable. Please try again later.</p><Link className="btn" href="/">Back to dashboard</Link></section>;
   }
 
   return <div style={{ maxWidth: 480, margin: "40px auto" }}>

@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import type { JournalAnalytics } from "@/lib/api/journal";
+import { formatNumber } from "@/lib/format";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 type Group = NonNullable<JournalAnalytics["by_symbol"]>[number];
@@ -30,7 +31,7 @@ export function AnalyticsBreakdownChart({ title, groups, currency = "USD", onSel
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (items: Array<{seriesName:string;value:number;dataIndex:number}>) => { const g=groups[items[0]?.dataIndex ?? 0]; return g ? [g.key, "Trades: "+g.trades, "Net P&L: "+new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(Number(g.net_pnl)), "Win rate: "+Number(g.win_rate_percent).toFixed(1)+"%", "Expectancy: "+new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(Number(g.expectancy))].join("<br/>") : ""; } },
       legend: { data: ["Net P&L", "Win rate"], top: 18, right: 8, textStyle: { color: dim } },
       xAxis: { type: "category", data: groups.map(g => g.key), axisLabel: { color: dim, rotate: groups.length > 6 ? 25 : 0, interval: 0 }, axisLine: { lineStyle: { color: axis } } },
-      yAxis: [{ type: "value", scale: true, axisLabel: { color: dim }, splitLine: { lineStyle: { color: grid } } }, { type: "value", min: 0, max: 100, axisLabel: { color: dim, formatter: "{value}%" }, splitLine: { show: false } }],
+      yAxis: [{ type: "value", scale: true, axisLabel: { color: dim, formatter: (v:number) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(v) }, splitLine: { lineStyle: { color: grid } } }, { type: "value", min: 0, max: 100, axisLabel: { color: dim, formatter: (v:number) => formatNumber(v, 1) + "%" }, splitLine: { show: false } }],
       dataZoom: groups.length > 8 ? [{ type: "inside" }, { type: "slider", height: 14, bottom: 4, textStyle: { color: dim } }] : [],
       series: [
         { name: "Net P&L", type: "bar", data: pnl, itemStyle: { color: line }, barMaxWidth: 34 },

@@ -9,8 +9,8 @@ import {
   type Time,
 } from "lightweight-charts";
 import { useQuery } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
+import { formatPrice } from "@/lib/format";
 
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"] as const;
 type Frame = (typeof FRAMES)[number];
@@ -78,12 +78,12 @@ export function MarketAnalysisChart() {
   const providers = useQuery({
     queryKey: ["market-data", "providers"],
     queryFn: () => marketDataApi.providers(),
-    enabled: frontendConfig.dataMode === "api",
+    enabled: true,
   });
   const instruments = useQuery({
     queryKey: ["market-data", "instruments"],
     queryFn: () => marketDataApi.instruments(),
-    enabled: frontendConfig.dataMode === "api",
+    enabled: true,
   });
   const selectedProvider = providers.data?.some((item) => item.id === provider)
     ? provider
@@ -100,7 +100,7 @@ export function MarketAnalysisChart() {
       provider: selectedProvider,
       limit: 500,
     }),
-    enabled: frontendConfig.dataMode === "api" && Boolean(selectedSymbol && selectedProvider),
+    enabled: Boolean(selectedSymbol && selectedProvider),
   });
 
   const chartData = useMemo(
@@ -108,6 +108,24 @@ export function MarketAnalysisChart() {
     [candles.data?.candles],
   );
   const latest = chartData.at(-1);
+  const selectedInstrument = instruments.data?.find((item) => item.id === selectedSymbol);
+  const normalizedSymbol = (selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol).replace(/[^A-Z]/gi, "").toUpperCase();
+  const fxCurrencies = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY", "SEK", "NOK", "DKK", "SGD", "HKD", "ZAR", "MXN", "PLN", "TRY", "CNH"];
+  const isFxPair = normalizedSymbol.length === 6 && fxCurrencies.includes(normalizedSymbol.slice(0, 3)) && fxCurrencies.includes(normalizedSymbol.slice(3));
+  const decimalPlaces = (value: number) => {
+    const text = value.toString().toLowerCase();
+    if (text.includes("e-")) {
+      const [coefficient, exponent] = text.split("e-");
+      return (coefficient.split(".")[1]?.length ?? 0) + Number(exponent);
+    }
+    return text.split(".")[1]?.length ?? 0;
+  };
+  const inferredPrecision = Math.max(2, ...chartData.flatMap((candle) => [candle.open, candle.high, candle.low, candle.close].map(decimalPlaces)));
+  const pricePrecision = isFxPair && normalizedSymbol.endsWith("JPY")
+    ? 3
+    : isFxPair
+      ? 5
+      : Math.min(8, inferredPrecision);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -140,6 +158,7 @@ export function MarketAnalysisChart() {
       borderDownColor: "#ef5350",
       wickUpColor: "#26a69a",
       wickDownColor: "#ef5350",
+      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
     });
     volumeRef.current = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
@@ -154,6 +173,7 @@ export function MarketAnalysisChart() {
       priceLineVisible: false,
       lastValueVisible: false,
       title: "SMA 20",
+      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
     });
     chartRef.current = chart;
     setChartReady(true);
@@ -174,7 +194,7 @@ export function MarketAnalysisChart() {
       slLineRef.current = null;
       tpLineRef.current = null;
     };
-  }, []);
+  }, [pricePrecision]);
 
   useEffect(() => {
     if (!chartReady || !candleRef.current || !volumeRef.current || !smaRef.current) return;
@@ -223,15 +243,6 @@ export function MarketAnalysisChart() {
       });
     }
   }, [sl, tp, chartData, chartReady]);
-
-  if (frontendConfig.dataMode !== "api") {
-    return (
-      <section className="panel">
-        <h2 className="panel-title">MARKET ANALYSIS CHART</h2>
-        <p>Connect the Market Data API to render verified OHLC candles. No synthetic candles are shown.</p>
-      </section>
-    );
-  }
 
   const error = providers.error ?? instruments.error ?? candles.error;
   return (
@@ -287,10 +298,10 @@ export function MarketAnalysisChart() {
       {latest ? (
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, marginBottom: 8 }}>
           <strong>{selectedSymbol}</strong>
-          <span>O {latest.open}</span>
-          <span>H {latest.high}</span>
-          <span>L {latest.low}</span>
-          <span style={{ color: latest.close >= latest.open ? "#26a69a" : "#ef5350" }}>C {latest.close}</span>
+          <span>O {formatPrice(latest.open)}</span>
+          <span>H {formatPrice(latest.high)}</span>
+          <span>L {formatPrice(latest.low)}</span>
+          <span style={{ color: latest.close >= latest.open ? "#26a69a" : "#ef5350" }}>C {formatPrice(latest.close)}</span>
           <span>{candles.data?.classification ?? "Source classification unavailable"}</span>
         </div>
       ) : null}

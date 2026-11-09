@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { journalApi } from "@/lib/api/journal";
 import { ApiError } from "@/lib/api/client";
 import { getSessionUser, hasSession } from "@/lib/auth/session";
@@ -49,7 +48,7 @@ export default function AnalyticsLabPage() {
   const accounts = useQuery({
     queryKey: ["journal", "accounts"],
     queryFn: journalApi.listAccounts,
-    enabled: authenticated && frontendConfig.dataMode === "api",
+    enabled: authenticated,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -81,7 +80,7 @@ export default function AnalyticsLabPage() {
   const setups = useQuery({
     queryKey: ["journal", "setups"],
     queryFn: journalApi.listSetups,
-    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess,
+    enabled: authenticated && accounts.isSuccess,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -89,7 +88,7 @@ export default function AnalyticsLabPage() {
   const analyticsOptions = useQuery({
     queryKey: ["journal", "analytics-filter-options", accountId, fromDate, toDate],
     queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter }),
-    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
+    enabled: authenticated && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -97,7 +96,7 @@ export default function AnalyticsLabPage() {
   const analytics = useQuery({
     queryKey: ["journal", "analytics", accountId, fromDate, toDate, symbolFilter, setupFilter],
     queryFn: () => journalApi.analyticsSummary({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
-    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
+    enabled: authenticated && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -106,7 +105,7 @@ export default function AnalyticsLabPage() {
   const recentTrades = useQuery({
     queryKey: ["journal", "recent-closed-trades", accountId, fromDate, toDate, symbolFilter, setupFilter],
     queryFn: () => journalApi.listTrades({ journal_account_id: accountId || undefined, limit: 10, offset: 0, closed_from: dateFilter.from, closed_to: dateFilter.to, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
-    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
+    enabled: authenticated && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -115,16 +114,12 @@ export default function AnalyticsLabPage() {
   const intelligence = useQuery({
     queryKey: ["journal", "analytics-intelligence", accountId, fromDate, toDate, symbolFilter, setupFilter],
     queryFn: () => journalApi.analyticsIntelligence({ journal_account_id: accountId || undefined, ...dateFilter, symbol: symbolFilter || undefined, setup_id: setupFilter || undefined }),
-    enabled: authenticated && frontendConfig.dataMode === "api" && accounts.isSuccess && !mixedCurrencies,
+    enabled: authenticated && accounts.isSuccess && !mixedCurrencies,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
     retry: 1,
   });
 
-  if (frontendConfig.dataMode !== "api") return <div>
-    <header className="page-header"><div><h1>Analytics Lab</h1><p>Trader performance intelligence from EdgeNest Journal.</p></div><span className="badge warn">Analytics unavailable</span></header>
-    <section className="panel"><h2>Connect your trading journal</h2><p>Analytics will be available once your trading journal is connected and you have recorded closed trades.</p><Link className="btn" href="/journal">Open Journal</Link></section>
-  </div>;
   if (!authenticated) return <div>
     <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance analytics based on your Journal records.</p></div><span className="badge warn">Sign-in required</span></header>
     <section className="panel"><h2>Authentication required</h2><p>Sign in to see your private Journal analytics.</p><Link className="btn" href="/login">Sign in</Link></section>
@@ -206,6 +201,6 @@ export default function AnalyticsLabPage() {
       </section>
       <section className="panel" style={{marginTop:14,display:activeTab==="overview"||activeTab==="risk"?"":"none"}}><p className="muted">{a.notice ?? "Analytics are descriptive historical calculations, not forecasts or trading advice."}</p></section>
     </>:null}
-    {a && a.trade_count === 0 && !mixedCurrencies ? <section className="panel" style={{marginTop:14}}><h2>No closed trades in this range</h2><p className="muted">Analytics Lab only calculates performance from closed Journal trades with realized P&amp;L. No placeholder or sample results are shown.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Link href="/journal" className="btn primary">Add or import Journal trades</Link><button type="button" className="btn" onClick={()=>{setFromDate("");setToDate("");setDatePreset("all");}}>View all time</button></div></section> : null}
+    {a && a.trade_count === 0 && !mixedCurrencies ? <section className="panel" style={{marginTop:14}}><h2>No closed trades in this range</h2><p className="muted">Analytics Lab only calculates performance from closed Journal trades with realized P&amp;L. Analytics will appear once eligible closed trades are available.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><Link href="/journal" className="btn primary">Add or import Journal trades</Link><button type="button" className="btn" onClick={()=>{setFromDate("");setToDate("");setDatePreset("all");}}>View all time</button></div></section> : null}
   </div>;
 }
