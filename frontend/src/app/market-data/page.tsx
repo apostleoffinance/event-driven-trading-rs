@@ -23,9 +23,9 @@ export default function MarketDataPage() {
   const [provider, setProvider] = useState("mt5-bridge");
   const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "M1", provider: "mt5-bridge" });
 
-  const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers(), enabled: true });
+  const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers() });
   const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: true });
-  const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: true && Boolean(submitted.instrument) });
+  const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: Boolean(submitted.instrument) });
 
   const error = providers.error ?? instruments.error ?? candles.error;
   const candleData = candles.data;
