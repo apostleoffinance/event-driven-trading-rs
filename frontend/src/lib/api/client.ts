@@ -1,5 +1,4 @@
 import { getAccessToken, refreshSession, clearSession } from "@/lib/auth/session";
-import { frontendConfig } from "@/config/frontend";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly code?: string) {
@@ -60,7 +59,6 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 }
 
 export function requireApiMode(): void {
-  if (frontendConfig.dataMode !== "api") throw new Error("This feature is unavailable while sample data mode is enabled.");
   const configured = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_IDENTITY_API_URL || process.env.NEXT_PUBLIC_JOURNAL_API_URL || process.env.NEXT_PUBLIC_MARKET_DATA_API_URL;
   if (!configured?.trim()) throw new Error("Set NEXT_PUBLIC_API_URL or at least one service-specific API URL.");
 }
