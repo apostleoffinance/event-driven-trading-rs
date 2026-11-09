@@ -110,15 +110,18 @@ export function MarketAnalysisChart() {
   );
   const latest = chartData.at(-1);
   const selectedInstrument = instruments.data?.find((item) => item.id === selectedSymbol);\n  const normalizedSymbol = (selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol).replace(/[^A-Z]/gi, "").toUpperCase();
-  const pricePrecision = /JPY$/.test(normalizedSymbol) && normalizedSymbol.length === 6
-    ? 3
-    : /^[A-Z]{6}$/.test(normalizedSymbol)
-      ? 5
-      : /^(BTC|ETH)/.test(normalizedSymbol)
-        ? 2
-        : /^(XAU|XAG|US30|NAS|SPX)/.test(normalizedSymbol)
-          ? 2
-          : 6;
+  const isMajorCrypto = /^(BTC|ETH)(USD|USDT|USDC)?$/.test(normalizedSymbol);
+  const fxCurrencies = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY", "SEK", "NOK", "DKK", "SGD", "HKD", "ZAR", "MXN", "PLN", "TRY", "CNH"];
+  const isFxPair = normalizedSymbol.length === 6 && fxCurrencies.includes(normalizedSymbol.slice(0, 3)) && fxCurrencies.includes(normalizedSymbol.slice(3));
+  const pricePrecision = /^(XAU|XAG|US30|NAS|SPX|DJI|DAX)/.test(normalizedSymbol)
+    ? 2
+    : isMajorCrypto
+      ? 2
+      : isFxPair && normalizedSymbol.endsWith("JPY")
+        ? 3
+        : isFxPair
+          ? 5
+          : 8;
 
   useEffect(() => {
     const node = containerRef.current;
