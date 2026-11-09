@@ -65,7 +65,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const instrument = instrumentsQuery.data?.find((item) =>
     item.id === trade.symbol || item.symbol?.toUpperCase() === trade.symbol.toUpperCase(),
   );
-  const selectedProvider = providerOverride || String(instrument?.default_provider ?? "");
+  const fallbackProvider = providersQuery.data?.find((item) => {\n    if (!item.status || typeof item.status !== "object") return true;\n    const state = String((item.status as { state?: unknown }).state ?? "").toLowerCase();\n    return !["disabled", "unavailable", "not_implemented"].includes(state);\n  })?.id ?? "";\n  const selectedProvider = providerOverride || String(instrument?.default_provider ?? fallbackProvider);
   const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) &&
     new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
 
