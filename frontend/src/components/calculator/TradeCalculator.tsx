@@ -46,7 +46,7 @@ export default function TradeCalculator(){
  const conversion=useQuery({queryKey:["fx-conversion",quoteCurrency,currency,allowStaleFx],queryFn:()=>marketDataApi.fxConvert({from:quoteCurrency,to:currency,amount:1,allow_stale:allowStaleFx}),enabled:quoteCurrency!==currency,staleTime:30000,refetchInterval:30000,refetchIntervalInBackground:false,retry:1});
  const quoteToAccountRate=quoteCurrency===currency?1:(conversion.data?Number(conversion.data.rate):null);
  const conversionFresh=quoteCurrency===currency||Boolean(conversion.data&&(conversion.data.freshness==="fresh"||allowStaleFx));
- const currentAssessmentFingerprint=JSON.stringify([account,mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction,quoteCurrency,currency,quoteToAccountRate,conversion.data?.freshness,conversion.data?.timestamp,allowStaleFx,riskPolicy.data?.version]);
+ const currentAssessmentFingerprint=JSON.stringify([account,mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction,peakEquity,startDayBalance,startDayEquity,currentOpenNotional,quoteCurrency,currency,quoteToAccountRate,conversion.data?.freshness,conversion.data?.timestamp,allowStaleFx,riskPolicy.data?.version]);
  const policyAssessment=useQuery({queryKey:["journal","risk-policy-assessment",account,assessmentRun,policyAssessmentInput],queryFn:()=>journalApi.evaluateRiskPolicy(account,policyAssessmentInput!),enabled:Boolean(account&&policyAssessmentInput)});
  const selectInstrument=(s:string)=>{const p=presets.find(x=>x.symbol===s)!;setSymbol(s);setQuoteCurrency(p.quote);setContract(String(p.contract));setStep(String(p.step));setPip(String(p.pip));setEntry(p.entry);setStop(p.sl);setPolicyAssessmentInput(null);};
  const result=useMemo(()=>{
