@@ -65,9 +65,16 @@ impl Config {
             Some(_) => return Err("MARKET_DATA_BINANCE_ENABLED must be true or false".into()),
         };
 
-        let biquote_enabled = match get("MARKET_DATA_BIQUOTE_ENABLED").as_deref() { None | Some("") | Some("true") | Some("1") => true, Some("false") | Some("0") => false, Some(_) => return Err("MARKET_DATA_BIQUOTE_ENABLED must be true or false".into()), };
-        let biquote_base_url = get("MARKET_DATA_BIQUOTE_BASE_URL").unwrap_or_else(|| "https://biquote.io".into());
-        if !biquote_base_url.starts_with("http://") && !biquote_base_url.starts_with("https://") { return Err("MARKET_DATA_BIQUOTE_BASE_URL must be an http(s) URL".into()); }
+        let biquote_enabled = match get("MARKET_DATA_BIQUOTE_ENABLED").as_deref() {
+            None | Some("") | Some("true") | Some("1") => true,
+            Some("false") | Some("0") => false,
+            Some(_) => return Err("MARKET_DATA_BIQUOTE_ENABLED must be true or false".into()),
+        };
+        let biquote_base_url =
+            get("MARKET_DATA_BIQUOTE_BASE_URL").unwrap_or_else(|| "https://biquote.io".into());
+        if !biquote_base_url.starts_with("http://") && !biquote_base_url.starts_with("https://") {
+            return Err("MARKET_DATA_BIQUOTE_BASE_URL must be an http(s) URL".into());
+        }
 
         let binance_base_url =
             get("MARKET_DATA_BINANCE_BASE_URL").unwrap_or_else(|| "https://api.binance.com".into());
