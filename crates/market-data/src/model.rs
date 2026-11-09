@@ -139,7 +139,9 @@ impl FromStr for ProviderId {
         .into_iter()
         .find(|p| p.as_str().eq_ignore_ascii_case(s.trim()))
         .ok_or_else(|| {
-            format!("unknown provider '{s}'; expected demo, binance-public, mt5-bridge or biquote-live")
+            format!(
+                "unknown provider '{s}'; expected demo, binance-public, mt5-bridge or biquote-live"
+            )
         })
     }
 }
