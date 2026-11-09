@@ -1048,3 +1048,8 @@ table {
   padding: 6px 9px;
   font-size: 12px;
 }
+
+.data-table th.num .th-btn {
+  width: 100%;
+  text-align: right;
+}
