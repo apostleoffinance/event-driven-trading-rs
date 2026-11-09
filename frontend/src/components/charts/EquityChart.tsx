@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { useTheme } from "@/features/theme/ThemeProvider";
-import { moneyToNumber } from "@/lib/format";
+import { formatMoney, formatNumber, moneyToNumber } from "@/lib/format";
 import type { EquityPoint } from "@/types/domain";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
@@ -34,7 +34,11 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
         fontSize: 12,
       },
       grid: { left: 52, right: 20, top: 28, bottom: 36 },
-      tooltip: { trigger: "axis" },
+      tooltip: {
+        trigger: "axis",
+        formatter: (items: Array<{ seriesName: string; value: number; axisValue: string }>) =>
+          [items[0]?.axisValue ?? "", ...items.map((item) => item.seriesName + ": " + (item.seriesName === "Equity" ? formatMoney(item.value) : formatNumber(item.value, 2) + "%"))].join("<br/>"),
+      },
       legend: {
         data: ["Equity", "Drawdown %"],
         textStyle: { color: muted, fontSize: 12 },
@@ -43,7 +47,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
       xAxis: {
         type: "category",
         data: series.map((p) => p.time),
-        axisLabel: { color: dim, fontSize: 12 },
+        axisLabel: { color: dim, fontSize: 12, formatter: (value: number) => formatNumber(value, 2) },
         axisLine: { lineStyle: { color: axis } },
       },
       yAxis: [
