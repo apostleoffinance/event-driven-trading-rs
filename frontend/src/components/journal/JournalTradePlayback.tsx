@@ -174,7 +174,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
         time: candles[candles.length - 1].time,
         position: trade.direction === "long" ? "aboveBar" as const : "belowBar" as const,
         color: "#f59e0b",
-        shape: "circle" as const,
+        shape: trade.direction === "long" ? "arrowDown" as const : "arrowUp" as const,
         text: "Exit",
       });
     }
