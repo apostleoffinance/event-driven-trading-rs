@@ -60,8 +60,8 @@ impl Config {
             .map_err(|e| format!("MARKET_DATA_BIND: {e}"))?;
 
         let binance_enabled = match get("MARKET_DATA_BINANCE_ENABLED").as_deref() {
-            None | Some("") | Some("false") | Some("0") => false,
-            Some("true") | Some("1") => true,
+            None | Some("") | Some("true") | Some("1") => true,
+            Some("false") | Some("0") => false,
             Some(_) => return Err("MARKET_DATA_BINANCE_ENABLED must be true or false".into()),
         };
 
@@ -161,7 +161,7 @@ mod tests {
     fn defaults_are_local_and_binance_disabled() {
         let c = cfg(&[]).unwrap();
         assert_eq!(c.bind.to_string(), "127.0.0.1:8787");
-        assert!(!c.binance_enabled);
+        assert!(c.binance_enabled);
         assert!(c.biquote_enabled);
         assert_eq!(c.request_timeout, Duration::from_millis(5000));
     }
