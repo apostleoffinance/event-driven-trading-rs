@@ -170,9 +170,24 @@ def main() -> int:
     launchd = {}
     if platform.system() == "Darwin":
         r = run(["launchctl", "list"])
-        launchd = {"available": r.get("exit_code") == 0,
-                   "matching_jobs": [line for line in r.get("stdout", "").splitlines()
-                     if "com.quantos.mt5-" in line] if r.get("exit_code") == 0 else []}
+        jobs = []
+        if r.get("exit_code") == 0:
+            for line in r.get("stdout", "").splitlines():
+                fields = line.split(None, 2)
+                if len(fields) != 3 or not fields[2].startswith("com.quantos.mt5-"):
+                    continue
+                pid = fields[0]
+                job = {"pid": pid if pid.isdigit() else None,
+                       "last_exit_status": fields[1], "label": fields[2]}
+                if pid.isdigit() and shutil.which("lsof"):
+                    cwd_r = run(["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"])
+                    exe_r = run(["lsof", "-a", "-p", pid, "-d", "txt", "-Fn"])
+                    job["working_directory"] = next(
+                        (x[1:] for x in cwd_r.get("stdout", "").splitlines() if x.startswith("n")), None)
+                    job["executable_path"] = next(
+                        (x[1:] for x in exe_r.get("stdout", "").splitlines() if x.startswith("n")), None)
+                jobs.append(job)
+        launchd = {"available": r.get("exit_code") == 0, "matching_jobs": jobs}
     listeners = {}
     if shutil.which("lsof"):
         for port in PORTS:
