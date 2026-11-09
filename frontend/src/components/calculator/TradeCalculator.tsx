@@ -25,7 +25,6 @@ const modes: {id:Mode;name:string;hint:string}[] = [
  {id:"target_distance",name:"Target profit → TP",hint:"Calculate target from desired profit"},
 ];
 const num=(v:string)=>Number(v);
-const fmtMoney=(v:number,c:string)=>v.toLocaleString("en-US",{style:"currency",currency:c,maximumFractionDigits:2});
 const roundDown=(v:number,step:number)=>Math.floor(v/step+1e-10)*step;
 
 export default function TradeCalculator(){
@@ -95,7 +94,7 @@ export default function TradeCalculator(){
   const riskPctValue="riskPct" in result&&typeof result.riskPct==="number"?Number(result.riskPct):null;
   const valid=Number.isFinite(size)&&size>0&&stopValid&&targetValid&&riskValue!==null&&riskValue>0&&rewardValue!==null&&rewardValue>0;
   return {valid,message:!stopValid?"Set a valid Stop Loss on the correct side of entry.":!targetValid?"Set a valid Take Profit on the correct side of entry.":riskValue===null||rewardValue===null?"Complete the risk and reward inputs to finish the preview.":undefined,size,risk:riskValue,reward:rewardValue,stopPips:stopPipsValue,targetPips:targetPipsValue,rr:rrValue,riskPct:riskPctValue,stop:stopPriceValue,target:targetPriceValue};
- },[result,qty,stopValue,targetValue,direction,entry]);
+ },[result,qty,stopValue,targetValue,direction,entry,stop,target]);
  const journalLink=previewData.valid?"/journal?newTrade=1&symbol="+encodeURIComponent(symbol)+"&direction="+direction+"&entry="+encodeURIComponent(entry)+"&stop="+encodeURIComponent(String(stopValue))+"&quantity="+encodeURIComponent(String(previewData.size))+"&risk="+encodeURIComponent(String(previewData.risk))+"&take_profit="+encodeURIComponent(String(targetValue))+"&account="+encodeURIComponent(account)+"&currency="+encodeURIComponent(currency):"/journal";
  const needQty=mode==="risk_to_levels"||mode==="trade_analysis"||mode==="target_distance";
  const needSL=mode!=="risk_to_levels";
