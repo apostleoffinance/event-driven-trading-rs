@@ -28,10 +28,9 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Architecture
 
 ```text
-UI → repository interfaces → MockDataProvider (today)
-                          → ApiDataProvider (future Rust REST)
-UI → useEventStream → MockEventStream (today)
-                   → WebSocket/SSE (future)
+UI → API repository interfaces → authenticated Rust REST services
+UI → TanStack Query (cache/loading) + TanStack Table (sortable grids)
+Event history → authenticated trading-events API (polling)
 UI → TanStack Query (cache/loading) + TanStack Table (sortable grids)
 ```
 
