@@ -110,18 +110,22 @@ export function MarketAnalysisChart() {
   );
   const latest = chartData.at(-1);
   const selectedInstrument = instruments.data?.find((item) => item.id === selectedSymbol);\n  const normalizedSymbol = (selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol).replace(/[^A-Z]/gi, "").toUpperCase();
-  const isMajorCrypto = /^(BTC|ETH)(USD|USDT|USDC)?$/.test(normalizedSymbol);
   const fxCurrencies = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY", "SEK", "NOK", "DKK", "SGD", "HKD", "ZAR", "MXN", "PLN", "TRY", "CNH"];
   const isFxPair = normalizedSymbol.length === 6 && fxCurrencies.includes(normalizedSymbol.slice(0, 3)) && fxCurrencies.includes(normalizedSymbol.slice(3));
-  const pricePrecision = /^(XAU|XAG|US30|NAS|SPX|DJI|DAX)/.test(normalizedSymbol)
-    ? 2
-    : isMajorCrypto
-      ? 2
-      : isFxPair && normalizedSymbol.endsWith("JPY")
-        ? 3
-        : isFxPair
-          ? 5
-          : 8;
+  const decimalPlaces = (value: number) => {
+    const text = value.toString().toLowerCase();
+    if (text.includes("e-")) {
+      const [coefficient, exponent] = text.split("e-");
+      return (coefficient.split(".")[1]?.length ?? 0) + Number(exponent);
+    }
+    return text.split(".")[1]?.length ?? 0;
+  };
+  const inferredPrecision = Math.max(2, ...chartData.flatMap((candle) => [candle.open, candle.high, candle.low, candle.close].map(decimalPlaces)));
+  const pricePrecision = isFxPair && normalizedSymbol.endsWith("JPY")
+    ? 3
+    : isFxPair
+      ? 5
+      : Math.min(8, inferredPrecision);
 
   useEffect(() => {
     const node = containerRef.current;
