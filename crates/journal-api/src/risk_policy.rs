@@ -219,9 +219,9 @@ pub async fn put(
     };
     let (currency, _initial_balance) =
         match owned_account(state.store.pool(), &claims.sub, &id).await {
-        Ok(account) => account,
-        Err(_) => return not_found(),
-    };
+            Ok(account) => account,
+            Err(_) => return not_found(),
+        };
     if let Err(message) = validate(&policy) {
         return error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_policy", message);
     }
@@ -276,11 +276,15 @@ pub async fn evaluate(
     Path(id): Path<String>,
     Json(input): Json<PolicyEvaluationInput>,
 ) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(e) => return e.into_response() };
-    let (currency, initial_balance) = match owned_account(state.store.pool(), &claims.sub, &id).await {
-        Ok(account) => account,
-        Err(_) => return not_found(),
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
     };
+    let (currency, initial_balance) =
+        match owned_account(state.store.pool(), &claims.sub, &id).await {
+            Ok(account) => account,
+            Err(_) => return not_found(),
+        };
     if input.risk_amount <= Decimal::ZERO
         || input.equity <= Decimal::ZERO
         || input.lot_size.is_some_and(|v| v <= Decimal::ZERO)
@@ -386,11 +390,25 @@ pub async fn evaluate(
         .max_risk_per_trade_amount
         .map_or(per_trade_cap, |v| per_trade_cap.min(v));
     if input.risk_amount > effective_cap {
-        push("trade_risk_cap", format!("Planned risk {} {} exceeds the effective per-trade cap {} {}.", input.risk_amount, currency, effective_cap, currency), &policy.personal_limits_enforcement);
+        push(
+            "trade_risk_cap",
+            format!(
+                "Planned risk {} {} exceeds the effective per-trade cap {} {}.",
+                input.risk_amount, currency, effective_cap, currency
+            ),
+            &policy.personal_limits_enforcement,
+        );
     }
     if let (Some(min_rr), Some(reward)) = (policy.minimum_rr, input.potential_reward) {
         if reward <= Decimal::ZERO || reward / input.risk_amount < min_rr {
-            push("minimum_rr",format!("Planned reward/risk is below the configured minimum {}R.",min_rr),&policy.personal_limits_enforcement);
+            push(
+                "minimum_rr",
+                format!(
+                    "Planned reward/risk is below the configured minimum {}R.",
+                    min_rr
+                ),
+                &policy.personal_limits_enforcement,
+            );
         }
     }
     if let Some(max_daily_risk_pct) = policy.max_daily_risk_pct {
@@ -442,20 +460,38 @@ pub async fn evaluate(
                 push("max_drawdown",format!("Current/projected drawdown {:.4}% / {:.4}% meets or exceeds the configured {}% limit.",dd,projected,max_dd),&policy.firm_limits_enforcement);
             }
         } else {
-            push("peak_equity_missing","Peak equity is required to assess trailing high-water-mark drawdown.".into(),&policy.firm_limits_enforcement);
+            push(
+                "peak_equity_missing",
+                "Peak equity is required to assess trailing high-water-mark drawdown.".into(),
+                &policy.firm_limits_enforcement,
+            );
         }
     }
     if policy
         .max_trades_per_day
         .is_some_and(|n| trades_today >= i64::from(n))
     {
-        push("max_trades_per_day",format!("Daily trade limit of {} has been reached.",policy.max_trades_per_day.unwrap_or(0)),&policy.firm_limits_enforcement);
+        push(
+            "max_trades_per_day",
+            format!(
+                "Daily trade limit of {} has been reached.",
+                policy.max_trades_per_day.unwrap_or(0)
+            ),
+            &policy.firm_limits_enforcement,
+        );
     }
     if policy
         .max_open_positions
         .is_some_and(|n| open_positions >= i64::from(n))
     {
-        push("max_open_positions",format!("Open-position limit of {} has been reached.",policy.max_open_positions.unwrap_or(0)),&policy.firm_limits_enforcement);
+        push(
+            "max_open_positions",
+            format!(
+                "Open-position limit of {} has been reached.",
+                policy.max_open_positions.unwrap_or(0)
+            ),
+            &policy.firm_limits_enforcement,
+        );
     }
     if let Some(max_open_risk_pct) = policy.max_total_open_risk_pct {
         let used = current_open_risk;
@@ -472,10 +508,18 @@ pub async fn evaluate(
                     push("max_leverage",format!("Current open notional plus planned notional exceeds {}x leverage capacity.",max_leverage),&policy.firm_limits_enforcement);
                 }
             } else {
-                push("current_exposure_missing","Current open notional is required to verify account leverage.".into(),&policy.firm_limits_enforcement);
+                push(
+                    "current_exposure_missing",
+                    "Current open notional is required to verify account leverage.".into(),
+                    &policy.firm_limits_enforcement,
+                );
             }
         } else {
-            push("notional_missing","Trade notional is required to assess leverage.".into(),&policy.firm_limits_enforcement);
+            push(
+                "notional_missing",
+                "Trade notional is required to assess leverage.".into(),
+                &policy.firm_limits_enforcement,
+            );
         }
     }
     if policy.max_daily_loss_pct.is_some() && open_positions > 0 {
@@ -498,13 +542,27 @@ pub async fn evaluate(
         push("daily_risk_data_missing",format!("{} trade(s) opened today have no recorded risk amount; the daily-risk budget is incomplete.",missing_daily_risk_count),"warn");
     }
     if missing_open_risk_count > 0 {
-        push("open_risk_data_missing",format!("{} open trade(s) have no recorded risk amount; open-risk totals are incomplete.",missing_open_risk_count),"warn");
+        push(
+            "open_risk_data_missing",
+            format!(
+                "{} open trade(s) have no recorded risk amount; open-risk totals are incomplete.",
+                missing_open_risk_count
+            ),
+            "warn",
+        );
     }
     if policy
         .max_lot_size
         .is_some_and(|max| input.lot_size.is_some_and(|lot| lot > max))
     {
-        push("max_lot_size",format!("Requested lot size exceeds configured maximum {}.",policy.max_lot_size.unwrap_or(Decimal::ZERO)),&policy.personal_limits_enforcement);
+        push(
+            "max_lot_size",
+            format!(
+                "Requested lot size exceeds configured maximum {}.",
+                policy.max_lot_size.unwrap_or(Decimal::ZERO)
+            ),
+            &policy.personal_limits_enforcement,
+        );
     }
     let status = if blocked {
         "blocked"
@@ -544,7 +602,7 @@ mod tests {
 
     #[test]
     fn policy_requires_hard_firm_enforcement_option() {
-        let mut policy=AccountRiskPolicy::default();
+        let mut policy = AccountRiskPolicy::default();
         policy.firm_limits_enforcement = "ignore".into();
         assert!(validate(&policy).is_err());
     }
