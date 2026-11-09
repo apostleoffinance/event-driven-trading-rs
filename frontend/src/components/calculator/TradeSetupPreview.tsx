@@ -263,10 +263,10 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
           </div>
           {!distancesValid ? <p className="trade-preview-validation">Enter valid Stop Loss and Take Profit prices to complete the proportional setup visualization.</p> : null}
           <div className="trade-preview-outcomes">
-            <div className="trade-preview-outcome loss-outcome"><span>MAXIMUM RISK</span><strong>{money(props.risk, props.currency)}</strong></div>
-            <div className="trade-preview-outcome profit-outcome"><span>POTENTIAL REWARD</span><strong>{money(props.reward, props.currency)}</strong></div>
+            <div className="trade-preview-outcome loss-outcome" title="Estimated amount at risk if the stop-loss is filled at the specified price, before commissions, swaps and slippage."><span>MAXIMUM RISK</span><strong>{money(props.risk, props.currency)}</strong></div>
+            <div className="trade-preview-outcome profit-outcome" title="Estimated reward if the take-profit is filled at the specified price, before commissions, swaps and slippage."><span>POTENTIAL REWARD</span><strong>{money(props.reward, props.currency)}</strong></div>
           </div>
-          <div className="trade-preview-ratio">
+          <div className="trade-preview-ratio" title="Risk/reward compares the estimated potential reward with the estimated amount at risk.">
             <div><span>RISK / REWARD</span><strong>{props.rr !== null && Number.isFinite(props.rr) ? `1 : ${props.rr.toFixed(2)}` : "—"}</strong></div>
             {hasRatio ? <div className="trade-preview-ratio-bar" aria-label="Risk and reward proportion">
               <span style={{ flex: 1 }} /><span style={{ flex: props.rr as number }} />
