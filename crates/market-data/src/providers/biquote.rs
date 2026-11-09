@@ -10,7 +10,7 @@ use crate::error::MarketDataError;
 use crate::instruments::Instrument;
 use crate::model::{Candle, DataClass, ProviderId, ProviderStatus, Timeframe};
 use crate::provider::{CandleProvider, ProviderRequest};
-use super::binance::{HttpError, HttpGet, HttpResponse};
+use super::binance::{HttpError, HttpGet};
 
 const ID: ProviderId = ProviderId::BiQuote;
 
