@@ -54,6 +54,14 @@ pub struct FxConversionResponse {
     pub disclaimer: &'static str,
 }
 
+fn freshness_usable(freshness: &Freshness, allow_stale: bool) -> bool {
+    match freshness {
+        Freshness::Fresh => true,
+        Freshness::Stale => allow_stale,
+        Freshness::Unknown | Freshness::Historical | Freshness::Demo => false,
+    }
+}
+
 fn currency(raw: &str) -> Result<String, MarketDataError> {
     let code = raw.trim().to_ascii_uppercase();
     if code.len() != 3 || !code.bytes().all(|b| b.is_ascii_uppercase()) {
@@ -131,25 +139,20 @@ async fn pair_rate(
             reason: format!("No current quote available for {symbol}."),
         })?;
 
-    match quote.freshness {
-        Freshness::Fresh => {}
-        Freshness::Stale if allow_stale => {}
-        Freshness::Stale => {
-            return Err(MarketDataError::ProviderUnavailable {
-                provider: crate::model::ProviderId::BiQuote,
-                reason: format!(
-                    "FX quote {symbol} is stale. Explicit stale-data override is required for an estimate."
-                ),
-            });
-        }
-        Freshness::Unknown | Freshness::Historical | Freshness::Demo => {
-            return Err(MarketDataError::ProviderUnavailable {
-                provider: crate::model::ProviderId::BiQuote,
-                reason: format!(
-                    "FX quote {symbol} is not a current live quote; historical/unknown data cannot be used for conversion."
-                ),
-            });
-        }
+    if !freshness_usable(&quote.freshness, allow_stale) {
+        let reason = if quote.freshness == Freshness::Stale {
+            format!(
+                "FX quote {symbol} is stale. Explicit stale-data override is required for an estimate."
+            )
+        } else {
+            format!(
+                "FX quote {symbol} is not a current live quote; historical/unknown data cannot be used for conversion."
+            )
+        };
+        return Err(MarketDataError::ProviderUnavailable {
+            provider: crate::model::ProviderId::BiQuote,
+            reason,
+        });
     }
 
     let raw = Decimal::from_str(&candle.close.to_string()).map_err(|_| {
@@ -288,6 +291,16 @@ mod tests {
             resolve_pair("USD", "NGN").unwrap(),
             ("USDNGN".into(), false)
         );
+    }
+
+    #[test]
+    fn freshness_policy_rejects_stale_without_override_and_historical_always() {
+        assert!(freshness_usable(&Freshness::Fresh, false));
+        assert!(!freshness_usable(&Freshness::Stale, false));
+        assert!(freshness_usable(&Freshness::Stale, true));
+        assert!(!freshness_usable(&Freshness::Unknown, true));
+        assert!(!freshness_usable(&Freshness::Historical, true));
+        assert!(!freshness_usable(&Freshness::Demo, true));
     }
 
     #[test]
