@@ -76,7 +76,7 @@ export default function TradeCalculator(){
   }
   if(!Number.isFinite(sl)||!Number.isFinite(tp)||sl<=0||tp<=0||(direction==="long"?(sl>=e||tp<=e):(sl<=e||tp>=e)))return {error:"For Long, SL must be below entry and TP above. For Short, reverse these levels."};
   const dist=Math.abs(e-sl),targetDist=Math.abs(tp-e),estimatedRisk=q*dist*cv*fx,potentialReward=q*targetDist*cv*fx;
-  return {size:q,dist,pips:dist/ps,stopPips:dist,targetDist:targetDist,targetPips:targetDist/ps,risk:estimatedRisk,reward:potentialReward,riskPct:estimatedRisk/b*100,rr:potentialReward/estimatedRisk};
+  return {size:q,dist,pips:dist/ps,stopPips:dist/ps,targetDist:targetDist,targetPips:targetDist/ps,risk:estimatedRisk,reward:potentialReward,riskPct:estimatedRisk/b*100,rr:potentialReward/estimatedRisk};
  },[mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction,quoteToAccountRate,conversionFresh,quoteCurrency,currency,allowStaleFx]);
  const stopValue=result&&!('error' in result)&&('stopPrice' in result)&&typeof result.stopPrice==="number"?result.stopPrice:num(stop);
  const targetValue=result&&!('error' in result)&&('targetPrice' in result)&&typeof result.targetPrice==="number"?result.targetPrice:num(target);
