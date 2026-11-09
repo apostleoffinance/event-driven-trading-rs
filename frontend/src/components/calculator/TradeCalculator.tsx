@@ -92,7 +92,7 @@ export default function TradeCalculator(){
     </div><p className="muted" style={{fontSize:12,marginTop:12}}>Contract value and FX quote-to-account conversion are broker-dependent. Verify instrument contract/tick values, especially non-USD FX, gold, CFDs and crypto. Results are estimates; no order is placed.</p>
    </section>
    <section className="panel"><h2 className="panel-title">CALCULATION RESULTS</h2>{result&&"error" in result?<p className="error" role="alert">{result.error}</p>:result?<>
-    {"budget" in result&&<div className="metric"><span className="metric-label">Risk budget</span><strong className="metric-value">{fmtMoney(result.budget,currency)}</strong></div>}
+    {"budget" in result&&<div className="metric"><span className="metric-label">Risk budget</span><strong className="metric-value">{fmtMoney(result.budget ?? 0,currency)}</strong></div>}
     {"size" in result&&<div className="metric" style={{marginTop:12}}><span className="metric-label">Position size</span><strong className="metric-value pos">{Number(result.size).toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
     <div className="journal-result-grid" style={{marginTop:14}}>
      {"dist" in result&&<div><span className="metric-label">Price distance</span><strong className="metric-value">{Number(result.dist).toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
