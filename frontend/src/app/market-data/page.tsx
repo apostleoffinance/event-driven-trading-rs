@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { marketDataApi } from "@/lib/api/market-data";
+import { isProviderSelectable, marketDataApi, providerStatusLabel } from "@/lib/api/market-data";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MarketAnalysisChartBoundary } from "@/components/charts/MarketAnalysisChartBoundary";
 
@@ -38,7 +38,7 @@ export default function MarketDataPage() {
       <form onSubmit={e => { e.preventDefault(); setSubmitted({ instrument, timeframe, provider }); }} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
         <label className="journal-field"><span>Instrument</span><select value={instrument} onChange={e => setInstrument(e.target.value)}>{(instruments.data ?? []).map(i => <option key={i.id} value={i.id}>{i.symbol ?? i.id}</option>)}</select></label>
         <label className="journal-field"><span>Timeframe</span><select value={timeframe} onChange={e => setTimeframe(e.target.value)}>{["M1","M5","M15","M30","H1","H4","D1","W1"].map(t => <option key={t}>{t}</option>)}</select></label>
-        <label className="journal-field"><span>Provider</span><select value={provider} onChange={e => setProvider(e.target.value)}>{(providers.data ?? []).map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}</select></label>
+        <label className="journal-field"><span>Provider</span><select value={provider} onChange={e => setProvider(e.target.value)}>{(providers.data ?? []).filter(isProviderSelectable).map(p => <option key={p.id} value={p.id}>{p.name ?? p.id}</option>)}</select></label>
         <button className="btn primary" type="submit" disabled={providers.isLoading || instruments.isLoading}>Fetch candles</button>
       </form>
       {providers.isLoading || instruments.isLoading ? <p>Loading provider/instrument registry…</p> : null}
@@ -51,6 +51,6 @@ export default function MarketDataPage() {
     <section className="panel" style={{ marginTop: 12 }}><h2 className="panel-title">LATEST CANDLES</h2>
       {candles.isLoading ? <p>Fetching candles…</p> : candleData?.candles?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Time</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead><tbody>{candleData.candles.slice(-30).reverse().map((c, i) => <tr key={String(c.timestamp_ms ?? i)}><td>{new Date(c.timestamp_ms).toLocaleString()}</td><td className="num">{c.open}</td><td className="num">{c.high}</td><td className="num">{c.low}</td><td className="num">{c.close}</td><td className="num">{c.volume ?? "—"}</td></tr>)}</tbody></table></div> : !error ? <p>No candles returned for the selected instrument/provider. Provider status and classification determine whether the source is available.</p> : null}
     </section>
-    <section className="panel" style={{ marginTop: 12 }}><h2 className="panel-title">PROVIDER REGISTRY</h2>{providers.data?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Provider</th><th>State</th></tr></thead><tbody>{providers.data.map(p => <tr key={p.id}><td>{p.name ?? p.id}</td><td>{p.status ? JSON.stringify(p.status) : "—"}</td></tr>)}</tbody></table></div> : !providers.isLoading ? <p>No providers returned.</p> : null}</section>
+    <section className="panel" style={{ marginTop: 12 }}><h2 className="panel-title">PROVIDER REGISTRY</h2>{providers.data?.length ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Provider</th><th>State</th></tr></thead><tbody>{providers.data.map(p => <tr key={p.id}><td>{p.name ?? p.id}</td><td>{providerStatusLabel(p)}</td></tr>)}</tbody></table></div> : !providers.isLoading ? <p>No providers returned.</p> : null}</section>
   </div>;
 }
