@@ -67,7 +67,7 @@ export default function TradeCalculator(){
   if(mode==="risk_to_levels"){
    if(!Number.isFinite(q)||q<=0||r<=0||rw<=0)return {error:"Quantity, risk amount and target reward must be positive."};
    const slDist=r/(q*cv*fx),tpDist=rw/(q*cv*fx);
-   return {size:q,budget:r,dist:slDist,pips:slDist/ps,risk:r,reward:rw,rr:rw/r,stopPrice:e+(direction==="long"?-1:1)*slDist,targetPrice:e+(direction==="long"?1:-1)*tpDist,targetDist:tpDist,targetPips:tpDist/ps};
+   return {size:q,budget:r,dist:slDist,pips:slDist/ps,risk:r,riskPct:r/b*100,reward:rw,rr:rw/r,stopPrice:e+(direction==="long"?-1:1)*slDist,targetPrice:e+(direction==="long"?1:-1)*tpDist,targetDist:tpDist,targetPips:tpDist/ps};
   }
   if(!Number.isFinite(q)||q<=0)return {error:"Position quantity must be positive."};
   if(mode==="target_distance"){
@@ -82,7 +82,7 @@ export default function TradeCalculator(){
  const stopValue=result&&!('error' in result)&&('stopPrice' in result)&&typeof result.stopPrice==="number"?result.stopPrice:num(stop);
  const targetValue=result&&!('error' in result)&&('targetPrice' in result)&&typeof result.targetPrice==="number"?result.targetPrice:num(target);
  const previewData=useMemo(()=>{
-  if(!result||"error" in result)return {valid:false,message:result&&"error" in result?result.error:"Enter your trade details to calculate."};
+  if(!result||"error" in result)return {valid:false,message:result&&"error" in result?result.error:"Enter your trade details to calculate.",size:num(qty),risk:null,reward:null,stopPips:null,targetPips:null,rr:null,riskPct:null,stop:num(stop),target:num(target)};
   const size="size" in result?Number(result.size):num(qty);
   const riskValue="risk" in result&&typeof result.risk==="number"?Number(result.risk):null;
   const rewardValue="reward" in result&&typeof result.reward==="number"?Number(result.reward):null;
