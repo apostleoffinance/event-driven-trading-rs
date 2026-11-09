@@ -1131,3 +1131,32 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .journal-screenshot-meta strong{font-size:12px}.journal-screenshot-meta .muted{font-size:11px}
 .journal-screenshot-actions{display:flex;gap:7px;flex-wrap:wrap}
 @media(max-width:560px){.journal-screenshot-grid{grid-template-columns:1fr}.journal-screenshot-preview img{height:200px}}
+
+/* TraderOS-style calculator and calendar analytics */
+.calculator-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.calculator-mode{display:grid;gap:4px;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-2);color:var(--text);min-width:0}
+.calculator-mode strong{font-size:13px;font-weight:600}
+.calculator-mode small{font-size:11px;color:var(--text-muted);line-height:1.35}
+.calculator-mode.active{border-color:var(--accent);background:var(--accent-soft)}
+.calendar-analytics{margin-top:14px;display:grid;gap:14px}
+.calendar-analytics-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.calendar-analytics-head h2{margin:4px 0;font-size:20px}
+.calendar-nav{display:flex;gap:6px;align-items:center}
+.calendar-month-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.calendar-analytics-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.calendar-weekday{text-align:center;padding:6px;font-size:11px;color:var(--text-muted);font-weight:600}
+.calendar-day{min-width:0;min-height:84px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:4px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-2);color:var(--text);text-align:left}
+.calendar-day:not(:disabled){cursor:pointer}
+.calendar-day:not(:disabled):hover{border-color:var(--accent);transform:translateY(-1px)}
+.calendar-day.blank{border-color:transparent;background:transparent}
+.calendar-day.future{opacity:.35}
+.calendar-day:disabled{cursor:default}
+.calendar-day-num{font-size:11px;color:var(--text-muted)}
+.calendar-day strong{font-family:var(--font-mono);font-size:12px;max-width:100%;overflow-wrap:anywhere}
+.calendar-day small{font-size:10px;color:var(--text-muted)}
+.calendar-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);align-items:center}
+.calendar-legend span{display:flex;gap:6px;align-items:center}
+.calendar-legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.calendar-legend i.pos{background:var(--positive)}
+.calendar-legend i.neg{background:var(--negative)}
+@media(max-width:900px){.calculator-modes{grid-template-columns:1fr}.calendar-day{min-height:64px;padding:5px}.calendar-day strong{font-size:10px}.calendar-day small{font-size:9px}.calendar-month-stats{grid-template-columns:1fr}}

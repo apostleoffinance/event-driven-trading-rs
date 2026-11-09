@@ -16,6 +16,7 @@ import {
   Scale,
   Server,
   Shield,
+  SlidersHorizontal,
   Wallet,
 } from "lucide-react";
 
@@ -49,7 +50,7 @@ const sections = [
   },
   {
     title: "RISK",
-    items: [{ href: "/risk", label: "Risk Center", icon: Shield }],
+    items: [{ href: "/risk", label: "Risk Center", icon: Shield }, { href: "/risk/policies", label: "Account Policies", icon: SlidersHorizontal }],
   },
   {
     title: "TOOLS",
@@ -86,7 +87,8 @@ export function Sidebar({
             const active =
               item.href === "/"
                 ? pathname === "/"
-                : pathname.startsWith(item.href);
+                : pathname === item.href ||
+                  (item.href !== "/risk" && pathname.startsWith(`${item.href}/`));
             return (
               <Link
                 key={item.href}

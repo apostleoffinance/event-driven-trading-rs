@@ -17,6 +17,7 @@ mod imports;
 mod intelligence;
 mod psychology;
 mod resources;
+mod risk_policy;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -128,6 +129,14 @@ async fn main() {
                 .put(resources::update_account)
                 .patch(resources::update_account)
                 .delete(resources::archive_account),
+        )
+        .route(
+            "/api/v1/journal/accounts/{id}/risk-policy",
+            get(risk_policy::get).put(risk_policy::put),
+        )
+        .route(
+            "/api/v1/journal/accounts/{id}/risk-policy/evaluate",
+            axum::routing::post(risk_policy::evaluate),
         )
         .route(
             "/api/v1/journal/accounts/{id}/migration-metadata",

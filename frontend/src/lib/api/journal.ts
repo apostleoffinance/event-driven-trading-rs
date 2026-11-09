@@ -8,6 +8,20 @@ export type JournalAccount = {
 export type JournalSetup = {
   id: string; name: string; description?: string | null; rules_json: Record<string, unknown>; archived?: boolean;
 };
+export type JournalRiskPolicy = {
+  profile_name: string; firm_name: string | null; program_name: string | null;
+  account_type: "personal" | "prop" | "challenge" | "funded" | "demo";
+  risk_appetite: "conservative" | "balanced" | "aggressive" | "custom";
+  risk_per_trade_pct: number; max_risk_per_trade_amount: number | null;
+  max_daily_loss_pct: number | null; max_daily_risk_pct: number | null; daily_loss_basis: "initial_balance" | "start_of_day_balance" | "start_of_day_equity";
+  max_total_drawdown_pct: number | null; drawdown_basis: "static_initial" | "trailing_high_water";
+  max_trades_per_day: number | null; max_open_positions: number | null;
+  max_total_open_risk_pct: number | null; minimum_rr: number | null;
+  max_lot_size: number | null; max_leverage: number | null;
+  firm_limits_enforcement: "block" | "warn"; personal_limits_enforcement: "block" | "warn";
+  daily_reset_timezone: string; notes: string | null;
+};
+export type JournalRiskPolicyEnvelope = { policy: JournalRiskPolicy; version: number; updated_at: string | null; account_currency?: string };
 export type JournalTrade = {
   id: string; journal_account_id: string; setup_id?: string | null; symbol: string;
   direction: "long" | "short"; status: string; source: string; source_system?: string | null;
@@ -21,6 +35,19 @@ type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
 
 export const journalApi = {
+  async getRiskPolicy(accountId: string) {
+    requireApiMode();
+    return apiRequest<{policy:JournalRiskPolicy;version:number;updated_at:string|null;account_currency?:string}>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {baseUrl:journalBaseUrl()});
+  },
+  async saveRiskPolicy(accountId: string, policy: JournalRiskPolicy) {
+    requireApiMode();
+    return apiRequest<JournalRiskPolicyEnvelope>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(policy)});
+  },
+  async evaluateRiskPolicy(accountId: string, input: {currency:string;risk_amount:number;potential_reward?:number|null;equity:number;start_of_day_balance?:number;start_of_day_equity?:number;peak_equity?:number;lot_size?:number;trade_notional?:number;current_open_notional?:number}) {
+    requireApiMode();
+    return apiRequest<Record<string,unknown>>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy/evaluate`, {method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+  },
+
   async listAttachments(tradeId: string) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{baseUrl:journalBaseUrl()})).data;
   },
