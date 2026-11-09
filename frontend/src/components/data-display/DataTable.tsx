@@ -45,8 +45,9 @@ export function DataTable<T>({
               {hg.headers.map((header) => {
                 const canSort = header.column.getCanSort();
                 const sorted = header.column.getIsSorted();
+                const numericHeader = /quantity|qty|price|pnl|balance|equity|drawdown|exposure|riskpct|notional|size|volume|percent|pct|rate|profit|return|factor|expectancy|entry|mark|fill|capital|commission|swap|fee|amount/i.test(header.column.id);
                 return (
-                  <th key={header.id}>
+                  <th key={header.id} className={numericHeader ? "num" : undefined}>
                     {header.isPlaceholder ? null : (
                       <button
                         type="button"
