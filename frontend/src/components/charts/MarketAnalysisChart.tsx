@@ -108,6 +108,16 @@ export function MarketAnalysisChart() {
     [candles.data?.candles],
   );
   const latest = chartData.at(-1);
+  const normalizedSymbol = selectedSymbol.replace(/[^A-Z]/gi, "").toUpperCase();
+  const pricePrecision = /JPY$/.test(normalizedSymbol) && normalizedSymbol.length === 6
+    ? 3
+    : /^[A-Z]{6}$/.test(normalizedSymbol)
+      ? 5
+      : /^(BTC|ETH)/.test(normalizedSymbol)
+        ? 2
+        : /^(XAU|XAG|US30|NAS|SPX)/.test(normalizedSymbol)
+          ? 2
+          : 6;
 
   useEffect(() => {
     const node = containerRef.current;
@@ -139,7 +149,7 @@ export function MarketAnalysisChart() {
       borderUpColor: "#26a69a",
       borderDownColor: "#ef5350",
       wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
+      wickDownColor: "#ef5350",\n      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
     });
     volumeRef.current = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
@@ -153,7 +163,7 @@ export function MarketAnalysisChart() {
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
-      title: "SMA 20",
+      title: "SMA 20",\n      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
     });
     chartRef.current = chart;
     setChartReady(true);
