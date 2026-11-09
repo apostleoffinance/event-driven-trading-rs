@@ -194,7 +194,7 @@ export function MarketAnalysisChart() {
       slLineRef.current = null;
       tpLineRef.current = null;
     };
-  }, []);
+  }, [pricePrecision]);
 
   useEffect(() => {
     if (!chartReady || !candleRef.current || !volumeRef.current || !smaRef.current) return;
