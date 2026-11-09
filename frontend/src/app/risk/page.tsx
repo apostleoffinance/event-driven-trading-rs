@@ -10,6 +10,7 @@ import {
   StatusBadge,
 } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { formatQuantity } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import type { RiskDecisionRecord } from "@/types/domain";
 
@@ -45,14 +46,14 @@ export default function RiskPage() {
         accessorKey: "requestedQuantity",
         header: "Requested",
         cell: ({ row }) => (
-          <span className="num">{row.original.requestedQuantity ?? "—"}</span>
+          <span className="num">{row.original.requestedQuantity == null ? "—" : formatQuantity(row.original.requestedQuantity)}</span>
         ),
       },
       {
         accessorKey: "approvedQuantity",
         header: "Approved",
         cell: ({ row }) => (
-          <span className="num">{row.original.approvedQuantity ?? "—"}</span>
+          <span className="num">{row.original.approvedQuantity == null ? "—" : formatQuantity(row.original.approvedQuantity)}</span>
         ),
       },
       {
