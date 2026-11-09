@@ -42,9 +42,10 @@ function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: stri
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const linesRef = useRef<IPriceLine[]>([]);
+  const fittedKeyRef = useRef("");
   const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments() });
   const instrument = instruments.data?.find((item) => item.id === symbol || item.symbol === symbol);
-  const instrumentId = instrument?.id ?? (instruments.data?.length ? "" : symbol);
+  const instrumentId = instrument?.id ?? symbol;
   const provider = String(instrument?.default_provider ?? "biquote-live");
   const candles = useQuery({
     queryKey: ["market-data", "trade-preview-candles", instrumentId, provider],
@@ -106,7 +107,11 @@ function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: stri
       time: time as import("lightweight-charts").Time,
       open: candle.open, high: candle.high, low: candle.low, close: candle.close,
     })));
-    if (validCandles.length) chartRef.current?.timeScale().fitContent();
+    const viewKey = `${symbol}:${provider}`;
+    if (validCandles.length && fittedKeyRef.current !== viewKey) {
+      chartRef.current?.timeScale().fitContent();
+      fittedKeyRef.current = viewKey;
+    }
   }, [validCandles]);
 
   useEffect(() => {
