@@ -43,7 +43,7 @@ export default function TradeCalculator(){
  const riskPolicy=useQuery({queryKey:["journal","risk-policy",account],queryFn:()=>journalApi.getRiskPolicy(account),enabled:auth&&Boolean(account)});
  const policyRiskPct=riskPolicy.data?.policy.risk_per_trade_pct;
  useEffect(()=>{if(policyRiskPct!==undefined){setRiskPct(String(policyRiskPct));}},[account,policyRiskPct,riskPolicy.data?.version]);
- const conversion=useQuery({queryKey:["fx-conversion",quoteCurrency,currency,allowStaleFx],queryFn:()=>marketDataApi.fxConvert({from:quoteCurrency,to:currency,amount:1,allow_stale:allowStaleFx}),enabled:auth&&quoteCurrency!==currency,staleTime:30000,retry:1});
+ const conversion=useQuery({queryKey:["fx-conversion",quoteCurrency,currency,allowStaleFx],queryFn:()=>marketDataApi.fxConvert({from:quoteCurrency,to:currency,amount:1,allow_stale:allowStaleFx}),enabled:auth&&quoteCurrency!==currency,staleTime:30000,refetchInterval:30000,refetchIntervalInBackground:false,retry:1});
  const quoteToAccountRate=quoteCurrency===currency?1:(conversion.data?Number(conversion.data.rate):null);
  const conversionFresh=quoteCurrency===currency||Boolean(conversion.data&&(conversion.data.freshness==="fresh"||allowStaleFx));
  const currentAssessmentFingerprint=JSON.stringify([account,mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction,quoteCurrency,currency,quoteToAccountRate,allowStaleFx,riskPolicy.data?.version]);
