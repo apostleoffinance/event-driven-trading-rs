@@ -350,22 +350,22 @@ pub async fn evaluate(
     ).bind(&claims.sub).bind(&id).bind(day_start.clone()).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let (trades_today, daily_risk_used) = match sqlx::query_as::<_, (i64, Decimal)>(
         "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount) FILTER (WHERE pnl_currency=$4),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3"
-    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    ).bind(&claims.sub).bind(&id).bind(day_start.clone()).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let (open_positions, current_open_risk) = match sqlx::query_as::<_, (i64, Decimal)>(
         "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount) FILTER (WHERE pnl_currency=$3),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open'"
     ).bind(&claims.sub).bind(&id).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let unconverted_pnl_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency<>$4 AND net_pnl IS NOT NULL"
-    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    ).bind(&claims.sub).bind(&id).bind(day_start.clone()).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let unconverted_risk_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND pnl_currency<>$3 AND risk_amount IS NOT NULL"
     ).bind(&claims.sub).bind(&id).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let unconverted_daily_risk_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3 AND pnl_currency<>$4 AND risk_amount IS NOT NULL"
-    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    ).bind(&claims.sub).bind(&id).bind(day_start.clone()).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let missing_daily_risk_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3 AND risk_amount IS NULL"
-    ).bind(&claims.sub).bind(&id).bind(day_start).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    ).bind(&claims.sub).bind(&id).bind(day_start.clone()).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let missing_open_risk_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND risk_amount IS NULL"
     ).bind(&claims.sub).bind(&id).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
