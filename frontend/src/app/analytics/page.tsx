@@ -11,7 +11,7 @@ import { AnalyticsBreakdownChart } from "@/components/charts/AnalyticsBreakdownC
 import { ExecutionQualityChart } from "@/components/charts/ExecutionQualityChart";
 import { CalendarAnalytics } from "@/components/analytics/CalendarAnalytics";
 
-function money(value: string | null | undefined, currency = "USD") {
+function money(value: string | number | null | undefined, currency = "USD") {
   if (value == null) return "—";
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString("en-US", { style: "currency", currency, maximumFractionDigits: 2 }) : "—";
@@ -174,7 +174,7 @@ export default function AnalyticsLabPage() {
       {analytics.isLoading && !mixedCurrencies ? <p className="muted analytics-inline-status">Calculating your Journal analytics…</p> : null}
       {analytics.error ? <div className="error analytics-inline-status" role="alert"><p>{analytics.error instanceof ApiError && analytics.error.code === "mixed_currency_analytics" ? "Your selected Journal records contain different P&amp;L currencies. Select a single account/currency or correct trade currency fields before calculating monetary analytics." : "Could not load analytics from your Journal. Check your connection and retry."}</p><button className="btn" onClick={()=>void analytics.refetch()}>Retry</button></div> : null}
     </section>
-    {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs">{(["overview","performance","edge","execution","behaviour","risk"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"analytics-tab active":"analytics-tab"} aria-current={activeTab===tab?"page":undefined} onClick={()=>{setActiveTab(tab);if(window.location.hash!==`#${tab}`)window.location.hash=tab;}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab==="calendar"?"Calendar":tab.charAt(0).toUpperCase()+tab.slice(1)}</button>)}</nav>
+    {a && a.trade_count > 0 && !mixedCurrencies ? <><nav aria-label="Analytics workspaces" className="analytics-tabs">{(["overview","performance","edge","execution","behaviour","risk","calendar"] as const).map(tab=><button key={tab} type="button" className={activeTab===tab?"analytics-tab active":"analytics-tab"} aria-current={activeTab===tab?"page":undefined} onClick={()=>{setActiveTab(tab);if(window.location.hash!==`#${tab}`)window.location.hash=tab;}}>{tab==="edge"?"Edge Explorer":tab==="behaviour"?"Behaviour":tab==="calendar"?"Calendar":tab.charAt(0).toUpperCase()+tab.slice(1)}</button>)}</nav>
       {activeTab==="calendar" ? <CalendarAnalytics curve={a.equity_curve} currency={displayCurrency} onSelectDate={date=>{setFromDate(date);setToDate(date);setDatePreset("custom");}} /> : null}
       {activeTab==="behaviour" && intelligence.data ? <section className="panel" style={{marginTop:14}}>
         <h2 className="panel-title">PROCESS & STATISTICAL INTELLIGENCE</h2>
