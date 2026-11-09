@@ -13,7 +13,7 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
   const value = (specific || process.env.NEXT_PUBLIC_API_URL || "").trim();
   if (!value) {
     const required = service === "market-data" ? "NEXT_PUBLIC_MARKET_DATA_API_URL" : service === "identity" ? "NEXT_PUBLIC_IDENTITY_API_URL" : service === "journal" ? "NEXT_PUBLIC_JOURNAL_API_URL" : "NEXT_PUBLIC_API_URL";
-    throw new Error(`API URL is not configured. Set ${required} or NEXT_PUBLIC_API_URL.`);
+    throw new Error("This service is temporarily unavailable. Please try again later.");
   }
   const normalized = value.replace(/\/$/, "");
   if (typeof window !== "undefined" && window.location.protocol === "https:" && normalized.startsWith("http://")) {
@@ -36,7 +36,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const url = `${(baseUrl || apiBaseUrl()).replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
   let response: Response;
   try { response = await fetch(url, { ...init, headers, cache: "no-store" }); }
-  catch { throw new ApiError("Backend unavailable or network/CORS request failed.", 0, "network_error"); }
+  catch { throw new ApiError("Unable to connect to EdgeNest services. Please try again.", 0, "network_error"); }
 
   if (response.status === 401 && auth && retryAuth && await refreshSession()) {
     const token = getAccessToken();
