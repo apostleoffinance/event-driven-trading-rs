@@ -367,7 +367,7 @@ export function MarketAnalysisChart() {
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, marginBottom: 8 }}>
-        <span style={{ color: candles.data?.freshness === "fresh" ? "#26a69a" : "#f59e0b", fontWeight: 600 }}>● {candles.data?.freshness ?? "checking feed"}</span>
+        <span style={{ color: candles.data?.freshness === "fresh" ? "#26a69a" : "#f59e0b", fontWeight: 600 }}>● {String(candles.data?.freshness ?? "checking feed")}</span>
         <span>Live updates every 15 seconds · chart zoom is preserved</span>
         {drawMode !== "none" ? <span>Click chart {drawMode === "trendline" && !pendingAnchor ? "twice to place a trendline" : "to place line"}</span> : null}
       </div>
