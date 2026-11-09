@@ -39,7 +39,7 @@ export default function TradeCalculator(){
  const [risk,setRisk]=useState("100"),[reward,setReward]=useState("200"),[contract,setContract]=useState("100000"),[step,setStep]=useState("0.01"),[pip,setPip]=useState("0.0001");
  useEffect(()=>{const a=accounts.data?.find(x=>x.id===account);if(a){setCurrency(a.currency.toUpperCase());setBalance(a.initial_balance);setPolicyAssessmentInput(null);}},[account,accounts.data]);
  const riskPolicy=useQuery({queryKey:["journal","risk-policy",account],queryFn:()=>journalApi.getRiskPolicy(account),enabled:auth&&Boolean(account)});
- useEffect(()=>{if(riskPolicy.data){setRiskPct(String(riskPolicy.data.policy.risk_per_trade_pct));}},[account,riskPolicy.data?.version]);
+ const policyRiskPct=riskPolicy.data?.policy.risk_per_trade_pct;\n useEffect(()=>{if(policyRiskPct!==undefined){setRiskPct(String(policyRiskPct));}},[account,policyRiskPct,riskPolicy.data?.version]);
  const conversion=useQuery({queryKey:["fx-conversion",quoteCurrency,currency,allowStaleFx],queryFn:()=>marketDataApi.fxConvert({from:quoteCurrency,to:currency,amount:1,allow_stale:allowStaleFx}),enabled:auth&&quoteCurrency!==currency,staleTime:30000,retry:1});
  const quoteToAccountRate=quoteCurrency===currency?1:(conversion.data?Number(conversion.data.rate):null);
  const conversionFresh=quoteCurrency===currency||Boolean(conversion.data&&(conversion.data.freshness==="fresh"||allowStaleFx));
@@ -69,7 +69,7 @@ export default function TradeCalculator(){
   if(!Number.isFinite(sl)||!Number.isFinite(tp)||sl<=0||tp<=0||(direction==="long"?(sl>=e||tp<=e):(sl<=e||tp>=e)))return {error:"For Long, SL must be below entry and TP above. For Short, reverse these levels."};
   const dist=Math.abs(e-sl),targetDist=Math.abs(tp-e),estimatedRisk=q*dist*cv*fx,potentialReward=q*targetDist*cv*fx;
   return {size:q,dist,pips:dist/ps,risk:estimatedRisk,reward:potentialReward,riskPct:estimatedRisk/b*100,rr:potentialReward/estimatedRisk};
- },[mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction]);
+ },[mode,entry,stop,target,qty,balance,riskPct,risk,reward,contract,step,pip,direction,quoteToAccountRate,conversionFresh,quoteCurrency,currency,allowStaleFx]);
  const stopValue=result&&!('error' in result)&&('stopPrice' in result)?result.stopPrice:stop;
  const targetValue=result&&!('error' in result)&&('targetPrice' in result)?result.targetPrice:target;
  const journalLink=result&&!('error' in result)&&('size' in result)?"/journal?newTrade=1&symbol="+encodeURIComponent(symbol)+"&direction="+direction+"&entry="+encodeURIComponent(entry)+"&stop="+encodeURIComponent(String(stopValue))+"&quantity="+encodeURIComponent(String(result.size))+"&risk="+encodeURIComponent(String(("risk" in result ? result.risk : "")))+"&take_profit="+encodeURIComponent(String(targetValue))+"&account="+encodeURIComponent(account)+"&currency="+encodeURIComponent(currency):"/journal";
