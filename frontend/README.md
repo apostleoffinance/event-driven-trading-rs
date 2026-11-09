@@ -2,8 +2,8 @@
 
 Operational control plane for the Rust quantitative trading infrastructure.
 
-**Mode:** PAPER · mock repositories · mock event stream  
-**Does not** execute trades, evaluate risk, or hold secrets.
+**Mode:** PAPER · authenticated API-backed dashboard and Journal  
+The dashboard is read-only for execution. Journal records are owner-scoped; Paper account creation is supported.
 
 ## Setup
 
@@ -64,7 +64,7 @@ npm run cloudflare:build
 npx opennextjs-cloudflare preview
 ```
 
-Mock mode works without the Rust backend.
+Sample data is available only when explicitly selected with `NEXT_PUBLIC_DATA_MODE=mock`. Production builds default to API-backed data and never silently fall back to seeded fixtures.
 
 ## Related docs
 
