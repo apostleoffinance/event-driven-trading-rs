@@ -238,14 +238,17 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
         "SELECT COALESCE(SUM(net_pnl),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency=$4"
     ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let (trades_today, daily_risk_used) = match sqlx::query_as::<_, (i64, Decimal)>(
-        "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3 AND pnl_currency=$4"
+        "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount) FILTER (WHERE pnl_currency=$4),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3"
     ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let (open_positions, current_open_risk) = match sqlx::query_as::<_, (i64, Decimal)>(
-        "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND pnl_currency=$3"
+        "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount) FILTER (WHERE pnl_currency=$3),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open'"
     ).bind(&claims.sub).bind(&id).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
     let unconverted_pnl_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency<>$4 AND net_pnl IS NOT NULL"
     ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let unconverted_risk_count = match sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND pnl_currency<>$3 AND risk_amount IS NOT NULL"
+    ).bind(&claims.sub).bind(&id).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
 
     let mut violations: Vec<Value> = Vec::new();
     let mut blocked = false;
@@ -327,6 +330,9 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     if unconverted_pnl_count > 0 {
         push("pnl_currency_mismatch",format!("{} closed trade(s) today have P&L in another currency and were excluded from the account-currency daily P&L sum.",unconverted_pnl_count),"warn");
     }
+    if unconverted_risk_count > 0 {
+        push("open_risk_currency_mismatch",format!("{} open trade(s) have risk values in a different currency; they are excluded from the open-risk sum.",unconverted_risk_count),"warn");
+    }
     if policy.max_lot_size.is_some_and(|max| input.lot_size.is_some_and(|lot| lot > max)) {
         push("max_lot_size",format!("Requested lot size exceeds configured maximum {}.",policy.max_lot_size.unwrap_or(Decimal::ZERO)),&policy.personal_limits_enforcement);
     }
@@ -334,7 +340,7 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     Json(serde_json::json!({
         "status":status,"currency":currency,"policy_name":policy.profile_name,
         "risk_amount":input.risk_amount.to_string(),"risk_pct_of_equity":(input.risk_amount/input.equity*Decimal::from(100)).round_dp(4).to_string(),
-        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"violations":violations,
+        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"excluded_unconverted_open_risk_trades":unconverted_risk_count,"violations":violations,
         "enforcement_note":"Risk assessment is advisory for planning. No order is created or sent."
     })).into_response()
 }
