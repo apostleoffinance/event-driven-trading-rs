@@ -4,6 +4,7 @@ use market_data::config::Config;
 use market_data::http::router_with_mt5;
 use market_data::mt5_latest::{Mt5LatestService, Mt5Scope, Mt5SnapshotSource, PgMt5SnapshotSource};
 use market_data::providers::binance::{BinanceConfig, BinanceProvider, ReqwestHttp};
+use market_data::providers::biquote::{BiQuoteConfig, BiQuoteProvider};
 use market_data::providers::demo::DemoProvider;
 use market_data::providers::mt5::Mt5Provider;
 use market_data::service::{Clock, MarketDataService, ServiceConfig, SystemClock};
@@ -34,12 +35,14 @@ async fn main() {
         },
         http,
     );
+    let biquote = BiQuoteProvider::new(BiQuoteConfig { enabled: config.biquote_enabled, base_url: config.biquote_base_url.clone(), timeout: config.request_timeout }, ReqwestHttp::new().expect("failed to build BiQuote HTTP client"));
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let service = Arc::new(MarketDataService::new(
         vec![
             Arc::new(DemoProvider),
             Arc::new(Mt5Provider),
             Arc::new(binance),
+            Arc::new(biquote),
         ],
         ServiceConfig::default(),
         clock.clone(),
@@ -77,7 +80,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(config.bind)
         .await
         .expect("failed to bind");
-    tracing::info!(addr = %config.bind, binance_enabled = config.binance_enabled, mt5_configured, "market-data API listening (read-only)");
+    tracing::info!(addr = %config.bind, binance_enabled = config.binance_enabled, biquote_enabled = config.biquote_enabled, mt5_configured, "market-data API listening (read-only)");
     axum::serve(
         listener,
         router_with_mt5(service, Arc::new(mt5), &config.cors_origins),
