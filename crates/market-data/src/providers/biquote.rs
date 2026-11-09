@@ -123,11 +123,9 @@ fn parse_bars(body: &str) -> Result<Vec<Candle>, MarketDataError> {
                 high: parse_num(&bar["high"], "high")?,
                 low: parse_num(&bar["low"], "low")?,
                 close: parse_num(&bar["close"], "close")?,
-                volume: Some(
-                    parse_num(&bar["tickVolume"], "tickVolume")
-                        .or_else(|_| parse_num(&bar["volume"], "volume"))
-                        .unwrap_or(0.0),
-                ),
+                volume: parse_num(&bar["tickVolume"], "tickVolume")
+                    .ok()
+                    .or_else(|| parse_num(&bar["volume"], "volume").ok()),
             })
         })
         .collect()
