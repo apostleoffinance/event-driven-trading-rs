@@ -38,7 +38,8 @@ pub struct AccountRiskPolicy {
     pub risk_per_trade_pct: Decimal,
     /// Optional absolute per-trade cap in account currency.
     pub max_risk_per_trade_amount: Option<Decimal>,
-    pub max_daily_loss_pct: Option<Decimal>,\n    pub max_daily_risk_pct: Option<Decimal>,
+    pub max_daily_loss_pct: Option<Decimal>,
+    pub max_daily_risk_pct: Option<Decimal>,
     /// initial_balance | start_of_day_balance | start_of_day_equity
     pub daily_loss_basis: String,
     pub max_total_drawdown_pct: Option<Decimal>,
@@ -68,7 +69,8 @@ impl Default for AccountRiskPolicy {
             risk_appetite: "balanced".into(),
             risk_per_trade_pct: Decimal::new(5, 1), // 0.5%
             max_risk_per_trade_amount: None,
-            max_daily_loss_pct: None,\n            max_daily_risk_pct: None,
+            max_daily_loss_pct: None,
+            max_daily_risk_pct: None,
             daily_loss_basis: "start_of_day_equity".into(),
             max_total_drawdown_pct: None,
             drawdown_basis: "trailing_high_water".into(),
@@ -112,7 +114,8 @@ fn validate(p: &AccountRiskPolicy) -> Result<(), &'static str> {
         return Err("Absolute risk cap must be greater than zero.");
     }
     if !valid_pct(p.max_daily_loss_pct)
-        || !valid_pct(p.max_daily_risk_pct)\n        || !valid_pct(p.max_total_drawdown_pct)
+        || !valid_pct(p.max_daily_risk_pct)
+        || !valid_pct(p.max_total_drawdown_pct)
         || !valid_pct(p.max_total_open_risk_pct)
     {
         return Err("Percentage limits must be greater than 0 and at most 100% when set.");
@@ -275,7 +278,7 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     }
     if let Some(max_daily_pct)=policy.max_daily_loss_pct {
         let base=match policy.daily_loss_basis.as_str() {
-            "initial_balance"=>Some(input.initial_balance.unwrap_or(initial_balance)),
+            "initial_balance"=>Some(initial_balance),
             "start_of_day_balance"=>input.start_of_day_balance,
             _=>input.start_of_day_equity,
         };
