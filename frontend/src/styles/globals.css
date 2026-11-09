@@ -1010,3 +1010,27 @@ table {
   .analytics-tabs { margin-left: -4px; margin-right: -4px; }
   .analytics-tab { padding: 8px 11px; }
 }
+
+
+/* Consistent financial table alignment and overflow containment */
+.data-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.data-table th,
+.data-table td {
+  vertical-align: middle;
+}
+.data-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.data-table th.num {
+  text-align: right;
+}
+.data-table td .btn {
+  white-space: nowrap;
+}
