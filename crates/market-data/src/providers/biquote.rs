@@ -71,6 +71,20 @@ fn parse_bars(body: &str) -> Result<Vec<Candle>, MarketDataError> {
         })
     }).collect()
 }
+fn aggregate_weekly(candles: Vec<Candle>) -> Vec<Candle> {
+    use chrono::Datelike;
+    let mut weeks: std::collections::BTreeMap<i64, Candle> = std::collections::BTreeMap::new();
+    for candle in candles {
+        let Some(dt) = DateTime::<Utc>::from_timestamp_millis(candle.timestamp_ms) else { continue; };
+        let monday = dt.date_naive() - chrono::Duration::days(i64::from(dt.weekday().num_days_from_monday()));
+        let Some(start) = monday.and_hms_opt(0, 0, 0).map(|d| d.and_utc().timestamp_millis()) else { continue; };
+        weeks.entry(start).and_modify(|week| {
+            week.high = week.high.max(candle.high); week.low = week.low.min(candle.low);
+            week.close = candle.close; week.volume = Some(week.volume.unwrap_or(0.0) + candle.volume.unwrap_or(0.0));
+        }).or_insert(Candle { timestamp_ms: start, ..candle });
+    }
+    weeks.into_values().collect()
+}
 #[async_trait]
 impl<H: HttpGet> CandleProvider for BiQuoteProvider<H> {
     fn id(&self) -> ProviderId { ID }
