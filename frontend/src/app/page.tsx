@@ -15,7 +15,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { formatMoney, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
-import { frontendConfig } from "@/config/frontend";
 import type {
   Account,
   Order,
@@ -79,7 +78,7 @@ export default function CommandCenterPage() {
       </>
     );
 
-  if (frontendConfig.dataMode === "api" && accounts.length === 0) {
+  if (accounts.length === 0) {
     return (
       <>
         <PageHeader title="Your trading dashboard" description="Your trading accounts, performance and risk overview in one place." />
@@ -106,8 +105,6 @@ export default function CommandCenterPage() {
         description="Your trading accounts, performance and risk overview."
       />
       <JournalDashboardSummary />
-      <div style={{ marginBottom: 12 }}>
-      </div>
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
         <Metric
           label="TOTAL EQUITY"
