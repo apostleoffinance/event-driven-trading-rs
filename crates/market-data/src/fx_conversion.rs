@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::MarketDataError,
-    instruments::{find, INSTRUMENTS},
+    instruments::INSTRUMENTS,
     model::{AssetClass, Freshness},
     service::{CandleQuery, MarketDataService},
 };
