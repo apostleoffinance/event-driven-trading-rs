@@ -90,7 +90,7 @@ export default function TradeCalculator(){
  const previewRiskPips=Number.isFinite(previewEntry)&&Number.isFinite(previewStop)&&num(pip)>0?Math.abs(previewEntry-previewStop)/num(pip):null;
  const previewRewardPips=Number.isFinite(previewEntry)&&Number.isFinite(previewTarget)&&num(pip)>0?Math.abs(previewEntry-previewTarget)/num(pip):null);
  const previewLevelsValid=Number.isFinite(previewEntry)&&previewEntry>0&&Number.isFinite(previewStop)&&Number.isFinite(previewTarget)&&previewStop>0&&previewTarget>0&&(direction==="long"?previewStop<previewEntry&&previewTarget>previewEntry:previewStop>previewEntry&&previewTarget<previewEntry);
- const previewPricePrecision=Math.max(2,Math.min(8,(pip.split(".")[1]||"").length));
+ const previewPricePrecision=Math.max(2,Math.min(8,(entry.split(".")[1]||"").length,(pip.split(".")[1]||"").length+1));
  const previewPrice=(v:number)=>Number.isFinite(v)?v.toLocaleString(undefined,{minimumFractionDigits:previewPricePrecision,maximumFractionDigits:previewPricePrecision}):"—";
  const previewChartData=chartCandles.data?.candles??[];
  const previewChartPrices=previewLevelsValid?[...previewChartData.flatMap(c=>[c.low,c.high]),previewEntry,previewStop,previewTarget]:previewChartData.flatMap(c=>[c.low,c.high]);
@@ -105,7 +105,7 @@ export default function TradeCalculator(){
  const copyTradeSetup=async()=>{const text=[`EdgeNest Trade Plan · ${symbol} · ${direction.toUpperCase()}`,`Entry: ${previewPrice(previewEntry)}`,`Stop Loss: ${previewPrice(previewStop)}`,`Take Profit: ${previewPrice(previewTarget)}`,`Size: ${previewSize}`,`Risk: ${previewRisk==null?"—":fmtMoney(previewRisk,currency)}`,`Reward: ${previewReward==null?"—":fmtMoney(previewReward,currency)}`,`Risk/Reward: ${previewRR==null?"—":"1 : "+previewRR.toFixed(2)}`].join("\n");try{await navigator.clipboard.writeText(text);setCopiedSetup(true);window.setTimeout(()=>setCopiedSetup(false),1800);}catch{setCopiedSetup(false);}};
  const needQty=mode==="risk_to_levels"||mode==="trade_analysis"||mode==="target_distance";
  const needSL=mode!=="risk_to_levels"&&mode!=="target_distance";
- const needTP=mode==="trade_analysis";
+ const needTP=mode==="trade_analysis"||mode==="fixed_risk_sl"||mode==="entry_sl_to_size";
  const needRiskPct=mode==="fixed_risk_sl"||mode==="entry_sl_to_size";
  const needRiskMoney=mode==="risk_to_levels";
  const needReward=mode==="risk_to_levels"||mode==="target_distance";
@@ -134,7 +134,7 @@ export default function TradeCalculator(){
     </div><div style={{marginTop:10}}><label style={{display:"flex",gap:8,alignItems:"center"}}><input type="checkbox" checked={allowStaleFx} onChange={e=>{setAllowStaleFx(e.target.checked);setPolicyAssessmentInput(null);}}/>Allow stale FX quote for an explicitly marked estimate</label>{conversion.data?<p className="muted" style={{marginTop:6}}>Rate source: {conversion.data.source} · {conversion.data.method} · {conversion.data.freshness} · age {conversion.data.age_seconds??"—"}s · {conversion.data.timestamp??"same currency"}</p>:null}{conversion.isError&&quoteCurrency!==currency?<p className="error" role="alert">FX conversion unavailable: {conversion.error instanceof Error?conversion.error.message:"Provider rate unavailable"}</p>:null}</div><p className="muted" style={{fontSize:12,marginTop:12}}>FX conversion is obtained from the backend live market-data service. Broker contract size, tick value, commissions, swaps, and slippage are not inferred. Stale quotes require explicit acceptance.</p>
    </section>
    <section className="panel calculator-preview-panel">
-    <div className="trade-preview-header"><div><span className="trade-preview-eyebrow">TRADE SETUP PREVIEW</span><h2>{symbol} <span className={direction==="long"?"trade-direction-long":"trade-direction-short"}>{direction==="long"?"BUY / LONG":"SELL / SHORT"}</span></h2><p className="muted">Live preview of your calculator inputs</p></div><span className="trade-preview-rr">{previewRR!==null&&Number.isFinite(previewRR)?`1 : ${previewRR.toFixed(2)}`:"R/R —"}</span></div>
+    <div className="trade-preview-header"><div><span className="trade-preview-eyebrow">TRADE SETUP PREVIEW</span><h2>{symbol} <span className={direction==="long"?"trade-direction-long":"trade-direction-short"}>{direction==="long"?"BUY / LONG":"SELL / SHORT"}</span></h2><p className="muted">Live preview of your calculator inputs</p></div><span className="trade-preview-rr">{previewLevelsValid&&previewRR!==null&&Number.isFinite(previewRR)?`1 : ${previewRR.toFixed(2)}`:"R/R —"}</span></div>
     <div className="trade-preview-tabs" role="tablist" aria-label="Trade preview modes">
      {([{id:"setup",label:"Setup",icon:"◉"},{id:"chart",label:"Chart",icon:"⌁"},{id:"analysis",label:"Analysis",icon:"▤"}] as const).map(t=><button key={t.id} type="button" role="tab" aria-selected={previewTab===t.id} className={previewTab===t.id?"trade-preview-tab active":"trade-preview-tab"} onClick={()=>setPreviewTab(t.id)}><span aria-hidden="true">{t.icon}</span>{t.label}</button>)}
     </div>
