@@ -479,9 +479,9 @@ mod tests {
         let err = svc.get_candles(&q("BTCUSDT", "H1")).await.unwrap_err();
         assert_eq!(err.code(), "provider_disabled");
         assert_eq!(err.body().error.classification, DataClass::Unavailable);
-        // Forex defaults to MT5, which has no candle capability.
+        // Forex defaults to BiQuote. If disabled, it errors rather than falling back to demo data.
         let err = svc.get_candles(&q("EURUSD", "H1")).await.unwrap_err();
-        assert_eq!(err.code(), "capability_not_implemented");
+        assert_eq!(err.code(), "provider_disabled");
     }
 
     #[tokio::test]
