@@ -1212,7 +1212,7 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .trade-preview-riskbar strong{font-size:11px;font-variant-numeric:tabular-nums}
 .trade-risk-reward-bar{display:flex;height:8px;min-width:30px;border-radius:99px;overflow:hidden;background:var(--bg-3)}
 .trade-risk-reward-bar span:first-child{width:33.333%;background:var(--negative)}
-.trade-risk-reward-bar span:last-child{flex:1;background:var(--positive)}
+.trade-risk-reward-bar span:last-child{flex:0 0 auto;background:var(--positive)}
 .trade-mini-chart{min-width:0}
 .trade-mini-chart-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
 .trade-mini-chart-toolbar select{border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:var(--bg-2);color:var(--text);font:inherit;font-size:11px}
