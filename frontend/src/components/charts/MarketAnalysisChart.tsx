@@ -9,7 +9,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import { useQuery } from "@tanstack/react-query";
-import { marketDataApi, type Candle } from "@/lib/api/market-data";
+import { isProviderSelectable, marketDataApi, type Candle } from "@/lib/api/market-data";
 import { formatPrice } from "@/lib/format";
 
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"] as const;
