@@ -113,6 +113,12 @@ export function MarketAnalysisChart() {
     refetchIntervalInBackground: false,
   });
 
+  useEffect(() => {
+    setDrawings([]);
+    setPendingAnchor(null);
+    setDrawMode("none");
+  }, [selectedSymbol, frame, selectedProvider]);
+
   const chartData = useMemo(
     () => toChartCandles(candles.data?.candles ?? []),
     [candles.data?.candles],
