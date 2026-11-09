@@ -286,7 +286,7 @@ pub async fn evaluate(
             Ok(account) => account,
             Err(_) => return not_found(),
         };
-    if input.currency.trim().to_ascii_uppercase() != currency.to_ascii_uppercase() {
+    if !input.currency.trim().eq_ignore_ascii_case(&currency) {
         return error(
             StatusCode::UNPROCESSABLE_ENTITY,
             "currency_mismatch",
@@ -651,8 +651,10 @@ mod tests {
 
     #[test]
     fn invalid_policy_percent_is_rejected() {
-        let mut policy = AccountRiskPolicy::default();
-        policy.risk_per_trade_pct = Decimal::from(101);
+        let policy = AccountRiskPolicy {
+            risk_per_trade_pct: Decimal::from(101),
+            ..AccountRiskPolicy::default()
+        };
         assert_eq!(
             validate(&policy),
             Err("Risk per trade must be greater than 0 and at most 100%.")
@@ -661,19 +663,31 @@ mod tests {
 
     #[test]
     fn daily_risk_budget_must_be_positive_and_at_most_one_hundred_percent() {
-        let mut policy = AccountRiskPolicy::default();
-        policy.max_daily_risk_pct = Some(Decimal::ZERO);
-        assert!(validate(&policy).is_err());
-        policy.max_daily_risk_pct = Some(Decimal::from(100));
-        assert!(validate(&policy).is_ok());
-        policy.max_daily_risk_pct = Some(Decimal::from(101));
-        assert!(validate(&policy).is_err());
+        let invalid_zero = AccountRiskPolicy {
+            max_daily_risk_pct: Some(Decimal::ZERO),
+            ..AccountRiskPolicy::default()
+        };
+        assert!(validate(&invalid_zero).is_err());
+
+        let valid_boundary = AccountRiskPolicy {
+            max_daily_risk_pct: Some(Decimal::from(100)),
+            ..AccountRiskPolicy::default()
+        };
+        assert!(validate(&valid_boundary).is_ok());
+
+        let invalid_over_limit = AccountRiskPolicy {
+            max_daily_risk_pct: Some(Decimal::from(101)),
+            ..AccountRiskPolicy::default()
+        };
+        assert!(validate(&invalid_over_limit).is_err());
     }
 
     #[test]
     fn policy_requires_hard_firm_enforcement_option() {
-        let mut policy = AccountRiskPolicy::default();
-        policy.firm_limits_enforcement = "ignore".into();
+        let policy = AccountRiskPolicy {
+            firm_limits_enforcement: "ignore".into(),
+            ..AccountRiskPolicy::default()
+        };
         assert!(validate(&policy).is_err());
     }
 }
