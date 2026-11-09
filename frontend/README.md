@@ -2,7 +2,7 @@
 
 Operational control plane for the Rust quantitative trading infrastructure.
 
-**Mode:** PAPER · authenticated API-backed dashboard and Journal  
+**Mode:** PAPER · API-backed dashboard and Journal  
 The dashboard is read-only for execution. Journal records are owner-scoped; Paper account creation is supported.
 
 ## Setup
@@ -64,7 +64,7 @@ npm run cloudflare:build
 npx opennextjs-cloudflare preview
 ```
 
-Sample data is available only when explicitly selected with `NEXT_PUBLIC_DATA_MODE=mock`. Production builds default to API-backed data and never silently fall back to seeded fixtures.
+The frontend uses authenticated API responses only. When a service is unavailable, it displays an explicit error or empty state; it never substitutes fabricated trading records.
 
 ## Related docs
 
