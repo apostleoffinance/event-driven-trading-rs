@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { apiRequest } from "@/lib/api/client";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -135,7 +134,7 @@ export default function AccountsPage() {
           data={data}
           columns={columns}
           onRowClick={setSelected}
-          emptyMessage={frontendConfig.dataMode === "api" ? "No trading accounts. Create a Paper Account to begin, or have an existing account explicitly linked to your user." : "No accounts."}
+          emptyMessage={"No trading accounts linked yet. Create a Paper Account to begin, or have an existing account linked to your user."}
         />
       </div>
       {createOpen ? (
