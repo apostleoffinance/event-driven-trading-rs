@@ -43,7 +43,7 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<JournalRiskPolicyEnvelope>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(policy)});
   },
-  async evaluateRiskPolicy(accountId: string, input: {risk_amount:number;potential_reward?:number|null;equity:number;initial_balance?:number;start_of_day_balance?:number;start_of_day_equity?:number;peak_equity?:number;lot_size?:number;trade_notional?:number;current_open_notional?:number}) {
+  async evaluateRiskPolicy(accountId: string, input: {risk_amount:number;potential_reward?:number|null;equity:number;start_of_day_balance?:number;start_of_day_equity?:number;peak_equity?:number;lot_size?:number;trade_notional?:number;current_open_notional?:number}) {
     requireApiMode();
     return apiRequest<Record<string,unknown>>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy/evaluate`, {method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
   },
