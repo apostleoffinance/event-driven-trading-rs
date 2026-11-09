@@ -35,8 +35,9 @@ impl<H: HttpGet> BiQuoteProvider<H> {
             Timeframe::D1=>"1d", Timeframe::W1=>"1d" }
     }
     fn url(&self, symbol: &str, req: &ProviderRequest) -> String {
+        let request_limit = if req.timeframe == Timeframe::W1 { req.limit.saturating_mul(7).min(1000) } else { req.limit.min(1000) };
         let mut url = format!("{}/api/{}/ohlc?interval={}&limit={}",
-            self.config.base_url.trim_end_matches('/'), symbol, Self::interval(req.timeframe), req.limit.min(1000));
+            self.config.base_url.trim_end_matches('/'), symbol, Self::interval(req.timeframe), request_limit);
         if let Some(ms) = req.from_ms { if let Some(dt)=DateTime::<Utc>::from_timestamp_millis(ms) {
             url.push_str("&from="); url.push_str(&dt.to_rfc3339_opts(SecondsFormat::Millis, true));
         }}
