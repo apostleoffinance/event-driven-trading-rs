@@ -24,8 +24,8 @@ export default function MarketDataPage() {
   const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "M1", provider: "biquote-live" });
 
   const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers() });
-  const provider = providerOverride ?? String(instruments.data?.find(i => i.id === instrument)?.default_provider ?? "biquote-live");
   const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: true });
+  const provider = providerOverride ?? String(instruments.data?.find(i => i.id === instrument)?.default_provider ?? "biquote-live");
   const candles = useQuery({ queryKey: ["market-data", "candles", submitted], queryFn: () => marketDataApi.candles({ ...submitted, limit: 100 }), enabled: Boolean(submitted.instrument) });
 
   const error = providers.error ?? instruments.error ?? candles.error;
