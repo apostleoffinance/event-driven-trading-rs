@@ -39,7 +39,10 @@ async fn candles(
     Ok(Json(svc.get_candles(&q).await?).into_response())
 }
 
-async fn fx_convert(State(svc): State<Shared>, Query(q): Query<FxConversionQuery>) -> Result<Response, MarketDataError> {
+async fn fx_convert(
+    State(svc): State<Shared>,
+    Query(q): Query<FxConversionQuery>,
+) -> Result<Response, MarketDataError> {
     Ok(Json(convert(&svc, q).await?).into_response())
 }
 
