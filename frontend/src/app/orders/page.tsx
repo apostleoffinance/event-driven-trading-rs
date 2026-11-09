@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { orderTone, StatusBadge } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { formatQuantity } from "@/lib/format";
 import { OrderLifecycleChain } from "@/components/orders/OrderLifecycleChain";
 import { getRepositories } from "@/lib/repositories";
 import type { Order } from "@/types/domain";
@@ -22,12 +23,12 @@ export default function OrdersPage() {
       {
         accessorKey: "id",
         header: "Order ID",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+        cell: ({ getValue }) => <span className="num">{formatQuantity(getValue() as string | number)}</span>,
       },
       {
         accessorKey: "clientOrderId",
         header: "Client ID",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
+        cell: ({ getValue }) => <span className="num">{formatQuantity(getValue() as string | number)}</span>,
       },
       { accessorKey: "accountId", header: "Account" },
       { accessorKey: "venueId", header: "Venue" },
@@ -131,7 +132,7 @@ export default function OrdersPage() {
               <li>Risk decision (required — no bypass)</li>
               <li>OMS {selected.id}</li>
               <li>Venue {selected.venueId}</li>
-              <li>Fill qty {selected.filledQuantity}</li>
+              <li>Fill qty {formatQuantity(selected.filledQuantity)}</li>
             </ol>
             <button
               type="button"
