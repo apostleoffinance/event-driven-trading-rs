@@ -67,6 +67,7 @@ function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: stri
     }
     return [...byTime.entries()].sort((a, b) => a[0] - b[0]);
   }, [candles.data?.candles]);
+  const hasCandles = validCandles.length > 0;
 
   useEffect(() => {
     const node = containerRef.current;
@@ -101,7 +102,7 @@ function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: stri
       seriesRef.current = null;
       linesRef.current = [];
     };
-  }, [validCandles.length > 0]);
+  }, [hasCandles]);
 
   useEffect(() => {
     const series = seriesRef.current;
