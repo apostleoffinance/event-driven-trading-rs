@@ -67,7 +67,7 @@ Instrument identity is separate from provider aliases (`instruments.rs`): `BTCUS
 | Variable | Default |
 |---|---|
 | `MARKET_DATA_BIND` | `127.0.0.1:8787` |
-| `MARKET_DATA_BINANCE_ENABLED` | `false` (no outbound request unless `true`) |
+| `MARKET_DATA_BINANCE_ENABLED` | `true` (public spot candles; can be disabled) |
 | `MARKET_DATA_BIQUOTE_ENABLED` | `true` (public external live feed; can be disabled) |
 | `MARKET_DATA_BIQUOTE_BASE_URL` | `https://biquote.io` |
 | `MARKET_DATA_BINANCE_BASE_URL` | `https://api.binance.com` |
