@@ -164,3 +164,15 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 - **Phase 1 external evidence still outstanding:** real designated demo account identity/server/currency; exact broker symbols and live fresh bid/ask/specification; fresh persisted snapshots from actual terminal; worker/daemon/terminal restart and reconnect against venue state; certificate lifecycle and private-key ACL/revocation review; protected evidence record and independent review. Any unknown/failure keeps the release gate BLOCKED.
 - **Safety boundary:** no order submission/modification/cancellation added; venue execution remains disabled. Do not reset sequence files or delete reconciliation/database snapshots to manufacture a pass.
 - **Next operator action:** run the provider-backed read-only macOS demo smoke against the exact reviewed commit, then the worker-only restart verifier with daemon running, preserve redacted evidence, and complete the separate managed-host/Windows gates before Phase 1 is marked DONE.
+
+
+## QOS-015C — Runtime and deployment reconciliation
+
+**Status: IN PROGRESS — repository inspection and read-only collector implemented; live host evidence required.**
+
+- Current GitHub main HEAD observed 2026-11-09: `cc2fc680c998681b3240cc9da5db5af18607d5f6`; RC branch HEAD: `a2f0bbeafe7f2d4c1a3c60048e43e7f87e6dfb49`. The main branch is 596 commits ahead of the RC branch; do not assume the historical RC manifest identifies current main artifacts.
+- Existing build manifest still records the v2 daemon as built from `76006c1`, with EX5 runtime acceptance blocked. It is not a current deployment attestation.
+- Added `scripts/qos015c_runtime_inventory.py` and `docs/QOS-015C_RUNTIME_RECONCILIATION.md`. The collector is read-only and reports Git state, manifest/artifact hashes, LaunchAgent process paths, Docker container labels/mounts/ports/health, external staging volume identity, and listening ports. It never reads container environment variables or secret values and never invokes service lifecycle or database mutation commands.
+- Deployment decision remains **NO-GO** until the local collector output and authenticated read-only database/credential-isolation evidence are reviewed. No local Mac, Docker, PostgreSQL, LaunchAgent, MT5 terminal, EA, certificate, or volume state was accessed or changed by this GitHub-only implementation.
+- Acceptance requires exact source/artifact identity, v1/v2 isolation, healthy intended v2 database/volume, verified EA runtime identity, preserved local changes, signed inventory digest, and explicit approval before any separate deployment action.
+- Venue execution remains disabled.
