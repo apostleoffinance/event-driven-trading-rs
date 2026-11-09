@@ -115,7 +115,7 @@ function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: stri
       chartRef.current?.timeScale().fitContent();
       fittedKeyRef.current = viewKey;
     }
-  }, [validCandles]);
+  }, [validCandles, symbol, provider]);
 
   useEffect(() => {
     const series = seriesRef.current;
