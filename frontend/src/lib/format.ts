@@ -15,7 +15,7 @@ export function formatPrice(value: string | number | null | undefined): string {
 }
 
 export function formatQuantity(value: string | number | null | undefined): string {
-  return formatNumber(value, 8);
+  return formatNumber(value, 12);
 }
 
 export function formatMoney(value: string | number, currency = "USD"): string {
