@@ -150,7 +150,7 @@ export default function AnalyticsLabPage() {
     ["Breakeven", String(a?.breakeven ?? "—")],
   ];
   return <div>
-    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? `Signed in as ${userEmail}.` : ""}</p></div><span className="badge ok">Journal-connected · {accounts.data?.length ?? 0} accounts</span></header>
+    <header className="page-header"><div><h1>Analytics Lab</h1><p>Performance intelligence from closed trades. {userEmail ? `Signed in as ${userEmail}.` : ""}</p></div><div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}><Link className="btn" href="/market-data">Open TradingView Market Analysis</Link><span className="badge ok">Journal-connected · {accounts.data?.length ?? 0} accounts</span></div></header>
     <section className="panel analytics-filter-panel">
       <div className="analytics-filter-header"><div><span className="analytics-eyebrow">REFINE YOUR ANALYSIS</span><h2 className="analytics-filter-title">Analytics filters</h2><p className="muted">Choose account and period. All metrics and charts update together.</p></div><button className="btn" type="button" onClick={()=>{setAccountId("");setFromDate("");setToDate("");setDatePreset("all");setSymbolFilter("");setSetupFilter("");}}>Reset filters</button></div>
       <div className="analytics-filter-grid">
