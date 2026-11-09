@@ -100,7 +100,7 @@ export default function TradeCalculator(){
  const previewChartY=(price:number)=>176-((price-previewChartMin)/previewChartRange)*152;
  const previewZoneScale=120/Math.max(1,previewRiskPips??0,previewRewardPips??0);
  const previewProfitZoneHeight=Math.max(44,Math.min(140,(previewRewardPips??0)*previewZoneScale));
- const previewLossZoneHeight=Math.max(44,Math.min(140,(previewRiskPips??0)*previewZoneScale);
+ const previewLossZoneHeight=Math.max(44,Math.min(140,(previewRiskPips??0)*previewZoneScale));
  const previewChartX=(index:number)=>12+index*(576/Math.max(1,previewChartData.length-1));
  const copyTradeSetup=async()=>{const text=[`EdgeNest Trade Plan · ${symbol} · ${direction.toUpperCase()}`,`Entry: ${previewPrice(previewEntry)}`,`Stop Loss: ${previewPrice(previewStop)}`,`Take Profit: ${previewPrice(previewTarget)}`,`Size: ${previewSize}`,`Risk: ${previewRisk==null?"—":fmtMoney(previewRisk,currency)}`,`Reward: ${previewReward==null?"—":fmtMoney(previewReward,currency)}`,`Risk/Reward: ${previewRR==null?"—":"1 : "+previewRR.toFixed(2)}`].join("\n");try{await navigator.clipboard.writeText(text);setCopiedSetup(true);window.setTimeout(()=>setCopiedSetup(false),1800);}catch{setCopiedSetup(false);}};
  const needQty=mode==="risk_to_levels"||mode==="trade_analysis"||mode==="target_distance";
