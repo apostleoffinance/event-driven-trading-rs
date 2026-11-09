@@ -1436,3 +1436,20 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 }
 
 .trade-preview-ratio-empty { color: var(--text-dim); font-size: 10px; text-align: right; }
+
+.trade-direction-toggle { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.trade-direction-toggle button {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg-2);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.trade-direction-toggle button:hover { border-color: var(--accent); color: var(--text); }
+.trade-direction-toggle button.active.long { color: #168653; border-color: color-mix(in srgb, #168653 55%, var(--border)); background: color-mix(in srgb, #168653 9%, var(--bg-1)); }
+.trade-direction-toggle button.active.short { color: #d94b4b; border-color: color-mix(in srgb, #d94b4b 55%, var(--border)); background: color-mix(in srgb, #d94b4b 9%, var(--bg-1)); }
