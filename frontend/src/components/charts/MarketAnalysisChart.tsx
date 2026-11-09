@@ -63,7 +63,7 @@ function movingAverage(values: ChartCandle[], period: number) {
 export function MarketAnalysisChart() {
   const [symbol, setSymbol] = useState("EURUSD");
   const [frame, setFrame] = useState<Frame>("H1");
-  const [provider, setProvider] = useState("biquote-live");
+  const [providerOverride, setProviderOverride] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [pendingAnchor, setPendingAnchor] = useState<{ time: Time; value: number } | null>(null);
@@ -93,12 +93,13 @@ export function MarketAnalysisChart() {
     queryFn: () => marketDataApi.instruments(),
     enabled: true,
   });
-  const selectedProvider = providers.data?.some((item) => item.id === provider)
-    ? provider
-    : providers.data?.[0]?.id ?? "";
   const selectedSymbol = instruments.data?.some((item) => item.id === symbol)
     ? symbol
     : instruments.data?.[0]?.id ?? "";
+  const instrumentDefaultProvider = String(
+    instruments.data?.find((item) => item.id === selectedSymbol)?.default_provider ?? "biquote-live",
+  );
+  const selectedProvider = providerOverride ?? instrumentDefaultProvider;
 
   const candles = useQuery({
     queryKey: ["market-data", "analysis-candles", selectedSymbol, frame, selectedProvider],
@@ -328,7 +329,7 @@ export function MarketAnalysisChart() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <label className="journal-field">
             <span>Instrument</span>
-            <select value={selectedSymbol} onChange={(event) => setSymbol(event.target.value)}>
+            <select value={selectedSymbol} onChange={(event) => { setProviderOverride(null); setSymbol(event.target.value); }}>
               {(instruments.data ?? []).map((item) => (
                 <option key={item.id} value={item.id}>{item.symbol ?? item.id}</option>
               ))}
@@ -336,7 +337,7 @@ export function MarketAnalysisChart() {
           </label>
           <label className="journal-field">
             <span>Provider</span>
-            <select value={selectedProvider} onChange={(event) => setProvider(event.target.value)}>
+            <select value={selectedProvider} onChange={(event) => setProviderOverride(event.target.value)}>
               {(providers.data ?? []).map((item) => (
                 <option key={item.id} value={item.id}>{item.name ?? item.id}</option>
               ))}
