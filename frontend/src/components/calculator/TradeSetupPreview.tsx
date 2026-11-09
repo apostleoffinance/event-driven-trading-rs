@@ -178,7 +178,8 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
   const bottomZone = topIsTarget ? "loss" : "profit";
   const topZonePct = topIsTarget ? profitPct : lossPct;
   const bottomZonePct = topIsTarget ? lossPct : profitPct;
-  const hasRatio = props.rr !== null && Number.isFinite(props.rr) && props.rr > 0;\n  const canCopy = props.valid && Number.isFinite(props.entry) && Number.isFinite(props.stop) && Number.isFinite(props.target);
+  const hasRatio = props.rr !== null && Number.isFinite(props.rr) && props.rr > 0;
+  const canCopy = props.valid && Number.isFinite(props.entry) && Number.isFinite(props.stop) && Number.isFinite(props.target);
 
   const copySetup = async () => {
     const lines = [
@@ -266,9 +267,9 @@ export function TradeSetupPreview(props: TradeSetupPreviewProps) {
           </div>
           <div className="trade-preview-ratio">
             <div><span>RISK / REWARD</span><strong>{props.rr !== null && Number.isFinite(props.rr) ? `1 : ${props.rr.toFixed(2)}` : "—"}</strong></div>
-            <div className="trade-preview-ratio-bar" aria-label="Risk and reward proportion">
-              <span style={{ flex: 1 }} /><span style={{ flex: Math.max(.05, props.rr ?? 1) }} />
-            </div>
+            {hasRatio ? <div className="trade-preview-ratio-bar" aria-label="Risk and reward proportion">
+              <span style={{ flex: 1 }} /><span style={{ flex: props.rr as number }} />
+            </div> : <span className="trade-preview-ratio-empty">Complete the setup to calculate the ratio</span>}
           </div>
         </div>
       ) : null}
