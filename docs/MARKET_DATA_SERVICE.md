@@ -13,7 +13,7 @@ The workspace had **no HTTP server** (only the TCP/mTLS listener in `intent-brid
 
 ```
 MarketChart → frontend client → GET /api/v1/market-data/candles
-            → MarketDataService → provider adapters: demo | binance-public | mt5-bridge
+            → MarketDataService → provider adapters: demo | binance-public | mt5-bridge | biquote-live
 
 /mt5 (frontend, not yet wired) → GET /api/v1/market-data/mt5/latest
             → Mt5LatestService → read-only PostgreSQL snapshot (optional)
@@ -29,7 +29,7 @@ MarketChart → frontend client → GET /api/v1/market-data/candles
 | `timeframe` | yes | `M1 M5 M15 M30 H1 H4 D1 W1` (no default) |
 | `from`, `to` | no | Epoch ms or RFC 3339; `from < to` |
 | `limit` | no | 1–1000, default 300; out-of-range is rejected, not clamped |
-| `provider` | no | `demo`, `binance-public`, `mt5-bridge`. Omitted = the instrument's live provider. **Demo is never a default.** |
+| `provider` | no | `demo`, `binance-public`, `mt5-bridge`, `biquote-live`. Omitted = the instrument's configured default provider. **Demo is never a default.** |
 
 Response (200): `instrument` (metadata), `provider {id,name,status,provider_symbol}`, `timeframe`, `classification` (`demo`|`live`), `freshness`, `count`, `last_candle_timestamp_ms`, `last_candle_at`, `last_updated_at`, `generated_at_ms`, `candles[]`.
 
@@ -58,12 +58,18 @@ Also: `GET /api/v1/market-data/providers`, `GET /api/v1/market-data/instruments`
 
 Instrument identity is separate from provider aliases (`instruments.rs`): `BTCUSDT-PERP` has **no** Binance spot alias, so it is unsupported rather than silently served from spot.
 
+## BiQuote public live candles
+
+`biquote-live` is a read-only external live market feed for charting FX and crypto OHLC candles. It is enabled by default (`MARKET_DATA_BIQUOTE_ENABLED=true`) and can be switched off explicitly. It is an external market-data feed, not the trader's broker quote; broker spreads, execution prices, and venue-specific prices may differ. Do not use this feed for order execution, position sizing, accounting, or broker reconciliation. It is not a substitute for broker-specific MT5 candles. The frontend refreshes the current chart series every 15 seconds while the page is active. Weekly candles are aggregated from daily OHLC data.
+
 ## Configuration (environment)
 
 | Variable | Default |
 |---|---|
 | `MARKET_DATA_BIND` | `127.0.0.1:8787` |
 | `MARKET_DATA_BINANCE_ENABLED` | `false` (no outbound request unless `true`) |
+| `MARKET_DATA_BIQUOTE_ENABLED` | `true` (public external live feed; can be disabled) |
+| `MARKET_DATA_BIQUOTE_BASE_URL` | `https://biquote.io` |
 | `MARKET_DATA_BINANCE_BASE_URL` | `https://api.binance.com` |
 | `MARKET_DATA_REQUEST_TIMEOUT_MS` | `5000` (100–30000) |
 | `MARKET_DATA_CORS_ORIGINS` | `http://localhost:3000,http://localhost:3107` |
