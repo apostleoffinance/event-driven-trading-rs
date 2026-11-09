@@ -41,7 +41,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const token = getAccessToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
     try { response = await fetch(url, { ...init, headers, cache: "no-store" }); }
-    catch { throw new ApiError("Backend unavailable or network/CORS request failed.", 0, "network_error"); }
+    catch { throw new ApiError("Unable to connect to EdgeNest services. Please try again.", 0, "network_error"); }
   }
   if (response.status === 401 && auth) clearSession();
   if (!response.ok) {
@@ -59,5 +59,5 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
 export function requireApiMode(): void {
   const configured = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_IDENTITY_API_URL || process.env.NEXT_PUBLIC_JOURNAL_API_URL || process.env.NEXT_PUBLIC_MARKET_DATA_API_URL;
-  if (!configured?.trim()) throw new Error("Set NEXT_PUBLIC_API_URL or at least one service-specific API URL.");
+  if (!configured?.trim()) throw new Error("This service is temporarily unavailable. Please try again later.");
 }
