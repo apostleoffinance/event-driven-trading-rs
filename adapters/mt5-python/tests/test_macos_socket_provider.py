@@ -227,9 +227,10 @@ class MacOsProviderTests(unittest.TestCase):
                             "provider_build_version": MQL5_PROVIDER_BUILD_VERSION,
                         },
                     }) + "\n").encode())
-                    # Keep the peer open briefly so the client reads the complete
-                    # response before EOF on slower CI runners.
-                    time.sleep(0.05)
+                    # Wait for the client to close after validating the version.
+                    # This avoids a timing race between response delivery and EOF
+                    # on slower macOS CI runners.
+                    reader.readline()
             except Exception as exc:
                 failures.append(exc)
 

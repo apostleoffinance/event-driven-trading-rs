@@ -8,6 +8,7 @@ use axum::{Json, Router};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::error::MarketDataError;
+use crate::fx_conversion::{convert, FxConversionQuery};
 use crate::mt5_latest::Mt5LatestService;
 use crate::service::{CandleQuery, MarketDataService, SystemClock};
 
@@ -36,6 +37,13 @@ async fn candles(
     Query(q): Query<CandleQuery>,
 ) -> Result<Response, MarketDataError> {
     Ok(Json(svc.get_candles(&q).await?).into_response())
+}
+
+async fn fx_convert(
+    State(svc): State<Shared>,
+    Query(q): Query<FxConversionQuery>,
+) -> Result<Response, MarketDataError> {
+    Ok(Json(convert(&svc, q).await?).into_response())
 }
 
 async fn providers(State(svc): State<Shared>) -> Response {
@@ -84,6 +92,7 @@ pub fn router_with_mt5(
         .with_state(mt5);
 
     Router::new()
+        .route("/api/v1/market-data/fx/convert", get(fx_convert))
         .route("/api/v1/market-data/candles", get(candles))
         .route("/api/v1/market-data/providers", get(providers))
         .route("/api/v1/market-data/instruments", get(instruments))

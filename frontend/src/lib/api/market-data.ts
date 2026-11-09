@@ -24,6 +24,10 @@ export function providerStatusLabel(provider: MarketDataProvider): string {
   return typeof status.reason === "string" && status.reason.length ? `${label} — ${status.reason}` : label;
 }
 export type MarketInstrument = { id: string; symbol?: string; name?: string; [key: string]: unknown };
+export type FxConversionResponse = {
+  from:string; to:string; amount:string; converted_amount:string; rate:string; source:string; method:string;
+  freshness:string; age_seconds:number|null; timestamp:string|null; assumed:boolean; stale_allowed:boolean; disclaimer:string;
+};
 export type Candle = { timestamp_ms: number; open: number; high: number; low: number; close: number; volume?: number };
 export type CandleResponse = { candles: Candle[]; count?: number; classification?: string; last_updated_at?: string; freshness?: unknown; [key: string]: unknown };
 
@@ -38,6 +42,13 @@ export const marketDataApi = {
     if (input.from) params.set("from", input.from);
     if (input.to) params.set("to", input.to);
     return apiRequest<CandleResponse>(`/api/v1/market-data/candles?${params.toString()}`, { auth: false, baseUrl: marketDataBaseUrl() });
+  },
+  async fxConvert(input:{from:string;to:string;amount?:number;allow_stale?:boolean}) {
+    requireApiMode();
+    const params=new URLSearchParams({from:input.from,to:input.to});
+    if(input.amount!==undefined)params.set("amount",String(input.amount));
+    if(input.allow_stale)params.set("allow_stale","true");
+    return apiRequest<FxConversionResponse>(`/api/v1/market-data/fx/convert?${params.toString()}`,{auth:false,baseUrl:marketDataBaseUrl()});
   },
   async mt5Latest() { requireApiMode(); return apiRequest<unknown>("/api/v1/market-data/mt5/latest", { auth: false, baseUrl: marketDataBaseUrl() }); },
 };
