@@ -545,7 +545,7 @@ pub async fn evaluate(
     if policy.max_daily_loss_pct.is_some() && open_positions > 0 {
         push(
             "floating_pnl_unavailable",
-            "Daily-loss assessment uses realized Journal P&L and current open risk; floating P&L is not available.",
+            "Daily-loss assessment uses realized Journal P&L and current open risk; floating P&L is not available.".into(),
             &policy.firm_limits_enforcement,
         );
     }
