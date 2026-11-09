@@ -1038,11 +1038,13 @@ table {
 .journal-trade-history-table {
   min-width: 1120px;
 }
-.journal-trade-history-table td.journal-actions {
+ .journal-trade-history-table td.journal-actions {
+  white-space: nowrap;
+}
+.journal-trade-history-table .journal-action-buttons {
   display: flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
 }
 .journal-trade-history-table td.journal-actions .btn {
   padding: 6px 9px;
