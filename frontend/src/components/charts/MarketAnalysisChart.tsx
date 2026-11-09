@@ -226,7 +226,7 @@ export function MarketAnalysisChart() {
     );
     smaRef.current.setData(showSma ? movingAverage(chartData, 20) : []);
     const viewKey = `${selectedSymbol}:${frame}:${selectedProvider}`;
-    if (fittedViewKeyRef.current !== viewKey) {
+    if (chartData.length > 0 && fittedViewKeyRef.current !== viewKey) {
       chartRef.current?.timeScale().fitContent();
       fittedViewKeyRef.current = viewKey;
     }
