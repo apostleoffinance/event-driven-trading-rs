@@ -69,6 +69,7 @@ export function MarketAnalysisChart() {
   const [pendingAnchor, setPendingAnchor] = useState<{ time: Time; value: number } | null>(null);
   const drawingSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
   const drawingPriceLinesRef = useRef<IPriceLine[]>([]);
+  const fittedViewKeyRef = useRef("");
   const [showVolume, setShowVolume] = useState(true);
   const [showSma, setShowSma] = useState(false);
   const [sl, setSl] = useState("");
@@ -224,8 +225,12 @@ export function MarketAnalysisChart() {
         })),
     );
     smaRef.current.setData(showSma ? movingAverage(chartData, 20) : []);
-    chartRef.current?.timeScale().fitContent();
-  }, [chartData, showSma, chartReady]);
+    const viewKey = `${selectedSymbol}:${frame}:${selectedProvider}`;
+    if (fittedViewKeyRef.current !== viewKey) {
+      chartRef.current?.timeScale().fitContent();
+      fittedViewKeyRef.current = viewKey;
+    }
+  }, [chartData, showSma, chartReady, selectedSymbol, frame, selectedProvider]);
 
   useEffect(() => {
     volumeRef.current?.applyOptions({ visible: showVolume });
@@ -363,7 +368,7 @@ export function MarketAnalysisChart() {
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, marginBottom: 8 }}>
         <span style={{ color: candles.data?.freshness === "fresh" ? "#26a69a" : "#f59e0b", fontWeight: 600 }}>● {candles.data?.freshness ?? "checking feed"}</span>
-        <span>Refreshing every 15 seconds while this tab is active</span>
+        <span>Live updates every 15 seconds · chart zoom is preserved</span>
         {drawMode !== "none" ? <span>Click chart {drawMode === "trendline" && !pendingAnchor ? "twice to place a trendline" : "to place line"}</span> : null}
       </div>
       {latest ? (
