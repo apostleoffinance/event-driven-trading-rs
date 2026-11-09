@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { journalApi } from "@/lib/api/journal";
 import { hasSession } from "@/lib/auth/session";
@@ -39,7 +39,7 @@ export default function CalculatorPage() {
   const [customContract, setCustomContract] = useState(false);
   const [auth, setAuth] = useState(false);
 
-  useMemo(() => { if (typeof window !== "undefined") setAuth(hasSession()); return null; }, []);
+  useEffect(() => { setAuth(hasSession()); }, []);
   const accounts = useQuery({ queryKey: ["journal", "accounts"], queryFn: journalApi.listAccounts, enabled: auth });
   const activeSymbol = symbols.find(x => x.symbol === symbol) ?? symbols[0];
 
