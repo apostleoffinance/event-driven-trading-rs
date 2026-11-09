@@ -36,19 +36,15 @@ export default function CalculatorPage() {
   const [contractValue, setContractValue] = useState("100000");
   const [step, setStep] = useState("0.01");
   const [pipSize, setPipSize] = useState("0.0001");
-  const [customContract, setCustomContract] = useState(false);
   const [auth, setAuth] = useState(false);
 
   useEffect(() => { setAuth(hasSession()); }, []);
   const accounts = useQuery({ queryKey: ["journal", "accounts"], queryFn: journalApi.listAccounts, enabled: auth });
-  const activeSymbol = symbols.find(x => x.symbol === symbol) ?? symbols[0];
 
   function selectSymbol(value: string) {
     setSymbol(value);
     const preset = symbols.find(x => x.symbol === value);
     if (preset && value !== "CUSTOM") {
-      setContractValue(preset.contract); setStep(preset.step); setPipSize(preset.pip); setCustomContract(false);
-    } else setCustomContract(true);
     if (value === "USDJPY") { setEntry("155.000"); setStop("154.500"); }
     else if (value === "XAUUSD") { setEntry("2700.00"); setStop("2695.00"); }
     else if (value === "BTCUSD") { setEntry("80000"); setStop("79000"); }
@@ -83,7 +79,6 @@ export default function CalculatorPage() {
           <label className="journal-field"><span>Risk per trade (%)</span><input type="number" min="0" max="100" step="any" value={riskPct} onChange={e=>setRiskPct(e.target.value)}/></label>
           <label className="journal-field"><span>Entry price</span><input type="number" min="0" step="any" value={entry} onChange={e=>setEntry(e.target.value)}/></label>
           <label className="journal-field"><span>Stop-loss price</span><input type="number" min="0" step="any" value={stop} onChange={e=>setStop(e.target.value)}/></label>
-          <label className="journal-field"><span>Contract value per price unit (account currency)</span><input type="number" min="0" step="any" value={contractValue} onChange={e=>setContractValue(e.target.value)} onFocus={()=>setCustomContract(true)}/></label>
           <label className="journal-field"><span>Quantity / lot step</span><input type="number" min="0" step="any" value={step} onChange={e=>setStep(e.target.value)}/></label>
           <label className="journal-field"><span>Pip / point size</span><input type="number" min="0" step="any" value={pipSize} onChange={e=>setPipSize(e.target.value)}/></label>
         </div>
