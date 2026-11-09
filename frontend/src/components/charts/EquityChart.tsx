@@ -59,7 +59,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
         },
         {
           type: "value",
-          axisLabel: { color: dim, fontSize: 12, formatter: "{value}%" },
+          axisLabel: { color: dim, fontSize: 12, formatter: (value: number) => formatNumber(value, 2) + "%" },
           splitLine: { show: false },
         },
       ],
