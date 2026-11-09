@@ -433,8 +433,16 @@ pub async fn evaluate(
             }
             let max_daily = base * max_daily_pct / Decimal::from(100);
             let used_loss = (-daily_pnl).max(Decimal::ZERO);
-            if used_loss >= max_daily || used_loss + input.risk_amount >= max_daily {
-                push("daily_loss_limit",format!("Daily loss budget {} {} ({}%) is reached or would be breached by this planned risk.",max_daily,currency,max_daily_pct),&policy.firm_limits_enforcement);
+            let projected_loss = used_loss + current_open_risk + input.risk_amount;
+            if used_loss >= max_daily || projected_loss >= max_daily {
+                push(
+                    "daily_loss_limit",
+                    format!(
+                        "Daily realized loss plus current open risk and this plan would reach/exceed the {} {} ({}%) daily loss limit.",
+                        max_daily, currency, max_daily_pct
+                    ),
+                    &policy.firm_limits_enforcement,
+                );
             }
         } else {
             push("daily_loss_reference_missing",format!("Start-of-day account value is required for the configured {} daily-loss basis.",policy.daily_loss_basis),&policy.firm_limits_enforcement);
@@ -522,24 +530,68 @@ pub async fn evaluate(
             );
         }
     }
+    let firm_state_severity = if policy.max_daily_loss_pct.is_some()
+        || policy.max_total_open_risk_pct.is_some()
+    {
+        policy.firm_limits_enforcement.as_str()
+    } else {
+        "warn"
+    };
+    let daily_risk_state_severity = if policy.max_daily_risk_pct.is_some() {
+        policy.personal_limits_enforcement.as_str()
+    } else {
+        "warn"
+    };
     if policy.max_daily_loss_pct.is_some() && open_positions > 0 {
         push(
             "floating_pnl_unavailable",
-            "Daily-loss assessment uses realized Journal P&L only; floating P&L for open trades is not available.",
-            "warn",
+            "Daily-loss assessment uses realized Journal P&L and current open risk; floating P&L is not available.",
+            &policy.firm_limits_enforcement,
         );
     }
     if unconverted_pnl_count > 0 {
-        push("pnl_currency_mismatch",format!("{} closed trade(s) today have P&L in another currency and were excluded from the account-currency daily P&L sum.",unconverted_pnl_count),"warn");
+        push(
+            "pnl_currency_mismatch",
+            format!(
+                "{} closed trade(s) today have P&L in another currency and were excluded from account-currency daily P&L.",
+                unconverted_pnl_count
+            ),
+            if policy.max_daily_loss_pct.is_some() {
+                &policy.firm_limits_enforcement
+            } else {
+                "warn"
+            },
+        );
     }
     if unconverted_risk_count > 0 {
-        push("open_risk_currency_mismatch",format!("{} open trade(s) have risk values in a different currency; they are excluded from the open-risk sum.",unconverted_risk_count),"warn");
+        push(
+            "open_risk_currency_mismatch",
+            format!(
+                "{} open trade(s) have risk values in another currency and were excluded from the open-risk sum.",
+                unconverted_risk_count
+            ),
+            firm_state_severity,
+        );
     }
     if unconverted_daily_risk_count > 0 {
-        push("daily_risk_currency_mismatch",format!("{} trade(s) opened today have risk values in another currency and were excluded from the daily-risk budget.",unconverted_daily_risk_count),"warn");
+        push(
+            "daily_risk_currency_mismatch",
+            format!(
+                "{} trade(s) opened today have risk values in another currency and were excluded from the daily-risk budget.",
+                unconverted_daily_risk_count
+            ),
+            daily_risk_state_severity,
+        );
     }
     if missing_daily_risk_count > 0 {
-        push("daily_risk_data_missing",format!("{} trade(s) opened today have no recorded risk amount; the daily-risk budget is incomplete.",missing_daily_risk_count),"warn");
+        push(
+            "daily_risk_data_missing",
+            format!(
+                "{} trade(s) opened today have no recorded risk amount; the daily-risk budget is incomplete.",
+                missing_daily_risk_count
+            ),
+            daily_risk_state_severity,
+        );
     }
     if missing_open_risk_count > 0 {
         push(
@@ -548,7 +600,7 @@ pub async fn evaluate(
                 "{} open trade(s) have no recorded risk amount; open-risk totals are incomplete.",
                 missing_open_risk_count
             ),
-            "warn",
+            firm_state_severity,
         );
     }
     if policy
