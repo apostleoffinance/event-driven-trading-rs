@@ -12,7 +12,6 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
     : service === "market-data" ? process.env.NEXT_PUBLIC_MARKET_DATA_API_URL : undefined;
   const value = (specific || process.env.NEXT_PUBLIC_API_URL || "").trim();
   if (!value) {
-    const required = service === "market-data" ? "NEXT_PUBLIC_MARKET_DATA_API_URL" : service === "identity" ? "NEXT_PUBLIC_IDENTITY_API_URL" : service === "journal" ? "NEXT_PUBLIC_JOURNAL_API_URL" : "NEXT_PUBLIC_API_URL";
     throw new Error("This service is temporarily unavailable. Please try again later.");
   }
   const normalized = value.replace(/\/$/, "");
