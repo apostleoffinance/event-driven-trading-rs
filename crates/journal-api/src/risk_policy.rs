@@ -12,16 +12,27 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{auth::{ApiAuthError, Claims}, AppState};
+use crate::{
+    auth::{ApiAuthError, Claims},
+    AppState,
+};
 
 fn principal(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
     state.auth.authenticate(headers)
 }
 fn error(status: StatusCode, code: &str, message: &str) -> Response {
-    (status, Json(serde_json::json!({"error":{"code":code,"message":message}}))).into_response()
+    (
+        status,
+        Json(serde_json::json!({"error":{"code":code,"message":message}})),
+    )
+        .into_response()
 }
 fn internal() -> Response {
-    error(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Internal server error")
+    error(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "internal_error",
+        "Internal server error",
+    )
 }
 fn not_found() -> Response {
     error(StatusCode::NOT_FOUND, "not_found", "Account not found")
@@ -110,7 +121,9 @@ fn validate(p: &AccountRiskPolicy) -> Result<(), &'static str> {
     if p.risk_per_trade_pct <= Decimal::ZERO || p.risk_per_trade_pct > Decimal::from(100) {
         return Err("Risk per trade must be greater than 0 and at most 100%.");
     }
-    if p.max_risk_per_trade_amount.is_some_and(|v| v <= Decimal::ZERO) {
+    if p.max_risk_per_trade_amount
+        .is_some_and(|v| v <= Decimal::ZERO)
+    {
         return Err("Absolute risk cap must be greater than zero.");
     }
     if !valid_pct(p.max_daily_loss_pct)
@@ -120,7 +133,9 @@ fn validate(p: &AccountRiskPolicy) -> Result<(), &'static str> {
     {
         return Err("Percentage limits must be greater than 0 and at most 100% when set.");
     }
-    if p.minimum_rr.is_some_and(|v| v <= Decimal::ZERO || v > Decimal::from(100)) {
+    if p.minimum_rr
+        .is_some_and(|v| v <= Decimal::ZERO || v > Decimal::from(100))
+    {
         return Err("Minimum R:R must be greater than 0 and at most 100.");
     }
     if p.max_lot_size.is_some_and(|v| v <= Decimal::ZERO)
@@ -130,7 +145,13 @@ fn validate(p: &AccountRiskPolicy) -> Result<(), &'static str> {
     {
         return Err("Lot, leverage, trade-count, and position limits must be positive.");
     }
-    if !["initial_balance", "start_of_day_balance", "start_of_day_equity"].contains(&p.daily_loss_basis.as_str()) {
+    if ![
+        "initial_balance",
+        "start_of_day_balance",
+        "start_of_day_equity",
+    ]
+    .contains(&p.daily_loss_basis.as_str())
+    {
         return Err("Invalid daily loss basis.");
     }
     if !["static_initial", "trailing_high_water"].contains(&p.drawdown_basis.as_str()) {
@@ -147,15 +168,36 @@ fn validate(p: &AccountRiskPolicy) -> Result<(), &'static str> {
     Ok(())
 }
 
-async fn owned_account(pool: &sqlx::PgPool, owner: &str, account: &str) -> Result<(String, Decimal), sqlx::Error> {
+async fn owned_account(
+    pool: &sqlx::PgPool,
+    owner: &str,
+    account: &str,
+) -> Result<(String, Decimal), sqlx::Error> {
     sqlx::query_as::<_, (String, Decimal)>(
         "SELECT currency, initial_balance FROM journal_accounts WHERE owner_id=$1 AND id=$2 AND archived=FALSE"
-    ).bind(owner).bind(account).fetch_optional(pool).await?.ok_or(sqlx::Error::RowNotFound)
+    )
+    .bind(owner)
+    .bind(account)
+    .fetch_optional(pool)
+    .await?
+    .ok_or(sqlx::Error::RowNotFound)
 }
 
-pub async fn get(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(e) => return e.into_response() };
-    if owned_account(state.store.pool(), &claims.sub, &id).await.is_err() { return not_found(); }
+pub async fn get(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    if owned_account(state.store.pool(), &claims.sub, &id)
+        .await
+        .is_err()
+    {
+        return not_found();
+    }
     match sqlx::query_as::<_, (Value, i32, chrono::DateTime<chrono::Utc>)>(
         "SELECT policy_json, version, updated_at FROM journal_account_risk_policies WHERE owner_id=$1 AND account_id=$2"
     ).bind(&claims.sub).bind(&id).fetch_optional(state.store.pool()).await {
@@ -165,17 +207,45 @@ pub async fn get(State(state): State<AppState>, headers: HeaderMap, Path(id): Pa
     }
 }
 
-pub async fn put(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(policy): Json<AccountRiskPolicy>) -> Response {
-    let claims = match principal(&state, &headers) { Ok(c) => c, Err(e) => return e.into_response() };
-    let (currency, _initial_balance) = match owned_account(state.store.pool(), &claims.sub, &id).await {
+pub async fn put(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(policy): Json<AccountRiskPolicy>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    let (currency, _initial_balance) =
+        match owned_account(state.store.pool(), &claims.sub, &id).await {
         Ok(account) => account,
         Err(_) => return not_found(),
     };
-    if let Err(message) = validate(&policy) { return error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_policy", message); }
-    let timezone_exists = match sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)")
-        .bind(&policy.daily_reset_timezone).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
-    if !timezone_exists { return error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_timezone", "Daily reset timezone must be a valid IANA timezone (e.g. Africa/Lagos)."); }
-    let json = match serde_json::to_value(&policy) { Ok(v) => v, Err(_) => return internal() };
+    if let Err(message) = validate(&policy) {
+        return error(StatusCode::UNPROCESSABLE_ENTITY, "invalid_policy", message);
+    }
+    let timezone_exists = match sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM pg_timezone_names WHERE name=$1)",
+    )
+    .bind(&policy.daily_reset_timezone)
+    .fetch_one(state.store.pool())
+    .await
+    {
+        Ok(v) => v,
+        Err(_) => return internal(),
+    };
+    if !timezone_exists {
+        return error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid_timezone",
+            "Daily reset timezone must be a valid IANA timezone (e.g. Africa/Lagos).",
+        );
+    }
+    let json = match serde_json::to_value(&policy) {
+        Ok(v) => v,
+        Err(_) => return internal(),
+    };
     match sqlx::query(
         "INSERT INTO journal_account_risk_policies(owner_id,account_id,policy_json,version,updated_at) VALUES($1,$2,$3,1,NOW()) ON CONFLICT(owner_id,account_id) DO UPDATE SET policy_json=EXCLUDED.policy_json,version=journal_account_risk_policies.version+1,updated_at=NOW() RETURNING version,updated_at"
     ).bind(&claims.sub).bind(&id).bind(json).fetch_one(state.store.pool()).await {
@@ -200,33 +270,79 @@ pub struct PolicyEvaluationInput {
     pub current_open_notional: Option<Decimal>,
 }
 
-pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(input): Json<PolicyEvaluationInput>) -> Response {
+pub async fn evaluate(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<PolicyEvaluationInput>,
+) -> Response {
     let claims = match principal(&state, &headers) { Ok(c) => c, Err(e) => return e.into_response() };
     let (currency, initial_balance) = match owned_account(state.store.pool(), &claims.sub, &id).await {
         Ok(account) => account,
         Err(_) => return not_found(),
     };
-    if input.risk_amount <= Decimal::ZERO || input.equity <= Decimal::ZERO
+    if input.risk_amount <= Decimal::ZERO
+        || input.equity <= Decimal::ZERO
         || input.lot_size.is_some_and(|v| v <= Decimal::ZERO)
         || input.trade_notional.is_some_and(|v| v < Decimal::ZERO)
-        || input.current_open_notional.is_some_and(|v| v < Decimal::ZERO)
+        || input
+            .current_open_notional
+            .is_some_and(|v| v < Decimal::ZERO)
     {
-        return error(StatusCode::BAD_REQUEST, "invalid_evaluation", "Risk, equity, and lot inputs must be valid positive/non-negative values.");
+        return error(
+            StatusCode::BAD_REQUEST,
+            "invalid_evaluation",
+            "Risk, equity, and lot inputs must be valid positive/non-negative values.",
+        );
     }
-    let policy_json = match sqlx::query_scalar::<_, Value>("SELECT policy_json FROM journal_account_risk_policies WHERE owner_id=$1 AND account_id=$2")
-        .bind(&claims.sub).bind(&id).fetch_optional(state.store.pool()).await {
+    let policy_json = match sqlx::query_scalar::<_, Value>(
+        "SELECT policy_json FROM journal_account_risk_policies WHERE owner_id=$1 AND account_id=$2",
+    )
+    .bind(&claims.sub)
+    .bind(&id)
+    .fetch_optional(state.store.pool())
+    .await
+    {
         Ok(Some(v)) => v,
-        Ok(None) => match serde_json::to_value(AccountRiskPolicy::default()) { Ok(v)=>v, Err(_)=>return internal() },
+        Ok(None) => match serde_json::to_value(AccountRiskPolicy::default()) {
+            Ok(v) => v,
+            Err(_) => return internal(),
+        },
         Err(_) => return internal(),
     };
-    let policy: AccountRiskPolicy = match serde_json::from_value(policy_json) { Ok(p)=>p, Err(_)=>return error(StatusCode::INTERNAL_SERVER_ERROR,"invalid_saved_policy","Saved risk policy could not be parsed. Please edit and save it again.") };
-    if let Err(message) = validate(&policy) { return error(StatusCode::INTERNAL_SERVER_ERROR, "invalid_saved_policy", message); }
+    let policy: AccountRiskPolicy = match serde_json::from_value(policy_json) {
+        Ok(p) => p,
+        Err(_) => {
+            return error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "invalid_saved_policy",
+                "Saved risk policy could not be parsed. Please edit and save it again.",
+            )
+        }
+    };
+    if let Err(message) = validate(&policy) {
+        return error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "invalid_saved_policy",
+            message,
+        );
+    }
 
     // Daily risk calculations use the account policy's timezone reset.
     let day_start = match sqlx::query_scalar::<_, chrono::DateTime<Utc>>(
-        "SELECT (date_trunc('day', NOW() AT TIME ZONE $1) AT TIME ZONE $1)"
-    ).bind(&policy.daily_reset_timezone).fetch_one(state.store.pool()).await {
-        Ok(v)=>v, Err(_)=>return error(StatusCode::UNPROCESSABLE_ENTITY,"invalid_timezone","Daily reset timezone is invalid or unavailable.")
+        "SELECT (date_trunc('day', NOW() AT TIME ZONE $1) AT TIME ZONE $1)",
+    )
+    .bind(&policy.daily_reset_timezone)
+    .fetch_one(state.store.pool())
+    .await
+    {
+        Ok(v) => v,
+        Err(_) => {
+            return error(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "invalid_timezone",
+                "Daily reset timezone is invalid or unavailable.",
+            )
     };
     let daily_pnl = match sqlx::query_scalar::<_, Decimal>(
         "SELECT COALESCE(SUM(net_pnl),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency=$4"
@@ -248,35 +364,47 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     let mut blocked = false;
     let mut warned = false;
     let mut push = |code: &str, message: String, severity: &str| {
-        if severity == "block" { blocked = true; } else { warned = true; }
+        if severity == "block" {
+            blocked = true;
+        } else {
+            warned = true;
+        }
         violations.push(serde_json::json!({"code":code,"message":message,"severity":severity}));
     };
     let per_trade_cap = input.equity * policy.risk_per_trade_pct / Decimal::from(100);
-    let effective_cap = policy.max_risk_per_trade_amount.map_or(per_trade_cap, |v| per_trade_cap.min(v));
+    let effective_cap = policy
+        .max_risk_per_trade_amount
+        .map_or(per_trade_cap, |v| per_trade_cap.min(v));
     if input.risk_amount > effective_cap {
         push("trade_risk_cap", format!("Planned risk {} {} exceeds the effective per-trade cap {} {}.", input.risk_amount, currency, effective_cap, currency), &policy.personal_limits_enforcement);
     }
-    if let (Some(min_rr),Some(reward))=(policy.minimum_rr,input.potential_reward) {
+    if let (Some(min_rr), Some(reward)) = (policy.minimum_rr, input.potential_reward) {
         if reward <= Decimal::ZERO || reward / input.risk_amount < min_rr {
             push("minimum_rr",format!("Planned reward/risk is below the configured minimum {}R.",min_rr),&policy.personal_limits_enforcement);
         }
     }
-    if let Some(max_daily_risk_pct)=policy.max_daily_risk_pct {
-        let daily_risk_cap=input.equity*max_daily_risk_pct/Decimal::from(100);
-        if daily_risk_used+input.risk_amount > daily_risk_cap {
+    if let Some(max_daily_risk_pct) = policy.max_daily_risk_pct {
+        let daily_risk_cap = input.equity * max_daily_risk_pct / Decimal::from(100);
+        if daily_risk_used + input.risk_amount > daily_risk_cap {
             push("daily_risk_budget",format!("Today's journaled risk plus this plan exceeds the personal daily risk budget of {}% equity.",max_daily_risk_pct),&policy.personal_limits_enforcement);
         }
     }
-    if let Some(max_daily_pct)=policy.max_daily_loss_pct {
-        let base=match policy.daily_loss_basis.as_str() {
-            "initial_balance"=>Some(initial_balance),
-            "start_of_day_balance"=>input.start_of_day_balance,
-            _=>input.start_of_day_equity,
+    if let Some(max_daily_pct) = policy.max_daily_loss_pct {
+        let base = match policy.daily_loss_basis.as_str() {
+            "initial_balance" => Some(initial_balance),
+            "start_of_day_balance" => input.start_of_day_balance,
+            _ => input.start_of_day_equity,
         };
-        if let Some(base)=base {
-            if base <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_daily_loss_basis","Daily-loss calculation base must be positive."); }
-            let max_daily=base*max_daily_pct/Decimal::from(100);
-            let used_loss=(-daily_pnl).max(Decimal::ZERO);
+        if let Some(base) = base {
+            if base <= Decimal::ZERO {
+                return error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_daily_loss_basis",
+                    "Daily-loss calculation base must be positive.",
+                );
+            }
+            let max_daily = base * max_daily_pct / Decimal::from(100);
+            let used_loss = (-daily_pnl).max(Decimal::ZERO);
             if used_loss >= max_daily || used_loss + input.risk_amount >= max_daily {
                 push("daily_loss_limit",format!("Daily loss budget {} {} ({}%) is reached or would be breached by this planned risk.",max_daily,currency,max_daily_pct),&policy.firm_limits_enforcement);
             }
@@ -284,15 +412,22 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
             push("daily_loss_reference_missing",format!("Start-of-day account value is required for the configured {} daily-loss basis.",policy.daily_loss_basis),&policy.firm_limits_enforcement);
         }
     }
-    if let Some(max_dd)=policy.max_total_drawdown_pct {
-        let peak=match policy.drawdown_basis.as_str() {
-            "static_initial"=>Some(initial_balance),
-            _=>input.peak_equity,
+    if let Some(max_dd) = policy.max_total_drawdown_pct {
+        let peak = match policy.drawdown_basis.as_str() {
+            "static_initial" => Some(initial_balance),
+            _ => input.peak_equity,
         };
-        if let Some(peak)=peak {
-            if peak <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_drawdown_basis","Drawdown reference must be positive."); }
-            let dd=(peak-input.equity).max(Decimal::ZERO)/peak*Decimal::from(100);
-            let projected=(peak-input.equity+input.risk_amount).max(Decimal::ZERO)/peak*Decimal::from(100);
+        if let Some(peak) = peak {
+            if peak <= Decimal::ZERO {
+                return error(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_drawdown_basis",
+                    "Drawdown reference must be positive.",
+                );
+            }
+            let dd = (peak - input.equity).max(Decimal::ZERO) / peak * Decimal::from(100);
+            let projected = (peak - input.equity + input.risk_amount).max(Decimal::ZERO) / peak
+                * Decimal::from(100);
             if dd >= max_dd || projected >= max_dd {
                 push("max_drawdown",format!("Current/projected drawdown {:.4}% / {:.4}% meets or exceeds the configured {}% limit.",dd,projected,max_dd),&policy.firm_limits_enforcement);
             }
@@ -300,24 +435,30 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
             push("peak_equity_missing","Peak equity is required to assess trailing high-water-mark drawdown.".into(),&policy.firm_limits_enforcement);
         }
     }
-    if policy.max_trades_per_day.is_some_and(|n| trades_today >= i64::from(n)) {
+    if policy
+        .max_trades_per_day
+        .is_some_and(|n| trades_today >= i64::from(n))
+    {
         push("max_trades_per_day",format!("Daily trade limit of {} has been reached.",policy.max_trades_per_day.unwrap_or(0)),&policy.firm_limits_enforcement);
     }
-    if policy.max_open_positions.is_some_and(|n| open_positions >= i64::from(n)) {
+    if policy
+        .max_open_positions
+        .is_some_and(|n| open_positions >= i64::from(n))
+    {
         push("max_open_positions",format!("Open-position limit of {} has been reached.",policy.max_open_positions.unwrap_or(0)),&policy.firm_limits_enforcement);
     }
-    if let Some(max_open_risk_pct)=policy.max_total_open_risk_pct {
-        let used=current_open_risk;
-        let total_cap=input.equity*max_open_risk_pct/Decimal::from(100);
-        if used+input.risk_amount > total_cap {
+    if let Some(max_open_risk_pct) = policy.max_total_open_risk_pct {
+        let used = current_open_risk;
+        let total_cap = input.equity * max_open_risk_pct / Decimal::from(100);
+        if used + input.risk_amount > total_cap {
             push("max_open_risk",format!("Current open risk plus this trade exceeds the {}% account-equity open-risk limit.",max_open_risk_pct),&policy.firm_limits_enforcement);
         }
     }
-    if let Some(max_leverage)=policy.max_leverage {
-        if let Some(trade_notional)=input.trade_notional {
-            if let Some(current_notional)=input.current_open_notional {
-                let max_notional=input.equity*max_leverage;
-                if current_notional+trade_notional > max_notional {
+    if let Some(max_leverage) = policy.max_leverage {
+        if let Some(trade_notional) = input.trade_notional {
+            if let Some(current_notional) = input.current_open_notional {
+                let max_notional = input.equity * max_leverage;
+                if current_notional + trade_notional > max_notional {
                     push("max_leverage",format!("Current open notional plus planned notional exceeds {}x leverage capacity.",max_leverage),&policy.firm_limits_enforcement);
                 }
             } else {
@@ -340,10 +481,19 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     if unconverted_risk_count > 0 {
         push("open_risk_currency_mismatch",format!("{} open trade(s) have risk values in a different currency; they are excluded from the open-risk sum.",unconverted_risk_count),"warn");
     }
-    if policy.max_lot_size.is_some_and(|max| input.lot_size.is_some_and(|lot| lot > max)) {
+    if policy
+        .max_lot_size
+        .is_some_and(|max| input.lot_size.is_some_and(|lot| lot > max))
+    {
         push("max_lot_size",format!("Requested lot size exceeds configured maximum {}.",policy.max_lot_size.unwrap_or(Decimal::ZERO)),&policy.personal_limits_enforcement);
     }
-    let status=if blocked {"blocked"} else if warned {"warning"} else {"within_policy"};
+    let status = if blocked {
+        "blocked"
+    } else if warned {
+        "warning"
+    } else {
+        "within_policy"
+    };
     Json(serde_json::json!({
         "status":status,"currency":currency,"policy_name":policy.profile_name,
         "risk_amount":input.risk_amount.to_string(),"risk_pct_of_equity":(input.risk_amount/input.equity*Decimal::from(100)).round_dp(4).to_string(),
@@ -358,22 +508,25 @@ mod tests {
 
     #[test]
     fn default_policy_is_conservative_and_valid() {
-        let policy=AccountRiskPolicy::default();
-        assert_eq!(policy.risk_per_trade_pct,Decimal::new(5,1));
+        let policy = AccountRiskPolicy::default();
+        assert_eq!(policy.risk_per_trade_pct, Decimal::new(5, 1));
         assert!(validate(&policy).is_ok());
     }
 
     #[test]
     fn invalid_policy_percent_is_rejected() {
-        let mut policy=AccountRiskPolicy::default();
-        policy.risk_per_trade_pct=Decimal::from(101);
-        assert_eq!(validate(&policy),Err("Risk per trade must be greater than 0 and at most 100%."));
+        let mut policy = AccountRiskPolicy::default();
+        policy.risk_per_trade_pct = Decimal::from(101);
+        assert_eq!(
+            validate(&policy),
+            Err("Risk per trade must be greater than 0 and at most 100%.")
+        );
     }
 
     #[test]
     fn policy_requires_hard_firm_enforcement_option() {
         let mut policy=AccountRiskPolicy::default();
-        policy.firm_limits_enforcement="ignore".into();
+        policy.firm_limits_enforcement = "ignore".into();
         assert!(validate(&policy).is_err());
     }
 }
