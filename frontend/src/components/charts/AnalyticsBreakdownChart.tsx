@@ -20,7 +20,9 @@ export function AnalyticsBreakdownChart({ title, groups, currency = "USD", onSel
     const dim = css("--chart-dim", "#7d8a9a");
     const grid = css("--chart-grid", "#1e2530");
     const axis = css("--chart-axis", "#2a3340");
-    const line = css("--chart-line", "#4b93ff");\n    const positive = css("--positive", "#4fd4a1");\n    const negative = css("--negative", "#f07176");
+    const line = css("--chart-line", "#4b93ff");
+    const positive = css("--positive", "#4fd4a1");
+    const negative = css("--negative", "#f07176");
     const pnl = groups.map(g => Number(g.net_pnl));
     const wins = groups.map(g => Number(g.win_rate_percent));
     return {
