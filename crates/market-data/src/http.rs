@@ -90,7 +90,7 @@ pub fn router_with_mt5(
 
     Router::new()
         .route("/api/v1/market-data/fx/convert", get(fx_convert))
-        .route("/api/v1/market-data/candles", get(candles)
+        .route("/api/v1/market-data/candles", get(candles))
         .route("/api/v1/market-data/providers", get(providers))
         .route("/api/v1/market-data/instruments", get(instruments))
         .route("/healthz", get(healthz))
