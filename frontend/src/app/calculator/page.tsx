@@ -43,8 +43,6 @@ export default function CalculatorPage() {
 
   function selectSymbol(value: string) {
     setSymbol(value);
-    const preset = symbols.find(x => x.symbol === value);
-    if (preset && value !== "CUSTOM") {
     if (value === "USDJPY") { setEntry("155.000"); setStop("154.500"); }
     else if (value === "XAUUSD") { setEntry("2700.00"); setStop("2695.00"); }
     else if (value === "BTCUSD") { setEntry("80000"); setStop("79000"); }
