@@ -259,6 +259,7 @@ pub async fn put(
 
 #[derive(Debug, Deserialize)]
 pub struct PolicyEvaluationInput {
+    pub currency: String,
     pub risk_amount: Decimal,
     pub potential_reward: Option<Decimal>,
     pub equity: Decimal,
@@ -285,6 +286,13 @@ pub async fn evaluate(
             Ok(account) => account,
             Err(_) => return not_found(),
         };
+    if input.currency.trim().to_ascii_uppercase() != currency.to_ascii_uppercase() {
+        return error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "currency_mismatch",
+            "Risk amount, equity, reward, and notional must be expressed in the Journal account currency.",
+        );
+    }
     if input.risk_amount <= Decimal::ZERO
         || input.equity <= Decimal::ZERO
         || input.lot_size.is_some_and(|v| v <= Decimal::ZERO)
