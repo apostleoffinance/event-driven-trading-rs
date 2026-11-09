@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import platform
 import shutil
 import subprocess
@@ -142,11 +141,18 @@ def main() -> int:
         artifacts["daemon_binary"] = {**actual, "path": str(p),
             "manifest_sha256": expected_hash,
             "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash)}
-    for label, values in (("ea_source_installed", args.ea_source), ("ea_binary_installed", args.ea_binary)):
+    for label, values, manifest_key in (
+        ("ea_source_installed", args.ea_source, "ea_source"),
+        ("ea_binary_installed", args.ea_binary, "ea_binary"),
+    ):
         artifacts[label] = []
+        expected_hash = expected.get(manifest_key, {}).get("sha256")
         for value in values:
             p = Path(value).expanduser().resolve()
-            artifacts[label].append({"path": str(p), **sha256(p)})
+            actual = sha256(p)
+            artifacts[label].append({"path": str(p), **actual,
+                "manifest_sha256": expected_hash,
+                "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash)})
 
     status = git_value(root, "status", "--porcelain=v1", "--untracked-files=all") or ""
     refs = {}
