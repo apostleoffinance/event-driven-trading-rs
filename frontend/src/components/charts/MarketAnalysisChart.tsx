@@ -109,7 +109,8 @@ export function MarketAnalysisChart() {
     [candles.data?.candles],
   );
   const latest = chartData.at(-1);
-  const selectedInstrument = instruments.data?.find((item) => item.id === selectedSymbol);\n  const normalizedSymbol = (selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol).replace(/[^A-Z]/gi, "").toUpperCase();
+  const selectedInstrument = instruments.data?.find((item) => item.id === selectedSymbol);
+  const normalizedSymbol = (selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol).replace(/[^A-Z]/gi, "").toUpperCase();
   const fxCurrencies = ["EUR", "GBP", "AUD", "NZD", "USD", "CAD", "CHF", "JPY", "SEK", "NOK", "DKK", "SGD", "HKD", "ZAR", "MXN", "PLN", "TRY", "CNH"];
   const isFxPair = normalizedSymbol.length === 6 && fxCurrencies.includes(normalizedSymbol.slice(0, 3)) && fxCurrencies.includes(normalizedSymbol.slice(3));
   const decimalPlaces = (value: number) => {
@@ -171,7 +172,8 @@ export function MarketAnalysisChart() {
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
-      title: "SMA 20",\n      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
+      title: "SMA 20",
+      priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) },
     });
     chartRef.current = chart;
     setChartReady(true);
