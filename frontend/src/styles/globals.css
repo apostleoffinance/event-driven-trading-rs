@@ -1453,3 +1453,26 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .trade-direction-toggle button:hover { border-color: var(--accent); color: var(--text); }
 .trade-direction-toggle button.active.long { color: #168653; border-color: color-mix(in srgb, #168653 55%, var(--border)); background: color-mix(in srgb, #168653 9%, var(--bg-1)); }
 .trade-direction-toggle button.active.short { color: #d94b4b; border-color: color-mix(in srgb, #d94b4b 55%, var(--border)); background: color-mix(in srgb, #d94b4b 9%, var(--bg-1)); }
+
+
+/* Journal historical trade playback */
+.journal-playback { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.journal-playback .journal-section-heading { align-items: center; gap: 12px; }
+.journal-playback-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.journal-playback-toolbar label { display: flex; flex-direction: column; gap: 5px; color: var(--text-muted); font-size: 11px; font-weight: 650; }
+.journal-playback-toolbar select { min-width: 110px; min-height: 34px; padding: 6px 9px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg-1); color: var(--text); font: inherit; }
+.journal-playback-chart { width: 100%; min-height: 300px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); }
+.journal-playback-current { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.journal-playback-current > span { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-2); }
+.journal-playback-current small { color: var(--text-dim); font-size: 10px; }
+.journal-playback-current strong { font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.journal-playback-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.journal-playback-controls .muted { margin-left: auto; font-size: 11px; }
+.journal-playback-timeline { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; color: var(--text-muted); font-size: 11px; font-weight: 650; }
+.journal-playback-timeline input { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.journal-playback-body > .muted { font-size: 11px; line-height: 1.55; }
+@media (max-width: 700px) {
+  .journal-playback-current { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .journal-playback-controls .muted { width: 100%; margin-left: 0; }
+  .journal-playback-chart { min-height: 260px; }
+}
