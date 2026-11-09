@@ -351,6 +351,7 @@ mod tests {
     use crate::providers::binance::{
         BinanceConfig, BinanceProvider, HttpError, HttpGet, HttpResponse,
     };
+    use crate::providers::biquote::{BiQuoteConfig, BiQuoteProvider};
     use crate::providers::demo::DemoProvider;
     use crate::providers::mt5::Mt5Provider;
     use async_trait::async_trait;
@@ -437,6 +438,13 @@ mod tests {
                 Arc::new(DemoProvider),
                 Arc::new(Mt5Provider),
                 Arc::new(BinanceProvider::new(BinanceConfig::default(), NeverCalled)),
+                Arc::new(BiQuoteProvider::new(
+                    BiQuoteConfig {
+                        enabled: false,
+                        ..Default::default()
+                    },
+                    NeverCalled,
+                )),
             ],
             ServiceConfig::default(),
             Arc::new(FixedClock),
@@ -471,9 +479,9 @@ mod tests {
         let err = svc.get_candles(&q("BTCUSDT", "H1")).await.unwrap_err();
         assert_eq!(err.code(), "provider_disabled");
         assert_eq!(err.body().error.classification, DataClass::Unavailable);
-        // Forex defaults to MT5, which has no candle capability.
+        // Forex defaults to BiQuote. If disabled, it errors rather than falling back to demo data.
         let err = svc.get_candles(&q("EURUSD", "H1")).await.unwrap_err();
-        assert_eq!(err.code(), "capability_not_implemented");
+        assert_eq!(err.code(), "provider_disabled");
     }
 
     #[tokio::test]

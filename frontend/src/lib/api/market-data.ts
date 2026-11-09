@@ -1,7 +1,28 @@
 import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
 const marketDataBaseUrl = () => apiBaseUrl("market-data");
 
-export type MarketDataProvider = { id: string; status?: string; name?: string; [key: string]: unknown };
+export type MarketDataProvider = { id: string; status?: unknown; name?: string; [key: string]: unknown };
+
+export function isProviderSelectable(provider: MarketDataProvider): boolean {
+  if (!provider.status || typeof provider.status !== "object") return true;
+  const state = String((provider.status as { state?: unknown }).state ?? "").toLowerCase();
+  return !["disabled", "not_implemented", "unavailable"].includes(state);
+}
+
+export function providerStatusLabel(provider: MarketDataProvider): string {
+  if (!provider.status || typeof provider.status !== "object") return "Status unavailable";
+  const status = provider.status as { state?: unknown; reason?: unknown };
+  const state = String(status.state ?? "unknown").toLowerCase();
+  const labels: Record<string, string> = {
+    available: "Available",
+    demo: "Demo data",
+    disabled: "Disabled",
+    not_implemented: "Not supported yet",
+    unavailable: "Unavailable",
+  };
+  const label = labels[state] ?? "Status unavailable";
+  return typeof status.reason === "string" && status.reason.length ? `${label} — ${status.reason}` : label;
+}
 export type MarketInstrument = { id: string; symbol?: string; name?: string; [key: string]: unknown };
 export type Candle = { timestamp_ms: number; open: number; high: number; low: number; close: number; volume?: number };
 export type CandleResponse = { candles: Candle[]; count?: number; classification?: string; last_updated_at?: string; freshness?: unknown; [key: string]: unknown };

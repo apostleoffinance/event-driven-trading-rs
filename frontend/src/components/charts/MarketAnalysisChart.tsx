@@ -9,11 +9,13 @@ import {
   type Time,
 } from "lightweight-charts";
 import { useQuery } from "@tanstack/react-query";
-import { marketDataApi, type Candle } from "@/lib/api/market-data";
+import { isProviderSelectable, marketDataApi, type Candle } from "@/lib/api/market-data";
 import { formatPrice } from "@/lib/format";
 
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"] as const;
 type Frame = (typeof FRAMES)[number];
+type DrawMode = "none" | "horizontal" | "trendline";
+type Drawing = { id: number; kind: "horizontal"; price: number } | { id: number; kind: "trendline"; points: [{ time: Time; value: number }, { time: Time; value: number }] };
 
 type ChartCandle = {
   time: Time;
@@ -61,7 +63,13 @@ function movingAverage(values: ChartCandle[], period: number) {
 export function MarketAnalysisChart() {
   const [symbol, setSymbol] = useState("EURUSD");
   const [frame, setFrame] = useState<Frame>("H1");
-  const [provider, setProvider] = useState("mt5-bridge");
+  const [providerOverride, setProviderOverride] = useState<string | null>(null);
+  const [drawMode, setDrawMode] = useState<DrawMode>("none");
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [pendingAnchor, setPendingAnchor] = useState<{ time: Time; value: number } | null>(null);
+  const drawingSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const drawingPriceLinesRef = useRef<IPriceLine[]>([]);
+  const fittedViewKeyRef = useRef("");
   const [showVolume, setShowVolume] = useState(true);
   const [showSma, setShowSma] = useState(false);
   const [sl, setSl] = useState("");
@@ -85,12 +93,13 @@ export function MarketAnalysisChart() {
     queryFn: () => marketDataApi.instruments(),
     enabled: true,
   });
-  const selectedProvider = providers.data?.some((item) => item.id === provider)
-    ? provider
-    : providers.data?.[0]?.id ?? "";
   const selectedSymbol = instruments.data?.some((item) => item.id === symbol)
     ? symbol
     : instruments.data?.[0]?.id ?? "";
+  const instrumentDefaultProvider = String(
+    instruments.data?.find((item) => item.id === selectedSymbol)?.default_provider ?? "biquote-live",
+  );
+  const selectedProvider = providerOverride ?? instrumentDefaultProvider;
 
   const candles = useQuery({
     queryKey: ["market-data", "analysis-candles", selectedSymbol, frame, selectedProvider],
@@ -101,7 +110,15 @@ export function MarketAnalysisChart() {
       limit: 500,
     }),
     enabled: Boolean(selectedSymbol && selectedProvider),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   });
+
+  useEffect(() => {
+    setDrawings([]);
+    setPendingAnchor(null);
+    setDrawMode("none");
+  }, [selectedSymbol, frame, selectedProvider]);
 
   const chartData = useMemo(
     () => toChartCandles(candles.data?.candles ?? []),
@@ -193,6 +210,8 @@ export function MarketAnalysisChart() {
       smaRef.current = null;
       slLineRef.current = null;
       tpLineRef.current = null;
+      drawingSeriesRef.current = [];
+      drawingPriceLinesRef.current = [];
     };
   }, [pricePrecision]);
 
@@ -213,8 +232,12 @@ export function MarketAnalysisChart() {
         })),
     );
     smaRef.current.setData(showSma ? movingAverage(chartData, 20) : []);
-    chartRef.current?.timeScale().fitContent();
-  }, [chartData, showSma, chartReady]);
+    const viewKey = `${selectedSymbol}:${frame}:${selectedProvider}`;
+    if (chartData.length > 0 && fittedViewKeyRef.current !== viewKey) {
+      chartRef.current?.timeScale().fitContent();
+      fittedViewKeyRef.current = viewKey;
+    }
+  }, [chartData, showSma, chartReady, selectedSymbol, frame, selectedProvider]);
 
   useEffect(() => {
     volumeRef.current?.applyOptions({ visible: showVolume });
@@ -244,6 +267,57 @@ export function MarketAnalysisChart() {
     }
   }, [sl, tp, chartData, chartReady]);
 
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candleSeries = candleRef.current;
+    if (!chart || !candleSeries || !chartReady) return;
+    const onClick = (event: { point?: { x: number; y: number }; time?: Time }) => {
+      if (drawMode === "none" || !event.point) return;
+      const time = chart.timeScale().coordinateToTime(event.point.x);
+      const price = candleSeries.coordinateToPrice(event.point.y);
+      if (time === null || price === null || !Number.isFinite(price)) return;
+      const point = { time, value: price };
+      if (drawMode === "horizontal") {
+        setDrawings(previous => [...previous, { id: Date.now(), kind: "horizontal", price }]);
+        setDrawMode("none");
+      } else if (drawMode === "trendline") {
+        if (!pendingAnchor) setPendingAnchor(point);
+        else {
+          setDrawings(previous => [...previous, { id: Date.now(), kind: "trendline", points: [pendingAnchor, point] }]);
+          setPendingAnchor(null);
+          setDrawMode("none");
+        }
+      }
+    };
+    chart.subscribeClick(onClick);
+    return () => chart.unsubscribeClick(onClick);
+  }, [chartReady, drawMode, pendingAnchor]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const series = candleRef.current;
+    if (!chart || !series || !chartReady) return;
+    for (const line of drawingPriceLinesRef.current) series.removePriceLine(line);
+    for (const lineSeries of drawingSeriesRef.current) chart.removeSeries(lineSeries);
+    drawingPriceLinesRef.current = [];
+    drawingSeriesRef.current = [];
+    for (const drawing of drawings) {
+      if (drawing.kind === "horizontal") {
+        drawingPriceLinesRef.current.push(series.createPriceLine({
+          price: drawing.price, color: "#f59e0b", lineWidth: 1, lineStyle: 2,
+          axisLabelVisible: true, title: "Analysis",
+        }));
+      } else {
+        const lineSeries = chart.addLineSeries({
+          color: "#f59e0b", lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+          crosshairMarkerVisible: true, title: "Trendline",
+        });
+        lineSeries.setData(drawing.points);
+        drawingSeriesRef.current.push(lineSeries);
+      }
+    }
+  }, [drawings, chartReady]);
+
   const error = providers.error ?? instruments.error ?? candles.error;
   return (
     <section className="panel market-analysis">
@@ -255,7 +329,7 @@ export function MarketAnalysisChart() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <label className="journal-field">
             <span>Instrument</span>
-            <select value={selectedSymbol} onChange={(event) => setSymbol(event.target.value)}>
+            <select value={selectedSymbol} onChange={(event) => { setProviderOverride(null); setSymbol(event.target.value); }}>
               {(instruments.data ?? []).map((item) => (
                 <option key={item.id} value={item.id}>{item.symbol ?? item.id}</option>
               ))}
@@ -263,8 +337,8 @@ export function MarketAnalysisChart() {
           </label>
           <label className="journal-field">
             <span>Provider</span>
-            <select value={selectedProvider} onChange={(event) => setProvider(event.target.value)}>
-              {(providers.data ?? []).map((item) => (
+            <select value={selectedProvider} onChange={(event) => setProviderOverride(event.target.value)}>
+              {(providers.data ?? []).filter(isProviderSelectable).map((item) => (
                 <option key={item.id} value={item.id}>{item.name ?? item.id}</option>
               ))}
             </select>
@@ -284,6 +358,10 @@ export function MarketAnalysisChart() {
             {timeframe}
           </button>
         ))}
+        <button className={drawMode === "horizontal" ? "btn primary" : "btn"} type="button" aria-pressed={drawMode === "horizontal"} onClick={() => { setDrawMode(drawMode === "horizontal" ? "none" : "horizontal"); setPendingAnchor(null); }}>Horizontal line</button>
+        <button className={drawMode === "trendline" ? "btn primary" : "btn"} type="button" aria-pressed={drawMode === "trendline"} onClick={() => { setDrawMode(drawMode === "trendline" ? "none" : "trendline"); setPendingAnchor(null); }}>Trendline</button>
+        <button className="btn" type="button" onClick={() => setDrawings(previous => previous.slice(0, -1))} disabled={!drawings.length}>Undo drawing</button>
+        <button className="btn" type="button" onClick={() => { setDrawings([]); setPendingAnchor(null); setDrawMode("none"); }}>Clear drawings</button>
         <span style={{ flex: 1 }} />
         <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
           <input type="checkbox" checked={showVolume} onChange={(event) => setShowVolume(event.target.checked)} />
@@ -295,6 +373,11 @@ export function MarketAnalysisChart() {
         </label>
       </div>
 
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, marginBottom: 8 }}>
+        <span style={{ color: candles.data?.freshness === "fresh" ? "#26a69a" : "#f59e0b", fontWeight: 600 }}>● {String(candles.data?.freshness ?? "checking feed")}</span>
+        <span>Live updates every 15 seconds · chart zoom is preserved</span>
+        {drawMode !== "none" ? <span>Click chart {drawMode === "trendline" && !pendingAnchor ? "twice to place a trendline" : "to place line"}</span> : null}
+      </div>
       {latest ? (
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, marginBottom: 8 }}>
           <strong>{selectedSymbol}</strong>

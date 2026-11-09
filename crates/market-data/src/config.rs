@@ -7,6 +7,8 @@ use std::time::Duration;
 pub struct Config {
     pub bind: SocketAddr,
     pub binance_enabled: bool,
+    pub biquote_enabled: bool,
+    pub biquote_base_url: String,
     pub binance_base_url: String,
     pub request_timeout: Duration,
     pub cors_origins: Vec<String>,
@@ -58,10 +60,21 @@ impl Config {
             .map_err(|e| format!("MARKET_DATA_BIND: {e}"))?;
 
         let binance_enabled = match get("MARKET_DATA_BINANCE_ENABLED").as_deref() {
-            None | Some("") | Some("false") | Some("0") => false,
-            Some("true") | Some("1") => true,
+            None | Some("") | Some("true") | Some("1") => true,
+            Some("false") | Some("0") => false,
             Some(_) => return Err("MARKET_DATA_BINANCE_ENABLED must be true or false".into()),
         };
+
+        let biquote_enabled = match get("MARKET_DATA_BIQUOTE_ENABLED").as_deref() {
+            None | Some("") | Some("true") | Some("1") => true,
+            Some("false") | Some("0") => false,
+            Some(_) => return Err("MARKET_DATA_BIQUOTE_ENABLED must be true or false".into()),
+        };
+        let biquote_base_url =
+            get("MARKET_DATA_BIQUOTE_BASE_URL").unwrap_or_else(|| "https://biquote.io".into());
+        if !biquote_base_url.starts_with("http://") && !biquote_base_url.starts_with("https://") {
+            return Err("MARKET_DATA_BIQUOTE_BASE_URL must be an http(s) URL".into());
+        }
 
         let binance_base_url =
             get("MARKET_DATA_BINANCE_BASE_URL").unwrap_or_else(|| "https://api.binance.com".into());
@@ -117,6 +130,8 @@ impl Config {
         Ok(Self {
             bind,
             binance_enabled,
+            biquote_enabled,
+            biquote_base_url,
             binance_base_url,
             request_timeout: Duration::from_millis(timeout_ms),
             cors_origins,
@@ -143,10 +158,11 @@ mod tests {
     }
 
     #[test]
-    fn defaults_are_local_and_binance_disabled() {
+    fn defaults_enable_public_live_market_data() {
         let c = cfg(&[]).unwrap();
         assert_eq!(c.bind.to_string(), "127.0.0.1:8787");
-        assert!(!c.binance_enabled);
+        assert!(c.binance_enabled);
+        assert!(c.biquote_enabled);
         assert_eq!(c.request_timeout, Duration::from_millis(5000));
     }
 
