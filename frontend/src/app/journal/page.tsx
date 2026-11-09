@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { useEffect,useState } from "react";
 import { useMutation,useQuery,useQueryClient } from "@tanstack/react-query";
-import { frontendConfig } from "@/config/frontend";
 import { journalApi,JournalTrade,JournalPsychology } from "@/lib/api/journal";
 import { getSessionUser,hasSession } from "@/lib/auth/session";
 import { formatMoney, formatPrice, formatQuantity } from "@/lib/format";
@@ -24,7 +23,7 @@ export default function JournalPage(){
  const [psychTradeId,setPsychTradeId]=useState<string|null>(null),[psychDraft,setPsychDraft]=useState<JournalPsychology>({});
  const [attachmentTradeId,setAttachmentTradeId]=useState<string|null>(null),[attachmentUrl,setAttachmentUrl]=useState(""),[attachmentName,setAttachmentName]=useState("");
  useEffect(()=>{setAuth(hasSession());setEmail(getSessionUser()?.email??null);},[]);
- const accounts=useQuery({queryKey:["journal","accounts"],queryFn:journalApi.listAccounts,enabled:auth&&frontendConfig.dataMode==="api"});
+ const accounts=useQuery({queryKey:["journal","accounts"],queryFn:journalApi.listAccounts,enabled:auth});
  const setups=useQuery({queryKey:["journal","setups"],queryFn:journalApi.listSetups,enabled:auth&&frontendConfig.dataMode==="api"});
  const trades=useQuery({queryKey:["journal","trades",tradeOffset],queryFn:()=>journalApi.listTrades({limit:100,offset:tradeOffset}),enabled:auth&&frontendConfig.dataMode==="api"});
  const psychology=useQuery({queryKey:["journal","psychology",psychTradeId],queryFn:()=>journalApi.getPsychology(psychTradeId!),enabled:auth&&!!psychTradeId});
@@ -45,7 +44,6 @@ export default function JournalPage(){
  const removeAttachment=useMutation({mutationFn:({tradeId,id}:{tradeId:string;id:string})=>journalApi.deleteAttachment(tradeId,id),onSuccess:()=>void qc.invalidateQueries({queryKey:["journal","attachments",attachmentTradeId]})});
  const actionError=[addAccount.error,updateAccount.error,archiveAccount.error,addSetup.error,updateSetup.error,archiveSetup.error,saveTrade.error,removeTrade.error,savePsychology.error,addAttachment.error,removeAttachment.error].find(Boolean) as Error|undefined;
  async function importFile(e:React.ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;setImportMsg("");setImportErr("");try{if(!importAccount)throw new Error("Select destination account.");const rows=traderRows(await file.text());await importer.mutateAsync({journal_account_id:importAccount,source_system:sourceSystem,trades:rows.map(t=>({...t,journal_account_id:importAccount,source_system:sourceSystem,source:"legacy_import"}))});}catch(x){setImportErr(x instanceof Error?x.message:"Unable to import CSV.");}finally{e.target.value="";}}
- if(frontendConfig.dataMode!=="api")return <div><header className="page-header"><div><h1>Trading Journal</h1><p>Journal, account, setup and import workflows.</p></div><span className="badge warn">Journal unavailable</span></header><section className="panel"><p>Your Trading Journal is temporarily unavailable. Please try again later.</p></section></div>;
  if(!auth)return <div><header className="page-header"><div><h1>Trading Journal</h1><p>Authenticated trading records.</p></div><span className="badge warn">Sign-in required</span></header><section className="panel"><Link className="btn" href="/login">Sign in</Link></section></div>;
  const fields:(keyof Draft)[]=["symbol","quantity","entry_price","exit_price","stop_loss","take_profit","gross_pnl","commission","swap","other_fees","net_pnl","risk_amount","r_multiple","mfe_r","mae_r"];
  const labels:Record<string,string>={symbol:"Symbol",quantity:"Quantity / lots",entry_price:"Entry price",exit_price:"Exit price",stop_loss:"Stop loss",take_profit:"Take profit",gross_pnl:"Gross P&L",commission:"Commission",swap:"Swap",other_fees:"Other fees",net_pnl:"Net P&L",risk_amount:"Risk amount",r_multiple:"Realized R",mfe_r:"MFE (R)",mae_r:"MAE (R)"};
