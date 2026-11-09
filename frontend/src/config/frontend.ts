@@ -2,7 +2,6 @@ export type FrontendConfig = {
   appName: string;
   environment: "paper" | "shadow" | "live";
   apiUrl: string;
-  eventStreamUrl: string;
 };
 
 export const frontendConfig: FrontendConfig = {
@@ -13,7 +12,6 @@ export const frontendConfig: FrontendConfig = {
       | "shadow"
       | "live") ?? "paper",
   apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "",
-  eventStreamUrl: process.env.NEXT_PUBLIC_EVENT_STREAM_URL ?? "",
 };
 
 export function environmentLabel(
