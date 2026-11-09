@@ -72,7 +72,6 @@ Current client implementation stores access and refresh tokens in tab-scoped `se
 
 ## API mode behavior
 
-- Sample mode (`NEXT_PUBLIC_DATA_MODE=mock`) is available only when explicitly selected.
 - The frontend never substitutes seeded dashboard fixtures.
 - Trading dashboard read endpoints are exposed by the Rust API under `/api/v1/trading/*` and use bearer JWT authentication plus explicit `dashboard_account_access` ownership grants. No mock data is used in the frontend.
 - Journal and Market Data API routes use real API clients and display loading/error/empty states.
