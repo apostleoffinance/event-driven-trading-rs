@@ -35,7 +35,14 @@ async fn main() {
         },
         http,
     );
-    let biquote = BiQuoteProvider::new(BiQuoteConfig { enabled: config.biquote_enabled, base_url: config.biquote_base_url.clone(), timeout: config.request_timeout }, ReqwestHttp::new().expect("failed to build BiQuote HTTP client"));
+    let biquote = BiQuoteProvider::new(
+        BiQuoteConfig {
+            enabled: config.biquote_enabled,
+            base_url: config.biquote_base_url.clone(),
+            timeout: config.request_timeout,
+        },
+        ReqwestHttp::new().expect("failed to build BiQuote HTTP client"),
+    );
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let service = Arc::new(MarketDataService::new(
         vec![
