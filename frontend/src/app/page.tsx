@@ -13,7 +13,7 @@ import {
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useSharedEventStream } from "@/features/events/EventStreamProvider";
-import { formatMoney, formatSignedMoney } from "@/lib/format";
+import { formatMoney, formatNumber, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import { frontendConfig } from "@/config/frontend";
 import type {
@@ -193,9 +193,9 @@ export default function CommandCenterPage() {
                   <tr key={p.id}>
                     <td>{p.instrumentId}</td>
                     <td>{p.side}</td>
-                    <td className="num">{p.quantity}</td>
-                    <td className="num">{p.entryPrice}</td>
-                    <td className="num">{p.markPrice}</td>
+                    <td className="num">{formatQuantity(p.quantity)}</td>
+                    <td className="num">{formatPrice(p.entryPrice)}</td>
+                    <td className="num">{formatPrice(p.markPrice)}</td>
                     <td
                       className={`num ${Number(p.unrealizedPnl) >= 0 ? "pos" : "neg"}`}
                     >
@@ -243,7 +243,7 @@ export default function CommandCenterPage() {
                   <td className="num">{new Date(o.updatedAt).toLocaleTimeString()}</td>
                   <td>{o.instrumentId}</td>
                   <td>{o.side}</td>
-                  <td className="num">{o.quantity}</td>
+                  <td className="num">{formatQuantity(o.quantity)}</td>
                   <td>
                     <StatusBadge tone={orderTone(o.status)}>{o.status}</StatusBadge>
                   </td>
