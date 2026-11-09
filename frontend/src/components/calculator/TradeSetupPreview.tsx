@@ -101,7 +101,7 @@ function PreviewCandlestickChart({ symbol, entry, stop, target }: { symbol: stri
       seriesRef.current = null;
       linesRef.current = [];
     };
-  }, []);
+  }, [validCandles.length > 0]);
 
   useEffect(() => {
     const series = seriesRef.current;
