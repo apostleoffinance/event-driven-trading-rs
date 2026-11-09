@@ -105,6 +105,8 @@ pub enum ProviderId {
     BinancePublic,
     #[serde(rename = "mt5-bridge")]
     Mt5Bridge,
+    #[serde(rename = "biquote-live")]
+    BiQuote,
 }
 
 impl ProviderId {
@@ -113,6 +115,7 @@ impl ProviderId {
             ProviderId::Demo => "demo",
             ProviderId::BinancePublic => "binance-public",
             ProviderId::Mt5Bridge => "mt5-bridge",
+            ProviderId::BiQuote => "biquote-live",
         }
     }
 }
@@ -131,11 +134,12 @@ impl FromStr for ProviderId {
             ProviderId::Demo,
             ProviderId::BinancePublic,
             ProviderId::Mt5Bridge,
+            ProviderId::BiQuote,
         ]
         .into_iter()
         .find(|p| p.as_str().eq_ignore_ascii_case(s.trim()))
         .ok_or_else(|| {
-            format!("unknown provider '{s}'; expected demo, binance-public or mt5-bridge")
+            format!("unknown provider '{s}'; expected demo, binance-public, mt5-bridge or biquote-live")
         })
     }
 }
