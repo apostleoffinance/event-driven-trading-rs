@@ -20,8 +20,8 @@ const MarketAnalysisChart = dynamic(
 export default function MarketDataPage() {
   const [instrument, setInstrument] = useState("EURUSD");
   const [timeframe, setTimeframe] = useState("M1");
-  const [provider, setProvider] = useState("mt5-bridge");
-  const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "M1", provider: "mt5-bridge" });
+  const [provider, setProvider] = useState("biquote-live");
+  const [submitted, setSubmitted] = useState({ instrument: "EURUSD", timeframe: "M1", provider: "biquote-live" });
 
   const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers() });
   const instruments = useQuery({ queryKey: ["market-data", "instruments"], queryFn: () => marketDataApi.instruments(), enabled: true });
