@@ -82,7 +82,8 @@ async fn binance_disabled_returns_unavailable_not_demo() {
 
 #[tokio::test]
 async fn mt5_reports_missing_capability() {
-    let (s, _, j) = get("/api/v1/market-data/candles?instrument=EURUSD&timeframe=H1&provider=mt5-bridge").await;
+    let (s, _, j) =
+        get("/api/v1/market-data/candles?instrument=EURUSD&timeframe=H1&provider=mt5-bridge").await;
     assert_eq!(s, StatusCode::NOT_IMPLEMENTED);
     assert_eq!(j["error"]["code"], "capability_not_implemented");
     assert_eq!(j["error"]["provider"], "mt5-bridge");
