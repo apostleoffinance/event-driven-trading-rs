@@ -198,8 +198,9 @@ pub struct PolicyEvaluationInput {
     pub trades_today: u32,
     #[serde(default)]
     pub open_positions: u32,
-    pub current_open_risk: Option<Decimal>,
     pub lot_size: Option<Decimal>,
+    pub trade_notional: Option<Decimal>,
+    pub current_open_notional: Option<Decimal>,
 }
 
 pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id): Path<String>, Json(input): Json<PolicyEvaluationInput>) -> Response {
@@ -209,9 +210,9 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
         Err(_) => return not_found(),
     };
     if input.risk_amount <= Decimal::ZERO || input.equity <= Decimal::ZERO
-        || input.daily_pnl > input.equity || input.daily_risk_used < Decimal::ZERO
-        || input.current_open_risk.is_some_and(|v| v < Decimal::ZERO)
         || input.lot_size.is_some_and(|v| v <= Decimal::ZERO)
+        || input.trade_notional.is_some_and(|v| v < Decimal::ZERO)
+        || input.current_open_notional.is_some_and(|v| v < Decimal::ZERO)
     {
         return error(StatusCode::BAD_REQUEST, "invalid_evaluation", "Risk, equity, and lot inputs must be valid positive/non-negative values.");
     }
@@ -223,6 +224,25 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     };
     let policy: AccountRiskPolicy = match serde_json::from_value(policy_json) { Ok(p)=>p, Err(_)=>return error(StatusCode::INTERNAL_SERVER_ERROR,"invalid_saved_policy","Saved risk policy could not be parsed. Please edit and save it again.") };
     if let Err(message) = validate(&policy) { return error(StatusCode::INTERNAL_SERVER_ERROR, "invalid_saved_policy", message); }
+
+    // Daily risk calculations use the account policy's timezone reset.
+    let day_start = match sqlx::query_scalar::<_, chrono::DateTime<Utc>>(
+        "SELECT (date_trunc('day', NOW() AT TIME ZONE $1) AT TIME ZONE $1)"
+    ).bind(&policy.daily_reset_timezone).fetch_one(state.store.pool()).await {
+        Ok(v)=>v, Err(_)=>return error(StatusCode::UNPROCESSABLE_ENTITY,"invalid_timezone","Daily reset timezone is invalid or unavailable.")
+    };
+    let daily_pnl = match sqlx::query_scalar::<_, Decimal>(
+        "SELECT COALESCE(SUM(net_pnl),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency=$4"
+    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let (trades_today, daily_risk_used) = match sqlx::query_as::<_, (i64, Decimal)>(
+        "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3 AND pnl_currency=$4"
+    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let (open_positions, current_open_risk) = match sqlx::query_as::<_, (i64, Decimal)>(
+        "SELECT COUNT(*)::bigint, COALESCE(SUM(risk_amount),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND pnl_currency=$3"
+    ).bind(&claims.sub).bind(&id).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let unconverted_pnl_count = match sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency<>$4 AND net_pnl IS NOT NULL"
+    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
 
     let mut violations: Vec<Value> = Vec::new();
     let mut blocked = false;
@@ -249,7 +269,7 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
         };
         if base <= Decimal::ZERO { return error(StatusCode::BAD_REQUEST,"invalid_daily_loss_basis","Daily-loss calculation base must be positive."); }
         let max_daily=base*max_daily_pct/Decimal::from(100);
-        let used_loss=(-input.daily_pnl).max(Decimal::ZERO);
+        let used_loss=(-daily_pnl).max(Decimal::ZERO);
         if used_loss >= max_daily || used_loss + input.risk_amount >= max_daily {
             push("daily_loss_limit",format!("Daily loss budget {} {} ({}%) is reached or would be breached by this planned risk.",max_daily,currency,max_daily_pct),&policy.firm_limits_enforcement);
         }
@@ -266,18 +286,32 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
             push("max_drawdown",format!("Current/projected drawdown {:.4}% / {:.4}% meets or exceeds the configured {}% limit.",dd,projected,max_dd),&policy.firm_limits_enforcement);
         }
     }
-    if policy.max_trades_per_day.is_some_and(|n| input.trades_today >= n) {
+    if policy.max_trades_per_day.is_some_and(|n| trades_today >= i64::from(n)) {
         push("max_trades_per_day",format!("Daily trade limit of {} has been reached.",policy.max_trades_per_day.unwrap_or(0)),&policy.firm_limits_enforcement);
     }
-    if policy.max_open_positions.is_some_and(|n| input.open_positions >= n) {
+    if policy.max_open_positions.is_some_and(|n| open_positions >= i64::from(n)) {
         push("max_open_positions",format!("Open-position limit of {} has been reached.",policy.max_open_positions.unwrap_or(0)),&policy.firm_limits_enforcement);
     }
     if let Some(max_open_risk_pct)=policy.max_total_open_risk_pct {
-        let used=input.current_open_risk.unwrap_or(input.daily_risk_used);
+        let used=current_open_risk;
         let total_cap=input.equity*max_open_risk_pct/Decimal::from(100);
         if used+input.risk_amount > total_cap {
             push("max_open_risk",format!("Current open risk plus this trade exceeds the {}% account-equity open-risk limit.",max_open_risk_pct),&policy.firm_limits_enforcement);
         }
+    }
+    if let Some(max_leverage)=policy.max_leverage {
+        if let Some(trade_notional)=input.trade_notional {
+            let max_notional=input.equity*max_leverage;
+            let current_notional=input.current_open_notional.unwrap_or(Decimal::ZERO);
+            if current_notional+trade_notional > max_notional {
+                push("max_leverage",format!("Current open notional plus planned notional exceeds {}x leverage capacity.",max_leverage),&policy.firm_limits_enforcement);
+            }
+        } else {
+            push("notional_missing","Trade notional is required to assess leverage.".into(),"warn");
+        }
+    }
+    if unconverted_pnl_count > 0 {
+        push("pnl_currency_mismatch",format!("{} closed trade(s) today have P&L in another currency and were excluded from the account-currency daily P&L sum.",unconverted_pnl_count),"warn");
     }
     if policy.max_lot_size.is_some_and(|max| input.lot_size.is_some_and(|lot| lot > max)) {
         push("max_lot_size",format!("Requested lot size exceeds configured maximum {}.",policy.max_lot_size.unwrap_or(Decimal::ZERO)),&policy.personal_limits_enforcement);
@@ -286,7 +320,7 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     Json(serde_json::json!({
         "status":status,"currency":currency,"policy_name":policy.profile_name,
         "risk_amount":input.risk_amount.to_string(),"risk_pct_of_equity":(input.risk_amount/input.equity*Decimal::from(100)).round_dp(4).to_string(),
-        "effective_trade_risk_cap":effective_cap.to_string(),"violations":violations,
+        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"violations":violations,
         "enforcement_note":"Risk assessment is advisory for planning. No order is created or sent."
     })).into_response()
 }
