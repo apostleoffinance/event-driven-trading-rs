@@ -530,13 +530,12 @@ pub async fn evaluate(
             );
         }
     }
-    let firm_state_severity = if policy.max_daily_loss_pct.is_some()
-        || policy.max_total_open_risk_pct.is_some()
-    {
-        policy.firm_limits_enforcement.as_str()
-    } else {
-        "warn"
-    };
+    let firm_state_severity =
+        if policy.max_daily_loss_pct.is_some() || policy.max_total_open_risk_pct.is_some() {
+            policy.firm_limits_enforcement.as_str()
+        } else {
+            "warn"
+        };
     let daily_risk_state_severity = if policy.max_daily_risk_pct.is_some() {
         policy.personal_limits_enforcement.as_str()
     } else {
