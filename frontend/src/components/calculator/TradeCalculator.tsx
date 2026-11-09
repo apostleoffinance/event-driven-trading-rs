@@ -35,6 +35,7 @@ export default function TradeCalculator(){
  const [account,setAccount]=useState(""),[currency,setCurrency]=useState("USD"),[balance,setBalance]=useState("10000"),[riskPct,setRiskPct]=useState("1");
  const [quoteCurrency,setQuoteCurrency]=useState("USD"),[allowStaleFx,setAllowStaleFx]=useState(false);
  const [policyAssessmentInput,setPolicyAssessmentInput]=useState<null|{risk_amount:number;potential_reward:number|null;equity:number;peak_equity?:number;start_of_day_balance?:number;start_of_day_equity?:number;current_open_notional?:number;lot_size:number;trade_notional:number}>(null);
+ const [peakEquity,setPeakEquity]=useState(""),[startDayBalance,setStartDayBalance]=useState(""),[startDayEquity,setStartDayEquity]=useState(""),[currentOpenNotional,setCurrentOpenNotional]=useState("");
  const [entry,setEntry]=useState("1.08500"),[stop,setStop]=useState("1.08000"),[target,setTarget]=useState("1.09500"),[qty,setQty]=useState("0.20");
  const [risk,setRisk]=useState("100"),[reward,setReward]=useState("200"),[contract,setContract]=useState("100000"),[step,setStep]=useState("0.01"),[pip,setPip]=useState("0.0001");
  useEffect(()=>{const a=accounts.data?.find(x=>x.id===account);if(a){setCurrency(a.currency.toUpperCase());setBalance(a.initial_balance);setPolicyAssessmentInput(null);}},[account,accounts.data]);
