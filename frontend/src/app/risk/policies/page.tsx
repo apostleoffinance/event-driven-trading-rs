@@ -41,7 +41,7 @@ export default function RiskPoliciesPage() {
 
   useEffect(()=>{ if(!accountId&&accounts.data?.length) setAccountId(accounts.data[0].id); },[accountId,accounts.data]);
   useEffect(()=>{
-    if(policyQuery.data){setForm(formFromPolicy(policyQuery.data.policy));setLoadedVersion(policyQuery.data.version);setSaved(false);}
+    if(policyQuery.data){setForm(formFromPolicy(policyQuery.data.policy));setLoadedVersion(policyQuery.data.version);}
   },[policyQuery.data]);
 
   function update<K extends keyof PolicyForm>(key:K,value:PolicyForm[K]){setForm(current=>({...current,[key]:value}));setSaved(false);setError(null);}
