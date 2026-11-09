@@ -73,7 +73,7 @@ export default function RiskPoliciesPage() {
   if(accounts.isError)return <div className="error">Unable to load accounts. Check the Journal API connection.</div>;
 
   return <main>
-    <header className="page-header"><div><h1>Account Risk Policies</h1><p>Configure independent personal risk and prop-firm rules for each trading account. Risk policy is account-scoped.</p></div><Link className="btn" href="/risk">Risk Center</Link></header>
+    <header className="page-header"><div><h1>Account Risk Policies</h1><p>Configure independent personal risk and prop-firm rules for each trading account. Risk policy is account-scoped and used for calculator/Journal assessments only; it does not block MT5 orders or submit trades.</p></div><Link className="btn" href="/risk">Risk Center</Link></header>
     {!accounts.data?.length?<section className="panel"><h2>No Journal accounts yet</h2><p>Create a Journal account first. Each account can have its own firm, challenge, funded-account, or personal risk policy.</p><Link className="btn primary" href="/journal">Open Journal</Link></section>:<>
       <section className="panel" style={{marginBottom:12}}>
         <label className="journal-field"><span>Account</span><select value={accountId} onChange={e=>{setAccountId(e.target.value);setSaved(false);}}>{accounts.data.map(a=><option key={a.id} value={a.id}>{a.name} · {a.account_type} · {a.currency} {a.initial_balance}</option>)}</select></label>
