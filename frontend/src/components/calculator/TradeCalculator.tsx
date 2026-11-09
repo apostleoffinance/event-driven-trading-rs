@@ -98,12 +98,12 @@ export default function TradeCalculator(){
      {"dist" in result&&<div><span className="metric-label">Price distance</span><strong className="metric-value">{Number(result.dist).toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
      {"pips" in result&&<div><span className="metric-label">Pips / points</span><strong className="metric-value">{Number(result.pips).toFixed(2)}</strong></div>}
      {"raw" in result&&<div><span className="metric-label">Unrounded size</span><strong className="metric-value">{Number(result.raw).toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
-     {"risk" in result&&<div><span className="metric-label">Risk</span><strong className="metric-value neg">{fmtMoney(result.risk,currency)}</strong></div>}
-     {"riskPct" in result&&<div><span className="metric-label">Risk percent</span><strong className="metric-value">{Number(result.riskPct).toFixed(3)}%</strong></div>}
-     {"reward" in result&&<div><span className="metric-label">Potential reward</span><strong className="metric-value pos">{fmtMoney(result.reward,currency)}</strong></div>}
-     {"rr" in result&&<div><span className="metric-label">Risk / reward</span><strong className="metric-value">1 : {Number(result.rr).toFixed(2)}</strong></div>}
-     {"stopPrice" in result&&<div><span className="metric-label">Calculated stop</span><strong className="metric-value">{result.stopPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
-     {"targetPrice" in result&&<div><span className="metric-label">Calculated target</span><strong className="metric-value">{result.targetPrice.toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
+     {"risk" in result&&<div><span className="metric-label">Risk</span><strong className="metric-value neg">{fmtMoney(result.risk ?? 0,currency)}</strong></div>}
+     {"riskPct" in result&&<div><span className="metric-label">Risk percent</span><strong className="metric-value">{Number(result.riskPct ?? 0).toFixed(3)}%</strong></div>}
+     {"reward" in result&&<div><span className="metric-label">Potential reward</span><strong className="metric-value pos">{fmtMoney(result.reward ?? 0,currency)}</strong></div>}
+     {"rr" in result&&<div><span className="metric-label">Risk / reward</span><strong className="metric-value">1 : {Number(result.rr ?? 0).toFixed(2)}</strong></div>}
+     {"stopPrice" in result&&<div><span className="metric-label">Calculated stop</span><strong className="metric-value">{Number(result.stopPrice ?? 0).toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
+     {"targetPrice" in result&&<div><span className="metric-label">Calculated target</span><strong className="metric-value">{Number(result.targetPrice ?? 0).toLocaleString(undefined,{maximumFractionDigits:8})}</strong></div>}
     </div><Link className="btn primary" style={{display:"inline-flex",marginTop:18}} href={journalLink}>Add plan to Journal</Link>
    </>:<p className="muted">Enter your trade inputs to calculate.</p>}</section>
   </div>
