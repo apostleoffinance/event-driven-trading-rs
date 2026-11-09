@@ -39,7 +39,8 @@ export default function TradeCalculator(){
  const [risk,setRisk]=useState("100"),[reward,setReward]=useState("200"),[contract,setContract]=useState("100000"),[step,setStep]=useState("0.01"),[pip,setPip]=useState("0.0001");
  useEffect(()=>{const a=accounts.data?.find(x=>x.id===account);if(a){setCurrency(a.currency.toUpperCase());setBalance(a.initial_balance);setPolicyAssessmentInput(null);}},[account,accounts.data]);
  const riskPolicy=useQuery({queryKey:["journal","risk-policy",account],queryFn:()=>journalApi.getRiskPolicy(account),enabled:auth&&Boolean(account)});
- const policyRiskPct=riskPolicy.data?.policy.risk_per_trade_pct;\n useEffect(()=>{if(policyRiskPct!==undefined){setRiskPct(String(policyRiskPct));}},[account,policyRiskPct,riskPolicy.data?.version]);
+ const policyRiskPct=riskPolicy.data?.policy.risk_per_trade_pct;
+ useEffect(()=>{if(policyRiskPct!==undefined){setRiskPct(String(policyRiskPct));}},[account,policyRiskPct,riskPolicy.data?.version]);
  const conversion=useQuery({queryKey:["fx-conversion",quoteCurrency,currency,allowStaleFx],queryFn:()=>marketDataApi.fxConvert({from:quoteCurrency,to:currency,amount:1,allow_stale:allowStaleFx}),enabled:auth&&quoteCurrency!==currency,staleTime:30000,retry:1});
  const quoteToAccountRate=quoteCurrency===currency?1:(conversion.data?Number(conversion.data.rate):null);
  const conversionFresh=quoteCurrency===currency||Boolean(conversion.data&&(conversion.data.freshness==="fresh"||allowStaleFx));
