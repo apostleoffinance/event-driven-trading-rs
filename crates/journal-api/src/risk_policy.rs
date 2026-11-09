@@ -652,6 +652,17 @@ mod tests {
     }
 
     #[test]
+    fn daily_risk_budget_must_be_positive_and_at_most_one_hundred_percent() {
+        let mut policy = AccountRiskPolicy::default();
+        policy.max_daily_risk_pct = Some(Decimal::ZERO);
+        assert!(validate(&policy).is_err());
+        policy.max_daily_risk_pct = Some(Decimal::from(100));
+        assert!(validate(&policy).is_ok());
+        policy.max_daily_risk_pct = Some(Decimal::from(101));
+        assert!(validate(&policy).is_err());
+    }
+
+    #[test]
     fn policy_requires_hard_firm_enforcement_option() {
         let mut policy = AccountRiskPolicy::default();
         policy.firm_limits_enforcement = "ignore".into();
