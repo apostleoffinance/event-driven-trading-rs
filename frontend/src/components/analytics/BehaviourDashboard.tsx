@@ -24,8 +24,8 @@ function MetricCard({ label, value, detail, progress, tone = "navy" }: {
   </article>;
 }
 
-function OutcomeRow({ label, wins, losses, total, good }: {
-  label: string; wins: number; losses: number; total: number; good: boolean;
+function OutcomeRow({ label, wins, losses, good }: {
+  label: string; wins: number; losses: number; good: boolean;
 }) {
   const rowTotal = wins + losses;
   const winWidth = rowTotal ? wins / rowTotal * 100 : 0;
@@ -79,8 +79,8 @@ export function BehaviourDashboard({ data }: Props) {
         <span><i className={styles.legendLoss} />Loss</span>
       </div>
       <div className={styles.rows}>
-        <OutcomeRow label="Good process" wins={outcomes.good_process_win} losses={outcomes.good_process_loss} total={total} good />
-        <OutcomeRow label="Poor process" wins={outcomes.poor_process_win} losses={outcomes.poor_process_loss} total={total} good={false} />
+        <OutcomeRow label="Good process" wins={outcomes.good_process_win} losses={outcomes.good_process_loss} good />
+        <OutcomeRow label="Poor process" wins={outcomes.poor_process_win} losses={outcomes.poor_process_loss} good={false} />
       </div>
       <p className={styles.outcomeFootnote}>A good-process loss can still be a well-executed trade. A winning trade does not automatically mean the process was good.</p>
     </div>
