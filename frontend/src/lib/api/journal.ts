@@ -13,7 +13,7 @@ export type JournalRiskPolicy = {
   account_type: "personal" | "prop" | "challenge" | "funded" | "demo";
   risk_appetite: "conservative" | "balanced" | "aggressive" | "custom";
   risk_per_trade_pct: number; max_risk_per_trade_amount: number | null;
-  max_daily_loss_pct: number | null; daily_loss_basis: "initial_balance" | "start_of_day_balance" | "start_of_day_equity";
+  max_daily_loss_pct: number | null; max_daily_risk_pct: number | null; daily_loss_basis: "initial_balance" | "start_of_day_balance" | "start_of_day_equity";
   max_total_drawdown_pct: number | null; drawdown_basis: "static_initial" | "trailing_high_water";
   max_trades_per_day: number | null; max_open_positions: number | null;
   max_total_open_risk_pct: number | null; minimum_rr: number | null;
