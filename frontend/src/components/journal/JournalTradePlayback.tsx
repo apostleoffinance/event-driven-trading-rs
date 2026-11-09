@@ -91,6 +91,12 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const candles = useMemo(() => normalizeCandles(candleQuery.data?.candles ?? []), [candleQuery.data?.candles]);
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
+  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1));
+  const entryPrice = Number(trade.entry_price);
+  const favorablePrice = replayPath.length ? (trade.direction === "long" ? Math.max(...replayPath.map((c) => c.high)) : Math.min(...replayPath.map((c) => c.low))) : entryPrice;
+  const adversePrice = replayPath.length ? (trade.direction === "long" ? Math.min(...replayPath.map((c) => c.low)) : Math.max(...replayPath.map((c) => c.high))) : entryPrice;
+  const mfePips = movementPips(trade.symbol, entryPrice, favorablePrice, trade.direction);
+  const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
 
   const availableProviders = providersQuery.data?.filter((item) => {
     if (!item.status || typeof item.status !== "object") return true;
@@ -125,6 +131,14 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       wickUpColor: "#26a69a", wickDownColor: "#ef5350",
       priceFormat: { type: "price", precision: jpy ? 3 : 5, minMove: jpy ? 0.001 : 0.00001 },
     });
+    const entry = Number(trade.entry_price);
+    if (Number.isFinite(entry)) series.createPriceLine({ price: entry, color: "#3b82f6", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Entry" });
+    const stop = Number(trade.stop_loss);
+    if (trade.stop_loss && Number.isFinite(stop)) series.createPriceLine({ price: stop, color: "#ef5350", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "SL" });
+    const targetPrice = Number(trade.take_profit);
+    if (trade.take_profit && Number.isFinite(targetPrice)) series.createPriceLine({ price: targetPrice, color: "#16a34a", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
+    const exitPrice = Number(trade.exit_price);
+    if (trade.exit_price && Number.isFinite(exitPrice)) series.createPriceLine({ price: exitPrice, color: "#f59e0b", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "Exit" });
     chartRef.current = chart;
     seriesRef.current = series;
     const observer = new ResizeObserver((entries) => {
@@ -138,7 +152,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [expanded, trade.symbol]);
+  }, [expanded, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -225,7 +239,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
               <span><small>Replay time</small><strong>{current ? timeLabel(current.time) : "—"}</strong></span>
               <span><small>Current candle close</small><strong>{current ? formatPrice(current.close) : "—"}</strong></span>
               <span><small>Trade entry</small><strong>{formatPrice(trade.entry_price)}</strong></span>
-              <span><small>Directional movement</small><strong className={pips !== null && pips > 0 ? "pos" : pips !== null && pips < 0 ? "neg" : ""}>{pips === null ? "—" : pips.toFixed(1) + " pips"}</strong></span>
+              <span><small>Directional movement</small><strong className={pips !== null && pips > 0 ? "pos" : pips !== null && pips < 0 ? "neg" : ""}>{pips === null ? "—" : pips.toFixed(1) + " pips"}</strong></span>\n              <span><small>Replay MFE</small><strong className="pos">{mfePips === null ? "—" : mfePips.toFixed(1) + " pips"}</strong></span>\n              <span><small>Replay MAE</small><strong className="neg">{maePips === null ? "—" : Math.abs(maePips).toFixed(1) + " pips"}</strong></span>
             </div>
             <div className="journal-playback-controls">
               <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(0); }}>↺ Restart</button>
