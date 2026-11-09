@@ -16,6 +16,7 @@ import {
   Scale,
   Server,
   Shield,
+  SlidersHorizontal,
   Wallet,
 } from "lucide-react";
 
