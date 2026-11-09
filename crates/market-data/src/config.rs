@@ -7,6 +7,8 @@ use std::time::Duration;
 pub struct Config {
     pub bind: SocketAddr,
     pub binance_enabled: bool,
+    pub biquote_enabled: bool,
+    pub biquote_base_url: String,
     pub binance_base_url: String,
     pub request_timeout: Duration,
     pub cors_origins: Vec<String>,
@@ -63,6 +65,10 @@ impl Config {
             Some(_) => return Err("MARKET_DATA_BINANCE_ENABLED must be true or false".into()),
         };
 
+        let biquote_enabled = match get("MARKET_DATA_BIQUOTE_ENABLED").as_deref() { None | Some("") | Some("false") | Some("0") => false, Some("true") | Some("1") => true, Some(_) => return Err("MARKET_DATA_BIQUOTE_ENABLED must be true or false".into()), };
+        let biquote_base_url = get("MARKET_DATA_BIQUOTE_BASE_URL").unwrap_or_else(|| "https://biquote.io".into());
+        if !biquote_base_url.starts_with("http://") && !biquote_base_url.starts_with("https://") { return Err("MARKET_DATA_BIQUOTE_BASE_URL must be an http(s) URL".into()); }
+
         let binance_base_url =
             get("MARKET_DATA_BINANCE_BASE_URL").unwrap_or_else(|| "https://api.binance.com".into());
         if !binance_base_url.starts_with("http://") && !binance_base_url.starts_with("https://") {
@@ -117,6 +123,8 @@ impl Config {
         Ok(Self {
             bind,
             binance_enabled,
+            biquote_enabled,
+            biquote_base_url,
             binance_base_url,
             request_timeout: Duration::from_millis(timeout_ms),
             cors_origins,
