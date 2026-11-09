@@ -327,6 +327,13 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
             push("notional_missing","Trade notional is required to assess leverage.".into(),&policy.firm_limits_enforcement);
         }
     }
+    if policy.max_daily_loss_pct.is_some() && open_positions > 0 {
+        push(
+            "floating_pnl_unavailable",
+            "Daily-loss assessment uses realized Journal P&L only; floating P&L for open trades is not available.",
+            "warn",
+        );
+    }
     if unconverted_pnl_count > 0 {
         push("pnl_currency_mismatch",format!("{} closed trade(s) today have P&L in another currency and were excluded from the account-currency daily P&L sum.",unconverted_pnl_count),"warn");
     }
@@ -340,7 +347,7 @@ pub async fn evaluate(State(state): State<AppState>, headers: HeaderMap, Path(id
     Json(serde_json::json!({
         "status":status,"currency":currency,"policy_name":policy.profile_name,
         "risk_amount":input.risk_amount.to_string(),"risk_pct_of_equity":(input.risk_amount/input.equity*Decimal::from(100)).round_dp(4).to_string(),
-        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"excluded_unconverted_open_risk_trades":unconverted_risk_count,"violations":violations,
+        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"daily_loss_basis":policy.daily_loss_basis,"drawdown_basis":policy.drawdown_basis,"equity_source":"calculator user input","daily_pnl_source":"owner-scoped Journal trades in account currency","floating_pnl_included":false,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"excluded_unconverted_open_risk_trades":unconverted_risk_count,"violations":violations,
         "enforcement_note":"Risk assessment is advisory for planning. No order is created or sent."
     })).into_response()
 }
