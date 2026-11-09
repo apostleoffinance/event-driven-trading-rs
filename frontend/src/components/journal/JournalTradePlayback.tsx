@@ -239,7 +239,9 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
               <span><small>Replay time</small><strong>{current ? timeLabel(current.time) : "—"}</strong></span>
               <span><small>Current candle close</small><strong>{current ? formatPrice(current.close) : "—"}</strong></span>
               <span><small>Trade entry</small><strong>{formatPrice(trade.entry_price)}</strong></span>
-              <span><small>Directional movement</small><strong className={pips !== null && pips > 0 ? "pos" : pips !== null && pips < 0 ? "neg" : ""}>{pips === null ? "—" : pips.toFixed(1) + " pips"}</strong></span>\n              <span><small>Replay MFE</small><strong className="pos">{mfePips === null ? "—" : mfePips.toFixed(1) + " pips"}</strong></span>\n              <span><small>Replay MAE</small><strong className="neg">{maePips === null ? "—" : Math.abs(maePips).toFixed(1) + " pips"}</strong></span>
+              <span><small>Directional movement</small><strong className={pips !== null && pips > 0 ? "pos" : pips !== null && pips < 0 ? "neg" : ""}>{pips === null ? "—" : pips.toFixed(1) + " pips"}</strong></span>
+              <span><small>Replay MFE</small><strong className="pos">{mfePips === null ? "—" : mfePips.toFixed(1) + " pips"}</strong></span>
+              <span><small>Replay MAE</small><strong className="neg">{maePips === null ? "—" : Math.abs(maePips).toFixed(1) + " pips"}</strong></span>
             </div>
             <div className="journal-playback-controls">
               <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(0); }}>↺ Restart</button>
