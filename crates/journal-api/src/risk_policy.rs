@@ -359,6 +359,15 @@ pub async fn evaluate(
     let unconverted_risk_count = match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND pnl_currency<>$3 AND risk_amount IS NOT NULL"
     ).bind(&claims.sub).bind(&id).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let unconverted_daily_risk_count = match sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3 AND pnl_currency<>$4 AND risk_amount IS NOT NULL"
+    ).bind(&claims.sub).bind(&id).bind(day_start).bind(&currency).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let missing_daily_risk_count = match sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND opened_at >= $3 AND risk_amount IS NULL"
+    ).bind(&claims.sub).bind(&id).bind(day_start).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
+    let missing_open_risk_count = match sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::bigint FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='open' AND risk_amount IS NULL"
+    ).bind(&claims.sub).bind(&id).fetch_one(state.store.pool()).await { Ok(v)=>v, Err(_)=>return internal() };
 
     let mut violations: Vec<Value> = Vec::new();
     let mut blocked = false;
@@ -481,6 +490,15 @@ pub async fn evaluate(
     if unconverted_risk_count > 0 {
         push("open_risk_currency_mismatch",format!("{} open trade(s) have risk values in a different currency; they are excluded from the open-risk sum.",unconverted_risk_count),"warn");
     }
+    if unconverted_daily_risk_count > 0 {
+        push("daily_risk_currency_mismatch",format!("{} trade(s) opened today have risk values in another currency and were excluded from the daily-risk budget.",unconverted_daily_risk_count),"warn");
+    }
+    if missing_daily_risk_count > 0 {
+        push("daily_risk_data_missing",format!("{} trade(s) opened today have no recorded risk amount; the daily-risk budget is incomplete.",missing_daily_risk_count),"warn");
+    }
+    if missing_open_risk_count > 0 {
+        push("open_risk_data_missing",format!("{} open trade(s) have no recorded risk amount; open-risk totals are incomplete.",missing_open_risk_count),"warn");
+    }
     if policy
         .max_lot_size
         .is_some_and(|max| input.lot_size.is_some_and(|lot| lot > max))
@@ -497,7 +515,7 @@ pub async fn evaluate(
     Json(serde_json::json!({
         "status":status,"currency":currency,"policy_name":policy.profile_name,
         "risk_amount":input.risk_amount.to_string(),"risk_pct_of_equity":(input.risk_amount/input.equity*Decimal::from(100)).round_dp(4).to_string(),
-        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"daily_loss_basis":policy.daily_loss_basis,"drawdown_basis":policy.drawdown_basis,"equity_source":"calculator user input","daily_pnl_source":"owner-scoped Journal trades in account currency","floating_pnl_included":false,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"excluded_unconverted_open_risk_trades":unconverted_risk_count,"violations":violations,
+        "effective_trade_risk_cap":effective_cap.to_string(),"daily_pnl":daily_pnl.to_string(),"daily_risk_used":daily_risk_used.to_string(),"trades_today":trades_today,"open_positions":open_positions,"open_risk":current_open_risk.to_string(),"daily_reset_timezone":policy.daily_reset_timezone,"daily_window_start":day_start,"daily_loss_basis":policy.daily_loss_basis,"drawdown_basis":policy.drawdown_basis,"equity_source":"calculator user input","daily_pnl_source":"owner-scoped Journal trades in account currency","floating_pnl_included":false,"excluded_unconverted_pnl_trades":unconverted_pnl_count,"excluded_unconverted_open_risk_trades":unconverted_risk_count,"excluded_unconverted_daily_risk_trades":unconverted_daily_risk_count,"missing_daily_risk_records":missing_daily_risk_count,"missing_open_risk_records":missing_open_risk_count,"violations":violations,
         "enforcement_note":"Risk assessment is advisory for planning. No order is created or sent."
     })).into_response()
 }
