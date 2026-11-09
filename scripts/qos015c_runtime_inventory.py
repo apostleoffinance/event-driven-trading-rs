@@ -208,6 +208,9 @@ def main() -> int:
             "updated_at": manifest.get("updated_at"),
             "source": manifest.get("source"),
             "verification": manifest.get("verification"),
+            "manifest_candidate_head_matches_checkout": bool(
+                manifest.get("source", {}).get("candidate_head")
+                and manifest.get("source", {}).get("candidate_head") == repo.get("head")),
         },
         "artifacts": artifacts,
         "docker": docker_inventory(root),
