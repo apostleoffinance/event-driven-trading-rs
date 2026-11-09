@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatNumber, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
+import { formatMoney, formatNumber, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import type { Position } from "@/types/domain";
 
@@ -65,7 +65,7 @@ export default function PositionsPage() {
       {
         accessorKey: "exposure",
         header: "Exposure",
-        cell: ({ getValue }) => <span className="num">{formatNumber(getValue() as string | number)}</span>,
+        cell: ({ getValue }) => <span className="num">{formatMoney(String(getValue()))}</span>,
       },
       {
         accessorKey: "riskPct",
