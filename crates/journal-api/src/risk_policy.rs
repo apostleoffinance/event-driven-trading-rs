@@ -342,7 +342,8 @@ pub async fn evaluate(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "invalid_timezone",
                 "Daily reset timezone is invalid or unavailable.",
-            )
+            );
+        }
     };
     let daily_pnl = match sqlx::query_scalar::<_, Decimal>(
         "SELECT COALESCE(SUM(net_pnl),0) FROM journal_trades WHERE owner_id=$1 AND journal_account_id=$2 AND status='closed' AND closed_at >= $3 AND pnl_currency=$4"
