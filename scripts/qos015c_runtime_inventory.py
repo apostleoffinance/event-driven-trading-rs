@@ -53,6 +53,13 @@ def git_value(root: Path, *args: str) -> str | None:
     r = run(["git", *args], cwd=root)
     return r.get("stdout") if r.get("exit_code") == 0 else None
 
+
+def manifest_artifact_match(actual_hash: str | None, expected_hash: str | None,
+                            manifest_source_matches_checkout: bool) -> bool:
+    """Only trust a matching hash when the manifest names this checkout's HEAD."""
+    return bool(actual_hash and expected_hash and actual_hash == expected_hash
+                and manifest_source_matches_checkout)
+
 def docker_inventory(root: Path) -> dict[str, Any]:
     version = run(["docker", "version", "--format", "{{.Server.Version}}"])
     context = run(["docker", "context", "show"])
@@ -125,13 +132,22 @@ def main() -> int:
         except Exception:
             manifest = {"parse_error": True}
 
+    manifest_candidate_head = manifest.get("source", {}).get("candidate_head")
+    checkout_head_for_manifest = git_value(root, "rev-parse", "HEAD")
+    manifest_source_matches_checkout = bool(
+        manifest_candidate_head and checkout_head_for_manifest
+        and manifest_candidate_head == checkout_head_for_manifest
+    )
+
     artifacts: dict[str, Any] = {}
     expected = manifest.get("artifacts", {})
     for name, rel in ARTIFACT_PATHS.items():
         actual = sha256(root / rel)
         expected_hash = expected.get(name, {}).get("sha256")
         artifacts[name] = {**actual, "path": rel, "manifest_sha256": expected_hash,
-                           "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash)}
+                           "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash),
+                           "matches_manifest_for_checkout": manifest_artifact_match(
+                               actual.get("sha256"), expected_hash, manifest_source_matches_checkout)}
     if args.daemon_binary:
         p = Path(args.daemon_binary).expanduser().resolve()
         actual = sha256(p)
@@ -140,7 +156,9 @@ def main() -> int:
             expected_hash = expected.get("rust_daemon", {}).get("sha256")
         artifacts["daemon_binary"] = {**actual, "path": str(p),
             "manifest_sha256": expected_hash,
-            "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash)}
+            "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash),
+            "matches_manifest_for_checkout": manifest_artifact_match(
+                actual.get("sha256"), expected_hash, manifest_source_matches_checkout)}
     for label, values, manifest_key in (
         ("ea_source_installed", args.ea_source, "ea_source"),
         ("ea_binary_installed", args.ea_binary, "ea_binary"),
@@ -152,7 +170,9 @@ def main() -> int:
             actual = sha256(p)
             artifacts[label].append({"path": str(p), **actual,
                 "manifest_sha256": expected_hash,
-                "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash)})
+                "matches_manifest": bool(expected_hash and actual.get("sha256") == expected_hash),
+                "matches_manifest_for_checkout": manifest_artifact_match(
+                    actual.get("sha256"), expected_hash, manifest_source_matches_checkout)})
 
     status = git_value(root, "status", "--porcelain=v1", "--untracked-files=all") or ""
     refs = {}
@@ -194,6 +214,13 @@ def main() -> int:
             r = run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"])
             listeners[str(port)] = r.get("stdout", "").splitlines()[1:] if r.get("exit_code") == 0 else []
 
+    try:
+        usage = shutil.disk_usage(root)
+        disk_capacity = {"path": str(root), "total_bytes": usage.total,
+                         "used_bytes": usage.used, "free_bytes": usage.free}
+    except OSError as exc:
+        disk_capacity = {"path": str(root), "error": type(exc).__name__}
+
     report = {
         "schema_version": 1,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -202,7 +229,9 @@ def main() -> int:
         "host": {"platform": platform.platform(), "python": platform.python_version(),
                  "hostname": platform.node()},
         "repository": repo,
+        "disk_capacity": disk_capacity,
         "build_manifest": {
+            "manifest_source_matches_checkout": manifest_source_matches_checkout,
             "path": "build-manifest.json" if manifest else None,
             "status": manifest.get("status"),
             "updated_at": manifest.get("updated_at"),
