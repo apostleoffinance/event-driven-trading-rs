@@ -45,6 +45,13 @@ class RuntimeInventoryHashTests(unittest.TestCase):
         self.assertIsNotNone(head)
         self.assertEqual(len(head), 40)
 
+    def test_stale_manifest_hash_is_not_trusted_for_current_checkout(self) -> None:
+        digest = "a" * 64
+        self.assertTrue(inventory.manifest_artifact_match(digest, digest, True))
+        self.assertFalse(inventory.manifest_artifact_match(digest, digest, False))
+        self.assertFalse(inventory.manifest_artifact_match(digest, "b" * 64, True))
+        self.assertFalse(inventory.manifest_artifact_match(None, digest, True))
+
 
 if __name__ == "__main__":
     unittest.main()
