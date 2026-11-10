@@ -1,49 +1,69 @@
 # Quant OS — Progress
 
-Last updated: 2026-11-10. Only verified facts belong here; see `RULES.md`.
+Last updated: 2026-11-10 (after review of both current QOS-015C inventories). Only verified facts belong here; see `RULES.md`.
 
 ## Current verified position — 2026-11-10
 
 <badge>IN PROGRESS — QOS-015C</badge>
 
-**Overall release decision: NO-GO.** Phase 1 (MT5 read-only connectivity acceptance) is not complete. No order execution is enabled or authorized. This snapshot supersedes older status statements below; older work-log entries remain historical evidence and should not be read as current runtime state.
+**Overall release decision: NO-GO.** Phase 1 read-only MT5 connectivity is not accepted. Order execution remains disabled and unauthorized. This is the latest evidence snapshot; older work-log entries are historical.
 
-### Where we are
+### Checkout reconciliation — both reports reviewed
 
-- **Repository reference:** GitHub `main` was verified at `17142139e1f0985f075db6f703279bd7db373c60`. The read-only QOS-015C inventory collector was downloaded from this exact commit, passed Python bytecode compilation, and generated primary and secondary JSON inventory files.
-- **Primary active checkout:** `~/rust-trading-engine/event-trading`, branch `main`, HEAD `3e1259063d3194e5b26cf93766ba50306c13fec1`. It is dirty; preserve all three reported paths: `argo.lock`, `adapters/mt5-python/scripts/mt5-macos-launch-wrapper.sh`, and `docker-compose.yml`. The current primary inventory reports no build manifest in this checkout, so it cannot establish a manifest-pinned v2 runtime.
-- **Secondary checkout:** `~/event-driven-trading-rs`. A current inventory was generated in the same collection run. Its report must be reviewed alongside the primary report before final checkout reconciliation; earlier inventory data is historical and is not a substitute for the latest report.
-- **Staging database/volume:** the read-only host inventory identifies the intended PostgreSQL staging container as healthy, using the external volume `edgenest_mt5_bridge_v2_staging_data`, bound only to `127.0.0.1:15543`. The database identity/role checks, ownership checks, and six existing migration checksum comparisons passed in the operator's read-only verification. The staging database has six successful migrations and no failed migrations. Six later migration files exist on current `main`; do not apply them to staging until the target source revision and migration plan are explicitly pinned.
-- **Host capacity:** the current primary inventory reports approximately 66.2 GB free on the Mac filesystem. This is a snapshot, not a guarantee of future capacity.
-- **Runtime state:** the primary inventory reports LaunchAgent worker/daemon jobs with last exit status `1`; the expected staging bridge/provider ports `19443` and `18765` are not listening. The Python process on `127.0.0.1:8765` is not proof of bridge health. The current evidence does not establish a healthy, matching v2 worker + daemon + terminal/EA runtime.
-- **Provenance:** the historical `build-manifest.json` candidate does not match the current checkout and is not a deployment attestation. Artifact hash matches alone are insufficient; source commit, manifest, worker, daemon, provider, EA source/binary and runtime identity must all resolve to one reviewed immutable revision.
-- **CI/repository work:** QOS-015C collector and reconciliation runbook are in the repository. The QOS-015C CI implementation previously passed its five jobs. The host preflight PR #113 is a separate draft and must not be mistaken for a merged or accepted runtime gate.
+The two reports were generated approximately 1.5 seconds apart by the same read-only collector. They describe two distinct local Git trees but the same machine-wide Docker, LaunchAgent and listening-port state.
+
+| Item | Primary checkout | Secondary checkout |
+|---|---|---|
+| Path | `~/rust-trading-engine/event-trading` | `~/event-driven-trading-rs` |
+| Branch / HEAD | `main` / `3e1259063d3194e5b26cf93766ba50306c13fec1` | `main` / `2793726ed99d634c4040da5ee58f40b784e8b99a` |
+| `origin/main` reported locally | `3e1259063d3194e5b26cf93766ba50306c13fec1` | `17142139e1f0985f075db6f703279bd7db373c60` |
+| Dirty paths (all must be preserved) | `argo.lock`; `adapters/mt5-python/scripts/mt5-macos-launch-wrapper.sh`; `docker-compose.yml` | `Cargo.lock`; `docker-compose.yml`; `event-driven-trading-rs`; `scripts/traderos-migration/migrate.py.before-http-debug`; `scripts/traderos-migration/migrate.py.debug-backup` |
+| Build manifest | Absent | Present, but stale/mismatched |
+| EA / provider / worker source hashes | `0e4cba1b…`; `65dc6142…`; `dc487872…` | `f43bbf5c…`; `fd9dfd87…`; `3f0e7134…` |
+
+**Decision: neither checkout is yet accepted as the authoritative QOS-015C source tree.** The primary is the *currently referenced operational checkout*: both observed LaunchAgent working directories and the daemon executable path point into it. However, its HEAD is older than the pinned GitHub `main` reference observed during collection and it has no build manifest. The secondary has a manifest and source files whose hashes match that manifest, but the manifest candidate HEAD (`7bfd4358…`) does not match the secondary HEAD (`2793726e…`), and its source-match flags are false. Its local `release/mt5-bridge-v2-rc1` ref is `1a5344e9…`, while `origin/release/mt5-bridge-v2-rc1` is `a2f0bbea…`. The reports alone do not prove ancestry or a safe merge/rebase path. GitHub `main` at `17142139e1f0985f075db6f703279bd7db373c60` is the observed shared remote reference for the secondary; the primary reports a different `origin/main` value. Resolve remote configuration and commit graph before selecting a canonical checkout.
+
+### Runtime and artifact findings
+
+- Both reports show the same machine-wide LaunchAgents: `com.quantos.mt5-worker` (PID 56889) and `com.quantos.mt5-bridge` (PID 56914), with last exit status `1`. Their working directories and daemon executable path are in the **primary** checkout. This establishes process/path association only, not healthy service operation.
+- Neither expected bridge port `19443` nor provider port `18765` is listening. A Python process listens on `127.0.0.1:8765`; this is not evidence of bridge/provider readiness.
+- No installed EA source or compiled EA binary was found by the collector in either checkout. Do not infer that an EA is installed or loaded in the terminal.
+- Primary EA/provider/worker source hashes differ from the secondary manifest's recorded hashes. The secondary files match the manifest's file hashes individually, but **not for the candidate checkout**. The recorded manifest is historical evidence, not current deployment attestation.
+- The reports show approximately 66.2 GB free disk. This is adequate for planning but does not authorize builds or cleanup during reconciliation.
+
+### Staging database and Docker
+
+- Both reports independently observe the same healthy PostgreSQL container `edgenest-mt5-bridge-v2-staging-postgres-1`, ID `dc9abdf6c9ae`, on Docker context `desktop-linux`.
+- It uses image `postgres:16-alpine`, binds only `127.0.0.1:15543`, and mounts external volume `edgenest_mt5_bridge_v2_staging_data` at the PostgreSQL data directory.
+- Compose labels identify the config file and working directory under Copilot session-state UUID `734619f8-e3f8-44bf-83fb-ba4f2e68f849`; password secret mounts originate from a separate session-state UUID `b9df8d7f-d362-4594-b240-358b0e4b29af`. This provenance split still requires operator review. Secret contents were not collected.
+- Prior authenticated read-only database checks remain valid evidence for the observed state: database `mt5_v2_staging`, app role `mt5_v2_app`, 23 public application tables, eight public sequences, six successful migrations, zero failed migrations, and all six applied migration checksums matching their source files. No new migration is authorized.
 
 ### QOS-015C acceptance checklist
 
-| Gate | Current status | Evidence / remaining work |
+| Gate | Status | Evidence / remaining work |
 |---|---|---|
-| Identify source-of-truth checkout and preserve dirty work | In review | Primary active checkout identified; preserve its three dirty paths. Review the latest secondary JSON before final reconciliation. |
-| Pin one immutable staging source revision | Blocked | Historical manifest is stale/mismatched; create or approve a new manifest only after checkout reconciliation. |
-| Worker/daemon/provider/EA artifact identity | Blocked | No complete matching runtime identity demonstrated; LaunchAgent exit status is 1 and bridge/provider ports are not listening. |
-| Docker and staging Compose provenance | Partial | Healthy PostgreSQL container and external volume identified; Compose config and secret-source provenance still need review. |
-| PostgreSQL identity, ownership and migration checksums | Passed for observed state | Authenticated read-only identity/role checks passed; six applied migration checksums match source files. No new migrations authorized. |
-| Backup and isolated restore proof | Pending | Preserve a verified backup and demonstrate restore into an isolated target without touching staging. |
-| Evidence bundle, independent review and operator sign-off | Pending | Produce a redacted evidence digest and explicit acceptance decision. |
-| Deployment authorization | **NO-GO** | No deployment, service replacement, or execution enablement. |
+| Inventory both checkouts and list dirty work | <badge color="success">Evidence collected</badge> | Both reports reviewed. Preserve all 8 distinct dirty paths; inspect diffs/untracked contents before any reconciliation. |
+| Select authoritative source and pin immutable revision | <badge color="warning">Blocked</badge> | Neither local checkout is accepted; reconcile refs/remotes/ancestry and create a reviewed manifest tied to exact source and artifacts. |
+| Worker/daemon/provider/EA runtime identity and health | <badge color="danger">Blocked</badge> | LaunchAgents exit status 1; ports 19443/18765 closed; no EA binary/source installed reported. |
+| Docker/staging Compose and secret provenance | <badge color="warning">Partial</badge> | DB container and volume identity/mount verified; separate Compose and secret session-state roots require review. |
+| PostgreSQL identity, role, ownership, migration checksums | <badge color="success">Passed for observed state</badge> | Read-only DB checks and six checksum comparisons passed. |
+| Backup and isolated restore | <badge color="warning">Pending</badge> | Verify backup integrity and restore into a separate isolated target; do not touch staging volume. |
+| Evidence bundle, independent review and operator sign-off | <badge color="warning">Pending</badge> | Redacted evidence digest and explicit reviewer/operator decision required. |
+| Deployment authorization | <badge color="danger">NO-GO</badge> | No service replacement, migration, deployment or execution enablement. |
 
 ### Immediate next actions
 
-1. Review both latest JSON inventory reports together; resolve primary/secondary source-tree differences and write a preservation plan for every dirty/untracked item.
-2. Identify the exact staging Compose file and secret-source ownership/provenance without printing secret contents or changing mounts.
-3. Select and pin the reviewed immutable source commit; rebuild and attest the complete worker/daemon/provider/EA set from that same revision.
-4. Verify runtime identity and process health without replacing the existing v1 services or touching the terminal EA.
-5. Complete backup plus isolated restore verification, then assemble the signed/redacted QOS-015C evidence package.
-6. Only after QOS-015C is accepted, proceed to managed Windows provisioning (QOS-015D). Do not start the TenTrade read-only acceptance run before the target runtime is pinned and approved.
+1. **Preserve first:** capture complete diffs and untracked-file inventories for both trees; create immutable backups/copies of the eight dirty paths and verify them. Do not stash, reset, clean, checkout over or merge either tree.
+2. Compare `git remote -v`, fetch/ref metadata (without changing worktrees), and commit ancestry for both checkouts; explain why primary `origin/main` points at `3e125906` while the secondary points at `17142139`.
+3. Inspect the secondary manifest and all source/artifact paths against its candidate revision; determine whether `2793726e`, local RC `1a5344e9`, remote RC `a2f0bbea`, or pinned main `17142139` is the valid reviewed base. Do not assume any one is deployable.
+4. Review the Compose file, initializer and secret file metadata/ownership/permissions without displaying or copying secret values; establish why the two session-state roots differ.
+5. Diagnose LaunchAgent exit status and process identity using redacted logs/config metadata. Do not restart/unload/reload services or execute the daemon binary.
+6. Complete backup plus isolated restore proof; then rebuild/attest only after an approved immutable source revision is selected.
+7. Produce evidence bundle and independent sign-off. QOS-015D managed Windows provisioning remains blocked until QOS-015C acceptance.
 
 ### Safety boundary
 
-Do not reset, clean, stash, overwrite, or switch either dirty checkout without an explicit preservation plan. Do not prune Docker, delete/recreate volumes, run migrations, restart services, replace/reload the EA, rotate credentials, or deploy while QOS-015C reconciliation is active. Keep order submission, modification, cancellation and live money movement disabled.
+Do not reset, clean, stash, overwrite, merge or switch either dirty checkout until the preservation and ancestry plan is reviewed. Do not prune Docker, delete/recreate volumes, run migrations, restart/unload services, replace/reload the EA, rotate credentials or deploy during reconciliation. Keep order submission, modification, cancellation and live money movement disabled.
 
 ## Work log — QOS-015C current host inventory and database verification (2026-11-10)
 
