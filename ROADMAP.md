@@ -15,25 +15,23 @@ The broker remains the source of truth for accepted orders, fills, positions and
 
 ## Current position — 2026-11-10
 
-<badge>QOS-015C IN PROGRESS</badge>
+<badge>QOS-015C IN PROGRESS — NO-GO</badge>
 
-**We are in Phase 1, at QOS-015C: runtime and deployment reconciliation. Deployment is NO-GO; execution is disabled.**
+We are still in Phase 1, at QOS-015C runtime/source reconciliation. The two latest inventories have now been reviewed. They establish that **neither local checkout is yet accepted as the authoritative source tree**:
 
-Already achieved:
-- Substantial Rust risk/OMS, typed MT5 bridge protocol, read-only daemon, Python MT5 provider, mTLS, identity binding, idempotency/checkpoints, session readiness and reconciliation foundations.
-- QOS-013 instrument-aware sizing and fail-closed freshness/risk checks are implemented substantially in code; real broker-input acceptance remains open.
-- QOS-015C read-only collector and reconciliation runbook are in the repository; the collector was run against both local checkouts from pinned main commit `17142139e1f0985f075db6f703279bd7db373c60`.
-- Staging PostgreSQL identity/role/ownership checks and all six applied migration checksum comparisons passed. Staging PostgreSQL is healthy and its external volume is attached.
-- CI for the QOS-015C collector implementation passed its five jobs.
+- Primary operational checkout: `~/rust-trading-engine/event-trading`, HEAD `3e125906`, three dirty paths. LaunchAgent working directories and daemon executable point here, but its manifest is absent and its locally reported `origin/main` is also `3e125906`.
+- Secondary candidate checkout: `~/event-driven-trading-rs`, HEAD `2793726e`, five dirty paths. It has a build manifest, but the manifest candidate HEAD `7bfd4358` does not match this checkout. Artifact file hashes match the manifest's recorded hashes, but the collector correctly marks them as not matching the current checkout.
+- Secondary refs report local RC `1a5344e9` and origin RC `a2f0bbea`; secondary `origin/main` is `17142139`. The primary reports a different `origin/main`. Remote configuration and ancestry must be reconciled before a canonical revision is selected.
+- All eight dirty paths across the two trees must be preserved. Do not stash, reset, clean, merge or switch branches until diffs and backups are verified.
 
-Still open:
-- Review and reconcile the latest primary and secondary inventories; preserve all dirty/untracked work.
-- Pin a single reviewed immutable source revision and attest the worker, daemon, provider, EA source and EA binary against it.
-- Resolve staging Compose/secret-source provenance, process identity/health, backup/restore evidence and independent sign-off.
-- Demonstrate actual managed-terminal read-only TenTrade demo conformance, fresh data persistence and recovery.
-- Certificate/private-key lifecycle and security review.
+The runtime evidence is not healthy: both LaunchAgents have last exit status 1; their paths point to the primary checkout; ports `19443` and `18765` are closed; no installed EA source or binary was detected. The Python listener on `8765` is not proof of bridge readiness. The staging PostgreSQL container and external volume are healthy/attached, and the six applied migration checksum checks passed, but Compose and secret mounts originate from separate Copilot session-state roots and need provenance review.
 
-The current primary checkout has three dirty paths that must be preserved. Its inventory reports LaunchAgent worker/daemon last exit status 1 and no listeners on expected bridge/provider ports 19443/18765. A healthy PostgreSQL container does not prove the bridge runtime is healthy. See `PROGRESS.md` for exact current evidence and limitations.
+**Completed evidence:** both read-only inventories generated and reviewed; staging DB identity/role/ownership and six applied migration checksums passed; QOS-015C collector CI passed previously.
+
+**Outstanding blockers:** preserve and reconcile both dirty trees; resolve remote/ref/ancestry discrepancy; select and pin a reviewed source revision; prove matching worker/daemon/provider/EA artifacts and process health; resolve Compose/secret provenance; complete isolated backup/restore; obtain independent review and sign-off.
+
+No order execution is enabled. QOS-015D managed Windows provisioning, QOS-015E demo conformance and QOS-015F recovery/security testing remain blocked until QOS-015C is accepted. See `PROGRESS.md` for the detailed evidence table and immediate operator actions.
+
 
 ## Phase 0 — Repository and engineering baseline
 
