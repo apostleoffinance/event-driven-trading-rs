@@ -1,8 +1,61 @@
 # Quant OS — Progress
 
-Last updated: 2026-11-01. Only verified facts belong here; see `RULES.md`.
+Last updated: 2026-11-10. Only verified facts belong here; see `RULES.md`.
 
-## Current status — 2026-11-01
+## Current verified position — 2026-11-10
+
+<badge>IN PROGRESS — QOS-015C</badge>
+
+**Overall release decision: NO-GO.** Phase 1 (MT5 read-only connectivity acceptance) is not complete. No order execution is enabled or authorized. This snapshot supersedes older status statements below; older work-log entries remain historical evidence and should not be read as current runtime state.
+
+### Where we are
+
+- **Repository reference:** GitHub `main` was verified at `17142139e1f0985f075db6f703279bd7db373c60`. The read-only QOS-015C inventory collector was downloaded from this exact commit, passed Python bytecode compilation, and generated primary and secondary JSON inventory files.
+- **Primary active checkout:** `~/rust-trading-engine/event-trading`, branch `main`, HEAD `3e1259063d3194e5b26cf93766ba50306c13fec1`. It is dirty; preserve all three reported paths: `argo.lock`, `adapters/mt5-python/scripts/mt5-macos-launch-wrapper.sh`, and `docker-compose.yml`. The current primary inventory reports no build manifest in this checkout, so it cannot establish a manifest-pinned v2 runtime.
+- **Secondary checkout:** `~/event-driven-trading-rs`. A current inventory was generated in the same collection run. Its report must be reviewed alongside the primary report before final checkout reconciliation; earlier inventory data is historical and is not a substitute for the latest report.
+- **Staging database/volume:** the read-only host inventory identifies the intended PostgreSQL staging container as healthy, using the external volume `edgenest_mt5_bridge_v2_staging_data`, bound only to `127.0.0.1:15543`. The database identity/role checks, ownership checks, and six existing migration checksum comparisons passed in the operator's read-only verification. The staging database has six successful migrations and no failed migrations. Six later migration files exist on current `main`; do not apply them to staging until the target source revision and migration plan are explicitly pinned.
+- **Host capacity:** the current primary inventory reports approximately 66.2 GB free on the Mac filesystem. This is a snapshot, not a guarantee of future capacity.
+- **Runtime state:** the primary inventory reports LaunchAgent worker/daemon jobs with last exit status `1`; the expected staging bridge/provider ports `19443` and `18765` are not listening. The Python process on `127.0.0.1:8765` is not proof of bridge health. The current evidence does not establish a healthy, matching v2 worker + daemon + terminal/EA runtime.
+- **Provenance:** the historical `build-manifest.json` candidate does not match the current checkout and is not a deployment attestation. Artifact hash matches alone are insufficient; source commit, manifest, worker, daemon, provider, EA source/binary and runtime identity must all resolve to one reviewed immutable revision.
+- **CI/repository work:** QOS-015C collector and reconciliation runbook are in the repository. The QOS-015C CI implementation previously passed its five jobs. The host preflight PR #113 is a separate draft and must not be mistaken for a merged or accepted runtime gate.
+
+### QOS-015C acceptance checklist
+
+| Gate | Current status | Evidence / remaining work |
+|---|---|---|
+| Identify source-of-truth checkout and preserve dirty work | In review | Primary active checkout identified; preserve its three dirty paths. Review the latest secondary JSON before final reconciliation. |
+| Pin one immutable staging source revision | Blocked | Historical manifest is stale/mismatched; create or approve a new manifest only after checkout reconciliation. |
+| Worker/daemon/provider/EA artifact identity | Blocked | No complete matching runtime identity demonstrated; LaunchAgent exit status is 1 and bridge/provider ports are not listening. |
+| Docker and staging Compose provenance | Partial | Healthy PostgreSQL container and external volume identified; Compose config and secret-source provenance still need review. |
+| PostgreSQL identity, ownership and migration checksums | Passed for observed state | Authenticated read-only identity/role checks passed; six applied migration checksums match source files. No new migrations authorized. |
+| Backup and isolated restore proof | Pending | Preserve a verified backup and demonstrate restore into an isolated target without touching staging. |
+| Evidence bundle, independent review and operator sign-off | Pending | Produce a redacted evidence digest and explicit acceptance decision. |
+| Deployment authorization | **NO-GO** | No deployment, service replacement, or execution enablement. |
+
+### Immediate next actions
+
+1. Review both latest JSON inventory reports together; resolve primary/secondary source-tree differences and write a preservation plan for every dirty/untracked item.
+2. Identify the exact staging Compose file and secret-source ownership/provenance without printing secret contents or changing mounts.
+3. Select and pin the reviewed immutable source commit; rebuild and attest the complete worker/daemon/provider/EA set from that same revision.
+4. Verify runtime identity and process health without replacing the existing v1 services or touching the terminal EA.
+5. Complete backup plus isolated restore verification, then assemble the signed/redacted QOS-015C evidence package.
+6. Only after QOS-015C is accepted, proceed to managed Windows provisioning (QOS-015D). Do not start the TenTrade read-only acceptance run before the target runtime is pinned and approved.
+
+### Safety boundary
+
+Do not reset, clean, stash, overwrite, or switch either dirty checkout without an explicit preservation plan. Do not prune Docker, delete/recreate volumes, run migrations, restart services, replace/reload the EA, rotate credentials, or deploy while QOS-015C reconciliation is active. Keep order submission, modification, cancellation and live money movement disabled.
+
+## Work log — QOS-015C current host inventory and database verification (2026-11-10)
+
+- Downloaded `scripts/qos015c_runtime_inventory.py` from pinned GitHub `main` commit `17142139e1f0985f075db6f703279bd7db373c60`; `python3 -m py_compile` passed.
+- Generated primary and secondary read-only JSON inventories. Both remote `origin/main` references were observed at the pinned commit during collection. The inventories are evidence snapshots; generation alone does not reconcile the checkouts or prove runtime readiness.
+- Current primary inventory confirms the primary checkout HEAD and its three dirty paths, the healthy staging PostgreSQL container, external staging volume attachment, loopback-only port 15543, free bridge/provider ports at 19443/18765, LaunchAgent exit status 1, and approximately 66.2 GB free disk.
+- Authenticated read-only PostgreSQL checks passed for database `mt5_v2_staging` and app role `mt5_v2_app`; app role is not superuser/createdb/createrole. The 23 application tables, eight sequences and migration table ownership were checked. The separate `_sqlx_test` bookkeeping schema/table is not an application table and was left untouched.
+- All six migrations currently recorded in staging have matching source checksums; migration history shows six successes and zero failures. Six newer migration files on current `main` are not present in staging. No migration was run.
+- No services, terminal, EA, database, certificate, volume, or checkout content were changed by this read-only collection and verification.
+- **Conclusion:** useful host and database gates have passed, but QOS-015C remains IN PROGRESS and deployment remains NO-GO. The unresolved source/artifact provenance, process health, Compose/secret provenance, backup/restore and independent sign-off gates prevent acceptance.
+
+## Historical status snapshot — 2026-11-01 (superseded by the 2026-11-10 snapshot above)
 
 - **Phase 0 — implementation baseline and task reconciliation:** complete for repository sync, source/status review, current acceptance criteria, and CI evidence capture. Historical audit content below remains historical and is not the current implementation snapshot.
 - **Phase 1 — MT5 Connectivity Alpha:** in progress. QOS-013, QOS-014, QOS-015A, and QOS-015B have substantial code and contract tests, but real-terminal demo conformance, persisted data/restart evidence, and independent credential-lifecycle review remain outstanding.
