@@ -24,17 +24,19 @@ function ranked(groups: InsightGroup[], order: "best" | "worst") {
       : Number(a.net_pnl) - Number(b.net_pnl))[0] ?? null;
 }
 
-function InsightRow({ label, group, currency, rank, onSelect }: {
+function InsightRow({ label, group, currency, rank, scale, onSelect }: {
   label: string;
   group: InsightGroup;
   currency: string;
   rank: string;
+  scale: number;
   onSelect: () => void;
 }) {
   const pnl = Number(group.net_pnl);
   const winRate = Math.max(0, Math.min(100, Number(group.win_rate_percent) || 0));
   const sample = sampleLabel(Number(group.trades));
   const tone = pnl >= 0 ? "positive" : "negative";
+  const barWidth = Math.max(1.5, Math.abs(pnl) / Math.max(1, scale) * 50);
   return <article className="analytics-insight-item">
     <div className="analytics-insight-item-head">
       <span className="analytics-insight-dimension">{label}</span>
@@ -54,7 +56,7 @@ function InsightRow({ label, group, currency, rank, onSelect }: {
     <div className="analytics-insight-pnl-track" aria-label={`Net P&L ${money(pnl, currency)}`}>
       <span className="analytics-insight-zero" />
       <span className={`analytics-insight-pnl-bar ${tone}`} style={{
-        width: `${Math.max(1.5, Math.abs(pnl) / Math.max(1, Math.abs(pnl)) * 50)}%`,
+        width: `${barWidth}%`,
         [pnl >= 0 ? "left" : "right"]: "50%"
       }} />
     </div>
@@ -79,6 +81,8 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
     { label: "Setup", dimension: "setup" as const, group: ranked(setups, "worst"), rank: "Weakest setup by net P&L" }
   ].filter(item => item.group && Number(item.group.net_pnl) < 0);
 
+  const scale = Math.max(1, ...[...symbols, ...sessions, ...setups].filter(group => Number(group.trades) >= 3).map(group => Math.abs(Number(group.net_pnl) || 0)));
+
   return <section className="panel analytics-insights" aria-labelledby="analytics-insights-title">
     <div className="analytics-insights-heading">
       <div><span className="analytics-eyebrow">RESEARCH PROMPTS</span><h2 id="analytics-insights-title">What stands out in this sample</h2>
@@ -89,7 +93,7 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
     <div className="analytics-insights-grid">
       <section className="analytics-insight-column" aria-label="Top performing groups">
         <h3>Strongest observed groups</h3>
-        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough qualifying trades to identify a strongest group.</p>}
+        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough qualifying trades to identify a strongest group.</p>}
       </section>
       <section className="analytics-insight-column" aria-label="Groups worth investigating">
         <h3>Groups worth investigating</h3>
