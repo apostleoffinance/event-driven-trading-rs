@@ -143,7 +143,9 @@ try {
     // Exercise every drawing family, editing controls, templates and browser persistence.
     const drawingSvg = page.locator(".market-drawing-overlay");
     const drawingBox = await drawingSvg.boundingBox();
+    const chartBox = await page.locator(".market-chart-canvas").boundingBox();
     assert.ok(drawingBox && drawingBox.width > 200 && drawingBox.height > 200, `Drawing overlay missing at ${viewport.name}`);
+    assert.ok(chartBox && Math.abs(drawingBox.height - chartBox.height) <= 1, `Drawing overlay does not match chart height at ${viewport.name}: overlay=${drawingBox?.height} chart=${chartBox?.height}`);
     const drawAt = async (x, y) => page.mouse.click(drawingBox.x + x, drawingBox.y + y);
     const addDrawing = async (label, points) => {
       await page.getByRole("toolbar", { name: "Chart drawing tools" }).getByRole("button", { name: label, exact: true }).click();
