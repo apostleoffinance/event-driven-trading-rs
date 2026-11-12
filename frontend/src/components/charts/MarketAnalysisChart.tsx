@@ -284,7 +284,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       {!candles.isLoading && !error && chartData.length === 0 ? <div className="market-chart-state"><strong>No candle history for this selection</strong><span>Choose another provider or timeframe. The chart never invents missing market prices.</span></div> : null}
       <div className="market-chart-stage">
         <div ref={containerRef} className="market-chart-canvas" aria-label="Interactive TradingView Lightweight candlestick chart" />
-        <MarketChartDrawings chart={chartRef.current} series={candleRef.current} ready={chartReady} instrument={selectedSymbol} timeframe={frame} precision={pricePrecision} />
+        <MarketChartDrawings chart={chartRef.current} series={candleRef.current} ready={chartReady} instrument={selectedSymbol} timeframe={frame} precision={pricePrecision} showVolume={showVolume} showSma={showSma} onShowVolumeChange={setShowVolume} onShowSmaChange={setShowSma} />
       </div>
 
       <div className="market-overlay-controls">
