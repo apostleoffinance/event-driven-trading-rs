@@ -139,6 +139,37 @@ try {
     }
     await timeframeGroup.getByRole("button", { name: "M1", exact: true }).click();
     await page.getByText("1.10712", { exact: true }).first().waitFor({ timeout: 10_000 });
+
+    // Exercise every drawing family, editing controls, templates and browser persistence.
+    const drawingSvg = page.locator(".market-drawing-overlay");
+    const drawingBox = await drawingSvg.boundingBox();
+    assert.ok(drawingBox && drawingBox.width > 200 && drawingBox.height > 200, `Drawing overlay missing at ${viewport.name}`);
+    const drawAt = async (x, y) => page.mouse.click(drawingBox.x + x, drawingBox.y + y);
+    const addDrawing = async (label, points) => {
+      await page.getByRole("toolbar", { name: "Chart drawing tools" }).getByRole("button", { name: label, exact: true }).click();
+      for (const [x, y] of points) await drawAt(x, y);
+    };
+    await addDrawing("Horizontal ray", [[drawingBox.width * .24, drawingBox.height * .30]]);
+    await addDrawing("Vertical line", [[drawingBox.width * .31, drawingBox.height * .35]]);
+    await addDrawing("Trendline", [[drawingBox.width * .34, drawingBox.height * .55], [drawingBox.width * .52, drawingBox.height * .38]]);
+    await addDrawing("Rectangle / zone", [[drawingBox.width * .40, drawingBox.height * .25], [drawingBox.width * .57, drawingBox.height * .48]]);
+    await addDrawing("Parallel channel", [[drawingBox.width * .44, drawingBox.height * .60], [drawingBox.width * .62, drawingBox.height * .47], [drawingBox.width * .49, drawingBox.height * .43]]);
+    await addDrawing("Fibonacci", [[drawingBox.width * .50, drawingBox.height * .25], [drawingBox.width * .68, drawingBox.height * .60]]);
+    await addDrawing("Long position", [[drawingBox.width * .58, drawingBox.height * .42], [drawingBox.width * .58, drawingBox.height * .58], [drawingBox.width * .58, drawingBox.height * .25]]);
+    await addDrawing("Short position", [[drawingBox.width * .70, drawingBox.height * .42], [drawingBox.width * .70, drawingBox.height * .25], [drawingBox.width * .70, drawingBox.height * .58]]);
+    assert.equal(await page.locator(".market-drawing-row").count(), 8, `Expected all eight drawing types to be created at ${viewport.name}`);
+    await page.locator(".market-drawing-row").first().getByRole("button").first().click();
+    await page.getByRole("heading", { name: "Edit drawing" }).waitFor();
+    await page.getByRole("button", { name: "Apply anchor" }).click();
+    await page.getByLabel("Template name").fill("Acceptance template");
+    await page.getByRole("button", { name: "Save template" }).click();
+    await page.getByLabel("Saved templates").selectOption({ label: "Acceptance template · EURUSD M1" });
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".market-drawing-row").first().waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawings were not restored after reload at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing template did not persist at ${viewport.name}`);
+
     const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
     assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
