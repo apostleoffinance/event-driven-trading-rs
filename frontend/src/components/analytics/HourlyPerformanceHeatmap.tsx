@@ -34,6 +34,7 @@ export function HourlyPerformanceHeatmap({ groups, currency = "USD", onSelect }:
     const extent = Math.max(1, ...finite.map(Math.abs));
     return {
       animation: false,
+      aria: { enabled: true, decal: { show: true } },
       textStyle: { fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
       tooltip: {
         position: "top",
@@ -44,6 +45,7 @@ export function HourlyPerformanceHeatmap({ groups, currency = "USD", onSelect }:
           return [
             hours[index] + " UTC",
             "Trades: " + group.trades,
+            "Sample size: " + group.trades + " closed trades",
             "Net P&L: " + Number(value).toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 2 }),
             "Win rate: " + Number(group.win_rate_percent).toFixed(1) + "%"
           ].join("<br/>");
