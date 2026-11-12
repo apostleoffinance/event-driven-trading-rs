@@ -157,6 +157,7 @@ try {
     await addDrawing("Fibonacci", [[drawingBox.width * .50, drawingBox.height * .25], [drawingBox.width * .68, drawingBox.height * .60]]);
     await addDrawing("Long position", [[drawingBox.width * .58, drawingBox.height * .42], [drawingBox.width * .58, drawingBox.height * .58], [drawingBox.width * .58, drawingBox.height * .25]]);
     await addDrawing("Short position", [[drawingBox.width * .70, drawingBox.height * .42], [drawingBox.width * .70, drawingBox.height * .25], [drawingBox.width * .70, drawingBox.height * .58]]);
+    await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Expected all eight drawing types to be created at ${viewport.name}`);
     await page.locator(".market-drawing-row").first().getByRole("button").first().click();
     await page.locator(".market-drawing-inspector").getByText("Edit drawing", { exact: true }).waitFor();
@@ -172,6 +173,7 @@ try {
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".market-drawing-row").first().waitFor({ timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawings were not restored after reload at ${viewport.name}`);
+    await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).waitFor({ state: "attached", timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing layout did not persist at ${viewport.name}`);
 
     const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
