@@ -93,6 +93,22 @@ export function BehaviourDashboard({ data }: Props) {
       </div>
       <p>Statistical context, not a prediction. The interval communicates uncertainty in the observed win rate; it is not a probability that the true rate lies inside these bounds.</p>
     </div>
+    <div className={styles.confidencePanel}>
+      <div>
+        <span className={styles.confidenceLabel}>RECORDED PSYCHOLOGY</span>
+        <strong className={styles.confidenceValue}>{data.psychology_record_count ?? 0}/{data.trade_count}</strong>
+        <span className={styles.confidenceDetail}>Trades with psychology records</span>
+      </div>
+      <div>
+        <span className={styles.confidenceDetail}>Confidence {data.average_confidence == null ? "—" : data.average_confidence.toFixed(1)+"/10"} · Fear {data.average_fear == null ? "—" : data.average_fear.toFixed(1)+"/10"} · FOMO {data.average_fomo == null ? "—" : data.average_fomo.toFixed(1)+"/10"}</span>
+        <span className={styles.confidenceDetail}>Frustration {data.average_frustration == null ? "—" : data.average_frustration.toFixed(1)+"/10"} · Revenge {data.average_revenge_intensity == null ? "—" : data.average_revenge_intensity.toFixed(1)+"/10"} · Boredom {data.average_boredom == null ? "—" : data.average_boredom.toFixed(1)+"/10"}</span>
+      </div>
+    </div>
+    {data.insights?.length ? <div className={styles.outcomePanel}>
+      <h3 className={styles.sectionTitle}>Diagnostic insights</h3>
+      <p className={styles.sectionDescription}>Rule-based observations from recorded Journal facts. These are descriptive prompts, not causal conclusions.</p>
+      <ul>{data.insights.map((insight,index)=><li key={insight.type+"-"+index}><strong>{insight.title}</strong> — {insight.message}</li>)}</ul>
+    </div> : <div className={styles.outcomePanel}><h3 className={styles.sectionTitle}>No diagnostic alerts</h3><p className={styles.sectionDescription}>There are no current rule-based observations for this sample, or there is not enough recorded data to evaluate them.</p></div>}
     <p className={styles.notice}>{data.notice}</p>
   </section>;
 }
