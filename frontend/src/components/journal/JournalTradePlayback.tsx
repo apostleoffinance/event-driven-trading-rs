@@ -6,6 +6,7 @@ import { createChart, type IChartApi, type ISeriesApi, type Time } from "lightwe
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
 import type { JournalTrade } from "@/lib/api/journal";
 import { formatPrice } from "@/lib/format";
+import { journalApi } from "@/lib/api/journal";
 
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"] as const;
 type Frame = (typeof FRAMES)[number];
@@ -50,6 +51,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const persistedExcursionRef = useRef<string>("");
 
   const instrumentsQuery = useQuery({
     queryKey: ["market-data", "instruments"],
@@ -76,14 +78,29 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
 
   const candleQuery = useQuery({
     queryKey: ["journal", "trade-replay", trade.id, frame, selectedProvider],
-    queryFn: () => marketDataApi.candles({
-      instrument: instrument?.id ?? trade.symbol,
-      timeframe: frame,
-      provider: selectedProvider || undefined,
-      from: trade.opened_at,
-      to: trade.closed_at || undefined,
-      limit: 5000,
-    }),
+    queryFn: async () => {
+      const durationMs: Record<Frame, number> = { M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 };
+      const start = new Date(trade.opened_at).getTime();
+      const end = new Date(trade.closed_at || "").getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Invalid trade coverage interval.");
+      const all: Candle[] = [];
+      let cursor = start;
+      for (let pageIndex = 0; cursor < end && pageIndex < 64; pageIndex += 1) {
+        const pageEnd = Math.min(end, cursor + durationMs[frame] * 900);
+        const page = await marketDataApi.candles({
+          instrument: instrument?.id ?? trade.symbol,
+          timeframe: frame,
+          provider: selectedProvider || undefined,
+          from: new Date(cursor).toISOString(),
+          to: new Date(pageEnd).toISOString(),
+          limit: 1000,
+        });
+        all.push(...page.candles);
+        if (page.candles.length === 0) break;
+        cursor = pageEnd;
+      }
+      return { candles: all };
+    },
     enabled: expanded && isClosedTrade && Boolean(selectedProvider),
     retry: 1,
   });
@@ -97,6 +114,40 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const adversePrice = replayPath.length ? (trade.direction === "long" ? Math.min(...replayPath.map((c) => c.low)) : Math.max(...replayPath.map((c) => c.high))) : entryPrice;
   const mfePips = movementPips(trade.symbol, entryPrice, favorablePrice, trade.direction);
   const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
+
+  useEffect(() => {
+    if (!expanded || !isClosedTrade || candles.length === 0 || !Number.isFinite(entryPrice)) return;
+    const first = Number(candles[0].time) * 1000;
+    const last = Number(candles[candles.length - 1].time) * 1000;
+    const opened = new Date(trade.opened_at).getTime();
+    const closed = new Date(trade.closed_at || "").getTime();
+    const tolerance = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
+    if (first > opened + tolerance || last < closed - tolerance) return;
+    const fullFavorable = trade.direction === "long"
+      ? Math.max(...candles.map((c) => c.high)) : Math.min(...candles.map((c) => c.low));
+    const fullAdverse = trade.direction === "long"
+      ? Math.min(...candles.map((c) => c.low)) : Math.max(...candles.map((c) => c.high));
+    const directionSign = trade.direction === "long" ? 1 : -1;
+    const riskDistance = trade.stop_loss ? Math.abs(entryPrice - Number(trade.stop_loss)) : 0;
+    const mfeR = riskDistance > 0 ? ((fullFavorable - entryPrice) * directionSign) / riskDistance : null;
+    const maeR = riskDistance > 0 ? ((fullAdverse - entryPrice) * directionSign) / riskDistance : null;
+    const key = [trade.id, frame, selectedProvider, first, last].join(":");
+    if (persistedExcursionRef.current === key) return;
+    persistedExcursionRef.current = key;
+    void journalApi.saveExcursions(trade.id, {
+      mfe_price: fullFavorable,
+      mae_price: fullAdverse,
+      mfe_r: mfeR,
+      mae_r: maeR,
+      timeframe: frame,
+      provider: selectedProvider,
+      candle_count: candles.length,
+      coverage_start: new Date(first).toISOString(),
+      coverage_end: new Date(last).toISOString(),
+    }).catch(() => {
+      if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
+    });
+  }, [expanded, isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider]);
 
   const availableProviders = providersQuery.data?.filter((item) => {
     if (!item.status || typeof item.status !== "object") return true;
