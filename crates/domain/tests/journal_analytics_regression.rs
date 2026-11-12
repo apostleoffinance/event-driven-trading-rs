@@ -85,7 +85,7 @@ fn negative_realized_r_is_not_clipped_in_mfe_capture() {
     let mut trade = fact();
     trade.net_pnl = Decimal::from(-25);
     assert_eq!(trade.realized_r(), Some(Decimal::new(-5, 1)));
-    assert_eq!(trade.mfe_capture_percent(), Some(Decimal::new(-50, 1) / Decimal::from(3) * Decimal::from(100)));
+    assert_eq!(trade.mfe_capture_percent(), Some(Decimal::new(-5, 1) / Decimal::from(3) * Decimal::from(100)));
 }
 
 #[test]
@@ -155,7 +155,7 @@ fn all_win_series_keeps_infinite_profit_factor_explicitly_unavailable() {
 }
 
 #[test]
-fn breakeven_resets_streak_semantics_in_the_input_sequence_contract() {
+fn breakeven_is_classified_separately_from_wins_and_losses() {
     // The API derives streaks in close-time order. This sequence pins the
     // summary population's breakeven classification independently.
     let summary = summarize_net_pnl(&[
