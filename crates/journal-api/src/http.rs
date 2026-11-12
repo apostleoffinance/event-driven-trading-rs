@@ -110,11 +110,31 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
     // Manual entries are derived automatically. Imported/broker facts remain
     // authoritative so historical statements are never silently rewritten.
     let preserve_source_facts = input.source != JournalTradeSource::Manual;
-    let gross_pnl = if preserve_source_facts { input.gross_pnl.or(derived.gross_pnl) } else { derived.gross_pnl.or(input.gross_pnl) };
-    let net_pnl = if preserve_source_facts { input.net_pnl.or(derived.net_pnl) } else { derived.net_pnl.or(input.net_pnl) };
-    let risk_amount = if preserve_source_facts { input.risk_amount.or(derived.risk_amount) } else { derived.risk_amount.or(input.risk_amount) };
-    let r_multiple = if preserve_source_facts { input.r_multiple.or(derived.r_multiple) } else { derived.r_multiple.or(input.r_multiple) };
-    let session = if preserve_source_facts { input.session.or(Some(derived.session)) } else { Some(derived.session) };
+    let gross_pnl = if preserve_source_facts {
+        input.gross_pnl.or(derived.gross_pnl)
+    } else {
+        derived.gross_pnl.or(input.gross_pnl)
+    };
+    let net_pnl = if preserve_source_facts {
+        input.net_pnl.or(derived.net_pnl)
+    } else {
+        derived.net_pnl.or(input.net_pnl)
+    };
+    let risk_amount = if preserve_source_facts {
+        input.risk_amount.or(derived.risk_amount)
+    } else {
+        derived.risk_amount.or(input.risk_amount)
+    };
+    let r_multiple = if preserve_source_facts {
+        input.r_multiple.or(derived.r_multiple)
+    } else {
+        derived.r_multiple.or(input.r_multiple)
+    };
+    let session = if preserve_source_facts {
+        input.session.or(Some(derived.session))
+    } else {
+        Some(derived.session)
+    };
     JournalTrade {
         id,
         owner_id,
