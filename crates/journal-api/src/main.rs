@@ -22,6 +22,7 @@ mod intelligence;
 mod psychology;
 mod resources;
 mod risk_policy;
+mod saved_views;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -161,6 +162,14 @@ async fn main() {
         .route(
             "/api/v1/journal/analytics/intelligence",
             get(intelligence::summary),
+        )
+        .route(
+            "/api/v1/journal/analytics/saved-views",
+            get(saved_views::list).post(saved_views::upsert),
+        )
+        .route(
+            "/api/v1/journal/analytics/saved-views/{id}",
+            axum::routing::delete(saved_views::delete),
         )
         .route(
             "/api/v1/journal/import",
