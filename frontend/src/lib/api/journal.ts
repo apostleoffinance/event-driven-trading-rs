@@ -151,6 +151,7 @@ export type JournalAnalytics = {
   trade_count: number; wins: number; losses: number; breakeven: number;
   win_rate_percent: string; gross_profit: string; gross_loss: string; net_profit: string;
   profit_factor: string | null; expectancy: string; average_win: string | null; average_loss: string | null;
+  generated_at?: string; mfe_coverage_count?: number; mae_coverage_count?: number;
   max_drawdown: string; average_r: string | null; average_mfe_r?: string | null; average_mae_r?: string | null;
   risk_coverage_count?: number; risk_coverage_percent?: string; average_risk_amount?: string | null; maximum_risk_amount?: string | null;
   average_holding_seconds?: number | null; median_holding_seconds?: number | null; maximum_win_streak?: number; maximum_loss_streak?: number; recovery_factor?: string | null; risk_distribution?: {minimum:string|null;q1:string|null;median:string|null;q3:string|null;maximum:string|null;sample_count:number};
