@@ -49,6 +49,7 @@ Journal (JWT bearer):
 - `GET/PUT /api/v1/journal/trades/:trade_id/psychology`
 - `GET/POST/DELETE /api/v1/journal/trades/:trade_id/attachments`
 - Analytics summary/intelligence accept optional `symbol` and `setup_id` filters. Trade listing accepts `symbol`, `setup_id`, and optional `closed_from`/`closed_to` UTC timestamps for date-bounded closed-trade drill-down.
+- Analytics saved views are persisted through `GET/POST /api/v1/journal/analytics/saved-views` and `DELETE /api/v1/journal/analytics/saved-views/:id`. The API derives owner scope from the verified JWT and validates account ownership.
 
 Market Data (read-only):
 - `GET /api/v1/market-data/providers`

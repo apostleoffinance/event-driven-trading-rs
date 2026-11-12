@@ -93,6 +93,48 @@ fn owner(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthError> 
 }
 
 pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> JournalTrade {
+    let derived = crate::calculations::calculate_fx_metrics(
+        &input.symbol,
+        matches!(input.direction, JournalDirection::Long),
+        input.quantity,
+        input.entry_price,
+        input.exit_price,
+        input.stop_loss,
+        input.commission,
+        input.swap,
+        input.other_fees,
+        &input.pnl_currency.to_uppercase(),
+        input.risk_amount,
+        &input.opened_at,
+    );
+    // Manual entries are derived automatically. Imported/broker facts remain
+    // authoritative so historical statements are never silently rewritten.
+    let preserve_source_facts = input.source != JournalTradeSource::Manual;
+    let gross_pnl = if preserve_source_facts {
+        input.gross_pnl.or(derived.gross_pnl)
+    } else {
+        derived.gross_pnl.or(input.gross_pnl)
+    };
+    let net_pnl = if preserve_source_facts {
+        input.net_pnl.or(derived.net_pnl)
+    } else {
+        derived.net_pnl.or(input.net_pnl)
+    };
+    let risk_amount = if preserve_source_facts {
+        input.risk_amount.or(derived.risk_amount)
+    } else {
+        derived.risk_amount.or(input.risk_amount)
+    };
+    let r_multiple = if preserve_source_facts {
+        input.r_multiple.or(derived.r_multiple)
+    } else {
+        derived.r_multiple.or(input.r_multiple)
+    };
+    let session = if preserve_source_facts {
+        input.session.or(Some(derived.session))
+    } else {
+        Some(derived.session)
+    };
     JournalTrade {
         id,
         owner_id,
@@ -111,15 +153,15 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
         exit_price: input.exit_price,
         stop_loss: input.stop_loss,
         take_profit: input.take_profit,
-        gross_pnl: input.gross_pnl,
+        gross_pnl,
         commission: input.commission,
         swap: input.swap,
         other_fees: input.other_fees,
-        net_pnl: input.net_pnl,
+        net_pnl,
         pnl_currency: input.pnl_currency.to_uppercase(),
-        risk_amount: input.risk_amount,
-        r_multiple: input.r_multiple,
-        session: input.session,
+        risk_amount,
+        r_multiple,
+        session,
         timeframe: input.timeframe,
         timezone: input.timezone,
         mfe_r: input.mfe_r,
@@ -328,6 +370,17 @@ pub async fn replace(
     }
 }
 
+#[derive(sqlx::FromRow)]
+struct PreviousTradeExcursionInputs {
+    symbol: String,
+    direction: String,
+    status: String,
+    opened_at: DateTime<Utc>,
+    closed_at: Option<DateTime<Utc>>,
+    entry_price: Decimal,
+    stop_loss: Option<Decimal>,
+}
+
 async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx::Error> {
     let direction = match trade.direction {
         JournalDirection::Long => "long",
@@ -338,6 +391,22 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
         JournalTradeStatus::Closed => "closed",
         JournalTradeStatus::Cancelled => "cancelled",
     };
+    let previous = sqlx::query_as::<_, PreviousTradeExcursionInputs>(
+        "SELECT symbol,direction,status,opened_at,closed_at,entry_price,stop_loss FROM journal_trades WHERE owner_id=$1 AND id=$2",
+    )
+    .bind(&trade.owner_id)
+    .bind(&trade.id)
+    .fetch_optional(pool)
+    .await?;
+    let excursion_inputs_changed = previous.as_ref().is_some_and(|old| {
+        old.symbol != trade.symbol
+            || old.direction != direction
+            || old.status != status
+            || old.opened_at != trade.opened_at
+            || old.closed_at != trade.closed_at
+            || old.entry_price != trade.entry_price
+            || old.stop_loss != trade.stop_loss
+    });
     let source = match trade.source {
         JournalTradeSource::Manual => "manual",
         JournalTradeSource::Mt5 => "mt5",
@@ -355,6 +424,18 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
         .bind(trade.stop_loss).bind(trade.take_profit).bind(trade.gross_pnl).bind(trade.commission).bind(trade.swap)
         .bind(trade.other_fees).bind(trade.net_pnl).bind(&trade.pnl_currency).bind(trade.risk_amount).bind(trade.r_multiple).bind(&trade.session).bind(&trade.timeframe).bind(&trade.timezone).bind(trade.mfe_r).bind(trade.mae_r).bind(&trade.notes).bind(sqlx::types::Json(&trade.tags)).bind(trade.setup_valid).bind(trade.rules_followed).bind(trade.emotional_trade).bind(trade.mistake).bind(&trade.mistake_notes).bind(trade.discipline_score).bind(sqlx::types::Json(&trade.acknowledged_warnings))
         .execute(pool).await?;
+    if result.rows_affected() == 1
+        && trade.source == JournalTradeSource::Manual
+        && excursion_inputs_changed
+    {
+        sqlx::query(
+            "UPDATE journal_trades SET mfe_price=NULL, mae_price=NULL, mfe_r=NULL, mae_r=NULL, mfe_at=NULL, mae_at=NULL, mfe_source=NULL, mae_source=NULL, mfe_precision=NULL, mae_precision=NULL, source_metadata=source_metadata-'timeframe'-'provider'-'candle_count'-'coverage_start'-'coverage_end'-'method' WHERE owner_id=$1 AND id=$2",
+        )
+        .bind(&trade.owner_id)
+        .bind(&trade.id)
+        .execute(pool)
+        .await?;
+    }
     Ok(result.rows_affected() == 1)
 }
 

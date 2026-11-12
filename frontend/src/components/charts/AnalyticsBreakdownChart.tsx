@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import type { JournalAnalytics } from "@/lib/api/journal";
-import { formatNumber } from "@/lib/format";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 type Group = NonNullable<JournalAnalytics["by_symbol"]>[number];
@@ -14,31 +13,144 @@ function css(name: string, fallback: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-export function AnalyticsBreakdownChart({ title, groups, currency = "USD", onSelect }: { title: string; groups: Group[]; currency?: string; onSelect?: (key: string) => void }) {
+function formatMoney(value: number, currency: string) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+export function AnalyticsBreakdownChart({
+  title,
+  groups,
+  currency = "USD",
+  onSelect,
+  sortBy = "pnl",
+}: {
+  title: string;
+  groups: Group[];
+  currency?: string;
+  onSelect?: (key: string) => void;
+  sortBy?: "pnl" | "source";
+}) {
   const { theme } = useTheme();
+  const ranked = useMemo(
+    () =>
+      groups
+        .filter((group) => Number.isFinite(Number(group.net_pnl)))
+        .slice()
+        .sort((a, b) => sortBy === "pnl" ? Number(b.net_pnl) - Number(a.net_pnl) : 0),
+    [groups, sortBy],
+  );
+
   const option = useMemo(() => {
     const dim = css("--chart-dim", "#7d8a9a");
     const grid = css("--chart-grid", "#1e2530");
     const axis = css("--chart-axis", "#2a3340");
-    const positive = css("--positive", "#4fd4a1");
-    const negative = css("--negative", "#f07176");
-    const pnl = groups.map(g => Number(g.net_pnl));
-    const wins = groups.map(g => Number(g.win_rate_percent));
+    const positive = css("--positive", theme === "light" ? "#1a7f4b" : "#4fd4a1");
+    const negative = css("--negative", theme === "light" ? "#c6283a" : "#f07176");
+    const values = ranked.map((group) => Number(group.net_pnl));
+    const height = Math.max(220, Math.min(520, ranked.length * 38 + 82));
+
     return {
       backgroundColor: "transparent",
-      textStyle: { fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
-      title: { text: title, left: 8, top: 0, textStyle: { fontSize: 13, fontWeight: 600, color: dim } },
-      grid: { left: 60, right: 50, top: 36, bottom: 48 },
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (items: Array<{seriesName:string;value:number;dataIndex:number}>) => { const g=groups[items[0]?.dataIndex ?? 0]; return g ? [g.key, "Trades: "+g.trades, "Net P&L: "+new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(Number(g.net_pnl)), "Win rate: "+Number(g.win_rate_percent).toFixed(1)+"%", "Expectancy: "+new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(Number(g.expectancy))].join("<br/>") : ""; } },
-      legend: { data: ["Net P&L", "Win rate"], top: 18, right: 8, textStyle: { color: dim } },
-      xAxis: { type: "category", data: groups.map(g => g.key), axisLabel: { color: dim, rotate: groups.length > 6 ? 25 : 0, interval: "auto", hideOverlap: true }, axisLine: { lineStyle: { color: axis } } },
-      yAxis: [{ type: "value", scale: true, axisLabel: { color: dim, formatter: (v:number) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(v) }, splitLine: { lineStyle: { color: grid } } }, { type: "value", min: 0, max: 100, axisLabel: { color: dim, formatter: (v:number) => formatNumber(v, 1) + "%" }, splitLine: { show: false } }],
-      dataZoom: groups.length > 8 ? [{ type: "inside" }, { type: "slider", height: 14, bottom: 4, textStyle: { color: dim } }] : [],
+      animation: ranked.length < 100,
+      textStyle: {
+        fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif',
+        fontSize: 12,
+      },
+      grid: { left: 18, right: 30, top: 18, bottom: 28, containLabel: true },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        formatter: (items: Array<{ dataIndex: number }>) => {
+          const group = ranked[items[0]?.dataIndex ?? -1];
+          if (!group) return "";
+          return [
+            group.key,
+            "Net P&L: " + formatMoney(Number(group.net_pnl), currency),
+            "Trades: " + group.trades,
+            "Win rate: " + (Number.isFinite(Number(group.win_rate_percent)) ? Number(group.win_rate_percent).toFixed(1) + "%" : "Not available"),
+            "Expectancy: " + (group.expectancy == null ? "Not available" : formatMoney(Number(group.expectancy), currency)),
+          ].join("<br/>");
+        },
+      },
+      xAxis: {
+        type: "value",
+        scale: true,
+        axisLabel: { color: dim, formatter: (value: number) => formatMoney(value, currency) },
+        axisLine: { lineStyle: { color: axis } },
+        splitLine: { lineStyle: { color: grid } },
+      },
+      yAxis: {
+        type: "category",
+        inverse: true,
+        data: ranked.map((group) => group.key),
+        axisLabel: { color: dim, width: 132, overflow: "truncate" },
+        axisLine: { lineStyle: { color: axis } },
+        axisTick: { show: false },
+      },
+      dataZoom: ranked.length > 12
+        ? [
+            { type: "inside", yAxisIndex: 0, startValue: 0, endValue: 11 },
+            { type: "slider", yAxisIndex: 0, width: 12, right: 4, startValue: 0, endValue: 11, borderColor: axis, textStyle: { color: dim } },
+          ]
+        : [],
       series: [
-        { name: "Net P&L", type: "bar", data: pnl, itemStyle: { color: (params: { value: number }) => params.value >= 0 ? positive : negative, borderRadius: [3, 3, 0, 0] }, barMaxWidth: 34, emphasis: { focus: "series" } },
-        { name: "Win rate", type: "line", yAxisIndex: 1, data: wins, smooth: false, symbolSize: 6, lineStyle: { color: theme === "light" ? "#c77719" : "#f4b740", width: 2.5 } }
-      ]
+        {
+          name: "Net P&L",
+          type: "bar",
+          data: values.map((value) => ({
+            value,
+            itemStyle: {
+              color: value >= 0 ? positive : negative,
+              borderRadius: value >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4],
+            },
+          })),
+          barMaxWidth: 24,
+          label: {
+            show: ranked.length <= 12,
+            position: "right",
+            color: dim,
+            formatter: (params: { value: number }) => formatMoney(params.value, currency),
+          },
+          emphasis: { focus: "series" },
+        },
+      ],
+      aria: { enabled: true, decal: { show: true } },
+      animationDuration: 250,
+      animationEasing: "cubicOut",
+      __height: height,
     };
-  }, [currency, groups, theme, title]);
-  return <ReactECharts option={option} onEvents={{ click: (params: { dataIndex: number }) => { const group = groups[params.dataIndex]; if (group) onSelect?.(group.key); } }} style={{ height: 320, width: "100%" }} opts={{ renderer: "canvas" }} notMerge />;
+  }, [currency, ranked, sortBy, theme]);
+
+  if (ranked.length === 0) {
+    return <div className="analytics-chart-empty" role="status">No qualifying data for this breakdown.</div>;
+  }
+
+  const chartHeight = Number(option.__height ?? 260);
+  const chartOption = { ...option };
+  delete (chartOption as { __height?: number }).__height;
+
+  return (
+    <div className="analytics-ranked-chart" aria-label={title}>
+      <div className="analytics-ranked-chart-heading">
+        <h3>{title}</h3>
+        <p>{sortBy === "pnl" ? "Ranked by net realized P&L" : "Ordered by time"} · Select a bar to investigate its trades</p>
+      </div>
+      <ReactECharts
+        option={chartOption}
+        onEvents={{
+          click: (params: { dataIndex: number }) => {
+            const group = ranked[params.dataIndex];
+            if (group) onSelect?.(group.key);
+          },
+        }}
+        style={{ height: chartHeight, width: "100%" }}
+        opts={{ renderer: "canvas" }}
+        notMerge
+      />
+    </div>
+  );
 }

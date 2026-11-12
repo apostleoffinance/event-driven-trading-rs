@@ -269,6 +269,13 @@ class MacOsProviderTests(unittest.TestCase):
                             "provider_build_version": "1.00",
                         },
                     }) + "\n").encode())
+                    # Keep the peer open until the client has consumed the PING
+                    # response. Closing immediately after send can race readline().
+                    peer.settimeout(2)
+                    try:
+                        peer.recv(1)
+                    except (OSError, TimeoutError):
+                        pass
             except Exception as exc:
                 failures.append(exc)
 

@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use std::{env, net::SocketAddr};
 
 use axum::{
@@ -15,7 +17,9 @@ mod analytics;
 mod attachments;
 mod auth;
 mod broker_registry;
+mod calculations;
 mod dashboard;
+mod excursions;
 mod http;
 mod imports;
 mod intelligence;
@@ -23,6 +27,7 @@ mod organizations_api;
 mod psychology;
 mod resources;
 mod risk_policy;
+mod saved_views;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -167,13 +172,33 @@ fn build_router(state: AppState, origins: Vec<HeaderValue>) -> Router {
             get(intelligence::summary),
         )
         .route(
+            "/api/v1/journal/analytics/saved-views",
+            get(saved_views::list).post(saved_views::upsert),
+        )
+        .route(
+            "/api/v1/journal/analytics/saved-views/{id}",
+            axum::routing::delete(saved_views::delete),
+        )
+        .route(
             "/api/v1/journal/import",
             axum::routing::post(imports::import_trades),
         )
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route(
+            "/api/v1/journal/trades/{trade_id}/excursions",
+            axum::routing::put(excursions::save),
+        )
+        .route(
             "/api/v1/journal/trades/{trade_id}/attachments",
             get(attachments::list).post(attachments::create),
+        )
+        .route(
+            "/api/v1/journal/trades/{trade_id}/attachments/upload-url",
+            axum::routing::post(attachments::create_upload_url),
+        )
+        .route(
+            "/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}/download-url",
+            get(attachments::download_url),
         )
         .route(
             "/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}",

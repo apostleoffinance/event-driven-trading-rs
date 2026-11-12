@@ -1,6 +1,14 @@
 import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
 const journalBaseUrl = () => apiBaseUrl("journal");
 
+export type JournalAnalyticsSavedView = {
+  id: string;
+  name: string;
+  journal_account_id: string | null;
+  filters: { fromDate?: string; toDate?: string; datePreset?: string; symbolFilter?: string; setupFilter?: string };
+  updated_at: string;
+};
+
 export type JournalAccount = {
   id: string; name: string; broker?: string | null; account_type: string;
   currency: string; initial_balance: string; archived?: boolean;
@@ -35,6 +43,22 @@ type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
 
 export const journalApi = {
+  async listAnalyticsSavedViews(accountId?: string) {
+    requireApiMode();
+    const params = new URLSearchParams();
+    if (accountId) params.set("journal_account_id", accountId);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const response = await apiRequest<DataEnvelope<JournalAnalyticsSavedView[]>>(`/api/v1/journal/analytics/saved-views${suffix}`, { baseUrl: journalBaseUrl() });
+    return response.data.map(view => ({ id:view.id, name:view.name, accountId:view.journal_account_id ?? "", fromDate:view.filters.fromDate ?? "", toDate:view.filters.toDate ?? "", datePreset:view.filters.datePreset ?? "all", symbolFilter:view.filters.symbolFilter ?? "", setupFilter:view.filters.setupFilter ?? "" }));
+  },
+  async saveAnalyticsSavedView(input: { name:string; accountId:string | null; filters:{fromDate:string;toDate:string;datePreset:string;symbolFilter:string;setupFilter:string} }) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<JournalAnalyticsSavedView>>("/api/v1/journal/analytics/saved-views", { method:"POST", baseUrl:journalBaseUrl(), body:JSON.stringify({name:input.name,journal_account_id:input.accountId,filters:input.filters}) });
+  },
+  async deleteAnalyticsSavedView(id:string) {
+    requireApiMode();
+    return apiRequest<void>(`/api/v1/journal/analytics/saved-views/${encodeURIComponent(id)}`, { method:"DELETE", baseUrl:journalBaseUrl() });
+  },
   async getRiskPolicy(accountId: string) {
     requireApiMode();
     return apiRequest<{policy:JournalRiskPolicy;version:number;updated_at:string|null;account_currency?:string}>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {baseUrl:journalBaseUrl()});
@@ -48,6 +72,18 @@ export const journalApi = {
     return apiRequest<Record<string,unknown>>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy/evaluate`, {method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
   },
 
+  async saveExcursions(tradeId: string, input: {mfe_price:number;mae_price:number;mfe_r:number|null;mae_r:number|null;timeframe:string;provider:string;candle_count:number;coverage_start:string;coverage_end:string}) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean;precision:string}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/excursions`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+  },
+  async createAttachmentUploadUrl(tradeId: string, input: {original_filename:string;content_type:string;byte_size:number;attachment_type:"before"|"after"}) {
+    requireApiMode();
+    return (await apiRequest<DataEnvelope<{upload_url:string;storage_key:string;storage_provider:string;content_type:string;byte_size:number;original_filename:string;attachment_type:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload-url`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)})).data;
+  },
+  async getAttachmentDownloadUrl(tradeId:string, attachmentId:string) {
+    requireApiMode();
+    return (await apiRequest<DataEnvelope<{download_url:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,{baseUrl:journalBaseUrl()})).data;
+  },
   async listAttachments(tradeId: string) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{baseUrl:journalBaseUrl()})).data;
   },
@@ -139,7 +175,13 @@ export type JournalAnalytics = {
   trade_count: number; wins: number; losses: number; breakeven: number;
   win_rate_percent: string; gross_profit: string; gross_loss: string; net_profit: string;
   profit_factor: string | null; expectancy: string; average_win: string | null; average_loss: string | null;
-  max_drawdown: string; average_r: string | null; average_mfe_r?: string | null; average_mae_r?: string | null; setup_valid_count?: number; rules_followed_count?: number; emotional_trade_count?: number; mistake_count?: number; setup_valid_percent?: string | null; rules_followed_percent?: string | null; average_discipline_score?: string | null;
+  generated_at?: string; mfe_coverage_count?: number; mae_coverage_count?: number;
+  max_drawdown: string; average_r: string | null; average_mfe_r?: string | null; average_mae_r?: string | null;
+  risk_coverage_count?: number; risk_coverage_percent?: string; average_risk_amount?: string | null; maximum_risk_amount?: string | null;
+  average_holding_seconds?: number | null; median_holding_seconds?: number | null; maximum_win_streak?: number; maximum_loss_streak?: number; recovery_factor?: string | null; risk_distribution?: {minimum:string|null;q1:string|null;median:string|null;q3:string|null;maximum:string|null;sample_count:number};
+  average_mfe_capture_percent?: string | null; execution_coverage_count?: number;
+  trade_metrics?: Array<{trade_id:string;symbol:string;direction:"long"|"short";session?:string|null;setup?:string;opened_at:string;closed_at:string;net_pnl:string;risk_amount:string|null;realized_r:string|null;mfe_r:string|null;mae_r:string|null;mfe_source:string|null;mae_source:string|null;mfe_precision:string|null;mae_precision:string|null;holding_seconds:number;mfe_capture_percent:string|null;profit_surrendered_r:string|null;stop_loss_recorded:boolean;take_profit_recorded:boolean;entry_price:string;exit_price:string|null;setup_valid:boolean|null;rules_followed:boolean|null;emotional_trade:boolean|null;mistake:boolean|null;discipline_score:number|null;psychology:{emotion_before:string|null;emotion_during:string|null;emotion_after:string|null;confidence:number|null;fear:number|null;fomo:number|null;frustration:number|null;revenge_intensity:number|null;boredom:number|null}}>;
+  setup_valid_count?: number; rules_followed_count?: number; emotional_trade_count?: number; mistake_count?: number; setup_valid_percent?: string | null; rules_followed_percent?: string | null; average_discipline_score?: string | null;
   equity_curve: Array<{ trade_id: string; closed_at: string; net_pnl: string; equity: string; drawdown: string }>;
   by_symbol: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
   by_session: Array<{ key: string; trades: number; net_pnl: string; win_rate_percent: string; expectancy: string }>;
