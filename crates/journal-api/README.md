@@ -65,6 +65,9 @@ All `/api/v1/journal/**` endpoints require `Authorization: Bearer <EdgeNest JWT>
 | PUT | `/api/v1/journal/trades/{trade_id}/psychology` | Upsert emotion/rating annotations (ratings 0–10) |
 | POST | `/api/v1/journal/import` | Transactional idempotent legacy/TraderOS import with source lineage |
 | GET | `/api/v1/journal/analytics/summary` | Read-only account/date-filtered closed-trade analytics |
+| GET | `/api/v1/journal/analytics/saved-views?journal_account_id=` | List authenticated-owner saved views for the selected account scope |
+| POST | `/api/v1/journal/analytics/saved-views` | Create or update a saved view for the authenticated owner/account scope |
+| DELETE | `/api/v1/journal/analytics/saved-views/{id}` | Delete an owner-scoped saved view |
 | GET | `/healthz` | Liveness |
 | GET | `/readyz` | DB readiness |
 
@@ -78,5 +81,6 @@ Journal account must already exist and belong to the authenticated owner. Cross-
 - JWT key discovery/JWKS and key rotation are not implemented; the API accepts one configured RSA public key.
 - `PATCH` is full replacement, not partial JSON Merge Patch.
 - Screenshot URL/attachment metadata is available. Binary upload to R2/S3 is not implemented yet; object storage needs a separately configured upload service. Deleting metadata does not delete the external file.
-- Analytics endpoint is descriptive only; it does not predict outcomes or authorize execution.
+- Analytics endpoints are descriptive only; they do not predict outcomes or authorize execution.
+- Saved views are persisted in PostgreSQL, scoped to the authenticated owner and optionally one active Journal account. Account ownership is checked on both list and write operations; clients cannot supply owner IDs.
 - Legacy CSV import requires a stable source trade ID for deduplication and must not contain broker credentials or tokens.
