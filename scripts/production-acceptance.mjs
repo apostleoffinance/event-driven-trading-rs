@@ -103,6 +103,10 @@ try {
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
+    const browserAnalyticsResponsePromise = page.waitForResponse(
+      response => response.url().includes("/api/v1/journal/analytics/summary"),
+      { timeout: 30_000 },
+    );
     await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
 
@@ -110,10 +114,7 @@ try {
     // This catches a stale/misconfigured NEXT_PUBLIC_* URL or browser CORS
     // failure that a Node-side fetch cannot reproduce.
     await page.getByText("SERVICE CONNECTED", { exact: true }).waitFor({ timeout: 20_000 });
-    const browserAnalyticsResponse = await page.waitForResponse(
-      response => response.url().includes("/api/v1/journal/analytics/summary"),
-      { timeout: 30_000 },
-    );
+    const browserAnalyticsResponse = await browserAnalyticsResponsePromise;
     assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()}`);
     await page.getByText("Could not load analytics from your Journal. Check your connection and retry.", { exact: true }).waitFor({ state: "detached", timeout: 20_000 });
 
