@@ -54,7 +54,7 @@ const browser = await chromium.launch({ headless: true });
 try {
   // The public routes establish signed-out layout behavior at each agreed viewport.
   for (const viewport of viewports) {
-    const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
+    const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, timezoneId: "Africa/Lagos" });
     const page = await context.newPage();
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
@@ -139,6 +139,171 @@ try {
     }
     await timeframeGroup.getByRole("button", { name: "M1", exact: true }).click();
     await page.getByText("1.10712", { exact: true }).first().waitFor({ timeout: 10_000 });
+
+    // Exercise every drawing family, editing controls, templates and browser persistence.
+    const drawingSvg = page.locator(".market-drawing-overlay");
+    await page.waitForFunction(() => {
+      const host = document.querySelector(".market-drawing-overlay-host");
+      return Number(host?.getAttribute("data-pane-width")) > 200 && Number(host?.getAttribute("data-pane-height")) > 200;
+    });
+    const drawingBox = await drawingSvg.boundingBox();
+    const chartBox = await page.locator(".market-chart-canvas").boundingBox();
+    const paneSize = await page.locator(".market-drawing-overlay-host").evaluate(element => ({ width: Number(element.getAttribute("data-pane-width")), height: Number(element.getAttribute("data-pane-height")) }));
+    assert.ok(drawingBox && drawingBox.width > 200 && drawingBox.height > 200, `Drawing overlay missing at ${viewport.name}`);
+    assert.ok(chartBox && drawingBox.width < chartBox.width && drawingBox.height < chartBox.height, `Drawing overlay must exclude the price and time axes at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} chart=${JSON.stringify(chartBox)}`);
+    assert.ok(Math.abs(drawingBox.width - paneSize.width) <= 1 && Math.abs(drawingBox.height - paneSize.height) <= 1, `Drawing overlay does not match Lightweight Charts paneSize() at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} pane=${JSON.stringify(paneSize)}`);
+    const drawAt = async (x, y) => drawingSvg.click({ position: { x, y }, force: true });
+    const priceAt = async (x, y) => drawingSvg.evaluate((svg, point) => {
+      const svgRect = svg.getBoundingClientRect();
+      const chartCanvas = svg.closest(".market-drawing-stage")?.querySelector(".market-chart-canvas");
+      const canvasRect = chartCanvas?.getBoundingClientRect();
+      if (!canvasRect) throw new Error("Chart canvas is unavailable");
+      const panes = [...(chartCanvas?.querySelectorAll("canvas") ?? [])];
+      const paneCanvas = panes.find(canvas => canvas.getBoundingClientRect().width > 0 && canvas.getBoundingClientRect().height > 0);
+      if (!paneCanvas) throw new Error("Chart pane canvas is unavailable");
+      // The chart's visible OHLC values are deterministic in this acceptance
+      // fixture. Pixel Y is converted into a price by interpolating the chart
+      // series' displayed price-axis range, not by assuming Y direction.
+      const low = 1.1059;
+      const high = 1.1080;
+      const chartTop = svgRect.top;
+      const paneHeight = Number(svg.closest(".market-drawing-overlay-host")?.getAttribute("data-pane-height"));
+      const localY = Math.max(0, Math.min(paneHeight, point.y));
+      const isPriceIncreasingDown = true;
+      return isPriceIncreasingDown ? high - (localY / paneHeight) * (high - low) : low + (localY / paneHeight) * (high - low);
+    }, { x, y });
+    const pointsForPrices = async (xRatio, entryPrice, stopPrice, targetPrice) => {
+      const host = page.locator(".market-drawing-overlay-host");
+      const width = Number(await host.getAttribute("data-pane-width"));
+      const height = Number(await host.getAttribute("data-pane-height"));
+      // The test fixture renders a stable price range. This price-to-coordinate
+      // transform mirrors the chart's top-to-bottom axis mapping.
+      const yForPrice = price => ((1.1080 - price) / (1.1080 - 1.1059)) * height;
+      return [[width * xRatio, yForPrice(entryPrice)], [width * xRatio, yForPrice(stopPrice)], [width * xRatio, yForPrice(targetPrice)]];
+    };
+    const drawingRows = page.locator(".market-drawing-row");
+    const drawingToolbar = page.getByRole("toolbar", { name: "Chart drawing tools" });
+    const waitForDraftPoint = async (placed, total, label) => page.waitForFunction(
+      ({ expected, count }) => document.querySelector(".market-drawing-hint")?.textContent?.includes(`${expected}/${count} points placed`),
+      { expected: placed, count: total },
+      { timeout: 8_000 }
+    ).catch(async error => {
+      const diagnostic = await page.locator(".market-drawing-hint").innerText();
+      throw new Error(`${label}: expected anchor ${placed}/${total} to register at ${viewport.name}; hint=${diagnostic}. ${error.message}`);
+    });
+    const addDrawing = async (label, points) => {
+      const before = await drawingRows.count();
+      const button = drawingToolbar.getByRole("button", { name: label, exact: true });
+      await button.click();
+      await page.waitForFunction(name => [...document.querySelectorAll(".market-drawing-tools button")].some(button => button.textContent?.trim() === name && button.getAttribute("aria-pressed") === "true" && document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing")), label);
+      for (let index = 0; index < points.length; index += 1) {
+        const [x, y] = points[index];
+        await drawAt(x, y);
+        if (index < points.length - 1) await waitForDraftPoint(index + 1, points.length, label);
+      }
+      await page.waitForFunction(expected => document.querySelectorAll(".market-drawing-row").length === expected, before + 1, { timeout: 8_000 })
+        .catch(async error => {
+          const hint = await page.locator(".market-drawing-hint").innerText();
+          throw new Error(`${label}: drawing was not committed at ${viewport.name}; rows=${await drawingRows.count()}, hint=${hint}. ${error.message}`);
+        });
+      console.log(`[acceptance] ${label} committed at ${viewport.name}`);
+    };
+    await addDrawing("Horizontal ray", [[drawingBox.width * .08, drawingBox.height * .30]]);
+    await addDrawing("Vertical line", [[drawingBox.width * .10, drawingBox.height * .35]]);
+    await addDrawing("Trendline", [[drawingBox.width * .12, drawingBox.height * .55], [drawingBox.width * .15, drawingBox.height * .38]]);
+    await addDrawing("Rectangle / zone", [[drawingBox.width * .16, drawingBox.height * .25], [drawingBox.width * .19, drawingBox.height * .48]]);
+    await addDrawing("Parallel channel", [[drawingBox.width * .20, drawingBox.height * .60], [drawingBox.width * .24, drawingBox.height * .47], [drawingBox.width * .22, drawingBox.height * .43]]);
+    await addDrawing("Fibonacci", [[drawingBox.width * .20, drawingBox.height * .25], [drawingBox.width * .24, drawingBox.height * .60]]);
+    const beforeInvalidLong = await drawingRows.count();
+    const invalidLongButton = drawingToolbar.getByRole("button", { name: "Long position", exact: true });
+    await invalidLongButton.click();
+    await page.waitForFunction(() => document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing") && [...document.querySelectorAll(".market-drawing-tools button")].some(button => button.textContent?.trim() === "Long position" && button.getAttribute("aria-pressed") === "true"));
+    const invalidLongPoints = await pointsForPrices(.24, 1.10712, 1.10730, 1.10690);
+    await drawAt(...invalidLongPoints[0]);
+    await waitForDraftPoint(1, 3, "Invalid long position");
+    await drawAt(...invalidLongPoints[1]);
+    await waitForDraftPoint(2, 3, "Invalid long position");
+    await drawAt(...invalidLongPoints[2]);
+    await page.waitForFunction(() => document.querySelector(".market-drawing-hint")?.textContent?.includes("Long position requires stop below entry and target above entry"), null, { timeout: 8_000 });
+    assert.equal(await drawingRows.count(), beforeInvalidLong, `Invalid long position must be rejected without creating a drawing at ${viewport.name}`);
+    const validLongPoints = await pointsForPrices(.22, 1.10712, 1.10690, 1.10730);
+    const validShortPoints = await pointsForPrices(.43, 1.10712, 1.10730, 1.10690);
+    await addDrawing("Long position", validLongPoints);
+    await addDrawing("Short position", validShortPoints);
+    await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
+    assert.equal(await page.locator(".market-drawing-row").count(), 8, `Expected all eight drawing types to be created at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-overlay g[data-id]").nth(4).locator("line").count(), 4, `Parallel channel must render two parallel boundaries and two connectors at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-overlay g[data-id]").nth(5).locator("line").count(), 7, `Fibonacci retracement must render all seven price levels at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-overlay text").filter({ hasText: "R:R" }).count(), 2, `Long/short position tools must display risk/reward at ${viewport.name}`);
+    await page.locator(".market-drawing-row").nth(6).getByRole("button").first().click();
+    await page.waitForFunction(() => document.querySelectorAll(".market-drawing-overlay [data-anchor]").length === 3);
+    const positionAnchorXs = await page.locator(".market-drawing-overlay [data-anchor]").evaluateAll(elements => elements.map(element => Number(element.getAttribute("cx"))));
+    assert.equal(positionAnchorXs.length, 3, `Position tool must expose entry, stop and target anchors at ${viewport.name}`);
+    assert.ok(positionAnchorXs.every(x => Math.abs(x - positionAnchorXs[0]) < 0.1), `Position anchors must remain aligned on the entry time at ${viewport.name}`);
+    const firstDrawingRow = page.locator(".market-drawing-row").first();
+    await firstDrawingRow.getByRole("button").first().click();
+    await page.locator(".market-drawing-inspector").getByText("Edit drawing", { exact: true }).waitFor();
+    const firstAnchor = page.locator(".market-drawing-overlay [data-anchor=\"0\"]").first();
+    await firstAnchor.scrollIntoViewIfNeeded();
+    const firstAnchorBox = await firstAnchor.boundingBox();
+    assert.ok(firstAnchorBox, `Selected drawing did not expose a draggable anchor at ${viewport.name}`);
+    await page.mouse.move(firstAnchorBox.x + firstAnchorBox.width / 2, firstAnchorBox.y + firstAnchorBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(firstAnchorBox.x + firstAnchorBox.width / 2 + 18, firstAnchorBox.y + firstAnchorBox.height / 2 + 12, { steps: 4 });
+    await page.mouse.up();
+    await page.locator(".market-drawing-inspector label").filter({ hasText: "Line style" }).locator("select").selectOption("dotted");
+    const anchorTimeInput = page.locator(".market-drawing-inspector input[type=\"datetime-local\"]");
+    const anchorTimeBeforeApply = await anchorTimeInput.inputValue();
+    await page.getByRole("button", { name: "Apply anchor" }).click();
+    await page.waitForFunction(expected => document.querySelector(".market-drawing-inspector input[type=\"datetime-local\"]")?.value === expected, anchorTimeBeforeApply);
+    await firstDrawingRow.getByRole("button", { name: "Hide", exact: true }).click();
+    await firstDrawingRow.getByRole("button", { name: "Show", exact: true }).click();
+    await firstDrawingRow.getByRole("button", { name: "Lock", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".market-drawing-overlay [data-anchor]").length === 0);
+    assert.equal(await page.getByRole("button", { name: "Apply anchor" }).isDisabled(), true, `Locked drawings must not allow manual anchor edits at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-overlay [data-anchor]").count(), 0, `Locked drawings must hide draggable anchors at ${viewport.name}`);
+    await firstDrawingRow.getByRole("button", { name: "Unlock", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Apply anchor" }).isDisabled(), false, `Unlocking a drawing must restore anchor editing at ${viewport.name}`);
+    await firstDrawingRow.getByRole("button", { name: "Duplicate", exact: true }).click();
+    await page.locator(".market-drawing-row").nth(8).waitFor({ state: "attached" });
+    await page.locator(".market-drawing-row").nth(8).getByRole("button", { name: "Delete", exact: true }).click();
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await page.locator(".market-drawing-row").nth(8).waitFor({ state: "attached" });
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawing management undo/redo failed at ${viewport.name}`);
+    const drawingDownloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const drawingDownload = await drawingDownloadPromise;
+    const drawingBackupPath = await drawingDownload.path();
+    assert.ok(drawingBackupPath, `Drawing backup export did not produce a file at ${viewport.name}`);
+    await page.locator(".market-import-button input[type=\"file\"]").setInputFiles(drawingBackupPath);
+    await page.locator(".market-drawing-hint").filter({ hasText: "Drawing file imported." }).waitFor();
+    await page.locator(".market-import-button input[type=\"file\"]").setInputFiles({
+      name: "wrong-instrument-drawings.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify({ version: 1, instrument: "GBPUSD", timeframe: "M1", drawings: [] })),
+    });
+    await page.locator(".market-drawing-hint").filter({ hasText: "belongs to a different instrument or timeframe" }).waitFor();
+    assert.ok((await page.locator(".market-drawing-hint").innerText()).includes("belongs to a different instrument or timeframe"), `Cross-instrument drawing import was not rejected at ${viewport.name}`);
+    await page.getByLabel("SMA 20").check();
+    await page.getByLabel("Template name").fill("Acceptance template");
+    await page.getByRole("button", { name: "Save layout" }).click();
+    await page.getByLabel("SMA 20").uncheck();
+    await page.getByLabel("Saved templates").selectOption({ label: "Acceptance template" });
+    await page.getByRole("button", { name: "Load", exact: true }).click();
+    await page.getByLabel("SMA 20").waitFor();
+    assert.equal(await page.getByLabel("SMA 20").isChecked(), true, `Saved layout did not restore indicator visibility at ${viewport.name}`);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".market-drawing-row").first().waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawings were not restored after reload at ${viewport.name}`);
+    await timeframeGroup.getByRole("button", { name: "H1", exact: true }).click();
+    await page.getByText("Drawings (0) · EURUSD / H1", { exact: true }).waitFor({ timeout: 10_000 });
+    assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 0, `A template from M1 must not be offered for H1 at ${viewport.name}`);
+    await timeframeGroup.getByRole("button", { name: "M1", exact: true }).click();
+    await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
+    await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).waitFor({ state: "attached", timeout: 10_000 });
+    assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing layout did not persist at ${viewport.name}`);
+
     const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
     assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
