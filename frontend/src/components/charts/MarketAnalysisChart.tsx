@@ -11,14 +11,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { isProviderSelectable, marketDataApi, type Candle } from "@/lib/api/market-data";
 import { formatPrice } from "@/lib/format";
+import { MarketChartDrawings } from "@/components/charts/MarketChartDrawings";
 
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"] as const;
 type Frame = (typeof FRAMES)[number];
-type DrawMode = "none" | "horizontal" | "trendline";
 type ChartCandle = { time: Time; open: number; high: number; low: number; close: number; volume: number | null };
-type Drawing =
-  | { id: number; kind: "horizontal"; price: number }
-  | { id: number; kind: "trendline"; points: [{ time: Time; value: number }, { time: Time; value: number }] };
 
 function toChartCandles(candles: Candle[]): ChartCandle[] {
   const byTime = new Map<number, ChartCandle>();
@@ -78,9 +75,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
   const [providerOverride, setProviderOverride] = useState<string | null>(null);
   const [showVolume, setShowVolume] = useState(true);
   const [showSma, setShowSma] = useState(false);
-  const [drawMode, setDrawMode] = useState<DrawMode>("none");
-  const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [pendingAnchor, setPendingAnchor] = useState<{ time: Time; value: number } | null>(null);
   const [sl, setSl] = useState("");
   const [tp, setTp] = useState("");
   const [chartReady, setChartReady] = useState(false);
@@ -93,8 +87,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
   const smaRef = useRef<ISeriesApi<"Line"> | null>(null);
   const slLineRef = useRef<IPriceLine | null>(null);
   const tpLineRef = useRef<IPriceLine | null>(null);
-  const drawingSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
-  const drawingPriceLinesRef = useRef<IPriceLine[]>([]);
   const fittedViewKeyRef = useRef("");
 
   const providers = useQuery({ queryKey: ["market-data", "providers"], queryFn: () => marketDataApi.providers() });
@@ -180,7 +172,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       if (chartRef.current === chart) chartRef.current = null;
       candleRef.current = null; volumeRef.current = null; smaRef.current = null;
       slLineRef.current = null; tpLineRef.current = null;
-      drawingSeriesRef.current = []; drawingPriceLinesRef.current = [];
     };
   }, []);
 
@@ -247,30 +238,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
     return () => chart.unsubscribeClick(onClick);
   }, [chartReady, drawMode, pendingAnchor]);
 
-  useEffect(() => {
-    const chart = chartRef.current, series = candleRef.current;
-    if (!chart || !series || !chartReady) return;
-    try {
-      drawingPriceLinesRef.current.forEach(line => series.removePriceLine(line));
-      drawingSeriesRef.current.forEach(line => chart.removeSeries(line));
-      drawingPriceLinesRef.current = []; drawingSeriesRef.current = [];
-      drawings.forEach(drawing => {
-        if (drawing.kind === "horizontal") drawingPriceLinesRef.current.push(series.createPriceLine({
-          price: drawing.price, color: "#e5ad48", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Analysis",
-        }));
-        else {
-          const line = chart.addLineSeries({ color: "#e5ad48", lineWidth: 2, priceLineVisible: false, lastValueVisible: false, title: "Trendline" });
-          line.setData(drawing.points); drawingSeriesRef.current.push(line);
-        }
-      });
-    } catch (error) {
-      console.error("[MarketData] Failed to render chart drawings", error);
-      setChartError(error instanceof Error ? error.message : String(error));
-    }
-  }, [drawings, chartReady]);
-
-
-
   const error = providers.error ?? instruments.error ?? candles.error;
   const fmt = (value: number | undefined) => value == null ? "—" : formatPrice(value);
   return (
@@ -297,19 +264,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
         </div>
       </header>
 
-      <div className="market-chart-toolbar">
-        <div className="market-tool-group">
-          <button type="button" className={drawMode === "horizontal" ? "active" : ""} aria-pressed={drawMode === "horizontal"} onClick={() => { setDrawMode(drawMode === "horizontal" ? "none" : "horizontal"); setPendingAnchor(null); }}>Horizontal line</button>
-          <button type="button" className={drawMode === "trendline" ? "active" : ""} aria-pressed={drawMode === "trendline"} onClick={() => { setDrawMode(drawMode === "trendline" ? "none" : "trendline"); setPendingAnchor(null); }}>Trendline</button>
-          <button type="button" onClick={() => setDrawings(prev => prev.slice(0, -1))} disabled={!drawings.length}>Undo</button>
-          <button type="button" onClick={() => { setDrawings([]); setPendingAnchor(null); setDrawMode("none"); }}>Clear drawings</button>
-        </div>
-        <div className="market-tool-group">
-          <label><input type="checkbox" checked={showVolume} onChange={e => setShowVolume(e.target.checked)} /> Volume</label>
-          <label><input type="checkbox" checked={showSma} onChange={e => setShowSma(e.target.checked)} /> SMA 20</label>
-        </div>
-      </div>
-
       <div className="market-ohlc-strip">
         {([["OPEN", latest?.open],["HIGH", latest?.high],["LOW", latest?.low],["CLOSE", latest?.close],["VOLUME", latest?.volume ?? undefined]] as const).map(([label, value]) =>
           <div key={label}><span>{label}</span><strong>{label === "VOLUME" && value != null ? Number(value).toLocaleString("en-US") : fmt(value)}</strong></div>
@@ -321,7 +275,10 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       {candles.isFetching && chartData.length > 0 ? <div className="market-fetch-indicator">Updating candles…</div> : null}
       {chartFailure ? <div className="market-chart-state is-error" role="alert"><strong>Chart could not render</strong><span>{chartFailure}</span><button type="button" onClick={onRetry}>Reinitialize chart</button></div> : null}
       {!candles.isLoading && !error && chartData.length === 0 ? <div className="market-chart-state"><strong>No candle history for this selection</strong><span>Choose another provider or timeframe. The chart never invents missing market prices.</span></div> : null}
-      <div ref={containerRef} className="market-chart-canvas" aria-label="Interactive TradingView Lightweight candlestick chart" />
+      <div className="market-chart-stage">
+        <div ref={containerRef} className="market-chart-canvas" aria-label="Interactive TradingView Lightweight candlestick chart" />
+        <MarketChartDrawings chart={chartRef.current} series={candleRef.current} ready={chartReady} instrument={selectedSymbol} timeframe={frame} precision={pricePrecision} />
+      </div>
 
       <div className="market-overlay-controls">
         <label><span>Stop loss price</span><input inputMode="decimal" value={sl} onChange={e => setSl(e.target.value)} placeholder="Enter SL price" /></label>
