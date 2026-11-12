@@ -5,7 +5,7 @@ import type { JournalAnalytics, JournalIntelligence } from "@/lib/api/journal";
 import styles from "./BehaviourDashboard.module.css";
 
 type BehaviourTrade = NonNullable<JournalAnalytics["trade_metrics"]>[number];
-type Props = { data: JournalIntelligence; trades: BehaviourTrade[]; onSelectGroup: (dimension: "Session" | "Setup" | "Weekday (UTC)", key: string) => void };
+type Props = { data: JournalIntelligence; trades: BehaviourTrade[]; onSelectGroup: (dimension: "Session" | "Setup" | "Weekday (UTC)" | "Month (UTC)", key: string) => void };
 
 function formatPercent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
@@ -127,7 +127,7 @@ export function BehaviourDashboard({ data, trades, onSelectGroup }: Props) {
     {monthlyTrend.size ? <div className={styles.outcomePanel}>
       <h3 className={styles.sectionTitle}>Behaviour trends by month</h3>
       <p className={styles.sectionDescription}>Monthly aggregates from recorded rule, setup, emotion and discipline fields. Unrecorded values are excluded from each denominator.</p>
-      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Month</th><th>Trades</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{[...monthlyTrend.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([month,row])=><tr key={month}><td>{month}</td><td>{row.trades}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"%": "—"} ({row.rulesKnown})</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"%":"—"} ({row.validKnown})</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
+      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Month</th><th>Trades</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{[...monthlyTrend.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([month,row])=><tr key={month}><td><button type="button" className="btn" onClick={()=>onSelectGroup("Month (UTC)",month)}>{month}</button></td><td>{row.trades}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"%": "—"} ({row.rulesKnown})</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"%":"—"} ({row.validKnown})</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
     </div> : null}
     {segmentRows.length ? <div className={styles.outcomePanel}>
       <h3 className={styles.sectionTitle}>Behaviour by session, setup and weekday</h3>
