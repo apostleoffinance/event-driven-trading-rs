@@ -21,9 +21,10 @@ export function AnalyticsEquityChart({ curve, currency = "USD" }: { curve: Journ
     const axis = css("--chart-axis", "#2a3340");
     const line = css("--chart-line", "#4b93ff");
     const money = (v: unknown) => Number(v ?? 0).toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 2 });
-    const dates = curve.map(p => new Date(p.closed_at).toLocaleDateString());
+    const dates = curve.map(p => new Date(p.closed_at).toLocaleDateString("en-GB", { timeZone: "UTC" }));
     return {
       backgroundColor: "transparent",
+      aria: { enabled: true, decal: { show: true } },
       animation: curve.length < 250,
       textStyle: { fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
       grid: { left: 58, right: 24, top: 34, bottom: 42 },
