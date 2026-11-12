@@ -9,6 +9,9 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use std::{env, time::Duration};
+use aws_credential_types::Credentials;
+use aws_sdk_s3::{config::Region, presigning::PresigningConfig, Client};
 use sqlx::Row;
 
 use crate::AppState;
@@ -24,6 +27,80 @@ pub struct AttachmentWrite {
     pub captured_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub metadata: serde_json::Value,
+}
+
+
+#[derive(Debug, Deserialize)]
+pub struct UploadUrlWrite {
+    pub original_filename: String,
+    pub content_type: String,
+    pub byte_size: i64,
+    pub attachment_type: Option<String>,
+}
+
+async fn object_store() -> Result<(Client, String), String> {
+    let endpoint = env::var("JOURNAL_S3_ENDPOINT_URL").map_err(|_| "JOURNAL_S3_ENDPOINT_URL is not configured")?;
+    let access = env::var("JOURNAL_S3_ACCESS_KEY_ID").map_err(|_| "JOURNAL_S3_ACCESS_KEY_ID is not configured")?;
+    let secret = env::var("JOURNAL_S3_SECRET_ACCESS_KEY").map_err(|_| "JOURNAL_S3_SECRET_ACCESS_KEY is not configured")?;
+    let bucket = env::var("JOURNAL_S3_BUCKET").map_err(|_| "JOURNAL_S3_BUCKET is not configured")?;
+    let region = env::var("JOURNAL_S3_REGION").unwrap_or_else(|_| "auto".into());
+    let credentials = Credentials::new(access, secret, None, None, "journal-env");
+    let shared = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(Region::new(region))
+        .credentials_provider(credentials)
+        .load().await;
+    let config = aws_sdk_s3::config::Builder::from(&shared)
+        .endpoint_url(endpoint)
+        .force_path_style(true)
+        .build();
+    Ok((Client::from_conf(config), bucket))
+}
+
+pub async fn create_upload_url(
+    State(state): State<AppState>, headers: HeaderMap, Path(trade_id): Path<String>,
+    Json(input): Json<UploadUrlWrite>,
+) -> Response {
+    let claims = match state.auth.authenticate(&headers) { Ok(c) => c, Err(e) => return e.into_response() };
+    let ext = match input.content_type.as_str() {
+        "image/png" => "png", "image/jpeg" => "jpg", "image/webp" => "webp",
+        "image/gif" => "gif", _ => return error("unsupported_image", "Only PNG, JPEG, WebP and GIF screenshots are supported", StatusCode::BAD_REQUEST),
+    };
+    if input.byte_size <= 0 || input.byte_size > 15 * 1024 * 1024 {
+        return error("invalid_image_size", "Screenshot must be between 1 byte and 15 MB", StatusCode::BAD_REQUEST);
+    }
+    let owned = sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)")
+        .bind(&claims.sub).bind(&trade_id).fetch_one(state.store.pool()).await.unwrap_or(false);
+    if !owned { return error("not_found", "Journal trade not found", StatusCode::NOT_FOUND); }
+    let (client, bucket) = match object_store().await {
+        Ok(value) => value,
+        Err(message) => return error("storage_not_configured", &message, StatusCode::SERVICE_UNAVAILABLE),
+    };
+    let key = format!("journal/{}/{}/{}.{}", claims.sub, trade_id, uuid::Uuid::new_v4(), ext);
+    let config = match PresigningConfig::expires_in(Duration::from_secs(900)) {
+        Ok(value) => value, Err(_) => return error("storage_error", "Unable to configure upload expiry", StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    match client.put_object().bucket(&bucket).key(&key).content_type(&input.content_type).presigned(config).await {
+        Ok(request) => Json(serde_json::json!({"data":{"upload_url":request.uri().to_string(),"storage_key":key,"storage_provider":"r2","content_type":input.content_type,"byte_size":input.byte_size,"original_filename":input.original_filename,"attachment_type":input.attachment_type.unwrap_or_else(||"before".into()),"expires_in_seconds":900}})).into_response(),
+        Err(_) => error("storage_error", "Unable to create secure screenshot upload URL", StatusCode::BAD_GATEWAY),
+    }
+}
+
+pub async fn download_url(
+    State(state): State<AppState>, headers: HeaderMap, Path((trade_id, attachment_id)): Path<(String, String)>,
+) -> Response {
+    let claims = match state.auth.authenticate(&headers) { Ok(c) => c, Err(e) => return e.into_response() };
+    let row = sqlx::query("SELECT storage_provider,storage_key FROM journal_trade_attachments WHERE owner_id=$1 AND trade_id=$2 AND id=$3")
+        .bind(&claims.sub).bind(&trade_id).bind(&attachment_id).fetch_optional(state.store.pool()).await;
+    let row = match row { Ok(Some(row)) => row, Ok(None) => return error("not_found","Attachment not found",StatusCode::NOT_FOUND), Err(_) => return error("internal_error","Unable to retrieve attachment",StatusCode::INTERNAL_SERVER_ERROR) };
+    let provider: String = row.get("storage_provider");
+    let key: String = row.get("storage_key");
+    if provider == "external" { return Json(serde_json::json!({"data":{"download_url":key,"expires_in_seconds":0}})).into_response(); }
+    let (client,bucket) = match object_store().await { Ok(v)=>v, Err(message)=>return error("storage_not_configured",&message,StatusCode::SERVICE_UNAVAILABLE) };
+    let config = match PresigningConfig::expires_in(Duration::from_secs(900)) { Ok(v)=>v, Err(_)=>return error("storage_error","Unable to configure download expiry",StatusCode::INTERNAL_SERVER_ERROR) };
+    match client.get_object().bucket(bucket).key(key).presigned(config).await {
+        Ok(request)=>Json(serde_json::json!({"data":{"download_url":request.uri().to_string(),"expires_in_seconds":900}})).into_response(),
+        Err(_)=>error("storage_error","Unable to create secure screenshot download URL",StatusCode::BAD_GATEWAY),
+    }
 }
 
 fn error(code: &str, message: &str, status: StatusCode) -> Response {
