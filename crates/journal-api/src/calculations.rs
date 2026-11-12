@@ -1,5 +1,6 @@
 //! Deterministic journal calculations. These calculations never affect execution.
 use chrono::{DateTime, Timelike, Utc};
+use chrono_tz::{America::New_York, Europe::London};
 use rust_decimal::Decimal;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,12 +13,16 @@ pub struct DerivedTradeMetrics {
 
 /// Classify the UTC entry timestamp into commonly used FX sessions.
 pub fn classify_fx_session(at: DateTime<Utc>) -> String {
-    match at.hour() {
-        0..=6 => "Asia".into(),
-        7..=11 => "London".into(),
-        12..=15 => "London/New York overlap".into(),
-        16..=20 => "New York".into(),
-        _ => "Outside major sessions".into(),
+    let london = at.with_timezone(&London);
+    let new_york = at.with_timezone(&New_York);
+    let london_open = (8..17).contains(&london.hour());
+    let new_york_open = (8..17).contains(&new_york.hour());
+    match (london_open, new_york_open) {
+        (true, true) => "London/New York overlap".into(),
+        (true, false) => "London".into(),
+        (false, true) => "New York".into(),
+        (false, false) if (7..16).contains(&at.hour()) => "Europe".into(),
+        _ => "Asia/Pacific".into(),
     }
 }
 
