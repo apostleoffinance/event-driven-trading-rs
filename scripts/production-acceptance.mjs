@@ -144,8 +144,10 @@ try {
     const drawingSvg = page.locator(".market-drawing-overlay");
     const drawingBox = await drawingSvg.boundingBox();
     const chartBox = await page.locator(".market-chart-canvas").boundingBox();
+    const paneSize = await page.locator(".market-drawing-overlay-host").evaluate(element => ({ width: Number(element.getAttribute("data-pane-width")), height: Number(element.getAttribute("data-pane-height")) }));
     assert.ok(drawingBox && drawingBox.width > 200 && drawingBox.height > 200, `Drawing overlay missing at ${viewport.name}`);
-    assert.ok(chartBox && Math.abs(drawingBox.height - chartBox.height) <= 1, `Drawing overlay does not match chart height at ${viewport.name}: overlay=${drawingBox?.height} chart=${chartBox?.height}`);
+    assert.ok(chartBox && drawingBox.width < chartBox.width && drawingBox.height < chartBox.height, `Drawing overlay must exclude the price and time axes at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} chart=${JSON.stringify(chartBox)}`);
+    assert.ok(Math.abs(drawingBox.width - paneSize.width) <= 1 && Math.abs(drawingBox.height - paneSize.height) <= 1, `Drawing overlay does not match Lightweight Charts paneSize() at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} pane=${JSON.stringify(paneSize)}`);
     const drawAt = async (x, y) => page.mouse.click(drawingBox.x + x, drawingBox.y + y);
     const addDrawing = async (label, points) => {
       await page.getByRole("toolbar", { name: "Chart drawing tools" }).getByRole("button", { name: label, exact: true }).click();
