@@ -110,14 +110,20 @@ try {
     await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
 
-    // Validate the real deployed frontend runtime, not only direct API calls.
-    // This catches a stale/misconfigured NEXT_PUBLIC_* URL or browser CORS
-    // failure that a Node-side fetch cannot reproduce.
-    await page.getByText("SERVICE CONNECTED", { exact: true }).waitFor({ timeout: 20_000 });
+    // Capture the topbar health result and analytics API independently. The
+    // health indicator uses /healthz; Journal analytics uses /summary. Do not
+    // fail with a generic label timeout: report the exact browser-visible state.
+    await page.waitForTimeout(2_000);
+    const runtimeState = await page.evaluate(() => ({
+      health: [...document.querySelectorAll(".topbar-right span")].map(el => el.textContent?.trim()).filter(Boolean),
+      analyticsError: [...document.querySelectorAll("body *")].some(el => el.children.length === 0 && el.textContent?.trim() === "Could not load analytics from your Journal. Check your connection and retry."),
+      apiBase: document.querySelector("meta[name=\"api-base-url\"]")?.getAttribute("content") ?? null,
+    }));
     const browserAnalyticsResponse = await browserAnalyticsResponsePromise;
     const browserAnalyticsBody = await browserAnalyticsResponse.text();
-    assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()} body=${browserAnalyticsBody.slice(0, 1000)}`);
-    await page.getByText("Could not load analytics from your Journal. Check your connection and retry.", { exact: true }).waitFor({ state: "detached", timeout: 20_000 });
+    assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()} body=${browserAnalyticsBody.slice(0, 1000)} runtime=${JSON.stringify(runtimeState)}`);
+    assert.equal(runtimeState.analyticsError, false, `Analytics error state remains visible: ${JSON.stringify(runtimeState)}`);
+    assert.ok(runtimeState.health.some(value => value.includes("SERVICE CONNECTED")), `Topbar health check is not connected: ${JSON.stringify(runtimeState)}`);
 
     const tokenState = await page.evaluate(() => {
       const raw = sessionStorage.getItem("edgenest.auth.session.v1");
