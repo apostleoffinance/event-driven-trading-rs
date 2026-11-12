@@ -79,7 +79,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const configuredProvider = String(instrument?.default_provider ?? "");
   const selectedProvider = providerOverride || (configuredProvider && configuredProvider !== "demo" ? configuredProvider : fallbackProvider);
   const candleQuery = useQuery({
-    queryKey: ["journal", "trade-replay", trade.id, trade.opened_at, trade.closed_at, frame, selectedProvider],
+    queryKey: ["journal", "trade-replay", trade.id, trade.symbol, trade.opened_at, trade.closed_at, frame, selectedProvider],
     queryFn: async () => {
       const durationMs: Record<Frame, number> = { M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 };
       const start = new Date(trade.opened_at).getTime();
