@@ -30,6 +30,7 @@ pub use error::{DomainError, DomainResult};
 pub use fill::Fill;
 pub use ids::*;
 pub use instrument::{Instrument, InstrumentSpec, InstrumentType};
+pub use journal_analytics::{TradeAnalyticsFact, TradePsychologyFact};
 pub use journal::{JournalDirection, JournalTrade, JournalTradeSource, JournalTradeStatus};
 pub use journal_analytics::{
     calculate_position_size, summarize_net_pnl, AnalyticsSummary, PositionSizingInput,
