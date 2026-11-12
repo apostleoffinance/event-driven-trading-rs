@@ -72,29 +72,6 @@ fn canonical_mae_r(value: Option<Decimal>) -> Option<Decimal> {
     value.map(|value| if value > Decimal::ZERO { -value } else { value })
 }
 
-#[cfg(test)]
-mod mae_normalization_tests {
-    use super::canonical_mae_r;
-    use rust_decimal::Decimal;
-
-    #[test]
-    fn normalizes_legacy_positive_mae_magnitudes() {
-        assert_eq!(
-            canonical_mae_r(Some(Decimal::new(213, 2))),
-            Some(Decimal::new(-213, 2))
-        );
-    }
-
-    #[test]
-    fn preserves_canonical_negative_zero_and_missing_mae() {
-        assert_eq!(
-            canonical_mae_r(Some(Decimal::new(-5, 1))),
-            Some(Decimal::new(-5, 1))
-        );
-        assert_eq!(canonical_mae_r(Some(Decimal::ZERO)), Some(Decimal::ZERO));
-        assert_eq!(canonical_mae_r(None), None);
-    }
-}
 
 pub async fn summary(
     State(state): State<AppState>,
@@ -538,4 +515,28 @@ pub async fn summary(
         "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),"by_day":group_stats(days),"by_month":group_stats(months),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
+}
+
+#[cfg(test)]
+mod mae_normalization_tests {
+    use super::canonical_mae_r;
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn normalizes_legacy_positive_mae_magnitudes() {
+        assert_eq!(
+            canonical_mae_r(Some(Decimal::new(213, 2))),
+            Some(Decimal::new(-213, 2))
+        );
+    }
+
+    #[test]
+    fn preserves_canonical_negative_zero_and_missing_mae() {
+        assert_eq!(
+            canonical_mae_r(Some(Decimal::new(-5, 1))),
+            Some(Decimal::new(-5, 1))
+        );
+        assert_eq!(canonical_mae_r(Some(Decimal::ZERO)), Some(Decimal::ZERO));
+        assert_eq!(canonical_mae_r(None), None);
+    }
 }
