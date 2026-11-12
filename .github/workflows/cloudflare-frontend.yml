@@ -8,9 +8,6 @@ on:
     paths:
       - "frontend/**"
       - ".github/workflows/cloudflare-frontend.yml"
-  pull_request:
-    paths:
-      - ".github/workflows/cloudflare-frontend.yml"
   workflow_dispatch:
 
 permissions:
