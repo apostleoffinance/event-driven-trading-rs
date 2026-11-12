@@ -299,15 +299,15 @@ pub async fn journal_portfolio(State(state): State<AppState>, headers: HeaderMap
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    let rows = sqlx::query_as::<_, (String, String, String, Decimal, Decimal, i64)>(
+    let rows = sqlx::query_as::<_, (String, String, String, Decimal, Decimal, i64, Option<String>)>(
         r#"
         SELECT a.id,a.name,a.currency,a.initial_balance,
                COALESCE(SUM(CASE WHEN t.status='closed' THEN t.net_pnl ELSE 0 END),0) AS net_pnl,
-               COUNT(t.id)::BIGINT AS trade_count
+               COUNT(t.id)::BIGINT AS trade_count,a.linked_trading_account_id
         FROM journal_accounts a
         LEFT JOIN journal_trades t ON t.owner_id=a.owner_id AND t.journal_account_id=a.id
-        WHERE a.owner_id=$1 AND a.archived=FALSE AND a.linked_trading_account_id IS NULL
-        GROUP BY a.id,a.name,a.currency,a.initial_balance
+        WHERE a.owner_id=$1 AND a.archived=FALSE
+        GROUP BY a.id,a.name,a.currency,a.initial_balance,a.linked_trading_account_id
         ORDER BY a.created_at DESC
         "#,
     )
@@ -315,13 +315,13 @@ pub async fn journal_portfolio(State(state): State<AppState>, headers: HeaderMap
     .fetch_all(state.store.pool())
     .await;
     match rows {
-        Ok(rows) => Json(serde_json::json!({"data": rows.into_iter().map(|(id,name,currency,initial_balance,net_pnl,trade_count)| {
+        Ok(rows) => Json(serde_json::json!({"data": rows.into_iter().map(|(id,name,currency,initial_balance,net_pnl,trade_count,linked_trading_account_id)| {
             serde_json::json!({
                 "account_id":id,"name":name,"currency":currency,
                 "initial_balance":initial_balance.to_string(),
                 "realized_net_pnl":net_pnl.to_string(),
                 "journal_equity":(initial_balance+net_pnl).to_string(),
-                "trade_count":trade_count
+                "trade_count":trade_count,"linked_trading_account_id":linked_trading_account_id
             })
         }).collect::<Vec<_>>()})).into_response(),
         Err(_) => internal(),
