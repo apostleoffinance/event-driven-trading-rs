@@ -136,7 +136,6 @@ async fn journal_get_by_id_returns_all_trade_annotations(pool: PgPool) {
     assert_eq!(trade.discipline_score, Some(90));
 }
 
-
 #[sqlx::test(migrations = "../../migrations")]
 async fn analytics_saved_views_are_owner_and_account_scoped(pool: PgPool) {
     sqlx::query(
@@ -182,12 +181,18 @@ async fn analytics_saved_views_are_owner_and_account_scoped(pool: PgPool) {
     )
     .execute(&pool)
     .await;
-    assert!(duplicate_same_scope.is_err(), "a view name must be unique within one owner/account scope");
+    assert!(
+        duplicate_same_scope.is_err(),
+        "a view name must be unique within one owner/account scope"
+    );
 
     let invalid_filters = sqlx::query(
         "INSERT INTO journal_analytics_saved_views (id, owner_id, scope_key, name, filters) VALUES ('view-invalid', 'saved-owner-a', 'saved-a1', 'Invalid', '[]')",
     )
     .execute(&pool)
     .await;
-    assert!(invalid_filters.is_err(), "filters must remain a JSON object");
+    assert!(
+        invalid_filters.is_err(),
+        "filters must remain a JSON object"
+    );
 }
