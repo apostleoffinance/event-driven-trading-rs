@@ -95,7 +95,6 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
           limit: 1000,
         });
         all.push(...page.candles);
-        if (page.candles.length === 0) break;
         cursor = pageEnd;
       }
       return { candles: all };
