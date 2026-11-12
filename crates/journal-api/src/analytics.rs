@@ -62,8 +62,9 @@ fn auth_error(error: ApiAuthError) -> Response {
 
 fn mfe_capture_percent(realized_r: Option<Decimal>, mfe_r: Option<Decimal>) -> Option<Decimal> {
     match (realized_r, mfe_r) {
-        (Some(realized), Some(mfe)) if mfe > Decimal::ZERO =>
-            Some(realized / mfe * Decimal::from(100)),
+        (Some(realized), Some(mfe)) if mfe > Decimal::ZERO => {
+            Some(realized / mfe * Decimal::from(100))
+        }
         _ => None,
     }
 }
@@ -470,7 +471,6 @@ pub async fn summary(
     }})).into_response()
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{mfe_capture_percent, profit_surrendered_r};
@@ -486,7 +486,10 @@ mod tests {
             mfe_capture_percent(Some(Decimal::from(-1)), Some(Decimal::from(2))),
             Some(Decimal::from(-50))
         );
-        assert_eq!(mfe_capture_percent(Some(Decimal::ONE), Some(Decimal::ZERO)), None);
+        assert_eq!(
+            mfe_capture_percent(Some(Decimal::ONE), Some(Decimal::ZERO)),
+            None
+        );
         assert_eq!(mfe_capture_percent(None, Some(Decimal::ONE)), None);
     }
 
