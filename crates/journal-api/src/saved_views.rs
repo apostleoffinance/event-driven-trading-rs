@@ -114,7 +114,10 @@ pub async fn list(
     .await;
     match rows {
         Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,journal_account_id,filters,updated_at)| serde_json::json!({"id":id,"name":name,"journal_account_id":journal_account_id,"filters":filters,"updated_at":updated_at})).collect::<Vec<_>>()})).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":{"code":"internal_error","message":"Internal server error"}}))).into_response(),
+        Err(error) => {
+            tracing::error!(%error, "saved-view list query failed");
+            internal_error()
+        },
     }
 }
 
@@ -157,7 +160,10 @@ pub async fn upsert(
             StatusCode::OK,
             Json(serde_json::json!({"data":{"id":id,"name":name,"journal_account_id":journal_account_id,"filters":filters,"updated_at":updated_at}})),
         ).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":{"code":"internal_error","message":"Internal server error"}}))).into_response(),
+        Err(error) => {
+            tracing::error!(%error, "saved-view upsert query failed");
+            internal_error()
+        },
     }
 }
 
@@ -178,6 +184,9 @@ pub async fn delete(
     {
         Ok(result) if result.rows_affected() == 1 => StatusCode::NO_CONTENT.into_response(),
         Ok(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":{"code":"not_found","message":"Saved view not found"}}))).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":{"code":"internal_error","message":"Internal server error"}}))).into_response(),
+        Err(error) => {
+            tracing::error!(%error, "saved-view delete query failed");
+            internal_error()
+        },
     }
 }
