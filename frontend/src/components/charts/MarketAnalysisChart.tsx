@@ -264,7 +264,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
         <div className="market-chart-stage">
           <div ref={containerRef} className="market-chart-canvas" aria-label="Interactive TradingView Lightweight candlestick chart" />
         </div>
-      </MarketChartDrawings>wings>
+      </MarketChartDrawings>
 
       <div className="market-overlay-controls">
         <label><span>Stop loss price</span><input inputMode="decimal" value={sl} onChange={e => setSl(e.target.value)} placeholder="Enter SL price" /></label>
