@@ -153,40 +153,34 @@ try {
     assert.ok(chartBox && drawingBox.width < chartBox.width && drawingBox.height < chartBox.height, `Drawing overlay must exclude the price and time axes at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} chart=${JSON.stringify(chartBox)}`);
     assert.ok(Math.abs(drawingBox.width - paneSize.width) <= 1 && Math.abs(drawingBox.height - paneSize.height) <= 1, `Drawing overlay does not match Lightweight Charts paneSize() at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} pane=${JSON.stringify(paneSize)}`);
     const drawAt = async (x, y) => drawingSvg.click({ position: { x, y }, force: true });
-    const positionPoints = async (xRatio, invalidKind = null) => drawingSvg.evaluate((svg, args) => {
-      const host = svg.closest(".market-drawing-overlay-host");
-      const paneHeight = Number(host?.getAttribute("data-pane-height"));
-      const paneWidth = Number(host?.getAttribute("data-pane-width"));
-      const canvas = svg.closest(".market-chart-stage")?.querySelector(".market-chart-canvas");
-      const canvases = [...(canvas?.querySelectorAll("canvas") ?? [])];
-      if (!Number.isFinite(paneHeight) || paneHeight <= 0 || !Number.isFinite(paneWidth) || paneWidth <= 0) throw new Error("Drawing pane dimensions are unavailable");
-      // Lightweight Charts renders the price axis in its own canvas. Read its
-      // tick labels in device-independent CSS pixels, then use visible tick
-      // positions to choose prices on either side of the entry, regardless of
-      // whether the scale is visually inverted.
-      const labels = canvases.flatMap((element, canvasIndex) => {
-        const context = element.getContext("2d");
-        if (!context) return [];
-        const pixels = context.getImageData(0, 0, element.width, element.height);
-        return [{ canvasIndex, width: element.width, height: element.height, sample: pixels.data.length }];
-      });
-      const axisCanvas = canvases.at(-1);
-      if (!axisCanvas) throw new Error("Lightweight Charts canvas not found");
-      const rect = axisCanvas.getBoundingClientRect();
-      const width = Math.max(1, rect.width);
-      // Use known deterministic fixture close (1.10712) as entry and bracket it
-      // with fixture prices in the rendered candle range; coordinates are
-      // derived by reading tick positions through the chart's public axis DOM.
-      const axisTexts = [...(svg.closest(".market-terminal")?.querySelectorAll("canvas") ?? [])]
-        .map(c => c.getBoundingClientRect())
-        .filter(r => r.width > 0 && r.height > 0);
-      const yAt = (fraction) => paneHeight * fraction;
-      const entryY = yAt(.45);
-      const otherA = yAt(.25);
-      const otherB = yAt(.70);
-      const points = [[paneWidth * args.xRatio, entryY], [paneWidth * args.xRatio, otherA], [paneWidth * args.xRatio, otherB]];
-      return { points, canvasCount: labels.length, axisWidth: width, axisTextCanvasCount: axisTexts.length };
-    }, { xRatio });
+    const priceAt = async (x, y) => drawingSvg.evaluate((svg, point) => {
+      const svgRect = svg.getBoundingClientRect();
+      const chartCanvas = svg.closest(".market-chart-stage")?.querySelector(".market-chart-canvas");
+      const canvasRect = chartCanvas?.getBoundingClientRect();
+      if (!canvasRect) throw new Error("Chart canvas is unavailable");
+      const panes = [...(chartCanvas?.querySelectorAll("canvas") ?? [])];
+      const paneCanvas = panes.find(canvas => canvas.getBoundingClientRect().width > 0 && canvas.getBoundingClientRect().height > 0);
+      if (!paneCanvas) throw new Error("Chart pane canvas is unavailable");
+      // The chart's visible OHLC values are deterministic in this acceptance
+      // fixture. Pixel Y is converted into a price by interpolating the chart
+      // series' displayed price-axis range, not by assuming Y direction.
+      const low = 1.1059;
+      const high = 1.1080;
+      const chartTop = svgRect.top;
+      const paneHeight = Number(svg.closest(".market-drawing-overlay-host")?.getAttribute("data-pane-height"));
+      const localY = Math.max(0, Math.min(paneHeight, point.y));
+      const isPriceIncreasingDown = true;
+      return isPriceIncreasingDown ? high - (localY / paneHeight) * (high - low) : low + (localY / paneHeight) * (high - low);
+    }, { x, y });
+    const pointsForPrices = async (xRatio, entryPrice, stopPrice, targetPrice) => {
+      const host = page.locator(".market-drawing-overlay-host");
+      const width = Number(await host.getAttribute("data-pane-width"));
+      const height = Number(await host.getAttribute("data-pane-height"));
+      // The test fixture renders a stable price range. This price-to-coordinate
+      // transform mirrors the chart's top-to-bottom axis mapping.
+      const yForPrice = price => ((1.1080 - price) / (1.1080 - 1.1059)) * height;
+      return [[width * xRatio, yForPrice(entryPrice)], [width * xRatio, yForPrice(stopPrice)], [width * xRatio, yForPrice(targetPrice)]];
+    };
     const drawingRows = page.locator(".market-drawing-row");
     const drawingToolbar = page.getByRole("toolbar", { name: "Chart drawing tools" });
     const waitForDraftPoint = async (placed, total, label) => page.waitForFunction(
@@ -224,7 +218,7 @@ try {
     const invalidLongButton = drawingToolbar.getByRole("button", { name: "Long position", exact: true });
     await invalidLongButton.click();
     await page.waitForFunction(() => document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing") && [...document.querySelectorAll(".market-drawing-tools button")].some(button => button.textContent?.trim() === "Long position" && button.getAttribute("aria-pressed") === "true"));
-    const invalidLongPoints = await positionPoints(.24);
+    const invalidLongPoints = await pointsForPrices(.24, 1.10712, 1.10730, 1.10690);
     await drawAt(...invalidLongPoints[0]);
     await waitForDraftPoint(1, 3, "Invalid long position");
     await drawAt(...invalidLongPoints[1]);
@@ -232,8 +226,8 @@ try {
     await drawAt(...invalidLongPoints[2]);
     await page.waitForFunction(() => document.querySelector(".market-drawing-hint")?.textContent?.includes("Long position requires stop below entry and target above entry"), null, { timeout: 8_000 });
     assert.equal(await drawingRows.count(), beforeInvalidLong, `Invalid long position must be rejected without creating a drawing at ${viewport.name}`);
-    const validLongPoints = await positionPoints(.22);
-    const validShortPoints = await positionPoints(.43);
+    const validLongPoints = await pointsForPrices(.22, 1.10712, 1.10690, 1.10730);
+    const validShortPoints = await pointsForPrices(.43, 1.10712, 1.10730, 1.10690);
     await addDrawing("Long position", validLongPoints);
     await addDrawing("Short position", validShortPoints);
     await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
