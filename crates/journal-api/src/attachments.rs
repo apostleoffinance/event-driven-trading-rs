@@ -403,11 +403,9 @@ pub async fn create(
         Ok(claims) => claims,
         Err(error) => return error.into_response(),
     };
-    if input
-        .attachment_type
-        .as_deref()
-        .is_some_and(|kind| !["before", "after", "screenshot", "execution", "other"].contains(&kind))
-    {
+    if input.attachment_type.as_deref().is_some_and(|kind| {
+        !["before", "after", "screenshot", "execution", "other"].contains(&kind)
+    }) {
         return error(
             "invalid_attachment_type",
             "attachment_type must be before, after, screenshot, execution or other",
