@@ -180,7 +180,10 @@ try {
     await page.mouse.move(firstAnchorBox.x + firstAnchorBox.width / 2 + 18, firstAnchorBox.y + firstAnchorBox.height / 2 + 12, { steps: 4 });
     await page.mouse.up();
     await page.locator(".market-drawing-inspector label").filter({ hasText: "Line style" }).locator("select").selectOption("dotted");
+    const anchorTimeInput = page.locator(".market-drawing-inspector input[type=\"datetime-local\"]");
+    const anchorTimeBeforeApply = await anchorTimeInput.inputValue();
     await page.getByRole("button", { name: "Apply anchor" }).click();
+    await page.waitForFunction(expected => document.querySelector(".market-drawing-inspector input[type=\"datetime-local\"]")?.value === expected, anchorTimeBeforeApply);
     await firstDrawingRow.getByRole("button", { name: "Hide", exact: true }).click();
     await firstDrawingRow.getByRole("button", { name: "Show", exact: true }).click();
     await firstDrawingRow.getByRole("button", { name: "Lock", exact: true }).click();
