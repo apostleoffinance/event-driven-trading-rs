@@ -194,12 +194,13 @@ try {
     const drawingBackupPath = await drawingDownload.path();
     assert.ok(drawingBackupPath, `Drawing backup export did not produce a file at ${viewport.name}`);
     await page.locator(".market-import-button input[type=\"file\"]").setInputFiles(drawingBackupPath);
-    await page.getByText("Drawing file imported.", { exact: true }).waitFor();
+    await page.locator(".market-drawing-hint").filter({ hasText: "Drawing file imported." }).waitFor();
     await page.locator(".market-import-button input[type=\"file\"]").setInputFiles({
       name: "wrong-instrument-drawings.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify({ version: 1, instrument: "GBPUSD", timeframe: "M1", drawings: [] })),
     });
+    await page.locator(".market-drawing-hint").filter({ hasText: "belongs to a different instrument or timeframe" }).waitFor();
     assert.ok((await page.locator(".market-drawing-hint").innerText()).includes("belongs to a different instrument or timeframe"), `Cross-instrument drawing import was not rejected at ${viewport.name}`);
     await page.getByLabel("SMA 20").check();
     await page.getByLabel("Template name").fill("Acceptance template");
