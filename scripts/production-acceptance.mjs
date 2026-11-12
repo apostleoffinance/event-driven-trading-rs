@@ -106,6 +106,17 @@ try {
     await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
 
+    // Validate the real deployed frontend runtime, not only direct API calls.
+    // This catches a stale/misconfigured NEXT_PUBLIC_* URL or browser CORS
+    // failure that a Node-side fetch cannot reproduce.
+    await page.getByText("SERVICE CONNECTED", { exact: true }).waitFor({ timeout: 20_000 });
+    const browserAnalyticsResponse = await page.waitForResponse(
+      response => response.url().includes("/api/v1/journal/analytics/summary"),
+      { timeout: 30_000 },
+    );
+    assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()}`);
+    await page.getByText("Could not load analytics from your Journal. Check your connection and retry.", { exact: true }).waitFor({ state: "detached", timeout: 20_000 });
+
     const tokenState = await page.evaluate(() => {
       const raw = sessionStorage.getItem("edgenest.auth.session.v1");
       if (!raw) return null;
