@@ -82,7 +82,7 @@ jobs:
 
   production-acceptance:
     name: Production API and six-viewport acceptance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [deploy]
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && needs.deploy.result == 'success'))
     steps:
