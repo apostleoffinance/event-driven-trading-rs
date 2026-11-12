@@ -159,7 +159,7 @@ try {
     await addDrawing("Short position", [[drawingBox.width * .70, drawingBox.height * .42], [drawingBox.width * .70, drawingBox.height * .25], [drawingBox.width * .70, drawingBox.height * .58]]);
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Expected all eight drawing types to be created at ${viewport.name}`);
     await page.locator(".market-drawing-row").first().getByRole("button").first().click();
-    await page.getByRole("heading", { name: "Edit drawing" }).waitFor();
+    await page.locator(".market-drawing-inspector").getByText("Edit drawing", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Apply anchor" }).click();
     await page.getByLabel("Template name").fill("Acceptance template");
     await page.getByRole("button", { name: "Save template" }).click();
