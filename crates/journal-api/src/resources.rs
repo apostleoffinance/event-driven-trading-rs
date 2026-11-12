@@ -67,11 +67,11 @@ pub async fn list_accounts(State(state): State<AppState>, headers: HeaderMap) ->
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool, Value)>(
-        "SELECT id,name,broker,account_type,currency,initial_balance,archived,migration_metadata FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
+    match sqlx::query_as::<_, (String, String, Option<String>, String, String, Decimal, bool, Value, Option<String>)>(
+        "SELECT id,name,broker,account_type,currency,initial_balance,archived,migration_metadata,linked_trading_account_id FROM journal_accounts WHERE owner_id=$1 AND archived=FALSE ORDER BY created_at DESC")
         .bind(claims.sub).fetch_all(state.store.pool()).await {
-        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,broker,account_type,currency,initial_balance,archived,migration_metadata)|serde_json::json!({
-            "id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"migration_metadata":migration_metadata
+        Ok(rows) => Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,broker,account_type,currency,initial_balance,archived,migration_metadata,linked_trading_account_id)|serde_json::json!({
+            "id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"migration_metadata":migration_metadata,"linked_trading_account_id":linked_trading_account_id
         })).collect::<Vec<_>>()})).into_response(),
         Err(_) => internal(),
     }
@@ -126,10 +126,10 @@ pub async fn get_account(
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool,Value)>(
-        "SELECT id,name,broker,account_type,currency,initial_balance,archived,migration_metadata FROM journal_accounts WHERE owner_id=$1 AND id=$2")
+    match sqlx::query_as::<_, (String,String,Option<String>,String,String,Decimal,bool,Value,Option<String>)>(
+        "SELECT id,name,broker,account_type,currency,initial_balance,archived,migration_metadata,linked_trading_account_id FROM journal_accounts WHERE owner_id=$1 AND id=$2")
         .bind(claims.sub).bind(id).fetch_optional(state.store.pool()).await {
-        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived,migration_metadata))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"migration_metadata":migration_metadata}})).into_response(),
+        Ok(Some((id,name,broker,account_type,currency,initial_balance,archived,migration_metadata,linked_trading_account_id))) => Json(serde_json::json!({"data":{"id":id,"name":name,"broker":broker,"account_type":account_type,"currency":currency,"initial_balance":initial_balance.to_string(),"archived":archived,"migration_metadata":migration_metadata,"linked_trading_account_id":linked_trading_account_id}})).into_response(),
         Ok(None) => not_found(),
         Err(_) => internal(),
     }
@@ -228,6 +228,104 @@ pub struct SetupWrite {
     pub description: Option<String>,
     #[serde(default = "default_rules_json")]
     pub rules_json: Value,
+}
+
+
+#[derive(Debug, Deserialize)]
+pub struct LinkTradingAccountWrite {
+    pub linked_trading_account_id: Option<String>,
+}
+
+/// Link a Journal ledger to a trading account the authenticated principal already owns.
+/// This does not grant execution permission and never creates a trading account.
+pub async fn link_trading_account(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<LinkTradingAccountWrite>,
+) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    if let Some(trading_id) = input.linked_trading_account_id.as_deref() {
+        let accessible = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM dashboard_account_access WHERE owner_id=$1 AND account_id=$2)",
+        )
+        .bind(&claims.sub)
+        .bind(trading_id)
+        .fetch_one(state.store.pool())
+        .await;
+        match accessible {
+            Ok(true) => {}
+            Ok(false) => return not_found(),
+            Err(_) => return internal(),
+        }
+        let already_linked = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM journal_accounts WHERE owner_id=$1 AND linked_trading_account_id=$2 AND id<>$3 AND archived=FALSE)",
+        )
+        .bind(&claims.sub)
+        .bind(trading_id)
+        .bind(&id)
+        .fetch_one(state.store.pool())
+        .await;
+        match already_linked {
+            Ok(true) => return err(StatusCode::CONFLICT, "account_already_linked", "This trading account is already linked to another Journal account."),
+            Ok(false) => {}
+            Err(_) => return internal(),
+        }
+    }
+    match sqlx::query(
+        "UPDATE journal_accounts SET linked_trading_account_id=$3,updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND archived=FALSE",
+    )
+    .bind(&claims.sub)
+    .bind(&id)
+    .bind(&input.linked_trading_account_id)
+    .execute(state.store.pool())
+    .await
+    {
+        Ok(result) if result.rows_affected() == 1 => Json(serde_json::json!({
+            "data": { "journal_account_id": id, "linked_trading_account_id": input.linked_trading_account_id }
+        })).into_response(),
+        Ok(_) => not_found(),
+        Err(_) => internal(),
+    }
+}
+
+/// Journal-only portfolio values remain separate from broker-reported equity.
+/// Accounts linked to execution accounts are excluded to prevent double counting.
+pub async fn journal_portfolio(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let claims = match principal(&state, &headers) {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
+    let rows = sqlx::query_as::<_, (String, String, String, Decimal, Decimal, i64)>(
+        r#"
+        SELECT a.id,a.name,a.currency,a.initial_balance,
+               COALESCE(SUM(CASE WHEN t.status='closed' THEN t.net_pnl ELSE 0 END),0) AS net_pnl,
+               COUNT(t.id)::BIGINT AS trade_count
+        FROM journal_accounts a
+        LEFT JOIN journal_trades t ON t.owner_id=a.owner_id AND t.journal_account_id=a.id
+        WHERE a.owner_id=$1 AND a.archived=FALSE AND a.linked_trading_account_id IS NULL
+        GROUP BY a.id,a.name,a.currency,a.initial_balance
+        ORDER BY a.created_at DESC
+        "#,
+    )
+    .bind(&claims.sub)
+    .fetch_all(state.store.pool())
+    .await;
+    match rows {
+        Ok(rows) => Json(serde_json::json!({"data": rows.into_iter().map(|(id,name,currency,initial_balance,net_pnl,trade_count)| {
+            serde_json::json!({
+                "account_id":id,"name":name,"currency":currency,
+                "initial_balance":initial_balance.to_string(),
+                "realized_net_pnl":net_pnl.to_string(),
+                "journal_equity":(initial_balance+net_pnl).to_string(),
+                "trade_count":trade_count
+            })
+        }).collect::<Vec<_>>()})).into_response(),
+        Err(_) => internal(),
+    }
 }
 
 pub async fn list_setups(State(state): State<AppState>, headers: HeaderMap) -> Response {
