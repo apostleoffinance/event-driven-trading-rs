@@ -45,6 +45,14 @@ export default function AnalyticsLabPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "edge" | "execution" | "behaviour" | "risk" | "calendar">("overview");
   useEffect(() => {
+    if (!selectedTrade) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedTrade(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedTrade]);
+  useEffect(() => {
     setAuthenticated(hasSession());
     setUserEmail(getSessionUser()?.email ?? null);
     try {
