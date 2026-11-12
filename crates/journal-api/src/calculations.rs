@@ -36,7 +36,11 @@ pub fn calculate_fx_metrics(
     risk_amount: Option<Decimal>, opened_at: DateTime<Utc>,
 ) -> DerivedTradeMetrics {
     let pair = symbol.trim().to_ascii_uppercase();
-    let quote = pair.get(3..6).filter(|_| pair.len() == 6);
+    const CURRENCIES: [&str; 20] = ["USD","EUR","GBP","JPY","CHF","CAD","AUD","NZD","SEK","NOK","DKK","PLN","CZK","HUF","TRY","SGD","HKD","MXN","ZAR","CNH"];
+    let quote = if pair.len() == 6 {
+        let base = &pair[0..3]; let quote = &pair[3..6];
+        if CURRENCIES.contains(&base) && CURRENCIES.contains(&quote) { Some(quote) } else { None }
+    } else { None };
     let gross = match (quote, exit) {
         (Some(quote), Some(exit)) if quote == pnl_currency => {
             let movement = if direction_long { exit - entry } else { entry - exit };
@@ -56,7 +60,7 @@ pub fn calculate_fx_metrics(
         (Some(value), Some(risk)) => Some(value / risk),
         _ => None,
     };
-    DerivedTradeMetrics { gross_pnl: gross, net_pnl: net, r_multiple, risk_amount: derived_risk, session: classify_fx_session(opened_at) }
+    DerivedTradeMetrics { gross_pnl: gross, net_pnl: net, r_multiple, risk_amount: derived_risk, session: if quote.is_some() { classify_fx_session(opened_at) } else { "Not classified".into() } }
 }
 
 #[cfg(test)]
@@ -88,6 +92,9 @@ mod tests {
             Decimal::ZERO, Decimal::ZERO, "USD", None, at(9));
         assert_eq!(result.gross_pnl, None);
         assert_eq!(result.net_pnl, None);
+        let metal = calculate_fx_metrics("XAUUSD", true, Decimal::ONE, Decimal::ONE, Some(Decimal::from(2)), None, Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, "USD", None, at(9));
+        assert_eq!(metal.gross_pnl, None);
+        assert_eq!(metal.session, "Not classified");
     }
     #[test]
     fn classifies_dst_aware_sessions() {
