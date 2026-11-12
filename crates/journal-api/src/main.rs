@@ -11,7 +11,9 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 mod analytics;
 mod attachments;
 mod auth;
+mod calculations;
 mod dashboard;
+mod excursions;
 mod http;
 mod imports;
 mod intelligence;
@@ -164,8 +166,20 @@ async fn main() {
         )
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route(
+            "/api/v1/journal/trades/{trade_id}/excursions",
+            axum::routing::put(excursions::save),
+        )
+        .route(
             "/api/v1/journal/trades/{trade_id}/attachments",
             get(attachments::list).post(attachments::create),
+        )
+        .route(
+            "/api/v1/journal/trades/{trade_id}/attachments/upload-url",
+            axum::routing::post(attachments::create_upload_url),
+        )
+        .route(
+            "/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}/download-url",
+            get(attachments::download_url),
         )
         .route(
             "/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}",
