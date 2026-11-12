@@ -64,14 +64,30 @@ fn internal_error() -> Response {
         .into_response()
 }
 
-async fn owns_account_response(
+#[derive(Debug)]
+enum AccountScopeError {
+    NotFound,
+    Database,
+}
+
+async fn ensure_account_scope(
     state: &AppState,
     owner_id: &str,
     account_id: &str,
-) -> Result<(), Response> {
+) -> Result<(), AccountScopeError> {
     match owns_account(state, owner_id, account_id).await {
         Ok(true) => Ok(()),
-        Ok(false) => Err((
+        Ok(false) => Err(AccountScopeError::NotFound),
+        Err(error) => {
+            tracing::error!(%error, "saved-view account ownership lookup failed");
+            Err(AccountScopeError::Database)
+        }
+    }
+}
+
+fn account_scope_error_response(error: AccountScopeError) -> Response {
+    match error {
+        AccountScopeError::NotFound => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({
                 "error": {
@@ -80,11 +96,8 @@ async fn owns_account_response(
                 }
             })),
         )
-            .into_response()),
-        Err(error) => {
-            tracing::error!(%error, "saved-view account ownership lookup failed");
-            Err(internal_error())
-        }
+            .into_response(),
+        AccountScopeError::Database => internal_error(),
     }
 }
 
@@ -98,8 +111,8 @@ pub async fn list(
         Err(error) => return error.into_response(),
     };
     if let Some(account_id) = query.journal_account_id.as_deref() {
-        if let Err(response) = owns_account_response(&state, &claims.sub, account_id).await {
-            return response;
+        if let Err(error) = ensure_account_scope(&state, &claims.sub, account_id).await {
+            return account_scope_error_response(error);
         }
     }
     let scope = query.journal_account_id.unwrap_or_else(|| "*".to_string());
@@ -136,8 +149,8 @@ pub async fn upsert(
         return bad_request("Saved view filters must be a JSON object");
     }
     if let Some(account_id) = input.journal_account_id.as_deref() {
-        if let Err(response) = owns_account_response(&state, &claims.sub, account_id).await {
-            return response;
+        if let Err(error) = ensure_account_scope(&state, &claims.sub, account_id).await {
+            return account_scope_error_response(error);
         }
     }
     let scope = input.journal_account_id.unwrap_or_else(|| "*".to_string());
