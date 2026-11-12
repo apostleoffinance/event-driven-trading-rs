@@ -77,9 +77,6 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   })?.id ?? "";
   const configuredProvider = String(instrument?.default_provider ?? "");
   const selectedProvider = providerOverride || (configuredProvider && configuredProvider !== "demo" ? configuredProvider : fallbackProvider);
-  const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) &&
-    new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
-
   const candleQuery = useQuery({
     queryKey: ["journal", "trade-replay", trade.id, frame, selectedProvider],
     queryFn: async () => {
