@@ -50,7 +50,7 @@ export default function JournalPage(){
 
 
 
- const saveTrade=useMutation({mutationFn:async()=>{if(editingId){await journalApi.updateTrade(editingId,tradePayload(draft));return;}await journalApi.createTrade(tradePayload(draft));},onSuccess:()=>{setTradeForm(false);setDraft(blank);setEditingId(null);setTradeOffset(0);void refresh();}});
+ const saveTrade=useMutation({mutationFn:async()=>{if(editingId){await journalApi.updateTrade(editingId,tradePayload(draft));return editingId;}const created=await journalApi.createTrade(tradePayload(draft));return created.id;},onSuccess:(tradeId)=>{setTradeForm(false);setDraft(blank);setEditingId(null);setTradeOffset(0);setDetailTradeId(tradeId);setAttachmentTradeId(tradeId);void refresh();}});
  const removeTrade=useMutation({mutationFn:journalApi.deleteTrade,onSuccess:()=>void refresh()});
  const importer=useMutation({mutationFn:journalApi.importTrades,onSuccess:x=>{setImportMsg("Imported "+x.imported_count+"; skipped duplicates "+x.skipped_count+"; batch "+x.batch_id);setImportErr("");void refresh();},onError:e=>setImportErr(e instanceof Error?e.message:"Import failed.")});
  const savePsychology=useMutation({mutationFn:()=>journalApi.savePsychology(psychTradeId!,psychDraft),onSuccess:()=>{void qc.invalidateQueries({queryKey:["journal","psychology",psychTradeId]});void qc.invalidateQueries({queryKey:["journal","analytics-intelligence"]});}});
