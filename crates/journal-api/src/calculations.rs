@@ -192,7 +192,7 @@ mod tests {
             "EURUSD",
             false,
             Decimal::ONE,
-            Decimal::new(10_100, 4),
+            Decimal::new(10_010, 4),
             Some(Decimal::new(10_000, 4)),
             None,
             Decimal::ZERO,
