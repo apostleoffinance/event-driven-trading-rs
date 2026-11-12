@@ -44,6 +44,8 @@ jobs:
           FRONTEND_URL: https://edgenest-frontend.edgenest.workers.dev
           API_URL: https://edgenest-api.onrender.com
           ACCEPTANCE_ARTIFACT_DIR: artifacts/production-acceptance
+          EDGENEST_ACCEPTANCE_EMAIL: ${{ secrets.EDGENEST_ACCEPTANCE_EMAIL }}
+          EDGENEST_ACCEPTANCE_PASSWORD: ${{ secrets.EDGENEST_ACCEPTANCE_PASSWORD }}
         run: node scripts/production-acceptance.mjs
 
       - name: Upload production acceptance screenshots
