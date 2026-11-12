@@ -57,7 +57,8 @@ function InsightRow({ label, group, currency, rank, scale, onSelect }: {
       <span className="analytics-insight-zero" />
       <span className={`analytics-insight-pnl-bar ${tone}`} style={{
         width: `${barWidth}%`,
-        [pnl >= 0 ? "left" : "right"]: "50%"
+        left: pnl >= 0 ? "50%" : "auto",
+        right: pnl < 0 ? "50%" : "auto"
       }} />
     </div>
   </article>;
