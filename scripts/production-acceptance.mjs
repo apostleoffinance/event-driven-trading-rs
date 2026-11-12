@@ -148,7 +148,11 @@ try {
     assert.ok(drawingBox && drawingBox.width > 200 && drawingBox.height > 200, `Drawing overlay missing at ${viewport.name}`);
     assert.ok(chartBox && drawingBox.width < chartBox.width && drawingBox.height < chartBox.height, `Drawing overlay must exclude the price and time axes at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} chart=${JSON.stringify(chartBox)}`);
     assert.ok(Math.abs(drawingBox.width - paneSize.width) <= 1 && Math.abs(drawingBox.height - paneSize.height) <= 1, `Drawing overlay does not match Lightweight Charts paneSize() at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} pane=${JSON.stringify(paneSize)}`);
-    const drawAt = async (x, y) => page.mouse.click(drawingBox.x + x, drawingBox.y + y);
+    const drawAt = async (x, y) => {
+      const currentDrawingBox = await drawingSvg.boundingBox();
+      assert.ok(currentDrawingBox, `Drawing overlay left the viewport at ${viewport.name}`);
+      await page.mouse.click(currentDrawingBox.x + x, currentDrawingBox.y + y);
+    };
     const addDrawing = async (label, points) => {
       await page.getByRole("toolbar", { name: "Chart drawing tools" }).getByRole("button", { name: label, exact: true }).click();
       for (const [x, y] of points) await drawAt(x, y);
