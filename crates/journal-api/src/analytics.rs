@@ -60,6 +60,21 @@ fn auth_error(error: ApiAuthError) -> Response {
     error.into_response()
 }
 
+fn mfe_capture_percent(realized_r: Option<Decimal>, mfe_r: Option<Decimal>) -> Option<Decimal> {
+    match (realized_r, mfe_r) {
+        (Some(realized), Some(mfe)) if mfe > Decimal::ZERO =>
+            Some(realized / mfe * Decimal::from(100)),
+        _ => None,
+    }
+}
+
+fn profit_surrendered_r(mfe_r: Option<Decimal>, realized_r: Option<Decimal>) -> Option<Decimal> {
+    match (mfe_r, realized_r) {
+        (Some(mfe), Some(realized)) if mfe > realized => Some(mfe - realized),
+        _ => None,
+    }
+}
+
 pub async fn summary(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -289,16 +304,12 @@ pub async fn summary(
             current_win_streak = 0;
             current_loss_streak = 0;
         }
-        let capture = match (realized_r, fact.mfe_r) {
-            (Some(realized), Some(mfe)) if mfe > Decimal::ZERO =>
-                Some(realized / mfe * Decimal::from(100)),
-            _ => None,
-        };
+        let capture = mfe_capture_percent(realized_r, fact.mfe_r);
         if let Some(value) = capture { mfe_capture_values.push(value); }
         trade_metrics.push(serde_json::json!({
             "trade_id": fact.id.clone(),
             "symbol": fact.symbol.clone(),
-            "session": fact.session.clone(),
+            "session": fact.session.clone().unwrap_or_else(|| "unspecified".into()),
             "setup": fact.setup_name.clone(),
             "psychology": {
                 "emotion_before": fact.emotion_before.clone(),
@@ -321,10 +332,7 @@ pub async fn summary(
             "mae_r": fact.mae_r.map(|v|v.to_string()),
             "holding_seconds": held,
             "mfe_capture_percent": capture.map(|v|v.to_string()),
-            "profit_surrendered_r": match (fact.mfe_r, realized_r) {
-                (Some(mfe), Some(realized)) if mfe > realized => Some((mfe-realized).to_string()),
-                _ => None
-            },
+            "profit_surrendered_r": profit_surrendered_r(fact.mfe_r, realized_r).map(|v|v.to_string()),
             "stop_loss_recorded": fact.stop_loss.is_some(),
             "take_profit_recorded": fact.take_profit.is_some(),
             "entry_price": fact.entry_price.to_string(),
@@ -417,4 +425,38 @@ pub async fn summary(
         "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),"by_day":group_stats(days),"by_month":group_stats(months),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::{mfe_capture_percent, profit_surrendered_r};
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn mfe_capture_is_calculated_per_trade_from_realized_r_and_positive_mfe() {
+        assert_eq!(
+            mfe_capture_percent(Some(Decimal::from(1)), Some(Decimal::from(2))),
+            Some(Decimal::from(50))
+        );
+        assert_eq!(
+            mfe_capture_percent(Some(Decimal::from(-1)), Some(Decimal::from(2))),
+            Some(Decimal::from(-50))
+        );
+        assert_eq!(mfe_capture_percent(Some(Decimal::ONE), Some(Decimal::ZERO)), None);
+        assert_eq!(mfe_capture_percent(None, Some(Decimal::ONE)), None);
+    }
+
+    #[test]
+    fn profit_surrendered_requires_excursion_above_realized_result() {
+        assert_eq!(
+            profit_surrendered_r(Some(Decimal::from(3)), Some(Decimal::ONE)),
+            Some(Decimal::from(2))
+        );
+        assert_eq!(
+            profit_surrendered_r(Some(Decimal::ONE), Some(Decimal::from(2))),
+            None
+        );
+        assert_eq!(profit_surrendered_r(None, Some(Decimal::ONE)), None);
+    }
 }
