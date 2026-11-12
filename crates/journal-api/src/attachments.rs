@@ -216,21 +216,29 @@ pub async fn delete(
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query(
-        "DELETE FROM journal_trade_attachments WHERE owner_id=$1 AND trade_id=$2 AND id=$3",
-    )
-    .bind(&claims.sub)
-    .bind(&trade_id)
-    .bind(&attachment_id)
-    .execute(state.store.pool())
-    .await
-    {
+    let existing = sqlx::query("SELECT storage_provider,storage_key FROM journal_trade_attachments WHERE owner_id=$1 AND trade_id=$2 AND id=$3")
+        .bind(&claims.sub).bind(&trade_id).bind(&attachment_id)
+        .fetch_optional(state.store.pool()).await;
+    let existing = match existing {
+        Ok(Some(row)) => row,
+        Ok(None) => return error("not_found", "Attachment not found", StatusCode::NOT_FOUND),
+        Err(_) => return error("internal_error", "Unable to retrieve attachment", StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    let provider: String = existing.get("storage_provider");
+    let key: String = existing.get("storage_key");
+    if provider == "r2" || provider == "s3" {
+        let (client,bucket) = match object_store().await {
+            Ok(value) => value,
+            Err(message) => return error("storage_not_configured", &message, StatusCode::SERVICE_UNAVAILABLE),
+        };
+        if client.delete_object().bucket(bucket).key(key).send().await.is_err() {
+            return error("storage_error", "Unable to delete screenshot from object storage", StatusCode::BAD_GATEWAY);
+        }
+    }
+    match sqlx::query("DELETE FROM journal_trade_attachments WHERE owner_id=$1 AND trade_id=$2 AND id=$3")
+        .bind(&claims.sub).bind(&trade_id).bind(&attachment_id).execute(state.store.pool()).await {
         Ok(result) if result.rows_affected() == 1 => StatusCode::NO_CONTENT.into_response(),
         Ok(_) => error("not_found", "Attachment not found", StatusCode::NOT_FOUND),
-        Err(_) => error(
-            "internal_error",
-            "Unable to delete attachment",
-            StatusCode::INTERNAL_SERVER_ERROR,
-        ),
+        Err(_) => error("internal_error", "Unable to delete attachment metadata", StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
