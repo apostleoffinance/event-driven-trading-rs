@@ -162,11 +162,6 @@ export default function AnalyticsLabPage() {
   </div>;
 
   const a = analytics.data;
-  const realizedTradePnls = (a?.equity_curve ?? []).map(x => Number(x.net_pnl)).filter(Number.isFinite);
-  const worstClosedTrade = realizedTradePnls.length ? Math.min(...realizedTradePnls) : null;
-  const bestClosedTrade = realizedTradePnls.length ? Math.max(...realizedTradePnls) : null;
-  const dailyRealizedPnls = (a?.by_day ?? []).map(x => Number(x.net_pnl)).filter(Number.isFinite);
-  const worstRealizedDay = dailyRealizedPnls.length ? Math.min(...dailyRealizedPnls) : null;
   const weekdayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const weekdaysOrdered = (a?.by_weekday ?? []).slice().sort((x,y) => weekdayOrder.indexOf(x.key)-weekdayOrder.indexOf(y.key));
   const investigatedTrades = (a?.trade_metrics ?? []).filter(trade => {
