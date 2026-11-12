@@ -230,7 +230,6 @@ pub struct SetupWrite {
     pub rules_json: Value,
 }
 
-
 #[derive(Debug, Deserialize)]
 pub struct LinkTradingAccountWrite {
     pub linked_trading_account_id: Option<String>,
@@ -270,7 +269,13 @@ pub async fn link_trading_account(
         .fetch_one(state.store.pool())
         .await;
         match already_linked {
-            Ok(true) => return err(StatusCode::CONFLICT, "account_already_linked", "This trading account is already linked to another Journal account."),
+            Ok(true) => {
+                return err(
+                    StatusCode::CONFLICT,
+                    "account_already_linked",
+                    "This trading account is already linked to another Journal account.",
+                )
+            }
             Ok(false) => {}
             Err(_) => return internal(),
         }
@@ -299,7 +304,18 @@ pub async fn journal_portfolio(State(state): State<AppState>, headers: HeaderMap
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-    let rows = sqlx::query_as::<_, (String, String, String, Decimal, Decimal, i64, Option<String>)>(
+    let rows = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            Decimal,
+            Decimal,
+            i64,
+            Option<String>,
+        ),
+    >(
         r#"
         SELECT a.id,a.name,a.currency,a.initial_balance,
                COALESCE(SUM(CASE WHEN t.status='closed' THEN t.net_pnl ELSE 0 END),0) AS net_pnl,
