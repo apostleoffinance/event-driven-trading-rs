@@ -103,22 +103,28 @@ try {
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
+    // Start observing before navigation so the first analytics request cannot
+    // complete before Playwright registers the response listener.
+    const verifyLiveBrowserRuntime = process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true";
+    const browserAnalyticsResponsePromise = verifyLiveBrowserRuntime
+      ? page.waitForResponse(
+          response => response.url().includes("/api/v1/journal/analytics/summary"),
+          { timeout: 30_000 },
+        )
+      : null;
     await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
 
     // The production health/CORS fix is deployed only after this PR merges and
     // Render rolls out the gateway. Run this assertion on main (post-merge),
     // not against the still-old production API during pull_request validation.
-    if (process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true") {
-      const browserAnalyticsResponsePromise = page.waitForResponse(
-        response => response.url().includes("/api/v1/journal/analytics/summary"),
-        { timeout: 30_000 },
-      );
+    if (verifyLiveBrowserRuntime) {
       await page.waitForTimeout(2_000);
       const runtimeState = await page.evaluate(() => ({
         health: [...document.querySelectorAll(".topbar-right span")].map(el => el.textContent?.trim()).filter(Boolean),
         analyticsError: [...document.querySelectorAll("body *")].some(el => el.children.length === 0 && el.textContent?.trim() === "Could not load analytics from your Journal. Check your connection and retry."),
       }));
+      assert.ok(browserAnalyticsResponsePromise, "Browser analytics response observer was not initialized.");
       const browserAnalyticsResponse = await browserAnalyticsResponsePromise;
       const browserAnalyticsBody = await browserAnalyticsResponse.text();
       assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()} body=${browserAnalyticsBody.slice(0, 1000)} runtime=${JSON.stringify(runtimeState)}`);
