@@ -105,7 +105,7 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
         input.other_fees,
         &input.pnl_currency.to_uppercase(),
         input.risk_amount,
-        input.opened_at,
+        &input.opened_at,
     );
     // Manual entries are derived automatically. Imported/broker facts remain
     // authoritative so historical statements are never silently rewritten.
