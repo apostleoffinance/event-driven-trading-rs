@@ -1,5 +1,6 @@
 //! Owner-scoped persistence for excursion metrics derived from historical candles.
 
+use chrono::{DateTime, Utc};
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
@@ -20,8 +21,8 @@ pub struct ExcursionWrite {
     pub timeframe: String,
     pub provider: String,
     pub candle_count: i64,
-    pub coverage_start: String,
-    pub coverage_end: String,
+    pub coverage_start: DateTime<Utc>,
+    pub coverage_end: DateTime<Utc>,
 }
 
 pub async fn save(
@@ -37,8 +38,13 @@ pub async fn save(
     if input.mfe_price <= Decimal::ZERO
         || input.mae_price <= Decimal::ZERO
         || input.candle_count < 1
-        || input.timeframe.trim().is_empty()
+        || input.candle_count > 100_000
+        || !["M1", "M5", "M15", "M30", "H1", "H4", "D1"].contains(&input.timeframe.as_str())
         || input.provider.trim().is_empty()
+        || input.provider.len() > 128
+        || input.coverage_start > input.coverage_end
+        || input.mfe_r.is_some_and(|value| value < Decimal::ZERO)
+        || input.mae_r.is_some_and(|value| value > Decimal::ZERO)
     {
         return (
             StatusCode::BAD_REQUEST,
@@ -62,7 +68,7 @@ pub async fn save(
     });
 
     match sqlx::query(
-        "UPDATE journal_trades SET mfe_price=$3, mae_price=$4, mfe_r=$5, mae_r=$6, mfe_source='historical_candles', mae_source='historical_candles', mfe_precision=$7, mae_precision=$7, source_metadata=COALESCE(source_metadata,'{}'::jsonb) || $8::jsonb, updated_at=NOW() WHERE owner_id=$1 AND id=$2",
+        "UPDATE journal_trades SET mfe_price=$3, mae_price=$4, mfe_r=$5, mae_r=$6, mfe_source='historical_candles', mae_source='historical_candles', mfe_precision=$7, mae_precision=$7, source_metadata=COALESCE(source_metadata,'{}'::jsonb) || $8::jsonb, updated_at=NOW() WHERE owner_id=$1 AND id=$2 AND status='closed'",
     )
     .bind(&claims.sub)
     .bind(&trade_id)
