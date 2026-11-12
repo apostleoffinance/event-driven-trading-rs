@@ -72,6 +72,27 @@ try {
       return { viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth, overflowers };
     });
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-analytics.png`, fullPage: true });
+
+    // Market Data chart smoke test: the Lightweight Charts canvas must initialize
+    // at every agreed viewport, independently of whether a provider returns candles.
+    const marketConsoleErrors = [];
+    page.on("console", message => { if (message.type() === "error") marketConsoleErrors.push(message.text()); });
+    const marketResponse = await page.goto(`${frontendUrl}/market-data`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.equal(marketResponse?.status(), 200, `Market Data route failed at ${viewport.name}`);
+    await page.locator(".market-chart-canvas canvas").first().waitFor({ state: "attached", timeout: 20_000 });
+    assert.equal(await page.getByRole("heading", { name: "Market Analysis could not initialize" }).count(), 0, `Lightweight Charts error boundary activated at ${viewport.name}`);
+    assert.equal(await page.getByText("Chart could not render", { exact: true }).count(), 0, `Lightweight Charts initialization failed at ${viewport.name}`);
+    const timeframeGroup = page.getByRole("group", { name: "Chart timeframe" });
+    for (const timeframe of ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]) {
+      const button = timeframeGroup.getByRole("button", { name: timeframe, exact: true });
+      await button.click();
+      assert.equal(await button.getAttribute("aria-pressed"), "true", `Timeframe ${timeframe} did not activate at ${viewport.name}`);
+    }
+    const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
+    await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
+    assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
+    assert.deepEqual(pageErrors, [], `Browser runtime errors on Market Data at ${viewport.name}: ${pageErrors.join("; ")}`);
+    console.log(`PASS ${viewport.name}: Market Data Lightweight Charts canvas, eight timeframe controls, no horizontal overflow; console errors: ${marketConsoleErrors.join(" | ") || "none"}`);
     assert.ok(
       dimensions.documentWidth <= dimensions.viewportWidth && dimensions.bodyWidth <= dimensions.viewportWidth,
       `Horizontal overflow at ${viewport.name}: ${JSON.stringify(dimensions)}`,
