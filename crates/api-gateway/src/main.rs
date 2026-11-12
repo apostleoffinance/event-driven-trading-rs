@@ -3,7 +3,8 @@ use std::{env, process::Stdio, time::Duration};
 use axum::{
     body::Body,
     extract::State,
-    http::{header, Request, Response, StatusCode},
+    http::{header, HeaderValue, Request, Response, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::get,
     Router,
@@ -44,6 +45,25 @@ fn start_child(name: &str, executable: &str, bind_key: &str, bind: &str) -> Chil
 
 async fn health() -> &'static str {
     "ok"
+}
+
+/// The gateway owns /healthz and /readyz rather than proxying them to a child
+/// API. Apply the configured origin allow-list so browser health checks are
+/// not incorrectly reported as unavailable due to a CORS failure.
+async fn cors_headers(request: Request<Body>, next: Next) -> Response<Body> {
+    let origin = request.headers().get(header::ORIGIN).cloned();
+    let mut response = next.run(request).await;
+    if let Some(origin) = origin {
+        let origin_text = origin.to_str().unwrap_or_default();
+        let allowed_origins = env::var("EDGENEST_CORS_ORIGINS")
+            .unwrap_or_else(|_| "https://edgenest-frontend.edgenest.workers.dev,http://localhost:3000,http://localhost:3107,http://127.0.0.1:8787".into());
+        let allowed = allowed_origins.split(',').any(|allowed| allowed.trim() == origin_text);
+        if allowed {
+            response.headers_mut().insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+            response.headers_mut().append(header::VARY, HeaderValue::from_static("Origin"));
+        }
+    }
+    response
 }
 
 /// Report readiness only after the Identity, Journal, and Market Data services
@@ -186,7 +206,8 @@ async fn main() {
         .route("/healthz", get(health))
         .route("/readyz", get(readiness))
         .fallback(proxy)
-        .with_state(GatewayState { client });
+        .with_state(GatewayState { client })
+        .layer(middleware::from_fn(cors_headers));
 
     let port = env::var("PORT").unwrap_or_else(|_| "10000".into());
     let bind = format!("0.0.0.0:{port}");
