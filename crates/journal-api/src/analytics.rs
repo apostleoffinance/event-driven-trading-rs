@@ -26,8 +26,15 @@ pub struct AnalyticsQuery {
 struct TradeFact {
     id: String,
     symbol: String,
+    direction: String,
+    opened_at: DateTime<Utc>,
     closed_at: DateTime<Utc>,
     net_pnl: Decimal,
+    risk_amount: Option<Decimal>,
+    entry_price: Decimal,
+    exit_price: Option<Decimal>,
+    stop_loss: Option<Decimal>,
+    take_profit: Option<Decimal>,
     r_multiple: Option<Decimal>,
     session: Option<String>,
     setup_name: String,
@@ -98,9 +105,11 @@ pub async fn summary(
 
     let facts = sqlx::query_as::<_, TradeFact>(
         r#"
-        SELECT t.id, t.symbol, t.closed_at,
+        SELECT t.id, t.symbol, t.direction, t.opened_at, t.closed_at,
           COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
-          t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name, t.mfe_r, t.mae_r, t.setup_valid, t.rules_followed, t.emotional_trade, t.mistake, t.discipline_score
+          t.risk_amount, t.entry_price, t.exit_price, t.stop_loss, t.take_profit,
+          t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name,
+          t.mfe_r, t.mae_r, t.setup_valid, t.rules_followed, t.emotional_trade, t.mistake, t.discipline_score
         FROM journal_trades t
         LEFT JOIN journal_setups s ON s.owner_id=t.owner_id AND s.id=t.setup_id
         WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
@@ -186,6 +195,16 @@ pub async fn summary(
         std::collections::BTreeMap::new();
     let mut total_r = Decimal::ZERO;
     let mut r_count = 0usize;
+    let mut risk_total = Decimal::ZERO;
+    let mut risk_count = 0usize;
+    let mut risk_max = Decimal::ZERO;
+    let mut holding_seconds: Vec<i64> = Vec::with_capacity(facts.len());
+    let mut current_win_streak = 0usize;
+    let mut current_loss_streak = 0usize;
+    let mut max_win_streak = 0usize;
+    let mut max_loss_streak = 0usize;
+    let mut trade_metrics = Vec::with_capacity(facts.len());
+    let mut mfe_capture_values: Vec<Decimal> = Vec::new();
     let mut total_mfe_r = Decimal::ZERO;
     let mut mfe_count = 0usize;
     let mut total_mae_r = Decimal::ZERO;
@@ -226,10 +245,61 @@ pub async fn summary(
             .entry(fact.closed_at.format("%Y-%m").to_string())
             .or_default()
             .push(fact.net_pnl);
-        if let Some(r) = fact.r_multiple {
+        let realized_r = fact.r_multiple.or_else(|| {
+            fact.risk_amount.filter(|risk| *risk > Decimal::ZERO)
+                .map(|risk| fact.net_pnl / risk)
+        });
+        if let Some(r) = realized_r {
             total_r += r;
             r_count += 1;
         }
+        if let Some(risk) = fact.risk_amount.filter(|value| *value > Decimal::ZERO) {
+            risk_total += risk;
+            risk_count += 1;
+            risk_max = risk_max.max(risk);
+        }
+        let held = fact.closed_at.signed_duration_since(fact.opened_at).num_seconds().max(0);
+        holding_seconds.push(held);
+        if fact.net_pnl > Decimal::ZERO {
+            current_win_streak += 1;
+            current_loss_streak = 0;
+            max_win_streak = max_win_streak.max(current_win_streak);
+        } else if fact.net_pnl < Decimal::ZERO {
+            current_loss_streak += 1;
+            current_win_streak = 0;
+            max_loss_streak = max_loss_streak.max(current_loss_streak);
+        } else {
+            current_win_streak = 0;
+            current_loss_streak = 0;
+        }
+        let capture = match (realized_r, fact.mfe_r) {
+            (Some(realized), Some(mfe)) if mfe > Decimal::ZERO =>
+                Some(realized / mfe * Decimal::from(100)),
+            _ => None,
+        };
+        if let Some(value) = capture { mfe_capture_values.push(value); }
+        trade_metrics.push(serde_json::json!({
+            "trade_id": fact.id,
+            "symbol": fact.symbol,
+            "direction": fact.direction,
+            "opened_at": fact.opened_at,
+            "closed_at": fact.closed_at,
+            "net_pnl": fact.net_pnl.to_string(),
+            "risk_amount": fact.risk_amount.map(|v|v.to_string()),
+            "realized_r": realized_r.map(|v|v.to_string()),
+            "mfe_r": fact.mfe_r.map(|v|v.to_string()),
+            "mae_r": fact.mae_r.map(|v|v.to_string()),
+            "holding_seconds": held,
+            "mfe_capture_percent": capture.map(|v|v.to_string()),
+            "profit_surrendered_r": match (fact.mfe_r, realized_r) {
+                (Some(mfe), Some(realized)) if mfe > realized => Some((mfe-realized).to_string()),
+                _ => None
+            },
+            "stop_loss_recorded": fact.stop_loss.is_some(),
+            "take_profit_recorded": fact.take_profit.is_some(),
+            "entry_price": fact.entry_price.to_string(),
+            "exit_price": fact.exit_price.map(|v|v.to_string())
+        }));
         if let Some(r) = fact.mfe_r {
             total_mfe_r += r;
             mfe_count += 1;
@@ -261,6 +331,20 @@ pub async fn summary(
             discipline_count += 1;
         }
     }
+    holding_seconds.sort_unstable();
+    let average_holding_seconds = if holding_seconds.is_empty() { None } else {
+        Some(holding_seconds.iter().sum::<i64>() as f64 / holding_seconds.len() as f64)
+    };
+    let median_holding_seconds = if holding_seconds.is_empty() { None } else {
+        let mid = holding_seconds.len()/2;
+        Some(if holding_seconds.len()%2==0 {
+            (holding_seconds[mid-1] as f64 + holding_seconds[mid] as f64)/2.0
+        } else { holding_seconds[mid] as f64 })
+    };
+    let average_mfe_capture_percent = if mfe_capture_values.is_empty() { None } else {
+        Some(mfe_capture_values.iter().copied().sum::<Decimal>() / Decimal::from(mfe_capture_values.len() as u64))
+    };
+    let risk_coverage_percent = Decimal::from(risk_count as u64) * Decimal::from(100) / Decimal::from(stats.trade_count as u64);
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
             .into_iter()
@@ -289,6 +373,17 @@ pub async fn summary(
         "setup_valid_percent":if setup_valid_known>0 {Some((Decimal::from(setup_valid_count as u64)*Decimal::from(100)/Decimal::from(setup_valid_known as u64)).to_string())} else {None},
         "rules_followed_percent":if rules_followed_known>0 {Some((Decimal::from(rules_followed_count as u64)*Decimal::from(100)/Decimal::from(rules_followed_known as u64)).to_string())} else {None},
         "average_discipline_score":if discipline_count>0 {Some((Decimal::from(total_discipline)/Decimal::from(discipline_count as u64)).to_string())} else {None},
+        "risk_coverage_count":risk_count,
+        "risk_coverage_percent":risk_coverage_percent.to_string(),
+        "average_risk_amount":if risk_count>0 {Some((risk_total/Decimal::from(risk_count as u64)).to_string())} else {None},
+        "maximum_risk_amount":if risk_count>0 {Some(risk_max.to_string())} else {None},
+        "average_holding_seconds":average_holding_seconds,
+        "median_holding_seconds":median_holding_seconds,
+        "maximum_win_streak":max_win_streak,
+        "maximum_loss_streak":max_loss_streak,
+        "average_mfe_capture_percent":average_mfe_capture_percent.map(|v|v.to_string()),
+        "execution_coverage_count":mfe_capture_values.len(),
+        "trade_metrics":trade_metrics,
         "equity_curve":equity_curve,"by_symbol":group_stats(symbols),"by_session":group_stats(sessions),"by_setup":group_stats(setups),"by_weekday":group_stats(weekdays),"by_hour_utc":group_stats(hours_utc),"by_day":group_stats(days),"by_month":group_stats(months),
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
