@@ -26,11 +26,13 @@ export function AnalyticsBreakdownChart({
   groups,
   currency = "USD",
   onSelect,
+  sortBy = "pnl",
 }: {
   title: string;
   groups: Group[];
   currency?: string;
   onSelect?: (key: string) => void;
+  sortBy?: "pnl" | "source";
 }) {
   const { theme } = useTheme();
   const ranked = useMemo(
@@ -38,8 +40,8 @@ export function AnalyticsBreakdownChart({
       groups
         .filter((group) => Number.isFinite(Number(group.net_pnl)))
         .slice()
-        .sort((a, b) => Number(b.net_pnl) - Number(a.net_pnl)),
-    [groups],
+        .sort((a, b) => sortBy === "pnl" ? Number(b.net_pnl) - Number(a.net_pnl) : 0),
+    [groups, sortBy],
   );
 
   const option = useMemo(() => {
@@ -89,6 +91,12 @@ export function AnalyticsBreakdownChart({
         axisLine: { lineStyle: { color: axis } },
         axisTick: { show: false },
       },
+      dataZoom: ranked.length > 12
+        ? [
+            { type: "inside", yAxisIndex: 0, startValue: 0, endValue: 11 },
+            { type: "slider", yAxisIndex: 0, width: 12, right: 4, startValue: 0, endValue: 11, borderColor: axis, textStyle: { color: dim } },
+          ]
+        : [],
       series: [
         {
           name: "Net P&L",
@@ -115,7 +123,7 @@ export function AnalyticsBreakdownChart({
       animationEasing: "cubicOut",
       __height: height,
     };
-  }, [currency, ranked, theme]);
+  }, [currency, ranked, sortBy, theme]);
 
   if (ranked.length === 0) {
     return <div className="analytics-chart-empty" role="status">No qualifying data for this breakdown.</div>;
@@ -129,7 +137,7 @@ export function AnalyticsBreakdownChart({
     <div className="analytics-ranked-chart" aria-label={title}>
       <div className="analytics-ranked-chart-heading">
         <h3>{title}</h3>
-        <p>Ranked by net realized P&amp;L · Select a bar to investigate its trades</p>
+        <p>{sortBy === "pnl" ? "Ranked by net realized P&L" : "Ordered by time"} · Select a bar to investigate its trades</p>
       </div>
       <ReactECharts
         option={chartOption}
