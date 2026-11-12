@@ -38,7 +38,8 @@ export function MarketChartDrawings({chart,series,ready,instrument,timeframe,pre
  const [status,setStatus]=useState(""),[size,setSize]=useState({w:0,h:0}),[anchorPrice,setAnchorPrice]=useState(""),[anchorTime,setAnchorTime]=useState("");
  const [color,setColor]=useState(colors[0]),[width,setWidth]=useState("2"),[dash,setDash]=useState<Drawing["dash"]>("solid");
  const svgRef=useRef<SVGSVGElement>(null),dragRef=useRef<{id:string;index:number}|null>(null),dragBefore=useRef<Drawing[]|null>(null),hydrated=useRef(""),skipPersist=useRef(false);
- const storeKey=keyFor(instrument,timeframe),active=drawings.find(x=>x.id===selected)??null;\n useEffect(()=>{if(!chart)return;const update=()=>setViewportVersion(v=>v+1);const scale=chart.timeScale();scale.subscribeVisibleLogicalRangeChange(update);return()=>scale.unsubscribeVisibleLogicalRangeChange(update);},[chart]);
+ const storeKey=keyFor(instrument,timeframe),active=drawings.find(x=>x.id===selected)??null;
+ useEffect(()=>{if(!chart)return;const update=()=>setViewportVersion(v=>v+1);const scale=chart.timeScale();scale.subscribeVisibleLogicalRangeChange(update);return()=>scale.unsubscribeVisibleLogicalRangeChange(update);},[chart]);
 
  useEffect(()=>{try{const raw=localStorage.getItem(storeKey);skipPersist.current=true;setDrawings(raw?JSON.parse(raw) as Drawing[]:[]);setSelected(null);setDraft([]);setUndoStack([]);setRedoStack([]);setTool("select");hydrated.current=storeKey;}catch(e){console.error("Drawing restore failed",e);setDrawings([]);setStatus("Could not restore drawings from browser storage.");}},[storeKey]);
  useEffect(()=>{if(hydrated.current!==storeKey)return;if(skipPersist.current){skipPersist.current=false;return;}try{localStorage.setItem(storeKey,JSON.stringify(drawings));}catch(e){console.error("Drawing persistence failed",e);setStatus("Browser storage is full or unavailable. Export drawings for backup.");}},[drawings,storeKey]);
