@@ -115,7 +115,8 @@ try {
     // failure that a Node-side fetch cannot reproduce.
     await page.getByText("SERVICE CONNECTED", { exact: true }).waitFor({ timeout: 20_000 });
     const browserAnalyticsResponse = await browserAnalyticsResponsePromise;
-    assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()}`);
+    const browserAnalyticsBody = await browserAnalyticsResponse.text();
+    assert.equal(browserAnalyticsResponse.status(), 200, `Deployed browser analytics request failed: HTTP ${browserAnalyticsResponse.status()} ${browserAnalyticsResponse.url()} body=${browserAnalyticsBody.slice(0, 1000)}`);
     await page.getByText("Could not load analytics from your Journal. Check your connection and retry.", { exact: true }).waitFor({ state: "detached", timeout: 20_000 });
 
     const tokenState = await page.evaluate(() => {
