@@ -57,10 +57,16 @@ async fn cors_headers(request: Request<Body>, next: Next) -> Response<Body> {
         let origin_text = origin.to_str().unwrap_or_default();
         let allowed_origins = env::var("EDGENEST_CORS_ORIGINS")
             .unwrap_or_else(|_| "https://edgenest-frontend.edgenest.workers.dev,http://localhost:3000,http://localhost:3107,http://127.0.0.1:8787".into());
-        let allowed = allowed_origins.split(',').any(|allowed| allowed.trim() == origin_text);
+        let allowed = allowed_origins
+            .split(',')
+            .any(|allowed| allowed.trim() == origin_text);
         if allowed {
-            response.headers_mut().insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-            response.headers_mut().append(header::VARY, HeaderValue::from_static("Origin"));
+            response
+                .headers_mut()
+                .insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+            response
+                .headers_mut()
+                .append(header::VARY, HeaderValue::from_static("Origin"));
         }
     }
     response
