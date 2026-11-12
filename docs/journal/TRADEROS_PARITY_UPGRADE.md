@@ -44,7 +44,7 @@ R-multiple is net P&L divided by positive risk. This standard-lot formula is int
 
 ### Sessions
 
-The session is classified at the trade's UTC open timestamp using IANA timezone data for Europe/London and America/New_York, so daylight-saving changes are applied. The London and New York windows are 08:00–17:00 local time. Non-FX instruments are not assigned an FX session.
+The session is classified at the trade's UTC open timestamp using the UK last-Sunday-in-March/October and US second-Sunday-in-March/first-Sunday-in-November daylight-saving rules for Europe/London and America/New_York. The London and New York windows are 08:00–17:00 local time. Non-FX instruments are not assigned an FX session.
 
 ### MFE and MAE
 
