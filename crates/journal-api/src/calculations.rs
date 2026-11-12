@@ -8,6 +8,7 @@ pub struct DerivedTradeMetrics {
     pub gross_pnl: Option<Decimal>,
     pub net_pnl: Option<Decimal>,
     pub r_multiple: Option<Decimal>,
+    pub risk_amount: Option<Decimal>,
     pub session: String,
 }
 
@@ -30,7 +31,7 @@ pub fn classify_fx_session(at: DateTime<Utc>) -> String {
 /// Non-FX instruments and currency conversions remain unset rather than guessed.
 pub fn calculate_fx_metrics(
     symbol: &str, direction_long: bool, quantity_lots: Decimal,
-    entry: Decimal, exit: Option<Decimal>, commission: Decimal,
+    entry: Decimal, exit: Option<Decimal>, stop_loss: Option<Decimal>, commission: Decimal,
     swap: Decimal, other_fees: Decimal, pnl_currency: &str,
     risk_amount: Option<Decimal>, opened_at: DateTime<Utc>,
 ) -> DerivedTradeMetrics {
@@ -43,12 +44,19 @@ pub fn calculate_fx_metrics(
         }
         _ => None,
     };
-    let net = gross.map(|value| value + commission + swap + other_fees);
-    let r_multiple = match (net, risk_amount.filter(|r| *r > Decimal::ZERO)) {
+    let derived_risk = match (quote, stop_loss) {
+        (Some(quote), Some(stop)) if quote == pnl_currency => Some((entry - stop).abs() * quantity_lots * Decimal::from(100_000u32)),
+        _ => None,
+    };
+    let effective_risk = risk_amount.or(derived_risk);
+    // Commission and other fees are costs whether users enter them signed or unsigned;
+    // swap remains signed because positive swap is a credit.
+    let net = gross.map(|value| value - commission.abs() + swap - other_fees.abs());
+    let r_multiple = match (net, effective_risk.filter(|r| *r > Decimal::ZERO)) {
         (Some(value), Some(risk)) => Some(value / risk),
         _ => None,
     };
-    DerivedTradeMetrics { gross_pnl: gross, net_pnl: net, r_multiple, session: classify_fx_session(opened_at) }
+    DerivedTradeMetrics { gross_pnl: gross, net_pnl: net, r_multiple, risk_amount: derived_risk, session: classify_fx_session(opened_at) }
 }
 
 #[cfg(test)]
@@ -66,6 +74,7 @@ mod tests {
             "USD", Some(Decimal::new(100, 0)), at(9));
         assert_eq!(long.gross_pnl, Some(Decimal::from(100)));
         assert_eq!(long.net_pnl, Some(Decimal::from(97)));
+        assert_eq!(long.risk_amount, Some(Decimal::from(50)));
         assert_eq!(long.r_multiple, Some(Decimal::new(97, 2)));
         let short = calculate_fx_metrics("EURUSD", false, Decimal::ONE,
             Decimal::new(10100, 4), Some(Decimal::new(10000, 4)),
@@ -75,7 +84,7 @@ mod tests {
     #[test]
     fn does_not_guess_currency_conversion_or_open_trade_pnl() {
         let result = calculate_fx_metrics("EURGBP", true, Decimal::ONE,
-            Decimal::ONE, Some(Decimal::new(101, 2)), Decimal::ZERO,
+            Decimal::ONE, Some(Decimal::new(101, 2)), None, Decimal::ZERO,
             Decimal::ZERO, Decimal::ZERO, "USD", None, at(9));
         assert_eq!(result.gross_pnl, None);
         assert_eq!(result.net_pnl, None);
