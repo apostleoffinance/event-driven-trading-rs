@@ -160,7 +160,9 @@ pub async fn summary(
     };
     if facts.is_empty() {
         return Json(serde_json::json!({"data":{
+            "generated_at":Utc::now(),
             "trade_count":0,"wins":0,"losses":0,"breakeven":0,
+            "mfe_coverage_count":0,"mae_coverage_count":0,
             "win_rate_percent":"0","gross_profit":"0","gross_loss":"0",
             "net_profit":"0","profit_factor":null,"expectancy":"0",
             "average_win":null,"average_loss":null,"max_drawdown":"0",
@@ -222,6 +224,8 @@ pub async fn summary(
     let mut risk_count = 0usize;
     let mut risk_max = Decimal::ZERO;
     let mut risk_values: Vec<Decimal> = Vec::new();
+    let mut mfe_count = 0usize;
+    let mut mae_count = 0usize;
     let mut holding_seconds: Vec<i64> = Vec::with_capacity(facts.len());
     let mut current_win_streak = 0usize;
     let mut current_loss_streak = 0usize;
@@ -320,6 +324,8 @@ pub async fn summary(
             total_r += r;
             r_count += 1;
         }
+        if fact.mfe_r.is_some() { mfe_count += 1; }
+        if fact.mae_r.is_some() { mae_count += 1; }
         if let Some(risk) = fact.risk_amount.filter(|value| *value > Decimal::ZERO) {
             risk_total += risk;
             risk_count += 1;
@@ -466,7 +472,9 @@ pub async fn summary(
     };
 
     Json(serde_json::json!({"data":{
+        "generated_at":Utc::now(),
         "trade_count":stats.trade_count,"wins":stats.wins,"losses":stats.losses,"breakeven":stats.breakeven,
+        "mfe_coverage_count":mfe_count,"mae_coverage_count":mae_count,
         "win_rate_percent":stats.win_rate_percent.to_string(),
         "gross_profit":stats.gross_profit.to_string(),"gross_loss":stats.gross_loss.to_string(),
         "net_profit":stats.net_profit.to_string(),"profit_factor":stats.profit_factor.map(|v|v.to_string()),
