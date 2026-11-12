@@ -147,7 +147,6 @@ pub fn summarize_net_pnl(pnls: &[Decimal]) -> DomainResult<AnalyticsSummary> {
     })
 }
 
-
 /// Canonical, validated trade-level fact consumed by Journal analytics.
 /// Nullable fields stay nullable so incomplete source records are never imputed.
 #[derive(Debug, Clone, PartialEq)]
@@ -188,46 +187,80 @@ pub struct TradePsychologyFact {
 impl TradeAnalyticsFact {
     pub fn validate(&self) -> DomainResult<()> {
         if self.trade_id.trim().is_empty() || self.symbol.trim().is_empty() {
-            return Err(DomainError::Validation("analytics trade ID and symbol must be non-empty".into()));
+            return Err(DomainError::Validation(
+                "analytics trade ID and symbol must be non-empty".into(),
+            ));
         }
         if !matches!(self.direction.as_str(), "long" | "short") {
-            return Err(DomainError::Validation("analytics trade direction must be long or short".into()));
+            return Err(DomainError::Validation(
+                "analytics trade direction must be long or short".into(),
+            ));
         }
         if self.closed_at < self.opened_at {
-            return Err(DomainError::Validation("analytics close timestamp cannot precede open timestamp".into()));
+            return Err(DomainError::Validation(
+                "analytics close timestamp cannot precede open timestamp".into(),
+            ));
         }
         if self.risk_amount.is_some_and(|value| value < Decimal::ZERO) {
-            return Err(DomainError::Validation("analytics risk amount cannot be negative".into()));
+            return Err(DomainError::Validation(
+                "analytics risk amount cannot be negative".into(),
+            ));
         }
         if self.mfe_r.is_some_and(|value| value < Decimal::ZERO)
             || self.mae_r.is_some_and(|value| value > Decimal::ZERO)
         {
-            return Err(DomainError::Validation("MFE R must be non-negative and MAE R must be non-positive".into()));
+            return Err(DomainError::Validation(
+                "MFE R must be non-negative and MAE R must be non-positive".into(),
+            ));
         }
-        if self.discipline_score.is_some_and(|value| !(0..=100).contains(&value)) {
-            return Err(DomainError::Validation("discipline score must be between 0 and 100".into()));
+        if self
+            .discipline_score
+            .is_some_and(|value| !(0..=100).contains(&value))
+        {
+            return Err(DomainError::Validation(
+                "discipline score must be between 0 and 100".into(),
+            ));
         }
-        let ratings = [self.psychology.confidence, self.psychology.fear, self.psychology.fomo,
-            self.psychology.frustration, self.psychology.revenge_intensity, self.psychology.boredom];
-        if ratings.iter().flatten().any(|value| !(0..=10).contains(value)) {
-            return Err(DomainError::Validation("psychology ratings must be between 0 and 10".into()));
+        let ratings = [
+            self.psychology.confidence,
+            self.psychology.fear,
+            self.psychology.fomo,
+            self.psychology.frustration,
+            self.psychology.revenge_intensity,
+            self.psychology.boredom,
+        ];
+        if ratings
+            .iter()
+            .flatten()
+            .any(|value| !(0..=10).contains(value))
+        {
+            return Err(DomainError::Validation(
+                "psychology ratings must be between 0 and 10".into(),
+            ));
         }
         Ok(())
     }
 
     pub fn realized_r(&self) -> Option<Decimal> {
-        self.stored_r_multiple.or_else(|| self.risk_amount
-            .filter(|risk| *risk > Decimal::ZERO).map(|risk| self.net_pnl / risk))
+        self.stored_r_multiple.or_else(|| {
+            self.risk_amount
+                .filter(|risk| *risk > Decimal::ZERO)
+                .map(|risk| self.net_pnl / risk)
+        })
     }
 
     pub fn holding_seconds(&self) -> i64 {
-        self.closed_at.signed_duration_since(self.opened_at).num_seconds().max(0)
+        self.closed_at
+            .signed_duration_since(self.opened_at)
+            .num_seconds()
+            .max(0)
     }
 
     pub fn mfe_capture_percent(&self) -> Option<Decimal> {
         match (self.realized_r(), self.mfe_r) {
-            (Some(realized), Some(mfe)) if mfe > Decimal::ZERO =>
-                Some(realized / mfe * Decimal::from(100)),
+            (Some(realized), Some(mfe)) if mfe > Decimal::ZERO => {
+                Some(realized / mfe * Decimal::from(100))
+            }
             _ => None,
         }
     }
@@ -249,15 +282,28 @@ mod trade_analytics_fact_tests {
 
     fn fixture() -> TradeAnalyticsFact {
         TradeAnalyticsFact {
-            trade_id: "trade-1".into(), symbol: "EURUSD".into(), direction: "long".into(),
-            setup: "breakout".into(), session: Some("London".into()),
+            trade_id: "trade-1".into(),
+            symbol: "EURUSD".into(),
+            direction: "long".into(),
+            setup: "breakout".into(),
+            session: Some("London".into()),
             opened_at: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
             closed_at: Utc.timestamp_opt(1_700_003_600, 0).unwrap(),
-            net_pnl: Decimal::from(100), risk_amount: Some(Decimal::from(50)),
-            stored_r_multiple: None, mfe_r: Some(Decimal::from(3)), mae_r: Some(Decimal::new(-5, 1)),
-            setup_valid: Some(true), rules_followed: Some(true), emotional_trade: Some(false),
-            mistake: Some(false), discipline_score: Some(90),
-            psychology: TradePsychologyFact { confidence: Some(8), fear: Some(2), ..TradePsychologyFact::default() },
+            net_pnl: Decimal::from(100),
+            risk_amount: Some(Decimal::from(50)),
+            stored_r_multiple: None,
+            mfe_r: Some(Decimal::from(3)),
+            mae_r: Some(Decimal::new(-5, 1)),
+            setup_valid: Some(true),
+            rules_followed: Some(true),
+            emotional_trade: Some(false),
+            mistake: Some(false),
+            discipline_score: Some(90),
+            psychology: TradePsychologyFact {
+                confidence: Some(8),
+                fear: Some(2),
+                ..TradePsychologyFact::default()
+            },
         }
     }
 
@@ -267,13 +313,19 @@ mod trade_analytics_fact_tests {
         assert!(fact.validate().is_ok());
         assert_eq!(fact.realized_r(), Some(Decimal::from(2)));
         assert_eq!(fact.holding_seconds(), 3_600);
-        assert_eq!(fact.mfe_capture_percent(), Some(Decimal::from(2) / Decimal::from(3) * Decimal::from(100)));
+        assert_eq!(
+            fact.mfe_capture_percent(),
+            Some(Decimal::from(2) / Decimal::from(3) * Decimal::from(100))
+        );
         assert_eq!(fact.profit_surrendered_r(), Some(Decimal::ONE));
     }
 
     #[test]
     fn preserves_missing_risk_and_excursion_as_missing() {
-        let mut fact = fixture(); fact.risk_amount = None; fact.stored_r_multiple = None; fact.mfe_r = None;
+        let mut fact = fixture();
+        fact.risk_amount = None;
+        fact.stored_r_multiple = None;
+        fact.mfe_r = None;
         assert_eq!(fact.realized_r(), None);
         assert_eq!(fact.mfe_capture_percent(), None);
         assert_eq!(fact.profit_surrendered_r(), None);
@@ -281,9 +333,11 @@ mod trade_analytics_fact_tests {
 
     #[test]
     fn rejects_invalid_timestamp_and_psychology_rating() {
-        let mut fact = fixture(); fact.closed_at = fact.opened_at - chrono::Duration::seconds(1);
+        let mut fact = fixture();
+        fact.closed_at = fact.opened_at - chrono::Duration::seconds(1);
         assert!(fact.validate().is_err());
-        let mut fact = fixture(); fact.psychology.fear = Some(11);
+        let mut fact = fixture();
+        fact.psychology.fear = Some(11);
         assert!(fact.validate().is_err());
     }
 }
