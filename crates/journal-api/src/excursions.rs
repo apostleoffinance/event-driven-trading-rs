@@ -1,12 +1,12 @@
 //! Owner-scoped persistence for excursion metrics derived from historical candles.
 
-use chrono::{DateTime, Utc};
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
