@@ -229,3 +229,141 @@
 
 .analytics-page .analytics-insight-select { border: 0; padding: 0; background: transparent; color: var(--accent); text-align: left; font: inherit; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .analytics-page .analytics-insight-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+
+/* Analytics Lab refinement: stable KPI sizing, readable drilldowns and responsive data surfaces. */
+.analytics-page .grid-kpi,
+.analytics-page .grid-dash,
+.analytics-page .analytics-secondary-grid,
+.analytics-page .calendar-month-stats { min-width: 0; }
+.analytics-page .grid-kpi > .panel,
+.analytics-page .grid-kpi > .analytics-kpi-card,
+.analytics-page .calendar-month-stats > .panel {
+  display: flex;
+  min-width: 0;
+  min-height: 112px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 9px;
+  overflow: hidden;
+}
+.analytics-page .grid-kpi > .panel .metric-label,
+.analytics-page .grid-kpi > .analytics-kpi-card .metric-label,
+.analytics-page .calendar-month-stats .metric-label {
+  display: block;
+  min-height: 0;
+  max-width: 100%;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: .055em;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.analytics-page .grid-kpi > .panel .metric-value,
+.analytics-page .grid-kpi > .analytics-kpi-card .metric-value,
+.analytics-page .calendar-month-stats .metric-value {
+  display: block;
+  max-width: 100%;
+  font-size: clamp(20px, 1.7vw, 27px);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.analytics-page .grid-kpi > .panel .metric-sub { font-size: 11px; line-height: 1.45; }
+.analytics-page .grid-dash > .panel,
+.analytics-page .grid-dash > section.panel { min-width: 0; }
+.analytics-page .grid-dash .data-table-wrap { width: 100%; }
+.analytics-page .data-table { width: 100%; }
+.analytics-page .data-table th,
+.analytics-page .data-table td { white-space: nowrap; }
+.analytics-page .data-table th.num,
+.analytics-page .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.analytics-page .analytics-hourly-panel { grid-column: 1 / -1; }
+.analytics-page .analytics-filter-panel,
+.analytics-page .analytics-tabs { min-width: 0; max-width: 100%; }
+.analytics-page .analytics-insights-grid > *,
+.analytics-page .analytics-secondary-grid > * { min-width: 0; }
+
+.trade-investigation-backdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  display: grid; place-items: center;
+  padding: clamp(10px, 3vw, 28px);
+  background: rgb(0 0 0 / 68%);
+  backdrop-filter: blur(5px);
+}
+.trade-investigation {
+  width: min(920px, 100%);
+  max-height: min(90dvh, 980px);
+  overflow: auto;
+  padding: clamp(18px, 2.5vw, 30px);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-1);
+  color: var(--text);
+  box-shadow: 0 28px 90px rgb(0 0 0 / 48%);
+}
+.trade-investigation-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 18px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
+}
+.trade-investigation-header h2 { margin: 7px 0 6px; font-size: clamp(21px, 2.3vw, 28px); letter-spacing: -.035em; }
+.trade-investigation-header h2 span { color: var(--text-muted); }
+.trade-investigation-header p { margin: 0; font-size: 12px; line-height: 1.6; }
+.trade-investigation-header .btn { flex: 0 0 auto; }
+.trade-investigation-section { padding: 20px 0; border-bottom: 1px solid var(--border); }
+.trade-investigation-section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.trade-investigation-section-heading h3 { margin: 0; font-size: 14px; font-weight: 700; }
+.trade-investigation-section-heading p { margin: 0; color: var(--text-muted); font-size: 11px; }
+.trade-investigation-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.trade-metric-card {
+  display: flex; min-width: 0; min-height: 92px; flex-direction: column;
+  justify-content: space-between; gap: 12px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--bg-2);
+}
+.trade-metric-card span { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+.trade-metric-card strong { font-size: clamp(19px, 2vw, 25px); line-height: 1.2; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.trade-investigation-primary .trade-metric-card:first-child { border-color: color-mix(in srgb, var(--positive) 38%, var(--border)); }
+.trade-investigation-secondary .trade-metric-card { min-height: 86px; }
+.trade-investigation-secondary .trade-metric-card strong { font-size: clamp(17px, 1.7vw, 22px); }
+.trade-data-note { margin: 12px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.trade-detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.trade-detail-grid > div { min-width: 0; padding: 12px; border-radius: 8px; background: var(--bg-2); }
+.trade-detail-grid dt { color: var(--text-muted); font-size: 10px; margin-bottom: 5px; }
+.trade-detail-grid dd { margin: 0; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.trade-psychology-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.trade-psychology-grid > div,
+.trade-psychology-scores > div { display: flex; min-width: 0; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.trade-psychology-grid span,
+.trade-psychology-scores span { color: var(--text-muted); font-size: 11px; }
+.trade-psychology-grid strong,
+.trade-psychology-scores strong { font-size: 12px; overflow-wrap: anywhere; text-align: right; }
+.trade-psychology-scores { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
+.trade-investigation-footer { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; padding-top: 16px; color: var(--text-muted); font-size: 11px; }
+.trade-investigation-footer code { color: var(--text); overflow-wrap: anywhere; }
+.trade-investigation-footer p { grid-column: 1 / -1; margin: 2px 0 0; line-height: 1.5; }
+@media (max-width: 1100px) {
+  .analytics-page .grid-dash > .panel { grid-column: 1 / -1; }
+  .analytics-page .analytics-hourly-panel { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .trade-investigation-backdrop { padding: 0; place-items: stretch; }
+  .trade-investigation { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; padding: 18px 16px; }
+  .trade-investigation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trade-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trade-psychology-scores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-page .analytics-hourly-panel { grid-column: auto; }
+}
+@media (max-width: 420px) {
+  .trade-investigation-header { gap: 10px; }
+  .trade-investigation-header .btn { padding-inline: 9px; }
+  .trade-investigation-header p { max-width: 245px; }
+  .trade-investigation-section { padding: 16px 0; }
+  .trade-investigation-metrics { gap: 8px; }
+  .trade-metric-card { min-height: 82px; padding: 11px; }
+  .trade-detail-grid { gap: 7px; }
+  .trade-psychology-grid { grid-template-columns: 1fr; }
+}
