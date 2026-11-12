@@ -36,10 +36,8 @@ fn london_dst(at: &DateTime<Utc>) -> bool {
     let hour = at.hour();
     match month {
         4..=9 => true,
-        3 => day > last_sunday(at.year(), 3)
-            || (day == last_sunday(at.year(), 3) && hour >= 1),
-        10 => day < last_sunday(at.year(), 10)
-            || (day == last_sunday(at.year(), 10) && hour < 1),
+        3 => day > last_sunday(at.year(), 3) || (day == last_sunday(at.year(), 3) && hour >= 1),
+        10 => day < last_sunday(at.year(), 10) || (day == last_sunday(at.year(), 10) && hour < 1),
         _ => false,
     }
 }
@@ -50,10 +48,10 @@ fn new_york_dst(at: &DateTime<Utc>) -> bool {
     let hour = at.hour();
     match month {
         4..=10 => true,
-        3 => day > nth_sunday(at.year(), 3, 2)
-            || (day == nth_sunday(at.year(), 3, 2) && hour >= 7),
-        11 => day < nth_sunday(at.year(), 11, 1)
-            || (day == nth_sunday(at.year(), 11, 1) && hour < 6),
+        3 => day > nth_sunday(at.year(), 3, 2) || (day == nth_sunday(at.year(), 3, 2) && hour >= 7),
+        11 => {
+            day < nth_sunday(at.year(), 11, 1) || (day == nth_sunday(at.year(), 11, 1) && hour < 6)
+        }
         _ => false,
     }
 }
@@ -93,10 +91,9 @@ pub fn calculate_fx_metrics(
     opened_at: &DateTime<Utc>,
 ) -> DerivedTradeMetrics {
     const CURRENCIES: [&str; 32] = [
-        "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK",
-        "DKK", "PLN", "CZK", "HUF", "TRY", "SGD", "HKD", "MXN", "ZAR", "CNH",
-        "CNY", "INR", "BRL", "RUB", "ILS", "THB", "KRW", "PHP", "IDR", "MYR",
-        "AED", "SAR",
+        "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK", "DKK", "PLN", "CZK",
+        "HUF", "TRY", "SGD", "HKD", "MXN", "ZAR", "CNH", "CNY", "INR", "BRL", "RUB", "ILS", "THB",
+        "KRW", "PHP", "IDR", "MYR", "AED", "SAR",
     ];
     let pair = symbol
         .chars()
@@ -252,7 +249,10 @@ mod tests {
         let before_us_dst = Utc.with_ymd_and_hms(2026, 3, 7, 12, 30, 0).unwrap();
         let after_us_dst = Utc.with_ymd_and_hms(2026, 3, 8, 12, 30, 0).unwrap();
         assert_eq!(classify_fx_session(&before_us_dst), "London");
-        assert_eq!(classify_fx_session(&after_us_dst), "London/New York overlap");
+        assert_eq!(
+            classify_fx_session(&after_us_dst),
+            "London/New York overlap"
+        );
 
         let before_us_standard = Utc.with_ymd_and_hms(2026, 10, 31, 12, 30, 0).unwrap();
         let after_us_standard = Utc.with_ymd_and_hms(2026, 11, 1, 12, 30, 0).unwrap();
