@@ -6,7 +6,7 @@ use axum::{
     Json,
 };
 use chrono::{DateTime, Utc};
-use domain::summarize_net_pnl;
+use domain::{summarize_net_pnl, TradeAnalyticsFact, TradePsychologyFact};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::FromRow;
@@ -58,22 +58,6 @@ struct TradeFact {
 
 fn auth_error(error: ApiAuthError) -> Response {
     error.into_response()
-}
-
-fn mfe_capture_percent(realized_r: Option<Decimal>, mfe_r: Option<Decimal>) -> Option<Decimal> {
-    match (realized_r, mfe_r) {
-        (Some(realized), Some(mfe)) if mfe > Decimal::ZERO => {
-            Some(realized / mfe * Decimal::from(100))
-        }
-        _ => None,
-    }
-}
-
-fn profit_surrendered_r(mfe_r: Option<Decimal>, realized_r: Option<Decimal>) -> Option<Decimal> {
-    match (mfe_r, realized_r) {
-        (Some(mfe), Some(realized)) if mfe > realized => Some(mfe - realized),
-        _ => None,
-    }
 }
 
 pub async fn summary(
@@ -280,11 +264,45 @@ pub async fn summary(
             .entry(fact.closed_at.format("%Y-%m").to_string())
             .or_default()
             .push(fact.net_pnl);
-        let realized_r = fact.r_multiple.or_else(|| {
-            fact.risk_amount
-                .filter(|risk| *risk > Decimal::ZERO)
-                .map(|risk| fact.net_pnl / risk)
-        });
+        let analytics_fact = TradeAnalyticsFact {
+            trade_id: fact.id.clone(),
+            symbol: fact.symbol.clone(),
+            direction: fact.direction.clone(),
+            setup: fact.setup_name.clone(),
+            session: fact.session.clone(),
+            opened_at: fact.opened_at,
+            closed_at: fact.closed_at,
+            net_pnl: fact.net_pnl,
+            risk_amount: fact.risk_amount,
+            stored_r_multiple: fact.r_multiple,
+            mfe_r: fact.mfe_r,
+            mae_r: fact.mae_r,
+            setup_valid: fact.setup_valid,
+            rules_followed: fact.rules_followed,
+            emotional_trade: fact.emotional_trade,
+            mistake: fact.mistake,
+            discipline_score: fact.discipline_score,
+            psychology: TradePsychologyFact {
+                emotion_before: fact.emotion_before.clone(),
+                emotion_during: fact.emotion_during.clone(),
+                emotion_after: fact.emotion_after.clone(),
+                confidence: fact.confidence,
+                fear: fact.fear,
+                fomo: fact.fomo,
+                frustration: fact.frustration,
+                revenge_intensity: fact.revenge_intensity,
+                boredom: fact.boredom,
+            },
+        };
+        if analytics_fact.validate().is_err() {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error":{"code":"invalid_trade_analytics_fact","message":"A stored Journal record failed analytics validation."}
+                })),
+            ).into_response();
+        }
+        let realized_r = analytics_fact.realized_r();
         if let Some(r) = realized_r {
             total_r += r;
             r_count += 1;
@@ -295,11 +313,7 @@ pub async fn summary(
             risk_max = risk_max.max(risk);
             risk_values.push(risk);
         }
-        let held = fact
-            .closed_at
-            .signed_duration_since(fact.opened_at)
-            .num_seconds()
-            .max(0);
+        let held = analytics_fact.holding_seconds();
         holding_seconds.push(held);
         if fact.net_pnl > Decimal::ZERO {
             current_win_streak += 1;
@@ -348,7 +362,7 @@ pub async fn summary(
             "mae_r": fact.mae_r.map(|v|v.to_string()),
             "holding_seconds": held,
             "mfe_capture_percent": capture.map(|v|v.to_string()),
-            "profit_surrendered_r": profit_surrendered_r(fact.mfe_r, realized_r).map(|v|v.to_string()),
+            "profit_surrendered_r": analytics_fact.profit_surrendered_r().map(|v|v.to_string()),
             "stop_loss_recorded": fact.stop_loss.is_some(),
             "take_profit_recorded": fact.take_profit.is_some(),
             "entry_price": fact.entry_price.to_string(),
