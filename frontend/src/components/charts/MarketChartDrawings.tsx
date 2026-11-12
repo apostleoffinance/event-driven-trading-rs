@@ -9,7 +9,7 @@ type Kind = "horizontal-ray"|"vertical-line"|"trendline"|"rectangle"|"parallel-c
 type Tool = Kind|"select";
 type Drawing = { id:string; kind:Kind; anchors:Anchor[]; color:string; width:number; dash:"solid"|"dashed"|"dotted"; label:string; visible:boolean; locked:boolean };
 type Template = { name:string; instrument:string; timeframe:string; drawings:Drawing[]; showVolume:boolean; showSma:boolean };
-type Props = { chart:IChartApi|null; series:ISeriesApi<"Candlestick">|null; ready:boolean; instrument:string; timeframe:string; precision:number; showVolume:boolean; showSma:boolean; onShowVolumeChange:(value:boolean)=>void; onShowSmaChange:(value:boolean)=>void };
+type Props = { chart:IChartApi|null; series:ISeriesApi<"Candlestick">|null; ready:boolean; instrument:string; timeframe:string; precision:number; showVolume:boolean; showSma:boolean; onShowVolumeChange:(value:boolean)=>void; onShowSmaChange:(value:boolean)=>void; children?:ReactNode };
 const tools:{id:Tool;label:string;hint:string}[]=[
  {id:"select",label:"Select",hint:"Select drawings and drag their handles"},
  {id:"horizontal-ray",label:"Horizontal ray",hint:"Click once to place a price ray"},
@@ -35,7 +35,7 @@ const timeOf=(t:number)=>t as Time;
 const localDateTime=(seconds:number)=>{const d=new Date(seconds*1000),pad=(value:number)=>String(value).padStart(2,"0");return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;};
 const create=(kind:Kind,anchors:Anchor[]):Drawing=>({id:crypto.randomUUID?.()??String(Date.now()+Math.random()),kind,anchors,color:kind==="long-position"?"#26a69a":kind==="short-position"?"#ef5350":colors[0],width:2,dash:"solid",label:tools.find(x=>x.id===kind)?.label??kind,visible:true,locked:false});
 
-export function MarketChartDrawings({chart,series,ready,instrument,timeframe,precision,showVolume,showSma,onShowVolumeChange,onShowSmaChange}:Props){
+export function MarketChartDrawings({chart,series,ready,instrument,timeframe,precision,showVolume,showSma,onShowVolumeChange,onShowSmaChange,children}:Props){
  const [tool,setTool]=useState<Tool>("select"),[drawings,setDrawings]=useState<Drawing[]>([]),[draft,setDraft]=useState<Anchor[]>([]);
  const [,setViewportVersion]=useState(0);
  const [selected,setSelected]=useState<string|null>(null),[undoStack,setUndoStack]=useState<Drawing[][]>([]),[redoStack,setRedoStack]=useState<Drawing[][]>([]);
@@ -84,6 +84,18 @@ export function MarketChartDrawings({chart,series,ready,instrument,timeframe,pre
   <div className="market-drawing-toolbar">><div className="market-drawing-tools" role="toolbar" aria-label="Chart drawing tools">{tools.map(t=><button key={t.id} type="button" title={t.hint} className={tool===t.id?"active":""} aria-pressed={tool===t.id} onClick={()=>{setTool(t.id);setDraft([]);}}>{t.label}</button>)}</div>
    <div className="market-drawing-actions"><button onClick={undo} disabled={!undoStack.length}>Undo</button><button onClick={redo} disabled={!redoStack.length}>Redo</button><button onClick={()=>{commit([]);setSelected(null);}}>Clear all</button><button onClick={exportFile}>Export</button><label className="market-import-button">Import<input type="file" accept=".json,application/json" onChange={e=>{void importFile(e.target.files?.[0]);e.currentTarget.value="";}}/></label></div></div>
    <p className="market-drawing-hint" aria-live="polite">{tool==="select"?"Select a drawing or drag its anchor handles.":tools.find(t=>t.id===tool)?.hint} {draft.length?(` · ${draft.length}/${count(tool as Kind)} points placed`):""} {status}</p>
+  <p className="market-drawing-hint" aria-live="polite">{tool==="select"?"Select a drawing or drag its anchor handles.":tools.find(t=>t.id===tool)?.hint} {draft.length?(` · ${draft.length}/${count(tool as Kind)} points placed`):""} {status}</p>
+
+  <div className="market-drawing-stage">
+   {children}
+   <div className="market-drawing-overlay-host ${tool!=="select"?"is-interactive":""}" style={{width:size.w,height:size.h}} data-pane-width={size.w} data-pane-height={size.h}>
+    <svg ref={svgRef} className={`market-drawing-overlay ${tool!=="select"?"is-drawing":""}`} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
+     {drawings.map(render)}
+     {draft.map((a,i)=>{const p=xy(a);return p?<circle key={i} cx={p.x} cy={p.y} r="4" fill="#e5ad48"/>:null;})}
+    </svg>
+   </div>
+  </div>
+
  <div className="market-drawing-manager">"><div className="market-drawing-list"><strong>Drawings ({drawings.length}) · {instrument} / {timeframe}</strong>{drawings.length===0?<p>No drawings yet.</p>:drawings.map(d=><div className={`market-drawing-row ${selected===d.id?"selected":""}`} key={d.id}><button className="market-drawing-name" onClick={()=>{setSelected(d.id);setTool("select");}}><i style={{background:d.color}}/>{d.label}</button><button onClick={()=>commit(drawings.map(x=>x.id===d.id?{...x,visible:!x.visible}:x))}>{d.visible?"Hide":"Show"}</button><button onClick={()=>commit(drawings.map(x=>x.id===d.id?{...x,locked:!x.locked}:x))}>{d.locked?"Unlock":"Lock"}</button><button disabled={drawings.length>=500} onClick={()=>commit([...drawings,{...copy(d),id:crypto.randomUUID?.()??String(Date.now()+Math.random()),label:d.label+" copy"}])}>Duplicate</button><button onClick={()=>{commit(drawings.filter(x=>x.id!==d.id));if(selected===d.id)setSelected(null);}}>Delete</button></div>)}</div>
   {active?<div className="market-drawing-inspector"><strong>Edit drawing</strong><label>Label<input value={active.label} onChange={e=>patch({label:e.target.value})}/></label><label>Colour<input type="color" value={color} onChange={e=>{setColor(e.target.value);patch({color:e.target.value});}}/></label><label>Width<select value={width} onChange={e=>{setWidth(e.target.value);patch({width:Number(e.target.value)});}}><option>1</option><option>2</option><option>3</option><option>4</option></select></label><label>Line style<select value={dash} onChange={e=>{setDash(e.target.value as Drawing["dash"]);patch({dash:e.target.value as Drawing["dash"]});}}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label><label>Anchor 1 price<input value={anchorPrice} onChange={e=>setAnchorPrice(e.target.value)}/></label><label>Anchor 1 time (local)<input type="datetime-local" value={anchorTime} onChange={e=>setAnchorTime(e.target.value)}/></label><button onClick={applyAnchor} disabled={active.locked}>Apply anchor</button>
    {(active.kind==="long-position"||active.kind==="short-position")&&active.anchors.length===3?<p>Risk {Math.abs(active.anchors[0].price-active.anchors[1].price).toFixed(precision)} · Reward {Math.abs(active.anchors[2].price-active.anchors[0].price).toFixed(precision)} · R:R {Math.abs(active.anchors[0].price-active.anchors[1].price)>0?(Math.abs(active.anchors[2].price-active.anchors[0].price)/Math.abs(active.anchors[0].price-active.anchors[1].price)).toFixed(2):"—"}</p>:null}
