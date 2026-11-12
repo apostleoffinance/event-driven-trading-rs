@@ -413,7 +413,9 @@ pub async fn summary(
         / Decimal::from(stats.trade_count as u64);
     risk_values.sort();
     let risk_quantile = |numerator: usize| -> Option<Decimal> {
-        if risk_values.is_empty() { None } else {
+        if risk_values.is_empty() {
+            None
+        } else {
             let index = (risk_values.len() - 1) * numerator / 4;
             risk_values.get(index).copied()
         }
