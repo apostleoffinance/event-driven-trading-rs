@@ -264,6 +264,13 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
         </div>
       </header>
 
+      <div className="market-chart-toolbar">
+        <div className="market-tool-group">
+          <label><input type="checkbox" checked={showVolume} onChange={e => setShowVolume(e.target.checked)} /> Volume</label>
+          <label><input type="checkbox" checked={showSma} onChange={e => setShowSma(e.target.checked)} /> SMA 20</label>
+        </div>
+        <span className="market-chart-toolbar-note">Custom drawings are managed below the chart</span>
+      </div>
       <div className="market-ohlc-strip">
         {([["OPEN", latest?.open],["HIGH", latest?.high],["LOW", latest?.low],["CLOSE", latest?.close],["VOLUME", latest?.volume ?? undefined]] as const).map(([label, value]) =>
           <div key={label}><span>{label}</span><strong>{label === "VOLUME" && value != null ? Number(value).toLocaleString("en-US") : fmt(value)}</strong></div>
