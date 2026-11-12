@@ -242,6 +242,7 @@ impl TradeAnalyticsFact {
 
 #[cfg(test)]
 mod trade_analytics_fact_tests {
+    #![allow(clippy::unwrap_used)]
     use super::{TradeAnalyticsFact, TradePsychologyFact};
     use chrono::{TimeZone, Utc};
     use rust_decimal::Decimal;
