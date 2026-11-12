@@ -37,7 +37,11 @@ fn bad_request(message: &str) -> Response {
         .into_response()
 }
 
-async fn owns_account(state: &AppState, owner_id: &str, account_id: &str) -> bool {
+async fn owns_account(
+    state: &AppState,
+    owner_id: &str,
+    account_id: &str,
+) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM journal_accounts WHERE owner_id=$1 AND id=$2 AND archived=FALSE)",
     )
@@ -45,7 +49,43 @@ async fn owns_account(state: &AppState, owner_id: &str, account_id: &str) -> boo
     .bind(account_id)
     .fetch_one(state.store.pool())
     .await
-    .unwrap_or(false)
+}
+
+fn internal_error() -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "error": {
+                "code": "internal_error",
+                "message": "Internal server error"
+            }
+        })),
+    )
+        .into_response()
+}
+
+async fn owns_account_response(
+    state: &AppState,
+    owner_id: &str,
+    account_id: &str,
+) -> Result<(), Response> {
+    match owns_account(state, owner_id, account_id).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": {
+                    "code": "not_found",
+                    "message": "Journal account not found"
+                }
+            })),
+        )
+            .into_response()),
+        Err(error) => {
+            tracing::error!(%error, "saved-view account ownership lookup failed");
+            Err(internal_error())
+        }
+    }
 }
 
 pub async fn list(
@@ -58,8 +98,10 @@ pub async fn list(
         Err(error) => return error.into_response(),
     };
     if let Some(account_id) = query.journal_account_id.as_deref() {
-        if !owns_account(&state, &claims.sub, account_id).await {
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":{"code":"not_found","message":"Journal account not found"}}))).into_response();
+        if let Err(response) =
+            owns_account_response(&state, &claims.sub, account_id).await
+        {
+            return response;
         }
     }
     let scope = query.journal_account_id.unwrap_or_else(|| "*".to_string());
@@ -93,8 +135,10 @@ pub async fn upsert(
         return bad_request("Saved view filters must be a JSON object");
     }
     if let Some(account_id) = input.journal_account_id.as_deref() {
-        if !owns_account(&state, &claims.sub, account_id).await {
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":{"code":"not_found","message":"Journal account not found"}}))).into_response();
+        if let Err(response) =
+            owns_account_response(&state, &claims.sub, account_id).await
+        {
+            return response;
         }
     }
     let scope = input.journal_account_id.unwrap_or_else(|| "*".to_string());
