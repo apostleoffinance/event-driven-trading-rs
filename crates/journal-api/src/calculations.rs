@@ -1,6 +1,62 @@
 //! Deterministic journal calculations. These calculations never affect execution.
-use chrono::{DateTime, Timelike, Utc};
-use chrono_tz::{America::New_York, Europe::London};
+use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc, Weekday};
+use rust_decimal::Decimal;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DerivedTradeMetrics {
+    pub gross_pnl: Option<Decimal>,
+    pub net_pnl: Option<Decimal>,
+    pub r_multiple: Option<Decimal>,
+    pub risk_amount: Option<Decimal>,
+    pub session: String,
+}
+
+fn nth_sunday(year: i32, month: u32, nth: u32) -> u32 {
+    let first = NaiveDate::from_ymd_opt(year, month, 1).expect("valid month");
+    let offset = (7 - first.weekday().num_days_from_sunday()) % 7;
+    1 + offset + (nth - 1) * 7
+}
+fn last_sunday(year: i32, month: u32) -> u32 {
+    (1..=31).rev().find(|day| NaiveDate::from_ymd_opt(year, month, *day).is_some_and(|date| date.weekday() == Weekday::Sun)).expect("month has a Sunday")
+}
+fn london_dst(at: DateTime<Utc>) -> bool {
+    let month = at.month();
+    let day = at.day();
+    let hour = at.hour();
+    match month {
+        4..=9 => true,
+        3 => day > last_sunday(at.year(), 3) || (day == last_sunday(at.year(), 3) && hour >= 1),
+        10 => day < last_sunday(at.year(), 10) || (day == last_sunday(at.year(), 10) && hour < 1),
+        _ => false,
+    }
+}
+fn new_york_dst(at: DateTime<Utc>) -> bool {
+    let month = at.month();
+    let day = at.day();
+    let hour = at.hour();
+    match month {
+        4..=10 => true,
+        3 => day > nth_sunday(at.year(), 3, 2) || (day == nth_sunday(at.year(), 3, 2) && hour >= 7),
+        11 => day < nth_sunday(at.year(), 11, 1) || (day == nth_sunday(at.year(), 11, 1) && hour < 6),
+        _ => false,
+    }
+}
+/// Classify UTC timestamps against London and New York local session hours,
+/// including the distinct US/UK daylight-saving transition dates.
+pub fn classify_fx_session(at: DateTime<Utc>) -> String {
+    let london_hour = (at.hour() as i32 + if london_dst(at) { 1 } else { 0 }) % 24;
+    let new_york_offset = if new_york_dst(at) { 4 } else { 5 };
+    let new_york_hour = (at.hour() as i32 - new_york_offset + 24) % 24;
+    let london_open = (8..17).contains(&london_hour);
+    let new_york_open = (8..17).contains(&new_york_hour);
+    match (london_open, new_york_open) {
+        (true, true) => "London/New York overlap".into(),
+        (true, false) => "London".into(),
+        (false, true) => "New York".into(),
+        _ => "Asia/Pacific".into(),
+    }
+}/! Deterministic journal calculations. These calculations never affect execution.
+use chrono::{DateTime, Datelike, NaiveDate, Timelike, Utc, Weekday};
 use rust_decimal::Decimal;
 
 #[derive(Debug, Clone, PartialEq)]
