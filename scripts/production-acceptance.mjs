@@ -155,7 +155,7 @@ try {
     const drawAt = async (x, y) => drawingSvg.click({ position: { x, y }, force: true });
     const priceAt = async (x, y) => drawingSvg.evaluate((svg, point) => {
       const svgRect = svg.getBoundingClientRect();
-      const chartCanvas = svg.closest(".market-chart-stage")?.querySelector(".market-chart-canvas");
+      const chartCanvas = svg.closest(".market-drawing-stage")?.querySelector(".market-chart-canvas");
       const canvasRect = chartCanvas?.getBoundingClientRect();
       if (!canvasRect) throw new Error("Chart canvas is unavailable");
       const panes = [...(chartCanvas?.querySelectorAll("canvas") ?? [])];
