@@ -68,11 +68,13 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
     item.id === trade.symbol || item.symbol?.toUpperCase() === trade.symbol.toUpperCase(),
   );
   const fallbackProvider = providersQuery.data?.find((item) => {
+    if (item.id === "demo") return false;
     if (!item.status || typeof item.status !== "object") return true;
     const state = String((item.status as { state?: unknown }).state ?? "").toLowerCase();
     return !["disabled", "unavailable", "not_implemented"].includes(state);
   })?.id ?? "";
-  const selectedProvider = providerOverride || String(instrument?.default_provider ?? fallbackProvider);
+  const configuredProvider = String(instrument?.default_provider ?? "");
+  const selectedProvider = providerOverride || (configuredProvider && configuredProvider !== "demo" ? configuredProvider : fallbackProvider);
   const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) &&
     new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
 
@@ -150,6 +152,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   }, [expanded, isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider]);
 
   const availableProviders = providersQuery.data?.filter((item) => {
+    if (item.id === "demo") return false;
     if (!item.status || typeof item.status !== "object") return true;
     const state = String((item.status as { state?: unknown }).state ?? "").toLowerCase();
     return !["disabled", "unavailable", "not_implemented"].includes(state);
