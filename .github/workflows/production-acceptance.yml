@@ -7,10 +7,12 @@ on:
     paths:
       - "scripts/production-acceptance.mjs"
       - ".github/workflows/production-acceptance.yml"
+      - "frontend/**"
   pull_request:
     paths:
       - "scripts/production-acceptance.mjs"
       - ".github/workflows/production-acceptance.yml"
+      - "frontend/**"
   workflow_dispatch:
 
 permissions:
@@ -34,19 +36,51 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
 
+      - name: Build and launch PR Cloudflare Worker preview
+        working-directory: frontend
+        run: |
+          npm run cloudflare:build
+          npx opennextjs-cloudflare preview > /tmp/worker-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          echo "$PREVIEW_PID" > /tmp/edgenest-worker-preview.pid
+          for attempt in $(seq 1 40); do
+            if curl --silent --show-error --fail http://127.0.0.1:8787/ -o /tmp/worker-home.html; then
+              echo "PR Cloudflare Worker preview returned HTTP 200"
+              exit 0
+            fi
+            if ! kill -0 "$PREVIEW_PID" 2>/dev/null; then
+              cat /tmp/worker-preview.log
+              exit 1
+            fi
+            sleep 3
+          done
+          cat /tmp/worker-preview.log
+          echo "PR Cloudflare Worker preview did not become ready in time"
+          exit 1
+
       - name: Install Playwright browser tooling
         run: |
           npm install --prefix frontend --no-save --package-lock=false playwright@1.56.1
           npx --prefix frontend playwright install --with-deps chromium
 
-      - name: Verify production API and six responsive viewports
+      - name: Verify live production API and PR Worker preview
         env:
-          FRONTEND_URL: https://edgenest-frontend.edgenest.workers.dev
+          FRONTEND_URL: http://127.0.0.1:8787
           API_URL: https://edgenest-api.onrender.com
           ACCEPTANCE_ARTIFACT_DIR: artifacts/production-acceptance
           EDGENEST_ACCEPTANCE_EMAIL: ${{ secrets.EDGENEST_ACCEPTANCE_EMAIL }}
           EDGENEST_ACCEPTANCE_PASSWORD: ${{ secrets.EDGENEST_ACCEPTANCE_PASSWORD }}
         run: node scripts/production-acceptance.mjs
+
+      - name: Stop PR Cloudflare Worker preview
+        if: always()
+        run: |
+          if [ -f /tmp/edgenest-worker-preview.pid ]; then
+            kill "$(cat /tmp/edgenest-worker-preview.pid)" 2>/dev/null || true
+          fi
+          if [ -f /tmp/worker-preview.log ]; then
+            cat /tmp/worker-preview.log
+          fi
 
       - name: Upload production acceptance screenshots
         if: always()
