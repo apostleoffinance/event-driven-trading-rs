@@ -67,17 +67,17 @@ mod tests {
         Utc.with_ymd_and_hms(2026, 1, 12, hour, 0, 0).unwrap()
     }
     #[test]
-    fn calculates_long_short_pnl_and_fees() {
+    fn calculates_long_short_pnl_risk_and_fees() {
         let long = calculate_fx_metrics("EURUSD", true, Decimal::ONE,
             Decimal::new(10000, 4), Some(Decimal::new(10100, 4)),
-            Decimal::new(-2, 0), Decimal::new(-1, 0), Decimal::ZERO,
-            "USD", Some(Decimal::new(100, 0)), at(9));
+            Some(Decimal::new(9950, 4)), Decimal::from(2), Decimal::from(-1),
+            Decimal::ZERO, "USD", None, at(9));
         assert_eq!(long.gross_pnl, Some(Decimal::from(100)));
         assert_eq!(long.net_pnl, Some(Decimal::from(97)));
         assert_eq!(long.risk_amount, Some(Decimal::from(50)));
-        assert_eq!(long.r_multiple, Some(Decimal::new(97, 2)));
+        assert_eq!(long.r_multiple, Some(Decimal::new(194, 2)));
         let short = calculate_fx_metrics("EURUSD", false, Decimal::ONE,
-            Decimal::new(10100, 4), Some(Decimal::new(10000, 4)),
+            Decimal::new(10100, 4), Some(Decimal::new(10000, 4)), None,
             Decimal::ZERO, Decimal::ZERO, Decimal::ZERO, "USD", None, at(13));
         assert_eq!(short.gross_pnl, Some(Decimal::from(100)));
     }
@@ -90,8 +90,8 @@ mod tests {
         assert_eq!(result.net_pnl, None);
     }
     #[test]
-    fn classifies_sessions() {
-        assert_eq!(classify_fx_session(at(3)), "Asia");
+    fn classifies_dst_aware_sessions() {
+        assert_eq!(classify_fx_session(at(3)), "Asia/Pacific");
         assert_eq!(classify_fx_session(at(9)), "London");
         assert_eq!(classify_fx_session(at(13)), "London/New York overlap");
         assert_eq!(classify_fx_session(at(18)), "New York");
