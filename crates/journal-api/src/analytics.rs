@@ -278,7 +278,8 @@ pub async fn summary(
             .or_default()
             .push(fact.net_pnl);
         let realized_r = fact.r_multiple.or_else(|| {
-            fact.risk_amount.filter(|risk| *risk > Decimal::ZERO)
+            fact.risk_amount
+                .filter(|risk| *risk > Decimal::ZERO)
                 .map(|risk| fact.net_pnl / risk)
         });
         if let Some(r) = realized_r {
@@ -290,7 +291,11 @@ pub async fn summary(
             risk_count += 1;
             risk_max = risk_max.max(risk);
         }
-        let held = fact.closed_at.signed_duration_since(fact.opened_at).num_seconds().max(0);
+        let held = fact
+            .closed_at
+            .signed_duration_since(fact.opened_at)
+            .num_seconds()
+            .max(0);
         holding_seconds.push(held);
         if fact.net_pnl > Decimal::ZERO {
             current_win_streak += 1;
@@ -305,7 +310,9 @@ pub async fn summary(
             current_loss_streak = 0;
         }
         let capture = mfe_capture_percent(realized_r, fact.mfe_r);
-        if let Some(value) = capture { mfe_capture_values.push(value); }
+        if let Some(value) = capture {
+            mfe_capture_values.push(value);
+        }
         trade_metrics.push(serde_json::json!({
             "trade_id": fact.id.clone(),
             "symbol": fact.symbol.clone(),
@@ -370,19 +377,31 @@ pub async fn summary(
         }
     }
     holding_seconds.sort_unstable();
-    let average_holding_seconds = if holding_seconds.is_empty() { None } else {
+    let average_holding_seconds = if holding_seconds.is_empty() {
+        None
+    } else {
         Some(holding_seconds.iter().sum::<i64>() as f64 / holding_seconds.len() as f64)
     };
-    let median_holding_seconds = if holding_seconds.is_empty() { None } else {
-        let mid = holding_seconds.len()/2;
-        Some(if holding_seconds.len()%2==0 {
-            (holding_seconds[mid-1] as f64 + holding_seconds[mid] as f64)/2.0
-        } else { holding_seconds[mid] as f64 })
+    let median_holding_seconds = if holding_seconds.is_empty() {
+        None
+    } else {
+        let mid = holding_seconds.len() / 2;
+        Some(if holding_seconds.len() % 2 == 0 {
+            (holding_seconds[mid - 1] as f64 + holding_seconds[mid] as f64) / 2.0
+        } else {
+            holding_seconds[mid] as f64
+        })
     };
-    let average_mfe_capture_percent = if mfe_capture_values.is_empty() { None } else {
-        Some(mfe_capture_values.iter().copied().sum::<Decimal>() / Decimal::from(mfe_capture_values.len() as u64))
+    let average_mfe_capture_percent = if mfe_capture_values.is_empty() {
+        None
+    } else {
+        Some(
+            mfe_capture_values.iter().copied().sum::<Decimal>()
+                / Decimal::from(mfe_capture_values.len() as u64),
+        )
     };
-    let risk_coverage_percent = Decimal::from(risk_count as u64) * Decimal::from(100) / Decimal::from(stats.trade_count as u64);
+    let risk_coverage_percent = Decimal::from(risk_count as u64) * Decimal::from(100)
+        / Decimal::from(stats.trade_count as u64);
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
             .into_iter()
