@@ -159,10 +159,18 @@ pub struct TradeAnalyticsFact {
     pub opened_at: chrono::DateTime<chrono::Utc>,
     pub closed_at: chrono::DateTime<chrono::Utc>,
     pub net_pnl: Decimal,
+    pub entry_price: Decimal,
+    pub exit_price: Option<Decimal>,
+    pub stop_loss: Option<Decimal>,
+    pub take_profit: Option<Decimal>,
     pub risk_amount: Option<Decimal>,
     pub stored_r_multiple: Option<Decimal>,
     pub mfe_r: Option<Decimal>,
     pub mae_r: Option<Decimal>,
+    pub mfe_source: Option<String>,
+    pub mae_source: Option<String>,
+    pub mfe_precision: Option<String>,
+    pub mae_precision: Option<String>,
     pub setup_valid: Option<bool>,
     pub rules_followed: Option<bool>,
     pub emotional_trade: Option<bool>,
@@ -199,6 +207,15 @@ impl TradeAnalyticsFact {
         if self.closed_at < self.opened_at {
             return Err(DomainError::Validation(
                 "analytics close timestamp cannot precede open timestamp".into(),
+            ));
+        }
+        if self.entry_price <= Decimal::ZERO
+            || self.exit_price.is_some_and(|value| value <= Decimal::ZERO)
+            || self.stop_loss.is_some_and(|value| value <= Decimal::ZERO)
+            || self.take_profit.is_some_and(|value| value <= Decimal::ZERO)
+        {
+            return Err(DomainError::Validation(
+                "analytics entry, exit, stop and target prices must be positive when present".into(),
             ));
         }
         if self.risk_amount.is_some_and(|value| value < Decimal::ZERO) {
@@ -290,10 +307,18 @@ mod trade_analytics_fact_tests {
             opened_at: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
             closed_at: Utc.timestamp_opt(1_700_003_600, 0).unwrap(),
             net_pnl: Decimal::from(100),
+            entry_price: Decimal::ONE,
+            exit_price: Some(Decimal::new(101, 2)),
+            stop_loss: Some(Decimal::new(99, 2)),
+            take_profit: Some(Decimal::new(102, 2)),
             risk_amount: Some(Decimal::from(50)),
             stored_r_multiple: None,
             mfe_r: Some(Decimal::from(3)),
             mae_r: Some(Decimal::new(-5, 1)),
+            mfe_source: Some("candles".into()),
+            mae_source: Some("candles".into()),
+            mfe_precision: Some("M1".into()),
+            mae_precision: Some("M1".into()),
             setup_valid: Some(true),
             rules_followed: Some(true),
             emotional_trade: Some(false),
