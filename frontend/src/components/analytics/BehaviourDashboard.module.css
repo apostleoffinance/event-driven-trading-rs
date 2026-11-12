@@ -13,7 +13,7 @@
 .metricDetail{min-height:32px;color:var(--muted,#687386);font-size:.7rem;line-height:1.4}
 .progressTrack{height:5px;border-radius:20px;background:var(--surface-muted,#edf0f4);overflow:hidden;margin-top:3px}
 .progressFill{display:block;height:100%;border-radius:20px;transition:width .25s ease}
-.navy{background:#3349b8}.orange{background:#e58a31}.green{background:#29966d}
+.navy{background:var(--accent)}.orange{background:var(--warning)}.green{background:var(--positive)}
 .outcomePanel{border:1px solid var(--border,#e3e7ee);border-radius:14px;padding:18px;background:var(--surface,#fff)}
 .outcomeHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .sectionTitle{margin:0 0 5px;font-size:1rem;font-weight:750;letter-spacing:-.015em}
@@ -21,16 +21,16 @@
 .legend{display:flex;gap:16px;margin:18px 0 12px;color:var(--muted,#687386);font-size:.72rem}
 .legend span{display:flex;align-items:center;gap:6px}
 .legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
-.legendWin{background:#29966d}.legendLoss{background:#d97757}
+.legendWin{background:var(--positive)}.legendLoss{background:var(--negative)}
 .rows{display:grid;gap:17px}
 .outcomeHeading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:7px}
 .outcomeName{display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:700}
 .goodDot,.poorDot{width:8px;height:8px;border-radius:50%;display:inline-block}
-.goodDot{background:#29966d}.poorDot{background:#d99a43}
+.goodDot{background:var(--positive)}.poorDot{background:var(--warning)}
 .outcomeTotal{color:var(--muted,#687386);font-size:.72rem;font-variant-numeric:tabular-nums}
 .outcomeTrack{display:flex;min-height:37px;border-radius:7px;overflow:hidden;background:var(--surface-muted,#f2f4f7)}
 .winSegment,.lossSegment{display:flex;align-items:center;justify-content:center;min-width:0;padding:0 8px;color:#fff;font-size:.72rem;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
-.winSegment{background:#29966d}.lossSegment{background:#d97757}
+.winSegment{background:var(--positive)}.lossSegment{background:var(--negative)}
 .emptyTrack{border:1px dashed var(--border,#d9dee7);border-radius:7px;padding:11px;color:var(--muted,#687386);font-size:.72rem}
 .outcomeFootnote{margin:14px 0 0;color:var(--muted,#687386);font-size:.73rem;line-height:1.5}
 .confidencePanel{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid var(--border,#e3e7ee);border-radius:12px;padding:14px 16px;background:var(--surface-muted,#f7f8fa)}
