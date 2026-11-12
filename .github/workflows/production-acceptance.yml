@@ -47,6 +47,10 @@ jobs:
 
       - name: Build and launch PR Cloudflare Worker preview
         working-directory: frontend
+        env:
+          # Provide the public API base in the ephemeral preview build. Market Data
+          # requests are intercepted with deterministic Playwright fixtures below.
+          NEXT_PUBLIC_API_URL: https://edgenest-api.onrender.com
         run: |
           npm run cloudflare:build
           npx opennextjs-cloudflare preview > /tmp/worker-preview.log 2>&1 &

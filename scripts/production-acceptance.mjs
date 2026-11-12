@@ -72,6 +72,81 @@ try {
       return { viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth, overflowers };
     });
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-analytics.png`, fullPage: true });
+
+    // Market Data chart smoke test: the Lightweight Charts canvas must initialize
+    // at every agreed viewport, independently of whether a provider returns candles.
+    const marketConsoleErrors = [];
+    page.on("console", message => { if (message.type() === "error") marketConsoleErrors.push(message.text()); });
+    // Deterministic provider fixtures let this preview test real series rendering
+    // without relying on CORS or an external market feed.
+    const marketFixtureRequests = [];
+    await page.route("**/api/v1/market-data/**", async route => {
+      const requestUrl = new URL(route.request().url());
+      marketFixtureRequests.push({ path: requestUrl.pathname, query: requestUrl.search });
+      if (requestUrl.pathname.endsWith("/providers")) {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ providers: [{ id: "biquote-live", name: "BiQuote Live (test fixture)", status: { state: "available" } }] }) });
+        return;
+      }
+      if (requestUrl.pathname.endsWith("/instruments")) {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ instruments: [{ id: "EURUSD", symbol: "EUR/USD", name: "Euro / US Dollar", default_provider: "biquote-live" }] }) });
+        return;
+      }
+      if (requestUrl.pathname.endsWith("/candles")) {
+        const timeframe = requestUrl.searchParams.get("timeframe");
+        if (timeframe === "M15") {
+          await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { message: "Acceptance fixture: provider temporarily unavailable" } }) });
+          return;
+        }
+        if (timeframe === "M5") {
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ candles: [], count: 0, classification: "live", freshness: "fresh", last_updated_at: null }) });
+          return;
+        }
+        const candles = Array.from({ length: 80 }, (_, index) => {
+          const open = 1.106 + index * 0.00001;
+          const close = index === 79 ? 1.10712 : open + 0.00002;
+          return { timestamp_ms: 1794499200000 + index * 60_000, open, high: Math.max(open, close) + 0.00003, low: Math.min(open, close) - 0.00002, close, volume: 90 + index };
+        });
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ candles, count: candles.length, classification: "live", freshness: "fresh", last_updated_at: "2026-11-12T16:00:00Z" }) });
+        return;
+      }
+      await route.continue();
+    });
+    const marketResponse = await page.goto(`${frontendUrl}/market-data`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.equal(marketResponse?.status(), 200, `Market Data route failed at ${viewport.name}`);
+    await page.locator(".market-chart-canvas canvas").first().waitFor({ state: "attached", timeout: 20_000 });
+    assert.equal(await page.getByRole("heading", { name: "Market Analysis could not initialize" }).count(), 0, `Lightweight Charts error boundary activated at ${viewport.name}`);
+    assert.equal(await page.getByText("Chart could not render", { exact: true }).count(), 0, `Lightweight Charts initialization failed at ${viewport.name}`);
+    assert.equal(await page.locator(".market-controls select").count(), 2, `Market Data should have one unified instrument/provider control pair at ${viewport.name}`);
+    assert.equal(await page.getByRole("heading", { name: "CANDLE QUERY" }).count(), 0, `Duplicate Candle Query panel remains at ${viewport.name}`);
+    try {
+      await page.waitForFunction(() => document.querySelector(".market-price-hero strong")?.textContent?.trim() === "1.10712", null, { timeout: 15_000 });
+    } catch {
+      const diagnostic = await page.locator(".market-terminal").innerText().catch(() => "Market terminal not mounted");
+      throw new Error(`Market Data fixture did not render latest close at ${viewport.name}. Requests=${JSON.stringify(marketFixtureRequests)} Console=${JSON.stringify(marketConsoleErrors)} UI=${diagnostic.slice(0, 1200)}`);
+    }
+    const timeframeGroup = page.getByRole("group", { name: "Chart timeframe" });
+    for (const timeframe of ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]) {
+      const button = timeframeGroup.getByRole("button", { name: timeframe, exact: true });
+      await button.click();
+      assert.equal(await button.getAttribute("aria-pressed"), "true", `Timeframe ${timeframe} did not activate at ${viewport.name}`);
+      if (timeframe === "M5") {
+        await page.getByText("No candle history for this selection", { exact: true }).waitFor({ timeout: 10_000 });
+      } else if (timeframe === "M15") {
+        await page.getByText("Market data request failed", { exact: true }).waitFor({ timeout: 10_000 });
+      } else {
+        await page.getByText("1.10712", { exact: true }).first().waitFor({ timeout: 10_000 });
+      }
+    }
+    await timeframeGroup.getByRole("button", { name: "M1", exact: true }).click();
+    await page.getByText("1.10712", { exact: true }).first().waitFor({ timeout: 10_000 });
+    const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
+    await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
+    assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
+    assert.deepEqual(pageErrors, [], `Browser runtime errors on Market Data at ${viewport.name}: ${pageErrors.join("; ")}`);
+    console.log(`PASS ${viewport.name}: Market Data Lightweight Charts canvas, eight timeframe controls, no horizontal overflow; console errors: ${marketConsoleErrors.join(" | ") || "none"}`);
+    // Return to Analytics before exercising its sign-in navigation below.
+    await page.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
     assert.ok(
       dimensions.documentWidth <= dimensions.viewportWidth && dimensions.bodyWidth <= dimensions.viewportWidth,
       `Horizontal overflow at ${viewport.name}: ${JSON.stringify(dimensions)}`,
