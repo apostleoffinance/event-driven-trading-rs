@@ -68,6 +68,7 @@ jobs:
           FRONTEND_URL: http://127.0.0.1:8787
           AUTH_FRONTEND_URL: https://edgenest-frontend.edgenest.workers.dev
           API_URL: https://edgenest-api.onrender.com
+          VERIFY_LIVE_BROWSER_RUNTIME: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           ACCEPTANCE_ARTIFACT_DIR: artifacts/production-acceptance
           EDGENEST_ACCEPTANCE_EMAIL: ${{ secrets.EDGENEST_ACCEPTANCE_EMAIL }}
           EDGENEST_ACCEPTANCE_PASSWORD: ${{ secrets.EDGENEST_ACCEPTANCE_PASSWORD }}
