@@ -455,7 +455,11 @@ pub async fn create(
     .await
     .unwrap_or(false);
     if !owned {
-        return error("not_found", "Journal trade not found", StatusCode::NOT_FOUND);
+        return error(
+            "not_found",
+            "Journal trade not found",
+            StatusCode::NOT_FOUND,
+        );
     }
 
     if input.storage_provider == "r2" || input.storage_provider == "s3" {
