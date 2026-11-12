@@ -1531,3 +1531,71 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
   font-size: inherit;
   line-height: inherit;
 }
+
+
+/* Mobile shell constraint: grid's implicit main track must be shrinkable. */
+@media (max-width: 900px) {
+  .app-shell,
+  .app-shell.collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .main {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .topbar {
+    min-width: 0;
+    max-width: 100vw;
+  }
+  .topbar-right {
+    min-width: 0;
+  }
+  .topbar-right > span {
+    white-space: nowrap;
+  }
+}
+
+
+/* Compact the global header on narrow screens without hiding navigation controls. */
+@media (max-width: 600px) {
+  .topbar {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+  .topbar .brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+  .topbar .brand-name {
+    font-size: 11px;
+    letter-spacing: .045em;
+    white-space: nowrap;
+  }
+  .topbar .env-pill {
+    font-size: 9px;
+    padding: 2px 5px;
+    letter-spacing: .06em;
+  }
+  .topbar > .icon-btn[aria-label="Collapse sidebar"],
+  .topbar > .icon-btn[aria-label="Expand sidebar"] {
+    display: none;
+  }
+  .topbar-right {
+    gap: 6px;
+    margin-left: auto;
+    flex: 0 1 auto;
+  }
+  .topbar-right > span {
+    display: none;
+  }
+  .topbar-right .icon-btn {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 5px;
+  }
+  .topbar-right .account-trigger {
+    gap: 2px;
+  }
+}
