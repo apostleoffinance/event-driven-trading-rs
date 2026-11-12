@@ -515,4 +515,3 @@ pub async fn summary(
         "notice":"Descriptive historical analytics; not a prediction or trade recommendation."
     }})).into_response()
 }
-
