@@ -224,8 +224,6 @@ pub async fn summary(
     let mut risk_count = 0usize;
     let mut risk_max = Decimal::ZERO;
     let mut risk_values: Vec<Decimal> = Vec::new();
-    let mut mfe_count = 0usize;
-    let mut mae_count = 0usize;
     let mut holding_seconds: Vec<i64> = Vec::with_capacity(facts.len());
     let mut current_win_streak = 0usize;
     let mut current_loss_streak = 0usize;
@@ -323,12 +321,6 @@ pub async fn summary(
         if let Some(r) = realized_r {
             total_r += r;
             r_count += 1;
-        }
-        if fact.mfe_r.is_some() {
-            mfe_count += 1;
-        }
-        if fact.mae_r.is_some() {
-            mae_count += 1;
         }
         if let Some(risk) = fact.risk_amount.filter(|value| *value > Decimal::ZERO) {
             risk_total += risk;
