@@ -8,11 +8,15 @@ on:
       - "scripts/production-acceptance.mjs"
       - ".github/workflows/production-acceptance.yml"
       - "frontend/**"
+      - "crates/journal-api/**"
+      - "crates/domain/**"
   pull_request:
     paths:
       - "scripts/production-acceptance.mjs"
       - ".github/workflows/production-acceptance.yml"
       - "frontend/**"
+      - "crates/journal-api/**"
+      - "crates/domain/**"
   workflow_dispatch:
 
 permissions:
