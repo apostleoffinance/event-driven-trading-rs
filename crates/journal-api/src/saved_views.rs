@@ -115,7 +115,7 @@ pub async fn list(
         Err(error) => {
             tracing::error!(%error, "saved-view list query failed");
             internal_error()
-        },
+        }
     }
 }
 
@@ -136,9 +136,7 @@ pub async fn upsert(
         return bad_request("Saved view filters must be a JSON object");
     }
     if let Some(account_id) = input.journal_account_id.as_deref() {
-        if let Err(response) =
-            owns_account_response(&state, &claims.sub, account_id).await
-        {
+        if let Err(response) = owns_account_response(&state, &claims.sub, account_id).await {
             return response;
         }
     }
@@ -161,7 +159,7 @@ pub async fn upsert(
         Err(error) => {
             tracing::error!(%error, "saved-view upsert query failed");
             internal_error()
-        },
+        }
     }
 }
 
@@ -181,10 +179,16 @@ pub async fn delete(
         .await
     {
         Ok(result) if result.rows_affected() == 1 => StatusCode::NO_CONTENT.into_response(),
-        Ok(_) => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":{"code":"not_found","message":"Saved view not found"}}))).into_response(),
+        Ok(_) => (
+            StatusCode::NOT_FOUND,
+            Json(
+                serde_json::json!({"error":{"code":"not_found","message":"Saved view not found"}}),
+            ),
+        )
+            .into_response(),
         Err(error) => {
             tracing::error!(%error, "saved-view delete query failed");
             internal_error()
-        },
+        }
     }
 }
