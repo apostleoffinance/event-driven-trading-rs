@@ -143,6 +143,9 @@ pub async fn create(
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
+    if input.attachment_type.as_deref().is_some_and(|kind| !["before", "after", "screenshot", "execution", "other"].contains(&kind)) {
+        return error("invalid_attachment_type", "attachment_type must be before, after, screenshot, execution or other", StatusCode::BAD_REQUEST);
+    }
     if input.storage_key.trim().is_empty()
         || input.storage_key.len() > 4096
         || input.byte_size.is_some_and(|v| v < 0)
