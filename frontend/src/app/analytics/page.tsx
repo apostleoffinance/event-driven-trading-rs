@@ -246,6 +246,7 @@ export default function AnalyticsLabPage() {
             <div className="panel analytics-kpi-card"><span className="metric-label">Largest recorded risk</span><strong className="metric-value">{money(a.maximum_risk_amount,displayCurrency)}</strong></div>
             <div className="panel analytics-kpi-card"><span className="metric-label">Maximum win streak</span><strong className="metric-value pos">{a.maximum_win_streak ?? 0}</strong></div>
             <div className="panel analytics-kpi-card"><span className="metric-label">Maximum loss streak</span><strong className="metric-value neg">{a.maximum_loss_streak ?? 0}</strong></div>
+            <div className="panel analytics-kpi-card"><span className="metric-label">Recovery factor</span><strong className="metric-value">{a.recovery_factor == null ? "—" : Number(a.recovery_factor).toFixed(2)}</strong><span className="metric-sub">Net profit ÷ max realized drawdown</span></div>
           </div>
           <h3 style={{marginTop:14}}>Realized equity curve</h3>{a.equity_curve.length?<AnalyticsEquityChart curve={a.equity_curve} currency={displayCurrency}/>:<p className="muted">No closed-trade equity history.</p>}
           <h3 style={{marginTop:22}}>Underwater drawdown</h3><p className="muted">Peak-to-trough realized journal drawdown, shown separately from cumulative P&amp;L.</p><AnalyticsDrawdownChart curve={a.equity_curve} currency={displayCurrency}/>
