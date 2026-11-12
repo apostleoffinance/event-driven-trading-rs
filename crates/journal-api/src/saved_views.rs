@@ -30,7 +30,11 @@ fn principal(state: &AppState, headers: &HeaderMap) -> Result<Claims, ApiAuthErr
 }
 
 fn bad_request(message: &str) -> Response {
-    (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error":{"code":"invalid_request","message":message}}))).into_response()
+    (
+        StatusCode::BAD_REQUEST,
+        Json(serde_json::json!({"error":{"code":"invalid_request","message":message}})),
+    )
+        .into_response()
 }
 
 async fn owns_account(state: &AppState, owner_id: &str, account_id: &str) -> bool {
