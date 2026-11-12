@@ -82,6 +82,8 @@ try {
     await page.locator(".market-chart-canvas canvas").first().waitFor({ state: "attached", timeout: 20_000 });
     assert.equal(await page.getByRole("heading", { name: "Market Analysis could not initialize" }).count(), 0, `Lightweight Charts error boundary activated at ${viewport.name}`);
     assert.equal(await page.getByText("Chart could not render", { exact: true }).count(), 0, `Lightweight Charts initialization failed at ${viewport.name}`);
+    assert.equal(await page.locator(".market-controls select").count(), 2, `Market Data should have one unified instrument/provider control pair at ${viewport.name}`);
+    assert.equal(await page.getByRole("heading", { name: "CANDLE QUERY" }).count(), 0, `Duplicate Candle Query panel remains at ${viewport.name}`);
     const timeframeGroup = page.getByRole("group", { name: "Chart timeframe" });
     for (const timeframe of ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]) {
       const button = timeframeGroup.getByRole("button", { name: timeframe, exact: true });
