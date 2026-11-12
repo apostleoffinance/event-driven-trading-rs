@@ -153,22 +153,53 @@ try {
     assert.ok(chartBox && drawingBox.width < chartBox.width && drawingBox.height < chartBox.height, `Drawing overlay must exclude the price and time axes at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} chart=${JSON.stringify(chartBox)}`);
     assert.ok(Math.abs(drawingBox.width - paneSize.width) <= 1 && Math.abs(drawingBox.height - paneSize.height) <= 1, `Drawing overlay does not match Lightweight Charts paneSize() at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} pane=${JSON.stringify(paneSize)}`);
     const drawAt = async (x, y) => drawingSvg.click({ position: { x, y }, force: true });
+    const drawingRows = page.locator(".market-drawing-row");
+    const drawingToolbar = page.getByRole("toolbar", { name: "Chart drawing tools" });
+    const waitForDraftPoint = async (placed, total, label) => page.waitForFunction(
+      ({ expected, count }) => document.querySelector(".market-drawing-hint")?.textContent?.includes(`${expected}/${count} points placed`),
+      { expected: placed, count: total },
+      { timeout: 8_000 }
+    ).catch(async error => {
+      const diagnostic = await page.locator(".market-drawing-hint").innerText();
+      throw new Error(`${label}: expected anchor ${placed}/${total} to register at ${viewport.name}; hint=${diagnostic}. ${error.message}`);
+    });
     const addDrawing = async (label, points) => {
-      await page.getByRole("toolbar", { name: "Chart drawing tools" }).getByRole("button", { name: label, exact: true }).click();
-      await page.waitForFunction(() => document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing"));
-      for (const [x, y] of points) await drawAt(x, y);
+      const before = await drawingRows.count();
+      const button = drawingToolbar.getByRole("button", { name: label, exact: true });
+      await button.click();
+      await page.waitForFunction(name => [...document.querySelectorAll(".market-drawing-tools button")].some(button => button.textContent?.trim() === name && button.getAttribute("aria-pressed") === "true" && document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing")), label);
+      for (let index = 0; index < points.length; index += 1) {
+        const [x, y] = points[index];
+        await drawAt(x, y);
+        if (index < points.length - 1) await waitForDraftPoint(index + 1, points.length, label);
+      }
+      await page.waitForFunction(expected => document.querySelectorAll(".market-drawing-row").length === expected, before + 1, { timeout: 8_000 })
+        .catch(async error => {
+          const hint = await page.locator(".market-drawing-hint").innerText();
+          throw new Error(`${label}: drawing was not committed at ${viewport.name}; rows=${await drawingRows.count()}, hint=${hint}. ${error.message}`);
+        });
+      console.log(`[acceptance] ${label} committed at ${viewport.name}`);
     };
-    await addDrawing("Horizontal ray", [[drawingBox.width * .60, drawingBox.height * .30]]);
-    await addDrawing("Vertical line", [[drawingBox.width * .64, drawingBox.height * .35]]);
-    await addDrawing("Trendline", [[drawingBox.width * .66, drawingBox.height * .55], [drawingBox.width * .75, drawingBox.height * .38]]);
-    await addDrawing("Rectangle / zone", [[drawingBox.width * .69, drawingBox.height * .25], [drawingBox.width * .79, drawingBox.height * .48]]);
-    await addDrawing("Parallel channel", [[drawingBox.width * .71, drawingBox.height * .60], [drawingBox.width * .83, drawingBox.height * .47], [drawingBox.width * .77, drawingBox.height * .43]]);
-    await addDrawing("Fibonacci", [[drawingBox.width * .73, drawingBox.height * .25], [drawingBox.width * .88, drawingBox.height * .60]]);
-    await addDrawing("Long position", [[drawingBox.width * .79, drawingBox.height * .42], [drawingBox.width * .79, drawingBox.height * .58], [drawingBox.width * .79, drawingBox.height * .25]]);
-    assert.equal(await page.locator(".market-drawing-row").count(), 6, `Invalid long position was incorrectly accepted at ${viewport.name}`);
-    assert.ok((await page.locator(".market-drawing-hint").innerText()).includes("Long position requires stop below entry and target above entry"), `Invalid long-position orientation was not explained at ${viewport.name}`);
-    await addDrawing("Long position", [[drawingBox.width * .58, drawingBox.height * .42], [drawingBox.width * .58, drawingBox.height * .58], [drawingBox.width * .58, drawingBox.height * .25]]);
-    await addDrawing("Short position", [[drawingBox.width * .89, drawingBox.height * .42], [drawingBox.width * .89, drawingBox.height * .25], [drawingBox.width * .89, drawingBox.height * .58]]);
+    await addDrawing("Horizontal ray", [[drawingBox.width * .34, drawingBox.height * .30]]);
+    await addDrawing("Vertical line", [[drawingBox.width * .38, drawingBox.height * .35]]);
+    await addDrawing("Trendline", [[drawingBox.width * .42, drawingBox.height * .55], [drawingBox.width * .47, drawingBox.height * .38]]);
+    await addDrawing("Rectangle / zone", [[drawingBox.width * .49, drawingBox.height * .25], [drawingBox.width * .55, drawingBox.height * .48]]);
+    await addDrawing("Parallel channel", [[drawingBox.width * .57, drawingBox.height * .60], [drawingBox.width * .66, drawingBox.height * .47], [drawingBox.width * .61, drawingBox.height * .43]]);
+    await addDrawing("Fibonacci", [[drawingBox.width * .64, drawingBox.height * .25], [drawingBox.width * .70, drawingBox.height * .60]]);
+    const beforeInvalidLong = await drawingRows.count();
+    const invalidLongButton = drawingToolbar.getByRole("button", { name: "Long position", exact: true });
+    await invalidLongButton.click();
+    await page.waitForFunction(() => document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing") && [...document.querySelectorAll(".market-drawing-tools button")].some(button => button.textContent?.trim() === "Long position" && button.getAttribute("aria-pressed") === "true"));
+    const invalidLongPoints = [[drawingBox.width * .73, drawingBox.height * .42], [drawingBox.width * .73, drawingBox.height * .25], [drawingBox.width * .73, drawingBox.height * .58]];
+    await drawAt(...invalidLongPoints[0]);
+    await waitForDraftPoint(1, 3, "Invalid long position");
+    await drawAt(...invalidLongPoints[1]);
+    await waitForDraftPoint(2, 3, "Invalid long position");
+    await drawAt(...invalidLongPoints[2]);
+    await page.waitForFunction(() => document.querySelector(".market-drawing-hint")?.textContent?.includes("Long position requires stop below entry and target above entry"), null, { timeout: 8_000 });
+    assert.equal(await drawingRows.count(), beforeInvalidLong, `Invalid long position must be rejected without creating a drawing at ${viewport.name}`);
+    await addDrawing("Long position", [[drawingBox.width * .76, drawingBox.height * .42], [drawingBox.width * .76, drawingBox.height * .58], [drawingBox.width * .76, drawingBox.height * .25]]);
+    await addDrawing("Short position", [[drawingBox.width * .79, drawingBox.height * .42], [drawingBox.width * .79, drawingBox.height * .25], [drawingBox.width * .79, drawingBox.height * .58]]);
     await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Expected all eight drawing types to be created at ${viewport.name}`);
     assert.equal(await page.locator(".market-drawing-overlay g[data-id]").nth(4).locator("line").count(), 4, `Parallel channel must render two parallel boundaries and two connectors at ${viewport.name}`);
