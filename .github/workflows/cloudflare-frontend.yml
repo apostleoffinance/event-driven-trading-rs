@@ -10,7 +10,6 @@ on:
       - ".github/workflows/cloudflare-frontend.yml"
   pull_request:
     paths:
-      - "frontend/**"
       - ".github/workflows/cloudflare-frontend.yml"
   workflow_dispatch:
 
