@@ -130,7 +130,7 @@ export const journalApi = {
   },
   async journalPortfolio() {
     requireApiMode();
-    return (await apiRequest<DataEnvelope<Array<{account_id:string;name:string;currency:string;initial_balance:string;realized_net_pnl:string;journal_equity:string;trade_count:number}>>>("/api/v1/journal/portfolio",{baseUrl:journalBaseUrl()})).data;
+    return (await apiRequest<DataEnvelope<Array<{account_id:string;name:string;currency:string;initial_balance:string;realized_net_pnl:string;journal_equity:string;trade_count:number;linked_trading_account_id:string|null}>>>("/api/v1/journal/portfolio",{baseUrl:journalBaseUrl()})).data;
   },
   async updateAccount(id: string, input: { name: string; broker?: string | null; account_type: string; currency: string; initial_balance: string }) {
     requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
