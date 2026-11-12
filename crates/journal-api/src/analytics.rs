@@ -45,6 +45,15 @@ struct TradeFact {
     emotional_trade: Option<bool>,
     mistake: Option<bool>,
     discipline_score: Option<i16>,
+    emotion_before: Option<String>,
+    emotion_during: Option<String>,
+    emotion_after: Option<String>,
+    confidence: Option<i16>,
+    fear: Option<i16>,
+    fomo: Option<i16>,
+    frustration: Option<i16>,
+    revenge_intensity: Option<i16>,
+    boredom: Option<i16>,
 }
 
 fn auth_error(error: ApiAuthError) -> Response {
@@ -109,9 +118,12 @@ pub async fn summary(
           COALESCE(t.net_pnl, t.gross_pnl + t.commission + t.swap + t.other_fees) AS net_pnl,
           t.risk_amount, t.entry_price, t.exit_price, t.stop_loss, t.take_profit,
           t.r_multiple, t.session, COALESCE(s.name, 'Unassigned') AS setup_name,
-          t.mfe_r, t.mae_r, t.setup_valid, t.rules_followed, t.emotional_trade, t.mistake, t.discipline_score
+          t.mfe_r, t.mae_r, t.setup_valid, t.rules_followed, t.emotional_trade, t.mistake, t.discipline_score,
+          p.emotion_before, p.emotion_during, p.emotion_after, p.confidence, p.fear, p.fomo,
+          p.frustration, p.revenge_intensity, p.boredom
         FROM journal_trades t
         LEFT JOIN journal_setups s ON s.owner_id=t.owner_id AND s.id=t.setup_id
+        LEFT JOIN journal_trade_psychology p ON p.owner_id=t.owner_id AND p.trade_id=t.id
         WHERE t.owner_id=$1 AND t.status='closed' AND t.closed_at IS NOT NULL
           AND (t.net_pnl IS NOT NULL OR t.gross_pnl IS NOT NULL)
           AND ($2::TEXT IS NULL OR t.journal_account_id=$2)
@@ -279,8 +291,21 @@ pub async fn summary(
         };
         if let Some(value) = capture { mfe_capture_values.push(value); }
         trade_metrics.push(serde_json::json!({
-            "trade_id": fact.id,
-            "symbol": fact.symbol,
+            "trade_id": fact.id.clone(),
+            "symbol": fact.symbol.clone(),
+            "session": fact.session.clone(),
+            "setup": fact.setup_name.clone(),
+            "psychology": {
+                "emotion_before": fact.emotion_before.clone(),
+                "emotion_during": fact.emotion_during.clone(),
+                "emotion_after": fact.emotion_after.clone(),
+                "confidence": fact.confidence,
+                "fear": fact.fear,
+                "fomo": fact.fomo,
+                "frustration": fact.frustration,
+                "revenge_intensity": fact.revenge_intensity,
+                "boredom": fact.boredom
+            },
             "direction": fact.direction,
             "opened_at": fact.opened_at,
             "closed_at": fact.closed_at,
