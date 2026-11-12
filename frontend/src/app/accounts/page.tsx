@@ -120,12 +120,6 @@ export default function AccountsPage() {
     [],
   );
 
-  if (isLoading) return <div className="loading">Loading accounts…</div>;
-  if (isError)
-    return (
-      <div className="error">{(error as Error).message ?? "Failed to load"}</div>
-    );
-
   return (
     <>
       <PageHeader
@@ -133,12 +127,16 @@ export default function AccountsPage() {
         description="Manage your trading accounts and track balances, equity and risk."
       />
       <div className="panel">
-        <DataTable
-          data={data}
-          columns={columns}
-          onRowClick={setSelected}
-          emptyMessage={"No trading accounts linked yet. Create a Paper Account to begin, or have an existing account linked to your user."}
-        />
+        {isLoading ? <div className="loading">Loading trading accounts…</div> : isError ? (
+          <div className="error" role="alert">{(error as Error).message ?? "Failed to load trading accounts."}</div>
+        ) : (
+          <DataTable
+            data={data}
+            columns={columns}
+            onRowClick={setSelected}
+            emptyMessage={"No trading accounts linked yet. Create a Paper Account to begin, or link an existing account through your account administrator."}
+          />
+        )}
       </div>
       <div className="panel" style={{ marginTop: 14 }}>
         <div className="panel-title">JOURNAL ACCOUNTS</div>
