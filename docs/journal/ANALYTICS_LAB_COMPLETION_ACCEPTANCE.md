@@ -85,3 +85,36 @@ Do not call the milestone complete until all five phases have evidence:
 5. CI, API/database integration, authenticated acceptance and responsive visual QA pass.
 
 A CI-only pass is a code-quality signal, not production acceptance. Live checks requiring database credentials, a deployed authenticated account, broker fills, object storage or real devices must be run in that environment and attached to the release evidence.
+
+
+## 8. Repeatable browser acceptance evidence
+
+Run the Analytics Lab acceptance suite against the same preview commit and seeded test dataset. Do not substitute a local unauthenticated shell or a production account for this run.
+
+### Viewport matrix
+
+| Viewport | CSS viewport | Minimum assertions |
+|---|---:|---|
+| Desktop | 1440 × 900 | Seven-workspace navigation, KPI alignment, chart/table density, no clipped dialogs |
+| Laptop | 1280 × 800 | Main content width, filter layout, chart legends, sticky/scrolling table headers |
+| Compact desktop | 1024 × 768 | Navigation collapse, filter wrapping, no overlapping cards |
+| Tablet | 768 × 1024 | Single/two-column transitions, chart readability, usable calendar controls |
+| Mobile | 390 × 844 | No page-level horizontal overflow, controls remain tappable, trade rows inspectable |
+| Narrow mobile | 360 × 800 | No clipped filter actions, modal content fits/scrolls, table scroll remains local |
+
+### Required interaction paths
+
+For every run, record the preview URL, git SHA, browser/version, viewport, account fixture identifier (never credentials), and pass/fail result.
+
+1. Open all seven Analytics workspaces and capture the initial viewport plus the scrolled content.
+2. Apply account, date, instrument and setup filters; confirm the trade count and all workspace populations update consistently.
+3. Select one sample from each chart/heatmap/table/calendar interaction and compare the investigation rows to the exact source population.
+4. Open a trade from each investigation path; verify the selected trade ID, detail fields and close behaviour.
+5. Save a named view; reload; sign out/in; switch between two accounts; verify only the expected owner/account scope is returned.
+6. Open the same account in a separate browser profile/device and verify the saved view is available from the server API.
+7. Exercise empty, one-trade, partial annotation, missing risk, no psychology, API error and slow-loading states.
+8. Check keyboard-only operation, visible focus, accessible names, dialog focus handling and reduced-motion behaviour.
+
+### Evidence location and release gate
+
+Store screenshots and a machine-readable result summary under the release artifact for this PR. A viewport passes only when its screenshot and interaction assertions are attached. A check must remain **not run** when no authenticated preview, test accounts, or second device are available. Never translate an unrun manual check into a pass based on CI.
