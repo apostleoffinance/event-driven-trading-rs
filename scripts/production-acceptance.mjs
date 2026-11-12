@@ -188,6 +188,19 @@ try {
     await page.locator(".market-drawing-row").nth(8).waitFor({ state: "attached" });
     await page.getByRole("button", { name: "Redo", exact: true }).click();
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawing management undo/redo failed at ${viewport.name}`);
+    const drawingDownloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const drawingDownload = await drawingDownloadPromise;
+    const drawingBackupPath = await drawingDownload.path();
+    assert.ok(drawingBackupPath, `Drawing backup export did not produce a file at ${viewport.name}`);
+    await page.locator(".market-import-button input[type=\"file\"]").setInputFiles(drawingBackupPath);
+    await page.getByText("Drawing file imported.", { exact: true }).waitFor();
+    await page.locator(".market-import-button input[type=\"file\"]").setInputFiles({
+      name: "wrong-instrument-drawings.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify({ version: 1, instrument: "GBPUSD", timeframe: "M1", drawings: [] })),
+    });
+    assert.ok((await page.locator(".market-drawing-hint").innerText()).includes("belongs to a different instrument or timeframe"), `Cross-instrument drawing import was not rejected at ${viewport.name}`);
     await page.getByLabel("SMA 20").check();
     await page.getByLabel("Template name").fill("Acceptance template");
     await page.getByRole("button", { name: "Save layout" }).click();
