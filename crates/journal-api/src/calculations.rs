@@ -219,7 +219,7 @@ mod tests {
             Decimal::ZERO,
             "USD",
             None,
-            at(9),
+            &at(9),
         );
         assert_eq!(result.gross_pnl, None);
         assert_eq!(result.net_pnl, None);
@@ -236,7 +236,7 @@ mod tests {
             Decimal::ZERO,
             "USD",
             None,
-            at(9),
+            &at(9),
         );
         assert_eq!(metal.gross_pnl, None);
         assert_eq!(metal.session, "Not classified");
