@@ -30,7 +30,7 @@ fn last_sunday(year: i32, month: u32) -> u32 {
         .unwrap_or(1)
 }
 
-fn london_dst(at: DateTime<Utc>) -> bool {
+fn london_dst(at: &DateTime<Utc>) -> bool {
     let month = at.month();
     let day = at.day();
     let hour = at.hour();
@@ -44,7 +44,7 @@ fn london_dst(at: DateTime<Utc>) -> bool {
     }
 }
 
-fn new_york_dst(at: DateTime<Utc>) -> bool {
+fn new_york_dst(at: &DateTime<Utc>) -> bool {
     let month = at.month();
     let day = at.day();
     let hour = at.hour();
@@ -60,7 +60,7 @@ fn new_york_dst(at: DateTime<Utc>) -> bool {
 
 /// Classify UTC timestamps against London and New York local session hours,
 /// including the distinct US/UK daylight-saving transition dates.
-pub fn classify_fx_session(at: DateTime<Utc>) -> String {
+pub fn classify_fx_session(at: &DateTime<Utc>) -> String {
     let london_hour = (at.hour() as i32 + if london_dst(at) { 1 } else { 0 }) % 24;
     let new_york_offset = if new_york_dst(at) { 4 } else { 5 };
     let new_york_hour = (at.hour() as i32 - new_york_offset + 24) % 24;
@@ -90,7 +90,7 @@ pub fn calculate_fx_metrics(
     other_fees: Decimal,
     pnl_currency: &str,
     risk_amount: Option<Decimal>,
-    opened_at: DateTime<Utc>,
+    opened_at: &DateTime<Utc>,
 ) -> DerivedTradeMetrics {
     const CURRENCIES: [&str; 32] = [
         "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK",
@@ -181,7 +181,7 @@ mod tests {
             Decimal::ZERO,
             "USD",
             None,
-            at(9),
+            &at(9),
         );
         assert_eq!(long.gross_pnl, Some(Decimal::from(100)));
         assert_eq!(long.net_pnl, Some(Decimal::from(97)));
@@ -200,7 +200,7 @@ mod tests {
             Decimal::ZERO,
             "USD",
             None,
-            at(13),
+            &at(13),
         );
         assert_eq!(short.gross_pnl, Some(Decimal::from(100)));
     }
@@ -244,22 +244,22 @@ mod tests {
 
     #[test]
     fn classifies_dst_aware_sessions() {
-        assert_eq!(classify_fx_session(at(3)), "Asia/Pacific");
-        assert_eq!(classify_fx_session(at(9)), "London");
-        assert_eq!(classify_fx_session(at(13)), "London/New York overlap");
-        assert_eq!(classify_fx_session(at(18)), "New York");
+        assert_eq!(classify_fx_session(&at(3)), "Asia/Pacific");
+        assert_eq!(classify_fx_session(&at(9)), "London");
+        assert_eq!(classify_fx_session(&at(13)), "London/New York overlap");
+        assert_eq!(classify_fx_session(&at(18)), "New York");
 
         let before_us_dst = Utc.with_ymd_and_hms(2026, 3, 7, 12, 30, 0).unwrap();
         let after_us_dst = Utc.with_ymd_and_hms(2026, 3, 8, 12, 30, 0).unwrap();
-        assert_eq!(classify_fx_session(before_us_dst), "London");
-        assert_eq!(classify_fx_session(after_us_dst), "London/New York overlap");
+        assert_eq!(classify_fx_session(&before_us_dst), "London");
+        assert_eq!(classify_fx_session(&after_us_dst), "London/New York overlap");
 
         let before_us_standard = Utc.with_ymd_and_hms(2026, 10, 31, 12, 30, 0).unwrap();
         let after_us_standard = Utc.with_ymd_and_hms(2026, 11, 1, 12, 30, 0).unwrap();
         assert_eq!(
-            classify_fx_session(before_us_standard),
+            classify_fx_session(&before_us_standard),
             "London/New York overlap"
         );
-        assert_eq!(classify_fx_session(after_us_standard), "London");
+        assert_eq!(classify_fx_session(&after_us_standard), "London");
     }
 }
