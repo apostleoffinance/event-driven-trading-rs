@@ -176,6 +176,24 @@ pub async fn create(
             StatusCode::BAD_REQUEST,
         );
     }
+    if input.storage_provider == "r2" || input.storage_provider == "s3" {
+        let (client, bucket) = match object_store().await {
+            Ok(value) => value,
+            Err(message) => return error("storage_not_configured", &message, StatusCode::SERVICE_UNAVAILABLE),
+        };
+        let object = match client.head_object().bucket(bucket).key(&input.storage_key).send().await {
+            Ok(value) => value,
+            Err(_) => return error("upload_not_found", "Uploaded screenshot was not found in private object storage", StatusCode::BAD_REQUEST),
+        };
+        let actual_size = object.content_length().unwrap_or_default();
+        let actual_type = object.content_type().unwrap_or_default();
+        if actual_size <= 0 || actual_size > 15 * 1024 * 1024 ||
+           !actual_type.starts_with("image/") ||
+           input.byte_size.is_some_and(|reported| reported != actual_size) ||
+           input.content_type.as_deref().is_some_and(|reported| reported != actual_type) {
+            return error("upload_validation_failed", "Stored screenshot size or content type does not match the upload metadata", StatusCode::BAD_REQUEST);
+        }
+    }
     let owned = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)",
     )
