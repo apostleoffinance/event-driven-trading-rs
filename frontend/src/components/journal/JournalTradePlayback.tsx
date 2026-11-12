@@ -42,10 +42,7 @@ function movementPips(symbol: string, entry: number, current: number, direction:
 export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
-  const [frame, setFrame] = useState<Frame>(
-    trade.timeframe && FRAMES.includes(trade.timeframe.toUpperCase() as Frame)
-      ? trade.timeframe.toUpperCase() as Frame : "M5",
-  );
+  const [frame, setFrame] = useState<Frame>("M1");
   const [providerOverride, setProviderOverride] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
