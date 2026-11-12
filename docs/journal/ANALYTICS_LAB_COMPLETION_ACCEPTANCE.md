@@ -29,7 +29,7 @@ This file is the release gate for the Analytics Lab Completion milestone. A gree
 - [x] Behaviour is segmented by session, setup and weekday with known-value denominators.
 - [ ] Every chart, heatmap, table and calendar summary must open the exact matching trade set.
 - [ ] Saved views must survive reload, sign-out/sign-in, and account switching without leaking filters across accounts.
-- [ ] Saved views must be tested on a second device/browser; local-only persistence is not cross-device sync.
+- [ ] Verify API-backed saved views on a second device/browser after the Journal API migration is deployed.
 
 ## 3. Data and API acceptance
 
@@ -43,8 +43,16 @@ Required database-backed integration fixtures:
 7. Win/loss/breakeven sequences that prove streak reset behaviour.
 8. Calendar samples across Sunday/Monday, month-end, year-end, leap day, and UTC midnight.
 9. Setup/session/weekday behaviour segments with null values and unequal known-value denominators.
+10. Saved-view API: owner isolation, account-scope isolation, duplicate-name upsert, malformed filter rejection, and retrieval after a new authenticated session.
 
-## 4. Risk and execution scope boundaries
+## 4. Saved-view persistence implementation
+
+- Persistent saved views are stored in `journal_analytics_saved_views` and scoped by verified JWT owner plus Journal account (or the explicit all-accounts scope).
+- The API validates account ownership for list and write operations; owner IDs are never accepted from the client.
+- The frontend uses the Journal API rather than browser-local storage for saved views. Filter convenience state remains user-scoped browser-local state.
+- Database migration and persistence scope constraints are covered by the Journal schema integration test. Authenticated HTTP and second-device acceptance remains a deployed-environment gate.
+
+## 5. Risk and execution scope boundaries
 
 The following must not be fabricated from Journal fields:
 - Account-equity-normalized risk without a reliable balance/equity snapshot at trade open.
@@ -56,7 +64,7 @@ The following must not be fabricated from Journal fields:
 
 When the source system does not provide these facts, the UI must label the metric unavailable and explain the missing source.
 
-## 5. Responsive and authenticated acceptance
+## 6. Responsive and authenticated acceptance
 
 Run the following against a deployed test environment with seeded accounts:
 - Desktop 1440×900, laptop 1280×800, tablet 768×1024, mobile 390×844 and 360×800.
@@ -67,7 +75,7 @@ Run the following against a deployed test environment with seeded accounts:
 - Verify account switching and sign-out clear or partition saved views and filters.
 - Verify date boundaries and all grouped calendar labels are explicitly UTC until timezone-selectable aggregation is implemented.
 
-## 6. Release decision
+## 7. Release decision
 
 Do not call the milestone complete until all five phases have evidence:
 1. Shared fact and joins validated.
