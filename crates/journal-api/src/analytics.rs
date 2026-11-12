@@ -177,7 +177,7 @@ pub async fn summary(
             "average_r":null,"risk_coverage_count":0,"risk_coverage_percent":"0",
             "average_risk_amount":null,"maximum_risk_amount":null,
             "average_holding_seconds":null,"median_holding_seconds":null,
-            "maximum_win_streak":0,"maximum_loss_streak":0,
+            "maximum_win_streak":0,"maximum_loss_streak":0,"recovery_factor":null,
             "average_mfe_capture_percent":null,"execution_coverage_count":0,"trade_metrics":[],
             "equity_curve":[],"by_symbol":[],"by_session":[],"by_setup":[],"by_weekday":[],"by_hour_utc":[],"by_day":[],"by_month":[],
             "notice":"No closed trades with realized P&L match the selected filters."
@@ -318,6 +318,11 @@ pub async fn summary(
             "symbol": fact.symbol.clone(),
             "session": fact.session.clone().unwrap_or_else(|| "unspecified".into()),
             "setup": fact.setup_name.clone(),
+            "setup_valid": fact.setup_valid,
+            "rules_followed": fact.rules_followed,
+            "emotional_trade": fact.emotional_trade,
+            "mistake": fact.mistake,
+            "discipline_score": fact.discipline_score,
             "psychology": {
                 "emotion_before": fact.emotion_before.clone(),
                 "emotion_during": fact.emotion_during.clone(),
@@ -438,6 +443,7 @@ pub async fn summary(
         "median_holding_seconds":median_holding_seconds,
         "maximum_win_streak":max_win_streak,
         "maximum_loss_streak":max_loss_streak,
+        "recovery_factor":if stats.max_drawdown > Decimal::ZERO {Some((stats.net_profit/stats.max_drawdown).to_string())} else {None},
         "average_mfe_capture_percent":average_mfe_capture_percent.map(|v|v.to_string()),
         "execution_coverage_count":mfe_capture_values.len(),
         "trade_metrics":trade_metrics,
