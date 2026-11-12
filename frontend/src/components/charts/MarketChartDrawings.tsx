@@ -101,3 +101,4 @@ export function MarketChartDrawings({chart,series,ready,instrument,timeframe,pre
   </div>:null}</div>
   <div className="market-drawing-templates"><strong>Saved layouts & drawing templates</strong><input aria-label="Template name" placeholder="Template name" value={templateName} onChange={e=>setTemplateName(e.target.value)}/><button onClick={saveTemplate}>Save layout</button><select aria-label="Saved templates" value={templateChoice} onChange={e=>setTemplateChoice(e.target.value)}><option value="">Choose template…</option>{templates.filter(t=>t.instrument===instrument&&t.timeframe===timeframe).map(t=><option key={`${t.name}:${t.instrument}:${t.timeframe}`} value={t.name}>{t.name}</option>)}</select><button onClick={loadTemplate} disabled={!templateChoice}>Load</button><button onClick={deleteTemplate} disabled={!templateChoice}>Delete layout</button></div>
 </section>
+}
