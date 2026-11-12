@@ -1,5 +1,7 @@
 "use client";
 
+import "./analytics.css";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
