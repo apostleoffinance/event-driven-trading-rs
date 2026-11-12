@@ -215,7 +215,8 @@ impl TradeAnalyticsFact {
             || self.take_profit.is_some_and(|value| value <= Decimal::ZERO)
         {
             return Err(DomainError::Validation(
-                "analytics entry, exit, stop and target prices must be positive when present".into(),
+                "analytics entry, exit, stop and target prices must be positive when present"
+                    .into(),
             ));
         }
         if self.risk_amount.is_some_and(|value| value < Decimal::ZERO) {
