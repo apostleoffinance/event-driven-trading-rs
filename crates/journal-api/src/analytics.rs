@@ -64,6 +64,38 @@ fn auth_error(error: ApiAuthError) -> Response {
     error.into_response()
 }
 
+/// Legacy Journal imports stored maximum adverse excursion (MAE) as a
+/// positive magnitude, while the analytics domain uses signed R values where
+/// adverse movement is non-positive. Normalize at the read boundary so old
+/// records remain intact and new excursion writes retain the canonical sign.
+fn canonical_mae_r(value: Option<Decimal>) -> Option<Decimal> {
+    value.map(|value| if value > Decimal::ZERO { -value } else { value })
+}
+
+#[cfg(test)]
+mod mae_normalization_tests {
+    use super::canonical_mae_r;
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn normalizes_legacy_positive_mae_magnitudes() {
+        assert_eq!(
+            canonical_mae_r(Some(Decimal::new(213, 2))),
+            Some(Decimal::new(-213, 2))
+        );
+    }
+
+    #[test]
+    fn preserves_canonical_negative_zero_and_missing_mae() {
+        assert_eq!(
+            canonical_mae_r(Some(Decimal::new(-5, 1))),
+            Some(Decimal::new(-5, 1))
+        );
+        assert_eq!(canonical_mae_r(Some(Decimal::ZERO)), Some(Decimal::ZERO));
+        assert_eq!(canonical_mae_r(None), None);
+    }
+}
+
 pub async fn summary(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -287,7 +319,7 @@ pub async fn summary(
             risk_amount: fact.risk_amount,
             stored_r_multiple: fact.r_multiple,
             mfe_r: fact.mfe_r,
-            mae_r: fact.mae_r,
+            mae_r: canonical_mae_r(fact.mae_r),
             mfe_source: fact.mfe_source.clone(),
             mae_source: fact.mae_source.clone(),
             mfe_precision: fact.mfe_precision.clone(),
