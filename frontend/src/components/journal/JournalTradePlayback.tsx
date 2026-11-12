@@ -123,13 +123,15 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
     const tolerance = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
     if (first > opened + tolerance || last < closed - tolerance) return;
     const fullFavorable = trade.direction === "long"
-      ? Math.max(...candles.map((c) => c.high)) : Math.min(...candles.map((c) => c.low));
+      ? candles.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
+      : candles.reduce((value, candle) => Math.min(value, candle.low), entryPrice);
     const fullAdverse = trade.direction === "long"
-      ? Math.min(...candles.map((c) => c.low)) : Math.max(...candles.map((c) => c.high));
+      ? candles.reduce((value, candle) => Math.min(value, candle.low), entryPrice)
+      : candles.reduce((value, candle) => Math.max(value, candle.high), entryPrice);
     const directionSign = trade.direction === "long" ? 1 : -1;
     const riskDistance = trade.stop_loss ? Math.abs(entryPrice - Number(trade.stop_loss)) : 0;
-    const mfeR = riskDistance > 0 ? ((fullFavorable - entryPrice) * directionSign) / riskDistance : null;
-    const maeR = riskDistance > 0 ? ((fullAdverse - entryPrice) * directionSign) / riskDistance : null;
+    const mfeR = riskDistance > 0 ? Math.max(0, ((fullFavorable - entryPrice) * directionSign) / riskDistance) : null;
+    const maeR = riskDistance > 0 ? Math.min(0, ((fullAdverse - entryPrice) * directionSign) / riskDistance) : null;
     const key = [trade.id, trade.status, frame, selectedProvider, first, last, entryPrice, trade.stop_loss, trade.direction].join(":");
     if (persistedExcursionRef.current === key) return;
     persistedExcursionRef.current = key;
