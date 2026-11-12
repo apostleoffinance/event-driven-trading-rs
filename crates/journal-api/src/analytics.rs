@@ -324,8 +324,12 @@ pub async fn summary(
             total_r += r;
             r_count += 1;
         }
-        if fact.mfe_r.is_some() { mfe_count += 1; }
-        if fact.mae_r.is_some() { mae_count += 1; }
+        if fact.mfe_r.is_some() {
+            mfe_count += 1;
+        }
+        if fact.mae_r.is_some() {
+            mae_count += 1;
+        }
         if let Some(risk) = fact.risk_amount.filter(|value| *value > Decimal::ZERO) {
             risk_total += risk;
             risk_count += 1;
