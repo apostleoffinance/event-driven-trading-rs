@@ -185,6 +185,10 @@ try {
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".market-drawing-row").first().waitFor({ timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawings were not restored after reload at ${viewport.name}`);
+    await timeframeGroup.getByRole("button", { name: "H1", exact: true }).click();
+    await page.getByText("Drawings (0) · EURUSD / H1", { exact: true }).waitFor({ timeout: 10_000 });
+    await timeframeGroup.getByRole("button", { name: "M1", exact: true }).click();
+    await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
     await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).waitFor({ state: "attached", timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing layout did not persist at ${viewport.name}`);
 
