@@ -138,7 +138,9 @@ try {
     const savedViewsUrl = `${apiUrl}/api/v1/journal/analytics/saved-views`;
     for (const account of accounts.slice(0, 2)) {
       const name = `Stage1 acceptance ${Date.now()} ${Math.random().toString(36).slice(2, 8)}`;
-      const createResponse = await expectHttp(savedViewsUrl, 201, {
+      // The saved-view endpoint is an idempotent upsert (INSERT ... ON
+      // CONFLICT ... RETURNING), so its documented/current success status is 200.
+      const createResponse = await expectHttp(savedViewsUrl, 200, {
         method: "POST",
         headers: apiHeaders,
         body: JSON.stringify({ name, journal_account_id: account.id, filters: { fromDate: "", toDate: "", datePreset: "all", symbolFilter: "", setupFilter: "" } }),
