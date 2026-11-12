@@ -174,7 +174,7 @@ mod tests {
             Decimal::ONE,
             Decimal::new(10_000, 4),
             Some(Decimal::new(10_100, 4)),
-            Some(Decimal::new(9_950, 4)),
+            Some(Decimal::new(9_995, 4)),
             Decimal::from(2),
             Decimal::from(-1),
             Decimal::ZERO,
