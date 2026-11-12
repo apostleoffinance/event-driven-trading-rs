@@ -129,7 +129,7 @@ fn presigned_url(
     let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
     let scope = format!("{date}/{}/s3/aws4_request", config.region);
     let credential = format!("{}/{scope}", config.access_key);
-    let mut params = vec![
+    let mut params = [
         (
             "X-Amz-Algorithm".to_string(),
             "AWS4-HMAC-SHA256".to_string(),
