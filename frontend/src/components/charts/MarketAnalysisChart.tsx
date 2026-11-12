@@ -72,7 +72,7 @@ function cssColor(name: string, fallback: string) {
   return value && !value.startsWith("var(") ? value : fallback;
 }
 
-export function MarketAnalysisChart() {
+function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
   const [symbol, setSymbol] = useState("EURUSD");
   const [frame, setFrame] = useState<Frame>("M1");
   const [providerOverride, setProviderOverride] = useState<string | null>(null);
@@ -125,7 +125,7 @@ export function MarketAnalysisChart() {
     if (!node) return;
     let chart: IChartApi | null = null;
     let resizeObserver: ResizeObserver | null = null;
-    let cancelled = false;
+    let resizeHandler: (() => void) | null = null;
     try {
       const textColor = cssColor("--chart-muted", "#d0d2d6");
       const gridColor = cssColor("--chart-grid", "#2a2d34");
@@ -159,9 +159,9 @@ export function MarketAnalysisChart() {
         if (width && width > 0) chart?.applyOptions({ width });
       }) : null;
       if (resizeObserver) resizeObserver.observe(node);
-      else window.addEventListener("resize", onWindowResize);
-      function onWindowResize() {
-        if (node.clientWidth > 0) chart?.applyOptions({ width: node.clientWidth });
+      else {
+        resizeHandler = () => { if (node.clientWidth > 0) chart?.applyOptions({ width: node.clientWidth }); };
+        window.addEventListener("resize", resizeHandler);
       }
       setChartError(null);
       setChartReady(true);
@@ -171,9 +171,8 @@ export function MarketAnalysisChart() {
       setChartReady(false);
     }
     return () => {
-      cancelled = true;
       resizeObserver?.disconnect();
-      window.removeEventListener("resize", () => undefined);
+      if (resizeHandler) window.removeEventListener("resize", resizeHandler);
       if (chart) {
         try { chart.remove(); } catch (error) { console.warn("[MarketData] Chart cleanup failed", error); }
       }
@@ -181,7 +180,7 @@ export function MarketAnalysisChart() {
       candleRef.current = null; volumeRef.current = null; smaRef.current = null;
       slLineRef.current = null; tpLineRef.current = null;
       drawingSeriesRef.current = []; drawingPriceLinesRef.current = [];
-      if (!cancelled) setChartReady(false);
+      setChartReady(false);
     };
   }, []);
 
@@ -270,30 +269,7 @@ export function MarketAnalysisChart() {
     }
   }, [drawings, chartReady]);
 
-  const retryChart = () => {
-    setChartError(null);
-    setChartReady(false);
-    setDrawings([]);
-    setPendingAnchor(null);
-    setTimeout(() => {
-      const node = containerRef.current;
-      if (!node) return;
-      try {
-        const chart = createChart(node, {
-          width: Math.max(node.clientWidth, 320), height: 500,
-          layout: { background: { color: cssColor("--bg-1", "#111216") }, textColor: cssColor("--chart-muted", "#d0d2d6") },
-          grid: { vertLines: { color: cssColor("--chart-grid", "#2a2d34") }, horzLines: { color: cssColor("--chart-grid", "#2a2d34") } },
-        });
-        chartRef.current = chart;
-        candleRef.current = chart.addCandlestickSeries({ upColor: "#26a69a", downColor: "#ef5350", priceFormat: { type: "price", precision: pricePrecision, minMove: 1 / (10 ** pricePrecision) } });
-        volumeRef.current = chart.addHistogramSeries({ priceScaleId: "volume", priceFormat: { type: "volume" } });
-        smaRef.current = chart.addLineSeries({ color: "#e5ad48", priceLineVisible: false });
-        setChartReady(true);
-      } catch (error) {
-        setChartError(error instanceof Error ? error.message : String(error));
-      }
-    }, 0);
-  };
+
 
   const error = providers.error ?? instruments.error ?? candles.error;
   const fmt = (value: number | undefined) => value == null ? "—" : formatPrice(value);
@@ -343,7 +319,7 @@ export function MarketAnalysisChart() {
       {loadingRegistry ? <div className="market-chart-state">Loading instrument and provider registry…</div> : null}
       {error && !candles.data ? <div className="market-chart-state is-error" role="alert"><strong>Market data request failed</strong><span>{error instanceof Error ? error.message : "Unable to load the selected data source."}</span><button type="button" onClick={() => { void providers.refetch(); void instruments.refetch(); void candles.refetch(); }}>Retry data request</button></div> : null}
       {candles.isFetching && chartData.length > 0 ? <div className="market-fetch-indicator">Updating candles…</div> : null}
-      {chartFailure ? <div className="market-chart-state is-error" role="alert"><strong>Chart could not render</strong><span>{chartFailure}</span><button type="button" onClick={retryChart}>Reinitialize chart</button></div> : null}
+      {chartFailure ? <div className="market-chart-state is-error" role="alert"><strong>Chart could not render</strong><span>{chartFailure}</span><button type="button" onClick={onRetry}>Reinitialize chart</button></div> : null}
       {!candles.isLoading && !error && chartData.length === 0 ? <div className="market-chart-state"><strong>No candle history for this selection</strong><span>Choose another provider or timeframe. The chart never invents missing market prices.</span></div> : null}
       <div ref={containerRef} className="market-chart-canvas" aria-label="Interactive TradingView Lightweight candlestick chart" />
 
@@ -363,4 +339,10 @@ export function MarketAnalysisChart() {
       <footer className="market-chart-footer"><span>TradingView Lightweight Charts™ · Read-only market analysis</span><span>Updated: {lastUpdated ?? candles.data?.last_updated_at ?? "Not reported"} · Classification: {candles.data?.classification ?? "Unavailable"}</span><a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">TradingView</a></footer>
     </section>
   );
+}
+
+
+export function MarketAnalysisChart() {
+  const [attempt, setAttempt] = useState(0);
+  return <MarketAnalysisChartInstance key={attempt} onRetry={() => setAttempt(value => value + 1)} />;
 }
