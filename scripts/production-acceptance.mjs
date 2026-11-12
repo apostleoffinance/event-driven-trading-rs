@@ -54,7 +54,7 @@ const browser = await chromium.launch({ headless: true });
 try {
   // The public routes establish signed-out layout behavior at each agreed viewport.
   for (const viewport of viewports) {
-    const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
+    const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, timezoneId: "Africa/Lagos" });
     const page = await context.newPage();
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
