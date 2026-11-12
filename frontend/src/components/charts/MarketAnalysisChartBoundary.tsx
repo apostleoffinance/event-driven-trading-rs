@@ -3,33 +3,30 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 type Props = { children: ReactNode };
-type State = { hasError: boolean };
+type State = { error: Error | null; retryKey: number };
 
 export class MarketAnalysisChartBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { error: null, retryKey: 0 };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { error };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // Keep a diagnostic in browser DevTools without taking down the rest of Market Data.
-    console.error("[EdgeNest] Market Analysis chart failed to initialize.", error, info.componentStack);
+    console.error("[EdgeNest] Market Analysis chart crashed.", error, info.componentStack);
   }
 
   render() {
-    if (this.state.hasError) {
+    if (this.state.error) {
       return (
-        <section className="panel error" role="alert">
-          <h2>Market Analysis chart unavailable</h2>
-          <p>The chart failed to initialize. The rest of Market Data remains available.</p>
-          <button className="btn" type="button" onClick={() => this.setState({ hasError: false })}>
-            Retry chart
-          </button>
+        <section className="market-chart-state is-error" role="alert">
+          <strong>Market Analysis could not initialize</strong>
+          <span>The chart encountered a browser rendering error. Other Market Data features remain available.</span>
+          <details><summary>Technical diagnostic</summary><pre>{this.state.error.message}</pre></details>
+          <button type="button" onClick={() => this.setState(state => ({ error: null, retryKey: state.retryKey + 1 }))}>Retry chart</button>
         </section>
       );
     }
-
-    return this.props.children;
+    return <div key={this.state.retryKey}>{this.props.children}</div>;
   }
 }
