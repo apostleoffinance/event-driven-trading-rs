@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
 import type { JournalTrade } from "@/lib/api/journal";
@@ -39,6 +39,7 @@ function movementPips(symbol: string, entry: number, current: number, direction:
 }
 
 export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [frame, setFrame] = useState<Frame>(
     trade.timeframe && FRAMES.includes(trade.timeframe.toUpperCase() as Frame)
@@ -52,11 +53,12 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const persistedExcursionRef = useRef<string>("");
+  const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) && new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
 
   const instrumentsQuery = useQuery({
     queryKey: ["market-data", "instruments"],
     queryFn: () => marketDataApi.instruments(),
-    enabled: expanded,
+    enabled: isClosedTrade,
   });
   const providersQuery = useQuery({
     queryKey: ["market-data", "providers"],
@@ -103,7 +105,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       }
       return { candles: all };
     },
-    enabled: expanded && isClosedTrade && Boolean(selectedProvider),
+    enabled: isClosedTrade && Boolean(selectedProvider),
     retry: 1,
   });
 
@@ -118,7 +120,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
 
   useEffect(() => {
-    if (!expanded || !isClosedTrade || candles.length === 0 || !Number.isFinite(entryPrice)) return;
+    if (!isClosedTrade || candles.length === 0 || !Number.isFinite(entryPrice)) return;
     const first = Number(candles[0].time) * 1000;
     const last = Number(candles[candles.length - 1].time) * 1000;
     const opened = new Date(trade.opened_at).getTime();
@@ -149,7 +151,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
     }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [expanded, isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider]);
+  }, [expanded, isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
 
   const availableProviders = providersQuery.data?.filter((item) => {
     if (item.id === "demo") return false;
