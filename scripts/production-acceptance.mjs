@@ -95,6 +95,9 @@ try {
     assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
     assert.deepEqual(pageErrors, [], `Browser runtime errors on Market Data at ${viewport.name}: ${pageErrors.join("; ")}`);
     console.log(`PASS ${viewport.name}: Market Data Lightweight Charts canvas, eight timeframe controls, no horizontal overflow; console errors: ${marketConsoleErrors.join(" | ") || "none"}`);
+    // Return to Analytics before exercising its sign-in navigation below.
+    await page.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
     assert.ok(
       dimensions.documentWidth <= dimensions.viewportWidth && dimensions.bodyWidth <= dimensions.viewportWidth,
       `Horizontal overflow at ${viewport.name}: ${JSON.stringify(dimensions)}`,
