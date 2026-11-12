@@ -136,6 +136,14 @@ async fn main() {
                 .delete(resources::archive_account),
         )
         .route(
+            "/api/v1/journal/accounts/{id}/trading-link",
+            axum::routing::put(resources::link_trading_account),
+        )
+        .route(
+            "/api/v1/journal/portfolio",
+            get(resources::journal_portfolio),
+        )
+        .route(
             "/api/v1/journal/accounts/{id}/risk-policy",
             get(risk_policy::get).put(risk_policy::put),
         )

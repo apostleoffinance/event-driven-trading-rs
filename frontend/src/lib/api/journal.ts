@@ -11,7 +11,7 @@ export type JournalAnalyticsSavedView = {
 
 export type JournalAccount = {
   id: string; name: string; broker?: string | null; account_type: string;
-  currency: string; initial_balance: string; archived?: boolean;
+  currency: string; initial_balance: string; archived?: boolean; linked_trading_account_id?: string | null;
 };
 export type JournalSetup = {
   id: string; name: string; description?: string | null; rules_json: Record<string, unknown>; archived?: boolean;
@@ -124,6 +124,14 @@ export const journalApi = {
     return (await apiRequest<DataEnvelope<JournalIntelligence>>(`/api/v1/journal/analytics/intelligence${suffix}`, { baseUrl: journalBaseUrl() })).data;
   },
   async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { baseUrl: journalBaseUrl() })).data; },
+  async linkTradingAccount(id: string, linkedTradingAccountId: string | null) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<{journal_account_id:string;linked_trading_account_id:string|null}>>(`/api/v1/journal/accounts/${encodeURIComponent(id)}/trading-link`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify({linked_trading_account_id:linkedTradingAccountId})});
+  },
+  async journalPortfolio() {
+    requireApiMode();
+    return (await apiRequest<DataEnvelope<Array<{account_id:string;name:string;currency:string;initial_balance:string;realized_net_pnl:string;journal_equity:string;trade_count:number;linked_trading_account_id:string|null}>>>("/api/v1/journal/portfolio",{baseUrl:journalBaseUrl()})).data;
+  },
   async updateAccount(id: string, input: { name: string; broker?: string | null; account_type: string; currency: string; initial_balance: string }) {
     requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
   },

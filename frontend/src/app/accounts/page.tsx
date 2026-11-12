@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api/client";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { formatMoney, formatPct, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
 import type { Account } from "@/types/domain";
+import { journalApi, type JournalAccount } from "@/lib/api/journal";
 
 export default function AccountsPage() {
   const queryClient = useQueryClient();
@@ -24,6 +25,8 @@ export default function AccountsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Account | null>(null);
+  const { data: journalAccounts = [], isLoading: journalLoading } = useQuery({ queryKey: ["journal","accounts"], queryFn: journalApi.listAccounts });
+  const linkMutation = useMutation({ mutationFn: ({id, linkedId}:{id:string;linkedId:string|null}) => journalApi.linkTradingAccount(id, linkedId), onSuccess: async () => { await queryClient.invalidateQueries({queryKey:["journal","accounts"]}); await queryClient.invalidateQueries({queryKey:["journal","portfolio"]}); } });
   const { data = [], isLoading, isError, error } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => getRepositories().accounts.listAccounts(),
@@ -117,12 +120,6 @@ export default function AccountsPage() {
     [],
   );
 
-  if (isLoading) return <div className="loading">Loading accounts…</div>;
-  if (isError)
-    return (
-      <div className="error">{(error as Error).message ?? "Failed to load"}</div>
-    );
-
   return (
     <>
       <PageHeader
@@ -130,12 +127,46 @@ export default function AccountsPage() {
         description="Manage your trading accounts and track balances, equity and risk."
       />
       <div className="panel">
-        <DataTable
-          data={data}
-          columns={columns}
-          onRowClick={setSelected}
-          emptyMessage={"No trading accounts linked yet. Create a Paper Account to begin, or have an existing account linked to your user."}
-        />
+        {isLoading ? <div className="loading">Loading trading accounts…</div> : isError ? (
+          <div className="error" role="alert">{(error as Error).message ?? "Failed to load trading accounts."}</div>
+        ) : (
+          <DataTable
+            data={data}
+            columns={columns}
+            onRowClick={setSelected}
+            emptyMessage={"No trading accounts linked yet. Create a Paper Account to begin, or link an existing account through your account administrator."}
+          />
+        )}
+      </div>
+      <div className="panel" style={{ marginTop: 14 }}>
+        <div className="panel-title">JOURNAL ACCOUNTS</div>
+        <p className="metric-sub">Journal accounts appear here independently. Link one to a trading account you already own to associate its Journal ledger; this does not grant trading or broker permissions.</p>
+        {journalLoading ? <div className="loading">Loading Journal accounts…</div> : journalAccounts.length === 0 ? <p className="metric-sub">No Journal accounts found.</p> : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
+              <thead><tr><th>Account</th><th>Type</th><th>Broker</th><th>Initial balance</th><th>Trading account link</th></tr></thead>
+              <tbody>{journalAccounts.map((account: JournalAccount) => (
+                <tr key={account.id}>
+                  <td><strong>{account.name}</strong><div className="metric-sub">{account.currency}</div></td>
+                  <td>{account.account_type}</td>
+                  <td>{account.broker || "—"}</td>
+                  <td className="num">{formatMoney(account.initial_balance, account.currency)}</td>
+                  <td>
+                    <select aria-label={`Trading account for ${account.name}`} className="input" style={{ minWidth: 190, padding: 7, border: "1px solid var(--border)", background: "var(--panel)", borderRadius: 6 }}
+                      value={account.linked_trading_account_id || ""}
+                      disabled={linkMutation.isPending}
+                      onChange={(event) => linkMutation.mutate({id:account.id,linkedId:event.target.value || null})}>
+                      <option value="">Journal only — not linked</option>
+                      {data.map((trading) => <option key={trading.id} value={trading.id}>{trading.name} · {trading.venueName}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+            {linkMutation.isError ? <p className="error" role="alert">{(linkMutation.error as Error).message}</p> : null}
+            {linkMutation.isSuccess ? <p className="metric-sub" role="status">Account link updated.</p> : null}
+          </div>
+        )}
       </div>
       {createOpen ? (
         <>
