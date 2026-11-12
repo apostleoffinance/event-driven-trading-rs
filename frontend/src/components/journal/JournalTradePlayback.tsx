@@ -148,7 +148,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
     }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [expanded, isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
+  }, [isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
 
   const availableProviders = providersQuery.data?.filter((item) => {
     if (item.id === "demo") return false;
