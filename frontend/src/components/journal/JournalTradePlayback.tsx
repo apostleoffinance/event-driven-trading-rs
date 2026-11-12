@@ -145,7 +145,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       candle_count: candles.length,
       coverage_start: new Date(first).toISOString(),
       coverage_end: new Date(last).toISOString(),
-    }).catch(() => {
+    }).then(() => queryClient.invalidateQueries({ queryKey: ["journal", "trades"] })).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
   }, [isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
