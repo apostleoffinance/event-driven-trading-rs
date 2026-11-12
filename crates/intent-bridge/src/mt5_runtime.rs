@@ -14,7 +14,6 @@ use persistence::{Mt5DurableOrderState, TradingStore};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
 use crate::mt5_reconciliation::{
     persist_and_confirm_reconciliation, persist_reconciliation_without_confirmation,
     Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
@@ -374,40 +373,16 @@ impl Mt5BridgeRuntime {
     /// authenticated connection. Existing keys are returned for reconciliation only.
     pub async fn dispatch_submit(
         &self,
-        frame: &BridgeFrame,
-        now: DateTime<Utc>,
-        allowed_clock_skew: Duration,
+        _frame: &BridgeFrame,
+        _now: DateTime<Utc>,
+        _allowed_clock_skew: Duration,
     ) -> BridgeResult<Mt5RuntimeDispatchResult> {
-        let decision = {
-            let session = self.session.lock().await;
-            prepare_submit(&self.store, &session, frame, now, allowed_clock_skew).await?
-        };
-        match decision {
-            Mt5DispatchDecision::SendOnce(permit) => {
-                let mut connection = self.connection.lock().await;
-                let mut session = self.session.lock().await;
-                permit
-                    .execute_over_transport(
-                        &mut connection,
-                        &self.store,
-                        &mut session,
-                        allowed_clock_skew,
-                    )
-                    .await?;
-                Ok(Mt5RuntimeDispatchResult::OutcomePersisted)
-            }
-            Mt5DispatchDecision::ReconcileRequired {
-                client_order_id,
-                prior_state,
-                venue_order_id,
-                reason_code,
-            } => Ok(Mt5RuntimeDispatchResult::ReconciliationRequired {
-                client_order_id,
-                prior_state,
-                venue_order_id,
-                reason_code,
-            }),
-        }
+        // The current schema has no verified environment/provenance or durable
+        // execution-authorization record. Until QOS-021A-E2 supplies that trusted
+        // persistence boundary, no application caller may dispatch a broker frame.
+        Err(BridgeError::Invalid(
+            "MT5 order dispatch is disabled: verified account environment and execution authorization are unavailable".into(),
+        ))
     }
 
     pub async fn session_state(&self) -> Mt5SessionState {

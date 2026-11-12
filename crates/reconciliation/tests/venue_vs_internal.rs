@@ -13,7 +13,7 @@ use execution_engine::{ExecutionEngine, NewOrderRequest};
 use reconciliation::{InternalSnapshot, Reconciler, ReconciliationBreak};
 use risk_engine::{DefaultRiskEvaluator, RiskEvaluator};
 use rust_decimal::Decimal;
-use venue_connectors::{submit_approved_order, SimulatedVenue, VenueAdapter};
+use venue_connectors::{execute_simulated_order, SimulatedVenue, VenueAdapter};
 
 async fn seeded_account(
     capital: Decimal,
@@ -101,7 +101,7 @@ async fn equity_mismatch_alerts_without_overwriting_account() {
         .unwrap();
 
     let mut oms = ExecutionEngine::new();
-    submit_approved_order(
+    execute_simulated_order(
         &mut oms,
         &venue,
         NewOrderRequest {

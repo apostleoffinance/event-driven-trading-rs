@@ -9,6 +9,7 @@ members = [
     "crates/execution-engine",
     "crates/venue-connectors",
     "crates/persistence",
+    "crates/identity-token",
     "crates/trading-runtime",
     "crates/reconciliation",
     "crates/intent-bridge",

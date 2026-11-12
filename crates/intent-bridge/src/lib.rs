@@ -8,7 +8,10 @@
 
 pub mod error;
 pub mod ingest;
-pub mod mt5_dispatch;
+// Retained for the later durable authorization implementation. Its public
+// permit API is intentionally inaccessible while the E2 provenance schema is absent.
+#[allow(dead_code)]
+mod mt5_dispatch;
 pub mod mt5_health;
 pub mod mt5_reconciliation;
 pub mod mt5_runtime;
@@ -19,7 +22,6 @@ pub mod wire;
 
 pub use error::{BridgeError, BridgeResult};
 pub use ingest::{BridgeVenueKind, IntentIngestSession};
-pub use mt5_dispatch::{prepare_submit, Mt5DispatchDecision, Mt5DispatchPermit};
 pub use mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
     Mt5PositionSnapshot, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,

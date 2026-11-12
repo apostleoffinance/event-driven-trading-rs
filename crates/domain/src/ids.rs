@@ -59,6 +59,34 @@ define_id!(
     AccountId
 );
 define_id!(
+    /// Organization/tenant identifier.
+    OrganizationId
+);
+define_id!(
+    /// Trusted broker catalogue identifier.
+    BrokerId
+);
+define_id!(
+    /// Broker-scoped server identity identifier.
+    BrokerServerId
+);
+define_id!(
+    /// Internal identifier for an external broker account.
+    ExternalBrokerAccountId
+);
+define_id!(
+    /// Internal identifier for a Quant-to-broker account binding.
+    BrokerBindingId
+);
+define_id!(
+    /// Internal identifier for provider account evidence.
+    BrokerEvidenceId
+);
+define_id!(
+    /// Internal identifier for an account verification decision.
+    BrokerVerificationId
+);
+define_id!(
     /// Unique venue identifier (where execution occurs).
     VenueId
 );

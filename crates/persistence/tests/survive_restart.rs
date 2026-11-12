@@ -35,7 +35,13 @@ async fn seed_graph(store: &TradingStore) {
     store.upsert_instrument(&instrument).await.unwrap();
 
     let account_id = AccountId::new("prop-account-001").unwrap();
-    let account = Account::new(account_id.clone(), AccountType::Prop, venue.id.clone(), now);
+    let account = Account::new(
+        account_id.clone(),
+        AccountType::Prop,
+        venue.id.clone(),
+        domain::AccountEnvironment::Paper,
+        now,
+    );
     let state = AccountState::new(account_id.clone(), Decimal::from(100_000), now).unwrap();
     store
         .upsert_account(&account, Decimal::from(100_000), Some("prop"), &state)

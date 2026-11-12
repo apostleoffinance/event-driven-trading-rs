@@ -21,8 +21,9 @@ pub struct CreateOrderOutcome {
 
 /// In-memory OMS / execution coordinator.
 ///
-/// Venue I/O goes through `venue_connectors::VenueAdapter` via
-/// `submit_approved_order` — this type stays venue-agnostic.
+/// Venue observation stays behind `venue_connectors::VenueAdapter`. Simulated
+/// submission uses the separate `SimulationExecutionAdapter` capability; broker
+/// submission is reserved for the future private authorization coordinator.
 #[derive(Debug, Default)]
 pub struct ExecutionEngine {
     orders: HashMap<OrderId, Order>,

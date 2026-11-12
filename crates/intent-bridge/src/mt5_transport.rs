@@ -536,7 +536,7 @@ impl AuthenticatedMt5Connection {
 
     /// Write one validated protocol frame as NDJSON. Transport success means only
     /// bytes were written; it is never an order acceptance/fill/cancel confirmation.
-    pub async fn write_frame(&mut self, frame: &BridgeFrame) -> BridgeResult<()> {
+    pub(crate) async fn write_frame(&mut self, frame: &BridgeFrame) -> BridgeResult<()> {
         if self.failed || !self.heartbeat_seen {
             return Err(BridgeError::Invalid(
                 "MT5 outbound frames are blocked until authenticated heartbeat validation".into(),

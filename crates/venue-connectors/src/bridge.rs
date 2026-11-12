@@ -1,21 +1,21 @@
-//! Bridge OMS ↔ VenueAdapter without coupling OMS to a concrete venue.
+//! Bridge OMS ↔ simulated execution without exposing broker submission.
 
 use chrono::Utc;
 use execution_engine::{CreateOrderOutcome, ExecutionEngine, ExecutionError, NewOrderRequest};
 
-use crate::adapter::VenueAdapter;
+use crate::adapter::SimulationExecutionAdapter;
 use crate::error::{VenueError, VenueResult};
 use crate::types::{CancelRequest, OrderRequest};
 
-/// Submit a risk-approved order through OMS then the venue adapter.
+/// Execute an order through OMS then an explicit simulation/paper adapter.
 ///
 /// Flow: create (idempotent) → mark submitted → venue.submit → apply fills → accept/fill states.
 ///
 /// On [`VenueError::Ambiguous`], the order is marked [`domain::OrderStatus::Unknown`]
 /// (never Failed) so reconciliation can resolve truth.
-pub async fn submit_approved_order(
+pub async fn execute_simulated_order(
     oms: &mut ExecutionEngine,
-    venue: &dyn VenueAdapter,
+    venue: &dyn SimulationExecutionAdapter,
     request: NewOrderRequest,
 ) -> VenueResult<CreateOrderOutcome> {
     let at = request.created_at;
@@ -30,7 +30,7 @@ pub async fn submit_approved_order(
 
     let order = oms.get(&order_id).map_err(map_exec)?.clone();
     let ack = match venue
-        .submit_order(OrderRequest {
+        .submit_simulated_order(OrderRequest {
             venue_id: order.venue_id.clone(),
             order,
         })
@@ -85,15 +85,15 @@ pub async fn submit_approved_order(
 }
 
 /// Request cancel at OMS then at the venue.
-pub async fn cancel_order(
+pub async fn cancel_simulated_order(
     oms: &mut ExecutionEngine,
-    venue: &dyn VenueAdapter,
+    venue: &dyn SimulationExecutionAdapter,
     order_id: &domain::OrderId,
 ) -> VenueResult<()> {
     let at = Utc::now();
     let order = oms.request_cancel(order_id, at).map_err(map_exec)?;
     venue
-        .cancel_order(CancelRequest {
+        .cancel_simulated_order(CancelRequest {
             account_id: order.account_id.clone(),
             order_id: order.id.clone(),
             client_order_id: order.client_order_id.clone(),

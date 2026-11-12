@@ -107,6 +107,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
+name = "api-gateway"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "reqwest 0.12.28",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1222,7 +1233,8 @@ dependencies = [
  "axum",
  "chrono",
  "hex",
- "jsonwebtoken",
+ "http-body-util",
+ "identity-token",
  "persistence",
  "rand_core 0.6.4",
  "serde",
@@ -1234,6 +1246,14 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "identity-token"
+version = "0.1.0"
+dependencies = [
+ "jsonwebtoken",
+ "serde",
 ]
 
 [[package]]
@@ -1321,12 +1341,16 @@ dependencies = [
  "axum",
  "chrono",
  "domain",
+ "hex",
+ "hmac",
  "http-body-util",
+ "identity-token",
  "jsonwebtoken",
  "persistence",
  "rust_decimal",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "tokio",
  "tower",
@@ -1334,6 +1358,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -1735,6 +1760,7 @@ dependencies = [
  "chrono",
  "domain",
  "execution-engine",
+ "identity-token",
  "rust_decimal",
  "serde",
  "serde_json",

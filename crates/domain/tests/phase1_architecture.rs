@@ -36,6 +36,7 @@ fn phase1_architecture_can_represent_prop_deployment_flow() {
         AccountId::new("prop-account-001").unwrap(),
         AccountType::Prop,
         venue.id.clone(),
+        domain::AccountEnvironment::Paper,
         now,
     );
 

@@ -16,6 +16,8 @@ use domain::{
 use rust_decimal::Decimal;
 use tokio::sync::Mutex;
 
+#[cfg(test)]
+use crate::adapter::SimulationExecutionAdapter;
 use crate::adapter::VenueAdapter;
 use crate::error::{VenueError, VenueResult};
 use crate::types::{same_submission_payload, CancelRequest, OrderAck, OrderRequest};
@@ -91,7 +93,7 @@ struct Inner {
     fills: Vec<Fill>,
 }
 
-/// Prop firm venue behind [`VenueAdapter`].
+/// Prop paper simulator. Order execution uses [`SimulationExecutionAdapter`].
 ///
 /// Distinct from [`crate::SimulatedVenue`]: single full fill, flat per-unit
 /// commission, venue id `prop`, and an explicit live-mode gate.
@@ -243,7 +245,42 @@ impl VenueAdapter for PropVenue {
             .ok_or_else(|| VenueError::AccountNotFound(account_id.as_str().to_string()))
     }
 
-    async fn submit_order(&self, request: OrderRequest) -> VenueResult<OrderAck> {
+    async fn open_orders(&self, account_id: &AccountId) -> VenueResult<Vec<Order>> {
+        self.ensure_paper()?;
+        let inner = self.inner.lock().await;
+        Ok(inner
+            .orders
+            .values()
+            .filter(|o| &o.account_id == account_id && !o.status.is_terminal())
+            .cloned()
+            .collect())
+    }
+
+    async fn positions(&self, account_id: &AccountId) -> VenueResult<Vec<Position>> {
+        self.ensure_paper()?;
+        let inner = self.inner.lock().await;
+        Ok(inner
+            .positions
+            .iter()
+            .filter(|((a, _), _)| a == account_id.as_str())
+            .map(|(_, p)| p.clone())
+            .collect())
+    }
+
+    async fn get_order(&self, order_id: &OrderId) -> VenueResult<Order> {
+        self.ensure_paper()?;
+        let inner = self.inner.lock().await;
+        inner
+            .orders
+            .get(order_id)
+            .cloned()
+            .ok_or_else(|| VenueError::OrderNotFound(order_id.as_str().to_string()))
+    }
+}
+
+#[async_trait]
+impl crate::adapter::SimulationExecutionAdapter for PropVenue {
+    async fn submit_simulated_order(&self, request: OrderRequest) -> VenueResult<OrderAck> {
         self.ensure_paper()?;
         if request.venue_id != self.config.venue_id {
             return Err(VenueError::Rejected(format!(
@@ -357,7 +394,7 @@ impl VenueAdapter for PropVenue {
         Ok(ack)
     }
 
-    async fn cancel_order(&self, request: CancelRequest) -> VenueResult<()> {
+    async fn cancel_simulated_order(&self, request: CancelRequest) -> VenueResult<()> {
         self.ensure_paper()?;
         let mut inner = self.inner.lock().await;
         let order = inner
@@ -377,39 +414,9 @@ impl VenueAdapter for PropVenue {
         order.updated_at = Utc::now();
         Ok(())
     }
-
-    async fn open_orders(&self, account_id: &AccountId) -> VenueResult<Vec<Order>> {
-        self.ensure_paper()?;
-        let inner = self.inner.lock().await;
-        Ok(inner
-            .orders
-            .values()
-            .filter(|o| &o.account_id == account_id && !o.status.is_terminal())
-            .cloned()
-            .collect())
-    }
-
-    async fn positions(&self, account_id: &AccountId) -> VenueResult<Vec<Position>> {
-        self.ensure_paper()?;
-        let inner = self.inner.lock().await;
-        Ok(inner
-            .positions
-            .iter()
-            .filter(|((a, _), _)| a == account_id.as_str())
-            .map(|(_, p)| p.clone())
-            .collect())
-    }
-
-    async fn get_order(&self, order_id: &OrderId) -> VenueResult<Order> {
-        self.ensure_paper()?;
-        let inner = self.inner.lock().await;
-        inner
-            .orders
-            .get(order_id)
-            .cloned()
-            .ok_or_else(|| VenueError::OrderNotFound(order_id.as_str().to_string()))
-    }
 }
+
+impl crate::adapter::private::Sealed for PropVenue {}
 
 #[cfg(test)]
 mod tests {
@@ -451,7 +458,7 @@ mod tests {
         .unwrap();
 
         let ack = venue
-            .submit_order(OrderRequest {
+            .submit_simulated_order(OrderRequest {
                 venue_id: venue.venue_id().clone(),
                 order,
             })

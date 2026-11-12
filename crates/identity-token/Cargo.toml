@@ -1,0 +1,10 @@
+[package]
+name = "identity-token"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared EdgeNest identity access-token contract and key rotation support"
+
+[dependencies]
+jsonwebtoken = "9.3"
+serde = { workspace = true }

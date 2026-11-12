@@ -2,12 +2,15 @@
 
 mod accounts;
 mod audit;
+mod broker_registry;
 mod fills;
+mod identity_sessions;
 mod instruments;
 mod journal;
 mod mt5_bridge;
 pub mod mt5_market_data;
 mod orders;
+mod organizations;
 mod positions;
 mod risk;
 mod sizing_audits;
@@ -17,6 +20,8 @@ mod venues;
 use sqlx::PgPool;
 
 use crate::error::PersistenceResult;
+
+pub use broker_registry::{BrokerBindingTransition, BrokerBindingView, BrokerCatalogEntry};
 
 pub use mt5_bridge::{
     Mt5DurableOrderState, Mt5OrderClaim, Mt5SequenceObservation, Mt5StreamReadiness,
@@ -80,6 +85,257 @@ impl TradingStore {
 
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    pub async fn validate_access_token(
+        &self,
+        claims: &identity_token::AccessClaims,
+    ) -> PersistenceResult<bool> {
+        identity_sessions::validate_access_token(&self.pool, claims).await
+    }
+
+    pub async fn broker_catalog(&self) -> PersistenceResult<Vec<BrokerCatalogEntry>> {
+        broker_registry::list_catalog(&self.pool).await
+    }
+
+    pub async fn broker_bindings(
+        &self,
+        organization: &str,
+    ) -> PersistenceResult<Vec<BrokerBindingView>> {
+        broker_registry::list_bindings(&self.pool, organization).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn register_pending_broker_binding(
+        &self,
+        organization: &str,
+        actor: &str,
+        quant_account: &str,
+        broker: &str,
+        server: &str,
+        account_id: &str,
+        binding_id: &str,
+        normalization_version: i16,
+        key_version: &str,
+        lookup_hmacs: &[(String, [u8; 32])],
+        reason: &str,
+    ) -> PersistenceResult<()> {
+        broker_registry::register_pending_binding(
+            &self.pool,
+            organization,
+            actor,
+            quant_account,
+            broker,
+            server,
+            account_id,
+            binding_id,
+            normalization_version,
+            key_version,
+            lookup_hmacs,
+            reason,
+        )
+        .await
+    }
+
+    pub async fn transition_broker_binding(
+        &self,
+        organization: &str,
+        actor: &str,
+        binding_id: &str,
+        expected_revision: i64,
+        transition: BrokerBindingTransition,
+        reason: &str,
+    ) -> PersistenceResult<i64> {
+        broker_registry::transition_binding(
+            &self.pool,
+            organization,
+            actor,
+            binding_id,
+            expected_revision,
+            transition,
+            reason,
+        )
+        .await
+    }
+
+    pub async fn create_organization(
+        &self,
+        org: &domain::Organization,
+        actor: &str,
+    ) -> PersistenceResult<()> {
+        organizations::create(&self.pool, org, actor).await
+    }
+
+    pub async fn revise_organization(
+        &self,
+        organization: &str,
+        actor: &str,
+        expected_revision: i64,
+        name: Option<&str>,
+        status: Option<domain::OrganizationStatus>,
+        reason: &str,
+    ) -> PersistenceResult<i64> {
+        organizations::revise_organization(
+            &self.pool,
+            organization,
+            actor,
+            expected_revision,
+            name,
+            status,
+            reason,
+        )
+        .await
+    }
+
+    pub async fn organizations_for_user(
+        &self,
+        user: &str,
+    ) -> PersistenceResult<Vec<(domain::Organization, domain::OrganizationRole, u64)>> {
+        organizations::list_for_user(&self.pool, user).await
+    }
+
+    pub async fn organization_membership(
+        &self,
+        organization: &str,
+        user: &str,
+    ) -> PersistenceResult<Option<(domain::OrganizationRole, domain::MembershipStatus, i64)>> {
+        organizations::membership(&self.pool, organization, user).await
+    }
+
+    pub async fn organization_members(
+        &self,
+        organization: &str,
+    ) -> PersistenceResult<Vec<domain::OrganizationMembership>> {
+        organizations::list_members(&self.pool, organization).await
+    }
+
+    pub async fn create_organization_membership(
+        &self,
+        organization: &str,
+        user: &str,
+        actor: &str,
+        role: domain::OrganizationRole,
+        reason: &str,
+    ) -> PersistenceResult<()> {
+        organizations::create_membership(&self.pool, organization, user, actor, role, reason).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn revise_organization_membership(
+        &self,
+        organization: &str,
+        user: &str,
+        actor: &str,
+        expected_revision: i64,
+        role: domain::OrganizationRole,
+        status: domain::MembershipStatus,
+        reason: &str,
+    ) -> PersistenceResult<i64> {
+        organizations::revise_membership(
+            &self.pool,
+            organization,
+            user,
+            actor,
+            expected_revision,
+            role,
+            status,
+            reason,
+        )
+        .await
+    }
+
+    pub async fn transfer_organization_owner(
+        &self,
+        organization: &str,
+        actor: &str,
+        target: &str,
+        actor_revision: i64,
+        target_revision: i64,
+        reason: &str,
+    ) -> PersistenceResult<()> {
+        organizations::transfer_owner(
+            &self.pool,
+            organization,
+            actor,
+            target,
+            actor_revision,
+            target_revision,
+            reason,
+        )
+        .await
+    }
+
+    pub async fn organization_entitlements(
+        &self,
+        organization: &str,
+    ) -> PersistenceResult<Vec<domain::OrganizationAccountEntitlement>> {
+        organizations::list_entitlements(&self.pool, organization).await
+    }
+
+    pub async fn assign_account_entitlement(
+        &self,
+        organization: &str,
+        account: &str,
+        actor: &str,
+        account_revision: i64,
+        entitlement_revision: i64,
+        reason: &str,
+    ) -> PersistenceResult<i64> {
+        organizations::assign_account(
+            &self.pool,
+            organization,
+            account,
+            actor,
+            account_revision,
+            entitlement_revision,
+            reason,
+        )
+        .await
+    }
+
+    pub async fn create_paper_account_for_owner(
+        &self,
+        organization: &str,
+        actor: &str,
+        account: &domain::Account,
+        starting_capital: rust_decimal::Decimal,
+        label: &str,
+        state: &domain::AccountState,
+    ) -> PersistenceResult<i64> {
+        organizations::create_paper_account_for_owner(
+            &self.pool,
+            organization,
+            actor,
+            account,
+            starting_capital,
+            label,
+            state,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn set_account_entitlement_status(
+        &self,
+        organization: &str,
+        account: &str,
+        actor: &str,
+        account_revision: i64,
+        entitlement_revision: i64,
+        status: domain::EntitlementStatus,
+        reason: &str,
+    ) -> PersistenceResult<i64> {
+        organizations::set_entitlement_status(
+            &self.pool,
+            organization,
+            account,
+            actor,
+            account_revision,
+            entitlement_revision,
+            status,
+            reason,
+        )
+        .await
     }
 
     /// Atomically reserve a durable MT5 client-order ID before transport send.
@@ -228,6 +484,33 @@ impl TradingStore {
         account_id: &domain::AccountId,
     ) -> PersistenceResult<domain::AccountState> {
         accounts::load_state(&self.pool, account_id).await
+    }
+
+    pub async fn load_account(
+        &self,
+        account_id: &domain::AccountId,
+    ) -> PersistenceResult<domain::Account> {
+        accounts::load_account(&self.pool, account_id).await
+    }
+
+    /// Record an attributable environment verification using optimistic revision checking.
+    pub async fn verify_account_environment(
+        &self,
+        account_id: &domain::AccountId,
+        environment: domain::AccountEnvironment,
+        verifier_id: &str,
+        expected_revision: u64,
+        reason: Option<&str>,
+    ) -> PersistenceResult<u64> {
+        accounts::verify_environment(
+            &self.pool,
+            account_id,
+            environment,
+            verifier_id,
+            expected_revision,
+            reason,
+        )
+        .await
     }
 
     pub async fn save_trade_intent(&self, intent: &domain::TradeIntent) -> PersistenceResult<()> {

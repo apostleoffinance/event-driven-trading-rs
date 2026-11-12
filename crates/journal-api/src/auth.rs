@@ -1,35 +1,52 @@
 use axum::http::{header::AUTHORIZATION, HeaderMap, StatusCode};
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-use serde::{Deserialize, Serialize};
+use identity_token::{AccessClaims, JwtKeyRing};
+use std::{collections::BTreeMap, sync::Arc};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: String,
-    pub iss: String,
-    pub aud: String,
-    pub exp: usize,
-    #[serde(default)]
-    pub iat: Option<usize>,
-}
+pub type Claims = AccessClaims;
 
 #[derive(Clone)]
 pub struct JwtConfig {
-    key: DecodingKey,
-    validation: Validation,
+    ring: Arc<JwtKeyRing>,
 }
 
 impl JwtConfig {
     pub fn new(public_key_pem: &[u8], issuer: String, audience: String) -> Result<Self, String> {
-        let key = DecodingKey::from_rsa_pem(public_key_pem)
-            .map_err(|e| format!("EDGENEST_JWT_PUBLIC_KEY_PEM must be an RSA public key: {e}"))?;
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.set_issuer(&[issuer]);
-        validation.set_audience(&[audience]);
-        validation.validate_exp = true;
-        validation.validate_nbf = true;
-        validation.required_spec_claims.insert("sub".to_owned());
-        validation.required_spec_claims.insert("exp".to_owned());
-        Ok(Self { key, validation })
+        let mut verification = BTreeMap::new();
+        verification.insert("test-key".to_owned(), public_key_pem.to_vec());
+        let ring = JwtKeyRing::verification_only(verification, issuer, audience)?;
+        Ok(Self {
+            ring: Arc::new(ring),
+        })
+    }
+
+    pub fn from_files(
+        verification_specs: &str,
+        issuer: String,
+        audience: String,
+    ) -> Result<Self, String> {
+        let mut verification = BTreeMap::new();
+        for entry in verification_specs
+            .split(';')
+            .filter(|entry| !entry.trim().is_empty())
+        {
+            let (kid, path) = entry
+                .split_once('=')
+                .ok_or_else(|| "JWT verification entries must use kid=path format".to_owned())?;
+            if verification
+                .insert(
+                    kid.trim().to_owned(),
+                    std::fs::read(path.trim())
+                        .map_err(|_| "unable to read configured JWT verification key".to_owned())?,
+                )
+                .is_some()
+            {
+                return Err("duplicate JWT verification key id".into());
+            }
+        }
+        let ring = JwtKeyRing::verification_only(verification, issuer, audience)?;
+        Ok(Self {
+            ring: Arc::new(ring),
+        })
     }
 
     pub fn authenticate(&self, headers: &HeaderMap) -> Result<Claims, ApiAuthError> {
@@ -38,13 +55,11 @@ impl JwtConfig {
             .and_then(|value| value.to_str().ok())
             .ok_or(ApiAuthError)?;
         let token = raw.strip_prefix("Bearer ").ok_or(ApiAuthError)?;
-        let claims = decode::<Claims>(token, &self.key, &self.validation)
-            .map_err(|_| ApiAuthError)?
-            .claims;
-        if claims.sub.trim().is_empty() {
-            return Err(ApiAuthError);
-        }
-        Ok(claims)
+        self.ring.verify(token).map_err(|_| ApiAuthError)
+    }
+
+    pub fn key_ring(&self) -> &JwtKeyRing {
+        &self.ring
     }
 }
 

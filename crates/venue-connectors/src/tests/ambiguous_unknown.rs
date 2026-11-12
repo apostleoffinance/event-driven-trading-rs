@@ -1,5 +1,7 @@
 //! Ambiguous venue submit → OrderStatus::Unknown (never Failed).
 
+use std::error::Error;
+
 use async_trait::async_trait;
 use chrono::Utc;
 use domain::{
@@ -10,7 +12,7 @@ use domain::{
 use execution_engine::{ExecutionEngine, NewOrderRequest};
 use rust_decimal::Decimal;
 use venue_connectors::types::{CancelRequest, OrderAck, OrderRequest};
-use venue_connectors::{submit_approved_order, VenueAdapter, VenueError, VenueResult};
+use venue_connectors::{execute_simulated_order, VenueAdapter, VenueError, VenueResult};
 
 struct AmbiguousVenue;
 
@@ -21,16 +23,6 @@ impl VenueAdapter for AmbiguousVenue {
     }
 
     async fn account_state(&self, _account_id: &AccountId) -> VenueResult<AccountState> {
-        Err(VenueError::NotImplemented("n/a".into()))
-    }
-
-    async fn submit_order(&self, _request: OrderRequest) -> VenueResult<OrderAck> {
-        Err(VenueError::Ambiguous(
-            "timeout after submit; outcome unknown".into(),
-        ))
-    }
-
-    async fn cancel_order(&self, _request: CancelRequest) -> VenueResult<()> {
         Err(VenueError::NotImplemented("n/a".into()))
     }
 
@@ -47,22 +39,37 @@ impl VenueAdapter for AmbiguousVenue {
     }
 }
 
+impl venue_connectors::adapter::private::Sealed for AmbiguousVenue {}
+
+#[async_trait]
+impl venue_connectors::SimulationExecutionAdapter for AmbiguousVenue {
+    async fn submit_simulated_order(&self, _request: OrderRequest) -> VenueResult<OrderAck> {
+        Err(VenueError::Ambiguous(
+            "timeout after submit; outcome unknown".into(),
+        ))
+    }
+
+    async fn cancel_simulated_order(&self, _request: CancelRequest) -> VenueResult<()> {
+        Err(VenueError::NotImplemented("n/a".into()))
+    }
+}
+
 #[tokio::test]
-async fn ambiguous_submit_marks_unknown_not_failed() {
+async fn ambiguous_submit_marks_unknown_not_failed() -> Result<(), Box<dyn Error>> {
     let mut oms = ExecutionEngine::new();
     let venue = AmbiguousVenue;
 
-    let outcome = submit_approved_order(
+    let outcome = execute_simulated_order(
         &mut oms,
         &venue,
         NewOrderRequest {
-            client_order_id: ClientOrderId::new("clid-unknown").unwrap(),
-            account_id: AccountId::new("acct-1").unwrap(),
-            venue_id: VenueId::new("ambiguous-test").unwrap(),
-            deployment_id: DeploymentId::new("dep-1").unwrap(),
-            strategy_id: StrategyId::new("s1").unwrap(),
-            trade_intent_id: TradeIntentId::new("ti-unk").unwrap(),
-            instrument_id: InstrumentId::new("BTCUSDT").unwrap(),
+            client_order_id: ClientOrderId::new("clid-unknown")?,
+            account_id: AccountId::new("acct-1")?,
+            venue_id: VenueId::new("ambiguous-test")?,
+            deployment_id: DeploymentId::new("dep-1")?,
+            strategy_id: StrategyId::new("s1")?,
+            trade_intent_id: TradeIntentId::new("ti-unk")?,
+            instrument_id: InstrumentId::new("BTCUSDT")?,
             side: OrderSide::Buy,
             order_type: OrderType::Market,
             time_in_force: TimeInForce::Ioc,
@@ -74,9 +81,9 @@ async fn ambiguous_submit_marks_unknown_not_failed() {
             created_at: Utc::now(),
         },
     )
-    .await
-    .unwrap();
+    .await?;
 
     assert_eq!(outcome.order.status, OrderStatus::Unknown);
     assert!(!outcome.order.status.is_terminal());
+    Ok(())
 }

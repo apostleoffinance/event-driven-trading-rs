@@ -12,7 +12,7 @@ use domain::{
 use execution_engine::{ExecutionEngine, NewOrderRequest};
 use rust_decimal::Decimal;
 use venue_connectors::types::{CancelRequest, OrderAck, OrderRequest};
-use venue_connectors::{cancel_order, VenueAdapter, VenueError, VenueResult};
+use venue_connectors::{cancel_simulated_order, VenueAdapter, VenueError, VenueResult};
 
 struct CancelAckButStillOpenVenue {
     order: Order,
@@ -28,15 +28,6 @@ impl VenueAdapter for CancelAckButStillOpenVenue {
         Err(VenueError::NotImplemented("not used by this test".into()))
     }
 
-    async fn submit_order(&self, _request: OrderRequest) -> VenueResult<OrderAck> {
-        Err(VenueError::NotImplemented("not used by this test".into()))
-    }
-
-    async fn cancel_order(&self, _request: CancelRequest) -> VenueResult<()> {
-        // Simulate a venue acknowledging the cancel request while the order remains open.
-        Ok(())
-    }
-
     async fn open_orders(&self, _account_id: &AccountId) -> VenueResult<Vec<Order>> {
         Ok(vec![self.order.clone()])
     }
@@ -47,6 +38,20 @@ impl VenueAdapter for CancelAckButStillOpenVenue {
 
     async fn get_order(&self, _order_id: &OrderId) -> VenueResult<Order> {
         Ok(self.order.clone())
+    }
+}
+
+impl venue_connectors::adapter::private::Sealed for CancelAckButStillOpenVenue {}
+
+#[async_trait]
+impl venue_connectors::SimulationExecutionAdapter for CancelAckButStillOpenVenue {
+    async fn submit_simulated_order(&self, _request: OrderRequest) -> VenueResult<OrderAck> {
+        Err(VenueError::NotImplemented("not used by this test".into()))
+    }
+
+    async fn cancel_simulated_order(&self, _request: CancelRequest) -> VenueResult<()> {
+        // Simulate a venue acknowledging the cancel request while the order remains open.
+        Ok(())
     }
 }
 
@@ -81,7 +86,7 @@ async fn cancel_ack_does_not_mark_order_cancelled_without_confirmation() {
     let venue_order = oms.get(&order_id).unwrap().clone();
     let venue = CancelAckButStillOpenVenue { order: venue_order };
 
-    let result = cancel_order(&mut oms, &venue, &order_id).await;
+    let result = cancel_simulated_order(&mut oms, &venue, &order_id).await;
 
     assert!(matches!(result, Err(VenueError::Ambiguous(_))));
     assert_eq!(

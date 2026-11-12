@@ -1,7 +1,7 @@
 //! Simulated and prop account helpers.
 
 use chrono::{DateTime, Utc};
-use domain::{Account, AccountId, AccountType};
+use domain::{Account, AccountEnvironment, AccountId, AccountType};
 use rust_decimal::Decimal;
 
 use crate::config::AccountConfig;
@@ -27,6 +27,7 @@ impl InMemoryAccountEngine {
             spec.account_id.clone(),
             AccountType::Simulated,
             venue_id,
+            AccountEnvironment::Paper,
             spec.created_at,
         );
         let mut config = AccountConfig::new(spec.starting_capital)?;
@@ -51,7 +52,13 @@ impl InMemoryAccountEngine {
         created_at: DateTime<Utc>,
     ) -> AccountEngineResult<AccountId> {
         let venue_id = default_simulated_venue_id()?;
-        let account = Account::new(account_id.clone(), AccountType::Prop, venue_id, created_at);
+        let account = Account::new(
+            account_id.clone(),
+            AccountType::Prop,
+            venue_id,
+            AccountEnvironment::Paper,
+            created_at,
+        );
         let config = AccountConfig::new(starting_capital)?.with_label("prop-simulated");
         self.register(account, config)?;
         Ok(account_id)
@@ -65,7 +72,13 @@ impl InMemoryAccountEngine {
         created_at: DateTime<Utc>,
     ) -> AccountEngineResult<AccountId> {
         let venue_id = default_prop_venue_id()?;
-        let account = Account::new(account_id.clone(), AccountType::Prop, venue_id, created_at);
+        let account = Account::new(
+            account_id.clone(),
+            AccountType::Prop,
+            venue_id,
+            AccountEnvironment::Paper,
+            created_at,
+        );
         let config = AccountConfig::new(starting_capital)?.with_label("prop");
         self.register(account, config)?;
         tracing::info!(account_id = %account_id, capital = %starting_capital, "opened prop account");
