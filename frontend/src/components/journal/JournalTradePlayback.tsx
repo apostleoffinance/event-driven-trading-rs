@@ -63,7 +63,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const providersQuery = useQuery({
     queryKey: ["market-data", "providers"],
     queryFn: () => marketDataApi.providers(),
-    enabled: expanded,
+    enabled: isClosedTrade,
   });
 
   const instrument = instrumentsQuery.data?.find((item) =>
