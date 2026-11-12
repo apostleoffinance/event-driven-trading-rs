@@ -174,6 +174,10 @@ try {
     assert.equal(await page.locator(".market-drawing-overlay g[data-id]").nth(4).locator("line").count(), 4, `Parallel channel must render two parallel boundaries and two connectors at ${viewport.name}`);
     assert.equal(await page.locator(".market-drawing-overlay g[data-id]").nth(5).locator("line").count(), 7, `Fibonacci retracement must render all seven price levels at ${viewport.name}`);
     assert.equal(await page.locator(".market-drawing-overlay text").filter({ hasText: "R:R" }).count(), 2, `Long/short position tools must display risk/reward at ${viewport.name}`);
+    await page.locator(".market-drawing-row").nth(6).getByRole("button").first().click();
+    const positionAnchorXs = await page.locator(".market-drawing-overlay [data-anchor]").evaluateAll(elements => elements.map(element => Number(element.getAttribute("cx"))));
+    assert.equal(positionAnchorXs.length, 3, `Position tool must expose entry, stop and target anchors at ${viewport.name}`);
+    assert.ok(positionAnchorXs.every(x => Math.abs(x - positionAnchorXs[0]) < 0.1), `Position anchors must remain aligned on the entry time at ${viewport.name}`);
     const firstDrawingRow = page.locator(".market-drawing-row").first();
     await firstDrawingRow.getByRole("button").first().click();
     await page.locator(".market-drawing-inspector").getByText("Edit drawing", { exact: true }).waitFor();
