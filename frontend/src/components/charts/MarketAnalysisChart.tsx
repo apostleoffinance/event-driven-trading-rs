@@ -114,7 +114,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
   const chartData = useMemo(() => toChartCandles(candles.data?.candles ?? []), [candles.data?.candles]);
   const latest = chartData.at(-1);
   const pricePrecision = precisionFor(selectedInstrument?.symbol ?? selectedInstrument?.name ?? selectedSymbol, chartData);
-  const chartFailure = chartError ?? (candles.error instanceof Error ? candles.error.message : null);
+  const chartFailure = chartError;
   const loadingRegistry = providers.isLoading || instruments.isLoading;
   const feedFreshness = String(candles.data?.freshness ?? "unknown").toLowerCase();
 
@@ -180,7 +180,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       candleRef.current = null; volumeRef.current = null; smaRef.current = null;
       slLineRef.current = null; tpLineRef.current = null;
       drawingSeriesRef.current = []; drawingPriceLinesRef.current = [];
-      setChartReady(false);
     };
   }, []);
 
