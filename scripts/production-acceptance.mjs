@@ -174,6 +174,7 @@ try {
     await firstDrawingRow.getByRole("button").first().click();
     await page.locator(".market-drawing-inspector").getByText("Edit drawing", { exact: true }).waitFor();
     const firstAnchor = page.locator(".market-drawing-overlay [data-anchor=\"0\"]").first();
+    await firstAnchor.scrollIntoViewIfNeeded();
     const firstAnchorBox = await firstAnchor.boundingBox();
     assert.ok(firstAnchorBox, `Selected drawing did not expose a draggable anchor at ${viewport.name}`);
     await page.mouse.move(firstAnchorBox.x + firstAnchorBox.width / 2, firstAnchorBox.y + firstAnchorBox.height / 2);
