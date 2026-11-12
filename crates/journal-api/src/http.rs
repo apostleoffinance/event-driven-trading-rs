@@ -398,7 +398,7 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
             || old.4 != trade.entry_price
             || old.5 != trade.exit_price
             || old.6 != trade.stop_loss
-            || old.7 != trade.quantity
+
     });
     let direction = match trade.direction {
         JournalDirection::Long => "long",
