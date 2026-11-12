@@ -370,7 +370,52 @@ pub async fn replace(
     }
 }
 
+#[derive(sqlx::FromRow)]
+struct PreviousTradeExcursionInputs {
+    symbol: String,
+    direction: String,
+    status: String,
+    opened_at: DateTime<Utc>,
+    closed_at: Option<DateTime<Utc>>,
+    entry_price: Decimal,
+    stop_loss: Option<Decimal>,
+}
+
 async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx::Error> {
+    let direction = match trade.direction {
+        JournalDirection::Long => "long",
+        JournalDirection::Short => "short",
+    };
+    let status = match trade.status {
+        JournalTradeStatus::Open => "open",
+        JournalTradeStatus::Closed => "closed",
+        JournalTradeStatus::Cancelled => "cancelled",
+    };
+    let direction = match trade.direction {
+        JournalDirection::Long => "long",
+        JournalDirection::Short => "short",
+    };
+    let status = match trade.status {
+        JournalTradeStatus::Open => "open",
+        JournalTradeStatus::Closed => "closed",
+        JournalTradeStatus::Cancelled => "cancelled",
+    };
+    let previous = sqlx::query_as::<_, PreviousTradeExcursionInputs>(
+        "SELECT symbol,direction,status,opened_at,closed_at,entry_price,stop_loss FROM journal_trades WHERE owner_id=$1 AND id=$2",
+    )
+    .bind(&trade.owner_id)
+    .bind(&trade.id)
+    .fetch_optional(pool)
+    .await?;
+    let excursion_inputs_changed = previous.as_ref().is_some_and(|old| {
+        old.symbol != trade.symbol
+            || old.direction != direction
+            || old.status != status
+            || old.opened_at != trade.opened_at
+            || old.closed_at != trade.closed_at
+            || old.entry_price != trade.entry_price
+            || old.stop_loss != trade.stop_loss
+    });
     let direction = match trade.direction {
         JournalDirection::Long => "long",
         JournalDirection::Short => "short",
