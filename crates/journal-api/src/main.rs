@@ -119,6 +119,8 @@ async fn main() {
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
         .route("/api/v1/journal/trades/{trade_id}/excursions", axum::routing::put(excursions::save))
         .route("/api/v1/journal/trades/{trade_id}/attachments", get(attachments::list).post(attachments::create))
+        .route("/api/v1/journal/trades/{trade_id}/attachments/upload-url", axum::routing::post(attachments::create_upload_url))
+        .route("/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}/download-url", get(attachments::download_url))
         .route("/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}", axum::routing::delete(attachments::delete))
         .route("/api/v1/journal/trades/{trade_id}/psychology", get(psychology::get).put(psychology::upsert))
         .route("/api/v1/journal/trades/{trade_id}", get(http::get_one).put(http::replace).patch(http::replace).delete(http::delete))
