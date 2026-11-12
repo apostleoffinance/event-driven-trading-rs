@@ -38,7 +38,7 @@ export default function AnalyticsLabPage() {
   const [datePreset, setDatePreset] = useState("all");
   const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [filtersRestored, setFiltersRestored] = useState(false);
-  const [savedViews, setSavedViews] = useState<Array<{name:string;accountId:string;fromDate:string;toDate:string;datePreset:string;symbolFilter:string;setupFilter:string}>>([]);
+  const [savedViewError, setSavedViewError] = useState<string | null>(null);
   const [viewName, setViewName] = useState("");
   const [selectedGroup, setSelectedGroup] = useState<{kind:"symbol"|"setup"|"session"|"weekday"|"hour"|"month"|"week"|"date";key:string}|null>(null);
   const [selectedTrade, setSelectedTrade] = useState<NonNullable<JournalAnalytics["trade_metrics"]>[number] | null>(null);
@@ -59,8 +59,6 @@ export default function AnalyticsLabPage() {
         if (saved.symbolFilter) setSymbolFilter(saved.symbolFilter);
         if (saved.setupFilter) setSetupFilter(saved.setupFilter);
       }
-      const views = window.localStorage.getItem(`quantos.analytics.saved-views.v1:${preferenceScope}`);
-      if (views) setSavedViews(JSON.parse(views));
     } catch { /* Ignore malformed local preferences and use safe defaults. */ }
     setFiltersRestored(true);
   }, []);
@@ -69,12 +67,6 @@ export default function AnalyticsLabPage() {
     const preferenceScope = encodeURIComponent(userEmail ?? "unknown");
     window.localStorage.setItem(`quantos.analytics.filters.v1:${preferenceScope}`, JSON.stringify({accountId,fromDate,toDate,datePreset,symbolFilter,setupFilter}));
   }, [filtersRestored,userEmail,accountId,fromDate,toDate,datePreset,symbolFilter,setupFilter]);
-  useEffect(() => {
-    if (filtersRestored) {
-      const preferenceScope = encodeURIComponent(userEmail ?? "unknown");
-      window.localStorage.setItem(`quantos.analytics.saved-views.v1:${preferenceScope}`, JSON.stringify(savedViews));
-    }
-  }, [filtersRestored,userEmail,savedViews]);
   useEffect(() => {
     const allowed = ["overview", "performance", "edge", "execution", "behaviour", "risk", "calendar"];
     const syncTabFromUrl = () => {
@@ -94,6 +86,16 @@ export default function AnalyticsLabPage() {
     refetchOnWindowFocus: true,
     retry: 1,
   });
+  const savedViewsQuery = useQuery({
+    queryKey: ["journal", "analytics-saved-views", accountId],
+    queryFn: () => journalApi.listAnalyticsSavedViews(accountId || undefined),
+    enabled: authenticated && accounts.isSuccess,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const savedViews = savedViewsQuery.data ?? [];
+
   const accountCurrencies = [...new Set((accounts.data ?? []).filter(x => !x.archived).map(x => x.currency.toUpperCase()))];
   const mixedCurrencies = !accountId && accountCurrencies.length > 1;
   const selectedAccount = accounts.data?.find(x => x.id === accountId);
@@ -234,10 +236,12 @@ export default function AnalyticsLabPage() {
         <label className="analytics-filter-field"><span>Setup</span><select value={setupFilter} onChange={e=>setSetupFilter(e.target.value)}><option value="">All setups</option>{setups.data?.filter(x=>!x.archived).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
       </div> : null}
       <div className="analytics-filter-grid" style={{marginTop:12}}>
-        <label className="analytics-filter-field"><span>Saved views · this browser</span><select value="" onChange={e=>{const view=savedViews.find(v=>v.name===e.target.value && v.accountId===accountId);if(view){setFromDate(view.fromDate);setToDate(view.toDate);setDatePreset(view.datePreset);setSymbolFilter(view.symbolFilter);setSetupFilter(view.setupFilter);}}}><option value="">Load a saved view…</option>{savedViews.filter(view=>view.accountId===accountId).map(view=><option key={view.name} value={view.name}>{view.name}</option>)}</select></label>
+        <label className="analytics-filter-field"><span>Saved views · synced to your Journal account</span><select value="" onChange={e=>{const view=savedViews.find(v=>v.name===e.target.value && v.accountId===accountId);if(view){setFromDate(view.fromDate);setToDate(view.toDate);setDatePreset(view.datePreset);setSymbolFilter(view.symbolFilter);setSetupFilter(view.setupFilter);}}}><option value="">Load a saved view…</option>{savedViews.filter(view=>view.accountId===accountId).map(view=><option key={view.name} value={view.name}>{view.name}</option>)}</select></label>
         <label className="analytics-filter-field"><span>Save current filters</span><input value={viewName} onChange={e=>setViewName(e.target.value)} placeholder="Name this view"/></label>
-        <div className="analytics-filter-field" style={{justifyContent:"end"}}><span>&nbsp;</span><button className="btn" type="button" disabled={!viewName.trim()} onClick={()=>{const name=viewName.trim();setSavedViews(current=>[...current.filter(v=>!(v.name===name && v.accountId===accountId)),{name,accountId,fromDate,toDate,datePreset,symbolFilter,setupFilter}]);setViewName("");}}>Save view</button></div>
+        <div className="analytics-filter-field" style={{justifyContent:"end"}}><span>&nbsp;</span><button className="btn" type="button" disabled={!viewName.trim() || savedViewsQuery.isLoading} onClick={async()=>{const name=viewName.trim();setSavedViewError(null);try{await journalApi.saveAnalyticsSavedView({name,accountId:accountId || null,filters:{fromDate,toDate,datePreset,symbolFilter,setupFilter}});await savedViewsQuery.refetch();setViewName("");}catch{setSavedViewError("Could not save this view to your Journal account. Please retry.");}}}>Save view</button></div>
       </div>
+      {savedViewError ? <p className="error analytics-inline-status" role="alert">{savedViewError}</p> : null}
+      {savedViewsQuery.error ? <p className="error analytics-inline-status" role="alert">Saved views could not be loaded from the Journal API. <button type="button" className="btn" onClick={()=>void savedViewsQuery.refetch()}>Retry</button></p> : null}
       <div className="analytics-active-filters">{accountId ? <button type="button" onClick={()=>setAccountId("")}>Account: {selectedAccount?.name ?? "Selected"} ×</button> : null}{fromDate || toDate ? <button type="button" onClick={()=>{setFromDate("");setToDate("");setDatePreset("all");}}>Date: {fromDate || "Start"} – {toDate || "Today"} ×</button> : null}{symbolFilter ? <button type="button" onClick={()=>setSymbolFilter("")}>Instrument: {symbolFilter} ×</button> : null}{setupFilter ? <button type="button" onClick={()=>setSetupFilter("")}>Setup: {setups.data?.find(x=>x.id===setupFilter)?.name ?? "Selected"} ×</button> : null}<span>Reporting timezone: UTC · Currency: {displayCurrency}</span></div>
       {accounts.isLoading ? <p className="muted analytics-inline-status">Loading your Journal accounts…</p> : null}
       {accounts.error ? <div className="error analytics-inline-status" role="alert"><p>Could not load your Journal accounts. Check your connection and try again.</p><button className="btn" onClick={()=>void accounts.refetch()}>Retry accounts</button></div> : null}
