@@ -1526,3 +1526,8 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .journal-page .muted { font-size: 12px; line-height: 1.5; }
 .journal-page .journal-detail-grid strong { font-size: 13px; line-height: 1.4; font-weight: 600; }
 .journal-page .journal-detail-grid .metric-label { display: block; margin-bottom: 4px; }
+
+.journal-page small {
+  font-size: inherit;
+  line-height: inherit;
+}
