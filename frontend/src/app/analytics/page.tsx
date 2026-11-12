@@ -27,6 +27,18 @@ function percent(value: string | null | undefined) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(1) + "%" : "—";
 }
+function formatInstrumentPrice(value: number | string | null | undefined, symbol: string) {
+  if (value == null || value === "") return "Not recorded";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Not recorded";
+  // Standard spot-FX display precision: fractional pip for non-JPY pairs, pip for JPY pairs.
+  if (/^[A-Z]{6}(?:\.[A-Z0-9]+)?$/i.test(symbol)) {
+    const precision = symbol.toUpperCase().includes("JPY") ? 3 : 5;
+    return numeric.toFixed(precision);
+  }
+  // Non-FX instruments retain useful precision without exposing binary-float padding.
+  return numeric.toLocaleString("en-US", { maximumFractionDigits: 8, useGrouping: false });
+}
 
 export default function AnalyticsLabPage() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -342,7 +354,7 @@ export default function AnalyticsLabPage() {
           <article className="trade-metric-card"><span>Profit surrendered</span><strong>{selectedTrade.profit_surrendered_r==null?"Not available":Number(selectedTrade.profit_surrendered_r).toFixed(2)+"R"}</strong></article>
         </div><p className="trade-data-note">Excursion source: MFE {selectedTrade.mfe_source??"not recorded"} ({selectedTrade.mfe_precision??"precision unknown"}) · MAE {selectedTrade.mae_source??"not recorded"} ({selectedTrade.mae_precision??"precision unknown"}). These labels do not guarantee tick-level resolution.</p></section>
         <section className="trade-investigation-section"><div className="trade-investigation-section-heading"><h3>Execution details</h3><p>Recorded trade setup and order levels</p></div><dl className="trade-detail-grid">
-          <div><dt>Instrument</dt><dd>{selectedTrade.symbol}</dd></div><div><dt>Direction</dt><dd>{selectedTrade.direction.toUpperCase()}</dd></div><div><dt>Session</dt><dd>{selectedTrade.session??"Not recorded"}</dd></div><div><dt>Setup</dt><dd>{selectedTrade.setup??"Unassigned"}</dd></div><div><dt>Entry price</dt><dd>{selectedTrade.entry_price}</dd></div><div><dt>Exit price</dt><dd>{selectedTrade.exit_price??"Not recorded"}</dd></div><div><dt>Stop loss</dt><dd>{selectedTrade.stop_loss_recorded?"Recorded":"Not recorded"}</dd></div><div><dt>Take profit</dt><dd>{selectedTrade.take_profit_recorded?"Recorded":"Not recorded"}</dd></div>
+          <div><dt>Instrument</dt><dd>{selectedTrade.symbol}</dd></div><div><dt>Direction</dt><dd>{selectedTrade.direction.toUpperCase()}</dd></div><div><dt>Session</dt><dd>{selectedTrade.session??"Not recorded"}</dd></div><div><dt>Setup</dt><dd>{selectedTrade.setup??"Unassigned"}</dd></div><div><dt>Entry price</dt><dd className="trade-detail-price">{formatInstrumentPrice(selectedTrade.entry_price,selectedTrade.symbol)}</dd></div><div><dt>Exit price</dt><dd className="trade-detail-price">{formatInstrumentPrice(selectedTrade.exit_price,selectedTrade.symbol)}</dd></div><div><dt>Stop loss</dt><dd>{selectedTrade.stop_loss_recorded?"Recorded":"Not recorded"}</dd></div><div><dt>Take profit</dt><dd>{selectedTrade.take_profit_recorded?"Recorded":"Not recorded"}</dd></div>
         </dl></section>
         <section className="trade-investigation-section"><div className="trade-investigation-section-heading"><h3>Psychology &amp; discipline</h3><p>Self-reported context captured in the Journal</p></div><div className="trade-psychology-grid">
           <div><span>Before</span><strong>{selectedTrade.psychology.emotion_before??"Not recorded"}</strong></div><div><span>During</span><strong>{selectedTrade.psychology.emotion_during??"Not recorded"}</strong></div><div><span>After</span><strong>{selectedTrade.psychology.emotion_after??"Not recorded"}</strong></div>
