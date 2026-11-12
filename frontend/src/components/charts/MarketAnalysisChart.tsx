@@ -123,6 +123,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
+    const chartContainer: HTMLDivElement = node;
     let chart: IChartApi | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let resizeHandler: (() => void) | null = null;
@@ -158,9 +159,9 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
         const width = entries[0]?.contentRect.width;
         if (width && width > 0) chart?.applyOptions({ width });
       }) : null;
-      if (resizeObserver) resizeObserver.observe(node);
+      if (resizeObserver) resizeObserver.observe(chartContainer);
       else {
-        resizeHandler = () => { if (node.clientWidth > 0) chart?.applyOptions({ width: node.clientWidth }); };
+        resizeHandler = () => { if (chartContainer.clientWidth > 0) chart?.applyOptions({ width: chartContainer.clientWidth }); };
         window.addEventListener("resize", resizeHandler);
       }
       setChartError(null);
