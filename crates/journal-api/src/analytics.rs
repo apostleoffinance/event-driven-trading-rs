@@ -395,7 +395,7 @@ pub async fn summary(
         None
     } else {
         let mid = holding_seconds.len() / 2;
-        Some(if holding_seconds.len() % 2 == 0 {
+        Some(if holding_seconds.len().is_multiple_of(2) {
             (holding_seconds[mid - 1] as f64 + holding_seconds[mid] as f64) / 2.0
         } else {
             holding_seconds[mid] as f64
