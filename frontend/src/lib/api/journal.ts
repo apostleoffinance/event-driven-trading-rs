@@ -52,6 +52,14 @@ export const journalApi = {
     requireApiMode();
     return apiRequest<DataEnvelope<{trade_id:string;saved:boolean;precision:string}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/excursions`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
   },
+  async createAttachmentUploadUrl(tradeId: string, input: {original_filename:string;content_type:string;byte_size:number;attachment_type:"before"|"after"}) {
+    requireApiMode();
+    return (await apiRequest<DataEnvelope<{upload_url:string;storage_key:string;storage_provider:string;content_type:string;byte_size:number;original_filename:string;attachment_type:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload-url`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)})).data;
+  },
+  async getAttachmentDownloadUrl(tradeId:string, attachmentId:string) {
+    requireApiMode();
+    return (await apiRequest<DataEnvelope<{download_url:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,{baseUrl:journalBaseUrl()})).data;
+  },
   async listAttachments(tradeId: string) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{baseUrl:journalBaseUrl()})).data;
   },
