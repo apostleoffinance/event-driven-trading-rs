@@ -164,7 +164,7 @@ try {
     await addDrawing("Rectangle / zone", [[drawingBox.width * .69, drawingBox.height * .25], [drawingBox.width * .79, drawingBox.height * .48]]);
     await addDrawing("Parallel channel", [[drawingBox.width * .71, drawingBox.height * .60], [drawingBox.width * .83, drawingBox.height * .47], [drawingBox.width * .77, drawingBox.height * .43]]);
     await addDrawing("Fibonacci", [[drawingBox.width * .73, drawingBox.height * .25], [drawingBox.width * .88, drawingBox.height * .60]]);
-    await addDrawing("Long position", [[drawingBox.width * .79, drawingBox.height * .42], [drawingBox.width * .79, drawingBox.height * .25], [drawingBox.width * .79, drawingBox.height * .58]]);
+    await addDrawing("Long position", [[drawingBox.width * .79, drawingBox.height * .42], [drawingBox.width * .79, drawingBox.height * .58], [drawingBox.width * .79, drawingBox.height * .25]]);
     assert.equal(await page.locator(".market-drawing-row").count(), 6, `Invalid long position was incorrectly accepted at ${viewport.name}`);
     assert.ok((await page.locator(".market-drawing-hint").innerText()).includes("Long position requires stop below entry and target above entry"), `Invalid long-position orientation was not explained at ${viewport.name}`);
     await addDrawing("Long position", [[drawingBox.width * .58, drawingBox.height * .42], [drawingBox.width * .58, drawingBox.height * .58], [drawingBox.width * .58, drawingBox.height * .25]]);
