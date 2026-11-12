@@ -4,7 +4,11 @@ import { createRequire } from "node:module";
 
 const require = createRequire(new URL("../frontend/package.json", import.meta.url));
 const { chromium } = require("playwright");
+// FRONTEND_URL is the PR Worker preview used for responsive UI checks. The
+// production API allows the deployed frontend origin, not an ephemeral localhost
+// preview origin, so authenticated browser checks use the deployed frontend.
 const frontendUrl = (process.env.FRONTEND_URL || "https://edgenest-frontend.edgenest.workers.dev").replace(/\/$/, "");
+const authFrontendUrl = (process.env.AUTH_FRONTEND_URL || "https://edgenest-frontend.edgenest.workers.dev").replace(/\/$/, "");
 const apiUrl = (process.env.API_URL || "https://edgenest-api.onrender.com").replace(/\/$/, "");
 const artifactDir = process.env.ACCEPTANCE_ARTIFACT_DIR || "artifacts/production-acceptance";
 const email = process.env.EDGENEST_ACCEPTANCE_EMAIL;
@@ -38,12 +42,12 @@ console.log("Checking browser CORS preflight...");
 const preflight = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, 200, {
   method: "OPTIONS",
   headers: {
-    Origin: frontendUrl,
+    Origin: authFrontendUrl,
     "Access-Control-Request-Method": "GET",
     "Access-Control-Request-Headers": "authorization",
   },
 });
-assert.equal(preflight.headers.get("access-control-allow-origin"), frontendUrl);
+assert.equal(preflight.headers.get("access-control-allow-origin"), authFrontendUrl);
 
 await mkdir(artifactDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
@@ -87,19 +91,19 @@ try {
 
   assert.ok(email && password, "EDGENEST_ACCEPTANCE_EMAIL and EDGENEST_ACCEPTANCE_PASSWORD must be configured as GitHub Actions secrets.");
 
-  console.log("Checking authenticated account switching and saved-view persistence...");
+  console.log("Checking authenticated account switching and saved-view persistence on the deployed frontend...");
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const created = [];
   let accessToken = null;
   try {
-    const loginResponse = await page.goto(`${frontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
-    assert.equal(loginResponse?.status(), 200, "Login route failed before authenticated acceptance.");
+    const loginResponse = await page.goto(`${authFrontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.equal(loginResponse?.status(), 200, "Production login route failed before authenticated acceptance.");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
-    await page.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
 
     const tokenState = await page.evaluate(() => {
@@ -167,12 +171,12 @@ try {
     const freshContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     try {
       const freshPage = await freshContext.newPage();
-      await freshPage.goto(`${frontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+      await freshPage.goto(`${authFrontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
       await freshPage.getByLabel("Email").fill(email);
       await freshPage.getByLabel("Password").fill(password);
       await freshPage.getByRole("button", { name: "Sign in" }).click();
       await freshPage.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
-      await freshPage.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+      await freshPage.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
       const freshToken = await freshPage.evaluate(() => {
         const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
         return session?.access_token ?? null;
