@@ -30,7 +30,8 @@ const timeOf=(t:number)=>t as Time;
 const create=(kind:Kind,anchors:Anchor[]):Drawing=>({id:crypto.randomUUID?.()??String(Date.now()+Math.random()),kind,anchors,color:kind==="long-position"?"#26a69a":kind==="short-position"?"#ef5350":colors[0],width:2,dash:"solid",label:tools.find(x=>x.id===kind)?.label??kind,visible:true,locked:false});
 
 export function MarketChartDrawings({chart,series,ready,instrument,timeframe,precision,showVolume,showSma,onShowVolumeChange,onShowSmaChange}:Props){
- const [tool,setTool]=useState<Tool>("select"),[drawings,setDrawings]=useState<Drawing[]>([]),[draft,setDraft]=useState<Anchor[]>([]);\n const [,setViewportVersion]=useState(0);
+ const [tool,setTool]=useState<Tool>("select"),[drawings,setDrawings]=useState<Drawing[]>([]),[draft,setDraft]=useState<Anchor[]>([]);
+ const [,setViewportVersion]=useState(0);
  const [selected,setSelected]=useState<string|null>(null),[undoStack,setUndoStack]=useState<Drawing[][]>([]),[redoStack,setRedoStack]=useState<Drawing[][]>([]);
  const [templates,setTemplates]=useState<Template[]>([]),[templateName,setTemplateName]=useState(""),[templateChoice,setTemplateChoice]=useState("");
  const [status,setStatus]=useState(""),[size,setSize]=useState({w:0,h:0}),[anchorPrice,setAnchorPrice]=useState(""),[anchorTime,setAnchorTime]=useState("");
