@@ -159,7 +159,12 @@ pub async fn summary(
             "win_rate_percent":"0","gross_profit":"0","gross_loss":"0",
             "net_profit":"0","profit_factor":null,"expectancy":"0",
             "average_win":null,"average_loss":null,"max_drawdown":"0",
-            "average_r":null,"equity_curve":[],"by_symbol":[],"by_session":[],"by_setup":[],"by_weekday":[],"by_hour_utc":[],"by_day":[],"by_month":[],
+            "average_r":null,"risk_coverage_count":0,"risk_coverage_percent":"0",
+            "average_risk_amount":null,"maximum_risk_amount":null,
+            "average_holding_seconds":null,"median_holding_seconds":null,
+            "maximum_win_streak":0,"maximum_loss_streak":0,
+            "average_mfe_capture_percent":null,"execution_coverage_count":0,"trade_metrics":[],
+            "equity_curve":[],"by_symbol":[],"by_session":[],"by_setup":[],"by_weekday":[],"by_hour_utc":[],"by_day":[],"by_month":[],
             "notice":"No closed trades with realized P&L match the selected filters."
         }}))
         .into_response();
@@ -306,7 +311,7 @@ pub async fn summary(
                 "revenge_intensity": fact.revenge_intensity,
                 "boredom": fact.boredom
             },
-            "direction": fact.direction,
+            "direction": fact.direction.clone(),
             "opened_at": fact.opened_at,
             "closed_at": fact.closed_at,
             "net_pnl": fact.net_pnl.to_string(),
