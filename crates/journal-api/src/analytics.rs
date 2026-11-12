@@ -176,6 +176,7 @@ pub async fn summary(
             "average_win":null,"average_loss":null,"max_drawdown":"0",
             "average_r":null,"risk_coverage_count":0,"risk_coverage_percent":"0",
             "average_risk_amount":null,"maximum_risk_amount":null,
+            "risk_distribution":{"minimum":null,"q1":null,"median":null,"q3":null,"maximum":null,"sample_count":0},
             "average_holding_seconds":null,"median_holding_seconds":null,
             "maximum_win_streak":0,"maximum_loss_streak":0,"recovery_factor":null,
             "average_mfe_capture_percent":null,"execution_coverage_count":0,"trade_metrics":[],
@@ -230,6 +231,7 @@ pub async fn summary(
     let mut risk_total = Decimal::ZERO;
     let mut risk_count = 0usize;
     let mut risk_max = Decimal::ZERO;
+    let mut risk_values: Vec<Decimal> = Vec::new();
     let mut holding_seconds: Vec<i64> = Vec::with_capacity(facts.len());
     let mut current_win_streak = 0usize;
     let mut current_loss_streak = 0usize;
@@ -290,6 +292,7 @@ pub async fn summary(
             risk_total += risk;
             risk_count += 1;
             risk_max = risk_max.max(risk);
+            risk_values.push(risk);
         }
         let held = fact
             .closed_at
@@ -407,6 +410,13 @@ pub async fn summary(
     };
     let risk_coverage_percent = Decimal::from(risk_count as u64) * Decimal::from(100)
         / Decimal::from(stats.trade_count as u64);
+    risk_values.sort();
+    let risk_quantile = |numerator: usize| -> Option<Decimal> {
+        if risk_values.is_empty() { None } else {
+            let index = (risk_values.len() - 1) * numerator / 4;
+            risk_values.get(index).copied()
+        }
+    };
     let group_stats = |groups: std::collections::BTreeMap<String, Vec<Decimal>>| {
         groups
             .into_iter()
@@ -439,6 +449,14 @@ pub async fn summary(
         "risk_coverage_percent":risk_coverage_percent.to_string(),
         "average_risk_amount":if risk_count>0 {Some((risk_total/Decimal::from(risk_count as u64)).to_string())} else {None},
         "maximum_risk_amount":if risk_count>0 {Some(risk_max.to_string())} else {None},
+        "risk_distribution": {
+            "minimum":risk_values.first().map(|v|v.to_string()),
+            "q1":risk_quantile(1).map(|v|v.to_string()),
+            "median":risk_quantile(2).map(|v|v.to_string()),
+            "q3":risk_quantile(3).map(|v|v.to_string()),
+            "maximum":risk_values.last().map(|v|v.to_string()),
+            "sample_count":risk_values.len()
+        },
         "average_holding_seconds":average_holding_seconds,
         "median_holding_seconds":median_holding_seconds,
         "maximum_win_streak":max_win_streak,
