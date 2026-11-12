@@ -97,7 +97,7 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
       </section>
       <section className="analytics-insight-column" aria-label="Groups worth investigating">
         <h3>Groups worth investigating</h3>
-        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No negative group with at least three trades in this sample.</p>}
+        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No negative group with at least three trades in this sample.</p>}
       </section>
     </div>
     <p className="analytics-insight-legend"><span><i className="positive" /> Positive net P&amp;L</span><span><i className="negative" /> Negative net P&amp;L</span><span>Win-rate bars are scaled from 0–100%</span></p>
