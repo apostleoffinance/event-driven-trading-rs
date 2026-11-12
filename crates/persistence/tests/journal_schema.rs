@@ -135,3 +135,59 @@ async fn journal_get_by_id_returns_all_trade_annotations(pool: PgPool) {
     assert_eq!(trade.mistake, Some(false));
     assert_eq!(trade.discipline_score, Some(90));
 }
+
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn analytics_saved_views_are_owner_and_account_scoped(pool: PgPool) {
+    sqlx::query(
+        "INSERT INTO journal_accounts (id, owner_id, name, currency) VALUES ('saved-a1', 'saved-owner-a', 'A1', 'USD'), ('saved-a2', 'saved-owner-a', 'A2', 'USD'), ('saved-b1', 'saved-owner-b', 'B1', 'USD')",
+    )
+    .execute(&pool)
+    .await
+    .expect("accounts should insert");
+
+    sqlx::query(
+        "INSERT INTO journal_analytics_saved_views (id, owner_id, scope_key, name, filters) VALUES ('view-a1', 'saved-owner-a', 'saved-a1', 'London setup', '{\"datePreset\":\"30d\"}'), ('view-a2', 'saved-owner-a', 'saved-a2', 'London setup', '{\"datePreset\":\"7d\"}'), ('view-b1', 'saved-owner-b', 'saved-a1', 'London setup', '{\"datePreset\":\"all\"}')",
+    )
+    .execute(&pool)
+    .await
+    .expect("same view name is valid across owner/account scopes");
+
+    let owner_a_account_a: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM journal_analytics_saved_views WHERE owner_id='saved-owner-a' AND scope_key='saved-a1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("owner/account scoped query should succeed");
+    assert_eq!(owner_a_account_a, 1);
+
+    let owner_a_account_b: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM journal_analytics_saved_views WHERE owner_id='saved-owner-a' AND scope_key='saved-a2'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("second account scope should query");
+    assert_eq!(owner_a_account_b, 1);
+
+    let owner_b: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM journal_analytics_saved_views WHERE owner_id='saved-owner-b' AND scope_key='saved-a1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("second owner scope should query");
+    assert_eq!(owner_b, 1);
+
+    let duplicate_same_scope = sqlx::query(
+        "INSERT INTO journal_analytics_saved_views (id, owner_id, scope_key, name, filters) VALUES ('view-a1-duplicate', 'saved-owner-a', 'saved-a1', 'London setup', '{\"datePreset\":\"all\"}')",
+    )
+    .execute(&pool)
+    .await;
+    assert!(duplicate_same_scope.is_err(), "a view name must be unique within one owner/account scope");
+
+    let invalid_filters = sqlx::query(
+        "INSERT INTO journal_analytics_saved_views (id, owner_id, scope_key, name, filters) VALUES ('view-invalid', 'saved-owner-a', 'saved-a1', 'Invalid', '[]')",
+    )
+    .execute(&pool)
+    .await;
+    assert!(invalid_filters.is_err(), "filters must remain a JSON object");
+}
