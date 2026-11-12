@@ -66,6 +66,7 @@ jobs:
       - name: Verify live production API and PR Worker preview
         env:
           FRONTEND_URL: http://127.0.0.1:8787
+          AUTH_FRONTEND_URL: https://edgenest-frontend.edgenest.workers.dev
           API_URL: https://edgenest-api.onrender.com
           ACCEPTANCE_ARTIFACT_DIR: artifacts/production-acceptance
           EDGENEST_ACCEPTANCE_EMAIL: ${{ secrets.EDGENEST_ACCEPTANCE_EMAIL }}
