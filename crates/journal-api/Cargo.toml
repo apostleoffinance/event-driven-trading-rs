@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { workspace = true }
+chrono-tz = "0.10"
 domain = { path = "../domain" }
 jsonwebtoken = "9.3"
 persistence = { path = "../persistence" }
