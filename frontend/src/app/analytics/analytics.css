@@ -367,3 +367,27 @@
   .trade-detail-grid { gap: 7px; }
   .trade-psychology-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Workspace-specific refinements */
+.analytics-page .analytics-breakdown-wide { grid-column: 1 / -1; }
+.analytics-page .risk-distribution-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.analytics-page .risk-distribution-grid > .panel { min-height: 88px; }
+.execution-quality-panel > .muted:first-of-type { margin: -6px 0 16px; font-size: 12px; }
+.execution-coverage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; }
+.execution-coverage-item { min-width: 0; }
+.execution-coverage-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.execution-coverage-heading span { color: var(--text-muted); font-size: 12px; }
+.execution-coverage-heading strong { flex: 0 0 auto; font-size: 16px; font-variant-numeric: tabular-nums; }
+.execution-coverage-heading strong small { color: var(--text-muted); font-size: 11px; font-weight: 500; }
+.execution-coverage-track { height: 7px; overflow: hidden; border-radius: 99px; background: var(--bg-2); }
+.execution-coverage-track span { display: block; height: 100%; border-radius: inherit; background: var(--positive); transition: width .2s ease; }
+.execution-coverage-item > small { display: block; margin-top: 6px; font-size: 10px; }
+.execution-quality-note { margin-top: 16px; font-size: 11px; line-height: 1.55; }
+@media (max-width: 900px) {
+  .analytics-page .risk-distribution-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .analytics-page .risk-distribution-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .execution-coverage-grid { grid-template-columns: 1fr; gap: 13px; }
+}
