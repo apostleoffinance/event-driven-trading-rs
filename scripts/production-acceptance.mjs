@@ -184,7 +184,10 @@ try {
     await firstDrawingRow.getByRole("button", { name: "Hide", exact: true }).click();
     await firstDrawingRow.getByRole("button", { name: "Show", exact: true }).click();
     await firstDrawingRow.getByRole("button", { name: "Lock", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Apply anchor" }).isDisabled(), true, `Locked drawings must not allow manual anchor edits at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-overlay [data-anchor]").count(), 0, `Locked drawings must hide draggable anchors at ${viewport.name}`);
     await firstDrawingRow.getByRole("button", { name: "Unlock", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Apply anchor" }).isDisabled(), false, `Unlocking a drawing must restore anchor editing at ${viewport.name}`);
     await firstDrawingRow.getByRole("button", { name: "Duplicate", exact: true }).click();
     await page.locator(".market-drawing-row").nth(8).waitFor({ state: "attached" });
     await page.locator(".market-drawing-row").nth(8).getByRole("button", { name: "Delete", exact: true }).click();
