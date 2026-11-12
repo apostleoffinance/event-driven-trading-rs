@@ -371,6 +371,35 @@ pub async fn replace(
 }
 
 async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx::Error> {
+    let previous = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            DateTime<Utc>,
+            Option<DateTime<Utc>>,
+            Decimal,
+            Option<Decimal>,
+            Option<Decimal>,
+            Decimal,
+        ),
+    >(
+        "SELECT symbol,direction,opened_at,closed_at,entry_price,exit_price,stop_loss,quantity FROM journal_trades WHERE owner_id=$1 AND id=$2",
+    )
+    .bind(&trade.owner_id)
+    .bind(&trade.id)
+    .fetch_optional(pool)
+    .await?;
+    let excursion_inputs_changed = previous.as_ref().is_some_and(|old| {
+        old.0 != trade.symbol
+            || old.1 != match trade.direction { JournalDirection::Long => "long", JournalDirection::Short => "short" }
+            || old.2 != trade.opened_at
+            || old.3 != trade.closed_at
+            || old.4 != trade.entry_price
+            || old.5 != trade.exit_price
+            || old.6 != trade.stop_loss
+            || old.7 != trade.quantity
+    });
     let direction = match trade.direction {
         JournalDirection::Long => "long",
         JournalDirection::Short => "short",
@@ -397,6 +426,18 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
         .bind(trade.stop_loss).bind(trade.take_profit).bind(trade.gross_pnl).bind(trade.commission).bind(trade.swap)
         .bind(trade.other_fees).bind(trade.net_pnl).bind(&trade.pnl_currency).bind(trade.risk_amount).bind(trade.r_multiple).bind(&trade.session).bind(&trade.timeframe).bind(&trade.timezone).bind(trade.mfe_r).bind(trade.mae_r).bind(&trade.notes).bind(sqlx::types::Json(&trade.tags)).bind(trade.setup_valid).bind(trade.rules_followed).bind(trade.emotional_trade).bind(trade.mistake).bind(&trade.mistake_notes).bind(trade.discipline_score).bind(sqlx::types::Json(&trade.acknowledged_warnings))
         .execute(pool).await?;
+    if result.rows_affected() == 1
+        && trade.source == JournalTradeSource::Manual
+        && excursion_inputs_changed
+    {
+        sqlx::query(
+            "UPDATE journal_trades SET mfe_price=NULL, mae_price=NULL, mfe_r=NULL, mae_r=NULL, mfe_at=NULL, mae_at=NULL, mfe_source=NULL, mae_source=NULL, mfe_precision=NULL, mae_precision=NULL, source_metadata=source_metadata-'timeframe'-'provider'-'candle_count'-'coverage_start'-'coverage_end'-'method' WHERE owner_id=$1 AND id=$2",
+        )
+        .bind(&trade.owner_id)
+        .bind(&trade.id)
+        .execute(pool)
+        .await?;
+    }
     Ok(result.rows_affected() == 1)
 }
 
