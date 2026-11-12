@@ -162,10 +162,10 @@ try {
       }, created.find(view => view.accountId === account.id).name, { timeout: 20_000 });
 
       const view = created.find(item => item.accountId === account.id);
-      assert.ok(await savedViewsSelect.locator("option").evaluateAll(options => options.some(option => option.value === view.name)), `Saved view missing for selected Journal account.`);
+      assert.ok(await savedViewsSelect.locator("option").evaluateAll((options, expectedName) => options.some(option => option.value === expectedName), view.name), `Saved view missing for selected Journal account.`);
       const otherAccountViews = created.filter(item => item.accountId !== account.id);
       for (const other of otherAccountViews) {
-        assert.equal(await savedViewsSelect.locator("option").evaluateAll(options => options.some(option => option.value === other.name)), false, "Saved view from another Journal account leaked into current account scope.");
+        assert.equal(await savedViewsSelect.locator("option").evaluateAll((options, expectedName) => options.some(option => option.value === expectedName), other.name), false, "Saved view from another Journal account leaked into current account scope.");
       }
     }
 
