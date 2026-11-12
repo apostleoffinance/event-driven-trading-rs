@@ -1779,3 +1779,5 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
  .market-drawing-hint { padding:7px 10px; }
  .market-drawing-templates { padding:9px 10px; }
 }
+
+.market-chart-toolbar-note { color:var(--text-dim); font-size:10px; }
