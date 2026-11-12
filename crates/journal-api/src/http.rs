@@ -99,6 +99,7 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
         input.quantity,
         input.entry_price,
         input.exit_price,
+        input.stop_loss,
         input.commission,
         input.swap,
         input.other_fees,
@@ -111,6 +112,7 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
     let preserve_source_facts = input.source != JournalTradeSource::Manual;
     let gross_pnl = if preserve_source_facts { input.gross_pnl.or(derived.gross_pnl) } else { derived.gross_pnl.or(input.gross_pnl) };
     let net_pnl = if preserve_source_facts { input.net_pnl.or(derived.net_pnl) } else { derived.net_pnl.or(input.net_pnl) };
+    let risk_amount = if preserve_source_facts { input.risk_amount.or(derived.risk_amount) } else { derived.risk_amount.or(input.risk_amount) };
     let r_multiple = if preserve_source_facts { input.r_multiple.or(derived.r_multiple) } else { derived.r_multiple.or(input.r_multiple) };
     let session = if preserve_source_facts { input.session.or(Some(derived.session)) } else { Some(derived.session) };
     JournalTrade {
@@ -137,7 +139,7 @@ pub(crate) fn trade_from(owner_id: String, id: String, input: TradeWrite) -> Jou
         other_fees: input.other_fees,
         net_pnl,
         pnl_currency: input.pnl_currency.to_uppercase(),
-        risk_amount: input.risk_amount,
+        risk_amount,
         r_multiple,
         session,
         timeframe: input.timeframe,
