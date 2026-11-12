@@ -13,6 +13,7 @@ mod attachments;
 mod auth;
 mod calculations;
 mod dashboard;
+mod excursions;
 mod http;
 mod imports;
 mod intelligence;
@@ -116,6 +117,7 @@ async fn main() {
         .route("/api/v1/journal/analytics/intelligence", get(intelligence::summary))
         .route("/api/v1/journal/import", axum::routing::post(imports::import_trades))
         .route("/api/v1/journal/trades", get(http::list).post(http::create))
+        .route("/api/v1/journal/trades/{trade_id}/excursions", axum::routing::put(excursions::save))
         .route("/api/v1/journal/trades/{trade_id}/attachments", get(attachments::list).post(attachments::create))
         .route("/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}", axum::routing::delete(attachments::delete))
         .route("/api/v1/journal/trades/{trade_id}/psychology", get(psychology::get).put(psychology::upsert))
