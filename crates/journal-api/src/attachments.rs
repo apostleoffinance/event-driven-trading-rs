@@ -140,10 +140,7 @@ fn presigned_url(
         ),
         ("X-Amz-Date".to_string(), timestamp.clone()),
         ("X-Amz-Expires".to_string(), expires.to_string()),
-        (
-            "X-Amz-SignedHeaders".to_string(),
-            "host".to_string(),
-        ),
+        ("X-Amz-SignedHeaders".to_string(), "host".to_string()),
     ];
     params.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
     let canonical_query = params
@@ -155,8 +152,7 @@ fn presigned_url(
         "{method}\n{canonical_uri}\n{canonical_query}\nhost:{host_header}\n\nhost\nUNSIGNED-PAYLOAD"
     );
     let request_hash = hex::encode(Sha256::digest(canonical_request.as_bytes()));
-    let string_to_sign =
-        format!("AWS4-HMAC-SHA256\n{timestamp}\n{scope}\n{request_hash}");
+    let string_to_sign = format!("AWS4-HMAC-SHA256\n{timestamp}\n{scope}\n{request_hash}");
 
     let k_date = hmac_bytes(format!("AWS4{}", config.secret_key).as_bytes(), &date)?;
     let k_region = hmac_bytes(&k_date, &config.region)?;
@@ -251,7 +247,11 @@ pub async fn create_upload_url(
     .await
     .unwrap_or(false);
     if !owned {
-        return error("not_found", "Journal trade not found", StatusCode::NOT_FOUND);
+        return error(
+            "not_found",
+            "Journal trade not found",
+            StatusCode::NOT_FOUND,
+        );
     }
 
     let config = match object_store() {
@@ -430,8 +430,7 @@ pub async fn create(
         );
     }
     if input.storage_provider == "external"
-        && !(input.storage_key.starts_with("https://")
-            || input.storage_key.starts_with("http://"))
+        && !(input.storage_key.starts_with("https://") || input.storage_key.starts_with("http://"))
     {
         return error(
             "invalid_attachment",
@@ -470,9 +469,7 @@ pub async fn create(
         }
         let response = match signed_object_request("HEAD", &input.storage_key).await {
             Ok(response) => response,
-            Err(message) => {
-                return error("storage_error", &message, StatusCode::BAD_GATEWAY)
-            }
+            Err(message) => return error("storage_error", &message, StatusCode::BAD_GATEWAY),
         };
         if !response.status().is_success() {
             return error(
