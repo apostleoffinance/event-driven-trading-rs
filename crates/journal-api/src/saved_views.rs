@@ -98,9 +98,7 @@ pub async fn list(
         Err(error) => return error.into_response(),
     };
     if let Some(account_id) = query.journal_account_id.as_deref() {
-        if let Err(response) =
-            owns_account_response(&state, &claims.sub, account_id).await
-        {
+        if let Err(response) = owns_account_response(&state, &claims.sub, account_id).await {
             return response;
         }
     }
