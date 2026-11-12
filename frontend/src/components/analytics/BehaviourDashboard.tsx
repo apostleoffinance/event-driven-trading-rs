@@ -1,10 +1,11 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { JournalIntelligence } from "@/lib/api/journal";
+import type { JournalAnalytics, JournalIntelligence } from "@/lib/api/journal";
 import styles from "./BehaviourDashboard.module.css";
 
-type Props = { data: JournalIntelligence };
+type BehaviourTrade = NonNullable<JournalAnalytics["trade_metrics"]>[number];
+type Props = { data: JournalIntelligence; trades: BehaviourTrade[] };
 
 function formatPercent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
@@ -42,8 +43,19 @@ function OutcomeRow({ label, wins, losses, good }: {
   </div>;
 }
 
-export function BehaviourDashboard({ data }: Props) {
+export function BehaviourDashboard({ data, trades }: Props) {
   const outcomes = data.process_outcomes;
+  const monthlyTrend = new Map<string,{trades:number;rules:number;rulesKnown:number;valid:number;validKnown:number;emotional:number;discipline:number;disciplineKnown:number}>();
+  for (const trade of trades) {
+    const month=trade.closed_at.slice(0,7);
+    const row=monthlyTrend.get(month)??{trades:0,rules:0,rulesKnown:0,valid:0,validKnown:0,emotional:0,discipline:0,disciplineKnown:0};
+    row.trades+=1;
+    if(trade.rules_followed!=null){row.rulesKnown+=1;if(trade.rules_followed)row.rules+=1;}
+    if(trade.setup_valid!=null){row.validKnown+=1;if(trade.setup_valid)row.valid+=1;}
+    if(trade.emotional_trade===true)row.emotional+=1;
+    if(trade.discipline_score!=null){row.discipline+=trade.discipline_score;row.disciplineKnown+=1;}
+    monthlyTrend.set(month,row);
+  }
   const total = outcomes.good_process_win + outcomes.good_process_loss + outcomes.poor_process_win + outcomes.poor_process_loss;
   const confidence = data.win_rate_confidence_95;
   const sampleLabel = data.sample_status.replaceAll("_", " ");
@@ -93,6 +105,27 @@ export function BehaviourDashboard({ data }: Props) {
       </div>
       <p>Statistical context, not a prediction. The interval communicates uncertainty in the observed win rate; it is not a probability that the true rate lies inside these bounds.</p>
     </div>
+    {monthlyTrend.size ? <div className={styles.outcomePanel}>
+      <h3 className={styles.sectionTitle}>Behaviour trends by month</h3>
+      <p className={styles.sectionDescription}>Monthly aggregates from recorded rule, setup, emotion and discipline fields. Unrecorded values are excluded from each denominator.</p>
+      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Month</th><th>Trades</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{[...monthlyTrend.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([month,row])=><tr key={month}><td>{month}</td><td>{row.trades}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"%": "—"} ({row.rulesKnown})</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"%":"—"} ({row.validKnown})</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
+    </div> : null}
+    <div className={styles.confidencePanel}>
+      <div>
+        <span className={styles.confidenceLabel}>RECORDED PSYCHOLOGY</span>
+        <strong className={styles.confidenceValue}>{data.psychology_record_count ?? 0}/{data.trade_count}</strong>
+        <span className={styles.confidenceDetail}>Trades with psychology records</span>
+      </div>
+      <div>
+        <span className={styles.confidenceDetail}>Confidence {data.average_confidence == null ? "—" : data.average_confidence.toFixed(1)+"/10"} · Fear {data.average_fear == null ? "—" : data.average_fear.toFixed(1)+"/10"} · FOMO {data.average_fomo == null ? "—" : data.average_fomo.toFixed(1)+"/10"}</span>
+        <span className={styles.confidenceDetail}>Frustration {data.average_frustration == null ? "—" : data.average_frustration.toFixed(1)+"/10"} · Revenge {data.average_revenge_intensity == null ? "—" : data.average_revenge_intensity.toFixed(1)+"/10"} · Boredom {data.average_boredom == null ? "—" : data.average_boredom.toFixed(1)+"/10"}</span>
+      </div>
+    </div>
+    {data.insights?.length ? <div className={styles.outcomePanel}>
+      <h3 className={styles.sectionTitle}>Diagnostic insights</h3>
+      <p className={styles.sectionDescription}>Rule-based observations from recorded Journal facts. These are descriptive prompts, not causal conclusions.</p>
+      <ul>{data.insights.map((insight,index)=><li key={insight.type+"-"+index}><strong>{insight.title}</strong> — {insight.message}</li>)}</ul>
+    </div> : <div className={styles.outcomePanel}><h3 className={styles.sectionTitle}>No diagnostic alerts</h3><p className={styles.sectionDescription}>There are no current rule-based observations for this sample, or there is not enough recorded data to evaluate them.</p></div>}
     <p className={styles.notice}>{data.notice}</p>
   </section>;
 }

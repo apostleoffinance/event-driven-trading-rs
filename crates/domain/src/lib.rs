@@ -33,7 +33,7 @@ pub use instrument::{Instrument, InstrumentSpec, InstrumentType};
 pub use journal::{JournalDirection, JournalTrade, JournalTradeSource, JournalTradeStatus};
 pub use journal_analytics::{
     calculate_position_size, summarize_net_pnl, AnalyticsSummary, PositionSizingInput,
-    PositionSizingResult,
+    PositionSizingResult, TradeAnalyticsFact, TradePsychologyFact,
 };
 pub use order::{Order, OrderSide, OrderStatus, OrderType, TimeInForce};
 pub use position::{Position, PositionSide};
