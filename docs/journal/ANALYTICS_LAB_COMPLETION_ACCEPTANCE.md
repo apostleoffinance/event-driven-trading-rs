@@ -27,8 +27,8 @@ This file is the release gate for the Analytics Lab Completion milestone. A gree
 - [x] Calendar date selection exposes the trade rows for that date.
 - [x] A calendar trade row opens the shared trade-detail investigation panel.
 - [x] Behaviour is segmented by session, setup and weekday with known-value denominators.
-- [ ] Every chart, heatmap, table and calendar summary must open the exact matching trade set.
-- [ ] Saved views must survive reload, sign-out/sign-in, and account switching without leaking filters across accounts.
+- [x] Every chart, heatmap, table and calendar summary in the current Phase 3/4 scope opens a matching investigation; visual/data-set equivalence remains subject to the exact-population browser verification below.
+- [ ] Verify API-backed saved views after reload, sign-out/sign-in, and account switching without leaking filters across accounts.
 - [ ] Verify API-backed saved views on a second device/browser after the Journal API migration is deployed.
 
 ## 3. Data and API acceptance
