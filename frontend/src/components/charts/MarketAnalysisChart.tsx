@@ -216,28 +216,6 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
     }
   }, [sl, tp, chartReady]);
 
-  useEffect(() => {
-    const chart = chartRef.current, series = candleRef.current;
-    if (!chart || !series || !chartReady) return;
-    const onClick = (event: { point?: { x: number; y: number } }) => {
-      if (drawMode === "none" || !event.point) return;
-      const time = chart.timeScale().coordinateToTime(event.point.x);
-      const price = series.coordinateToPrice(event.point.y);
-      if (time === null || price === null || !Number.isFinite(price)) return;
-      const point = { time, value: price };
-      if (drawMode === "horizontal") {
-        setDrawings(prev => [...prev, { id: Date.now(), kind: "horizontal", price }]);
-        setDrawMode("none");
-      } else if (!pendingAnchor) setPendingAnchor(point);
-      else {
-        setDrawings(prev => [...prev, { id: Date.now(), kind: "trendline", points: [pendingAnchor, point] }]);
-        setPendingAnchor(null); setDrawMode("none");
-      }
-    };
-    chart.subscribeClick(onClick);
-    return () => chart.unsubscribeClick(onClick);
-  }, [chartReady, drawMode, pendingAnchor]);
-
   const error = providers.error ?? instruments.error ?? candles.error;
   const fmt = (value: number | undefined) => value == null ? "—" : formatPrice(value);
   return (
