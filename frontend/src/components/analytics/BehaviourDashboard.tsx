@@ -56,6 +56,25 @@ export function BehaviourDashboard({ data, trades }: Props) {
     if(trade.discipline_score!=null){row.discipline+=trade.discipline_score;row.disciplineKnown+=1;}
     monthlyTrend.set(month,row);
   }
+  const segmentMap = new Map<string,{dimension:string;label:string;trades:number;netPnl:number;realizedR:number;rCount:number;rules:number;rulesKnown:number;valid:number;validKnown:number;emotional:number;discipline:number;disciplineKnown:number}>();
+  for (const trade of trades) {
+    const closed = new Date(trade.closed_at);
+    const weekday = Number.isNaN(closed.getTime()) ? "Unknown" : ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][closed.getUTCDay()];
+    const dimensions: Array<[string,string]> = [["Session",trade.session??"Unspecified"],["Setup",trade.setup??"Unassigned"],["Weekday (UTC)",weekday]];
+    for (const [dimension,label] of dimensions) {
+      const key=dimension+"::"+label;
+      const row=segmentMap.get(key)??{dimension,label,trades:0,netPnl:0,realizedR:0,rCount:0,rules:0,rulesKnown:0,valid:0,validKnown:0,emotional:0,discipline:0,disciplineKnown:0};
+      row.trades+=1;
+      const pnl=Number(trade.net_pnl);if(Number.isFinite(pnl))row.netPnl+=pnl;
+      if(trade.realized_r!=null&&Number.isFinite(Number(trade.realized_r))){row.realizedR+=Number(trade.realized_r);row.rCount+=1;}
+      if(trade.rules_followed!=null){row.rulesKnown+=1;if(trade.rules_followed)row.rules+=1;}
+      if(trade.setup_valid!=null){row.validKnown+=1;if(trade.setup_valid)row.valid+=1;}
+      if(trade.emotional_trade===true)row.emotional+=1;
+      if(trade.discipline_score!=null){row.discipline+=trade.discipline_score;row.disciplineKnown+=1;}
+      segmentMap.set(key,row);
+    }
+  }
+  const segmentRows=[...segmentMap.values()].sort((a,b)=>a.dimension.localeCompare(b.dimension)||a.label.localeCompare(b.label));
   const total = outcomes.good_process_win + outcomes.good_process_loss + outcomes.poor_process_win + outcomes.poor_process_loss;
   const confidence = data.win_rate_confidence_95;
   const sampleLabel = data.sample_status.replaceAll("_", " ");
@@ -109,6 +128,11 @@ export function BehaviourDashboard({ data, trades }: Props) {
       <h3 className={styles.sectionTitle}>Behaviour trends by month</h3>
       <p className={styles.sectionDescription}>Monthly aggregates from recorded rule, setup, emotion and discipline fields. Unrecorded values are excluded from each denominator.</p>
       <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Month</th><th>Trades</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{[...monthlyTrend.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([month,row])=><tr key={month}><td>{month}</td><td>{row.trades}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"%": "—"} ({row.rulesKnown})</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"%":"—"} ({row.validKnown})</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
+    </div> : null}
+    {segmentRows.length ? <div className={styles.outcomePanel}>
+      <h3 className={styles.sectionTitle}>Behaviour by session, setup and weekday</h3>
+      <p className={styles.sectionDescription}>Compare process quality with realized outcomes across the same trade population. Percentages use only trades with recorded values; these are descriptive associations, not causal conclusions.</p>
+      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Dimension</th><th>Group</th><th>Trades</th><th>Net P&amp;L</th><th>Avg R</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{segmentRows.map(row=><tr key={row.dimension+"::"+row.label}><td>{row.dimension}</td><td>{row.label}</td><td>{row.trades}</td><td className={row.netPnl>=0?"num pos":"num neg"}>{row.netPnl.toFixed(2)}</td><td>{row.rCount?(row.realizedR/row.rCount).toFixed(2)+"R":"—"}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"% ("+row.rulesKnown+")":"—"}</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"% ("+row.validKnown+")":"—"}</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
     </div> : null}
     <div className={styles.confidencePanel}>
       <div>
