@@ -161,14 +161,18 @@ try {
     await page.locator(".market-drawing-row").first().getByRole("button").first().click();
     await page.locator(".market-drawing-inspector").getByText("Edit drawing", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Apply anchor" }).click();
+    await page.getByLabel("SMA 20").check();
     await page.getByLabel("Template name").fill("Acceptance template");
-    await page.getByRole("button", { name: "Save template" }).click();
+    await page.getByRole("button", { name: "Save layout" }).click();
+    await page.getByLabel("SMA 20").uncheck();
     await page.getByLabel("Saved templates").selectOption({ label: "Acceptance template · EURUSD M1" });
     await page.getByRole("button", { name: "Load", exact: true }).click();
+    await page.getByLabel("SMA 20").waitFor();
+    assert.equal(await page.getByLabel("SMA 20").isChecked(), true, `Saved layout did not restore indicator visibility at ${viewport.name}`);
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".market-drawing-row").first().waitFor({ timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawings were not restored after reload at ${viewport.name}`);
-    assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing template did not persist at ${viewport.name}`);
+    assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing layout did not persist at ${viewport.name}`);
 
     const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
