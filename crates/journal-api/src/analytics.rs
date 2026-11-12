@@ -346,7 +346,7 @@ pub async fn summary(
             current_win_streak = 0;
             current_loss_streak = 0;
         }
-        let capture = mfe_capture_percent(realized_r, fact.mfe_r);
+        let capture = analytics_fact.mfe_capture_percent();
         if let Some(value) = capture {
             mfe_capture_values.push(value);
         }
@@ -512,38 +512,3 @@ pub async fn summary(
     }})).into_response()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{mfe_capture_percent, profit_surrendered_r};
-    use rust_decimal::Decimal;
-
-    #[test]
-    fn mfe_capture_is_calculated_per_trade_from_realized_r_and_positive_mfe() {
-        assert_eq!(
-            mfe_capture_percent(Some(Decimal::from(1)), Some(Decimal::from(2))),
-            Some(Decimal::from(50))
-        );
-        assert_eq!(
-            mfe_capture_percent(Some(Decimal::from(-1)), Some(Decimal::from(2))),
-            Some(Decimal::from(-50))
-        );
-        assert_eq!(
-            mfe_capture_percent(Some(Decimal::ONE), Some(Decimal::ZERO)),
-            None
-        );
-        assert_eq!(mfe_capture_percent(None, Some(Decimal::ONE)), None);
-    }
-
-    #[test]
-    fn profit_surrendered_requires_excursion_above_realized_result() {
-        assert_eq!(
-            profit_surrendered_r(Some(Decimal::from(3)), Some(Decimal::ONE)),
-            Some(Decimal::from(2))
-        );
-        assert_eq!(
-            profit_surrendered_r(Some(Decimal::ONE), Some(Decimal::from(2))),
-            None
-        );
-        assert_eq!(profit_surrendered_r(None, Some(Decimal::ONE)), None);
-    }
-}
