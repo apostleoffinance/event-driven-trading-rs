@@ -72,7 +72,6 @@ fn canonical_mae_r(value: Option<Decimal>) -> Option<Decimal> {
     value.map(|value| if value > Decimal::ZERO { -value } else { value })
 }
 
-
 pub async fn summary(
     State(state): State<AppState>,
     headers: HeaderMap,
