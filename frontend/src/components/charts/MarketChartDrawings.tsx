@@ -22,7 +22,8 @@ const tools:{id:Tool;label:string;hint:string}[]=[
  {id:"short-position",label:"Short position",hint:"Click entry, stop, then target"},
 ];
 const levels=[0,.236,.382,.5,.618,.786,1];
-const colors=["#e5ad48","#4da3ff","#26a69a","#ef5350","#b38cff","#d7dce2"];\nconst kinds:Kind[]=["horizontal-ray","vertical-line","trendline","rectangle","parallel-channel","fibonacci","long-position","short-position"];
+const colors=["#e5ad48","#4da3ff","#26a69a","#ef5350","#b38cff","#d7dce2"];
+const kinds:Kind[]=["horizontal-ray","vertical-line","trendline","rectangle","parallel-channel","fibonacci","long-position","short-position"];
 const keyFor=(i:string,t:string)=>`edgenest:drawings:v1:${i}:${t}`;
 const copy=<T,>(x:T):T=>JSON.parse(JSON.stringify(x)) as T;
 const count=(k:Kind)=>k==="horizontal-ray"||k==="vertical-line"?1:k==="parallel-channel"||k==="long-position"||k==="short-position"?3:2;
