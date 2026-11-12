@@ -151,6 +151,7 @@ try {
     const drawAt = async (x, y) => drawingSvg.click({ position: { x, y }, force: true });
     const addDrawing = async (label, points) => {
       await page.getByRole("toolbar", { name: "Chart drawing tools" }).getByRole("button", { name: label, exact: true }).click();
+      await page.waitForFunction(() => document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing"));
       for (const [x, y] of points) await drawAt(x, y);
     };
     await addDrawing("Horizontal ray", [[drawingBox.width * .24, drawingBox.height * .30]]);
