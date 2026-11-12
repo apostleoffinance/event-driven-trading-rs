@@ -122,10 +122,16 @@ try {
     const accounts = (accountsBody.data ?? []).filter(account => !account.archived);
     assert.ok(accounts.length >= 2, `Authenticated account-switch acceptance requires at least two active Journal accounts; found ${accounts.length}.`);
 
-    const select = page.locator("label.analytics-filter-field").filter({ hasText: "Journal account" }).locator("select");
+    // Match the dedicated field label exactly. A substring match also catches
+    // "Saved views · synced to your Journal account", creating an ambiguous locator.
+    const select = page.locator("label.analytics-filter-field").filter({
+      has: page.locator("span").getByText("Journal account", { exact: true }),
+    }).locator("select");
     await select.waitFor();
     await page.waitForFunction(() => {
-      const el = [...document.querySelectorAll("label.analytics-filter-field")].find(x => x.textContent?.includes("Journal account"))?.querySelector("select");
+      const field = [...document.querySelectorAll("label.analytics-filter-field")]
+        .find(x => x.querySelector(":scope > span")?.textContent?.trim() === "Journal account");
+      const el = field?.querySelector("select");
       return Boolean(el && el.options.length >= 3);
     }, { timeout: 30_000 });
 
