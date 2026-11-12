@@ -371,35 +371,6 @@ pub async fn replace(
 }
 
 async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx::Error> {
-    let previous = sqlx::query_as::<
-        _,
-        (
-            String,
-            String,
-            DateTime<Utc>,
-            Option<DateTime<Utc>>,
-            Decimal,
-            Option<Decimal>,
-            Option<Decimal>,
-            Decimal,
-        ),
-    >(
-        "SELECT symbol,direction,opened_at,closed_at,entry_price,exit_price,stop_loss,quantity FROM journal_trades WHERE owner_id=$1 AND id=$2",
-    )
-    .bind(&trade.owner_id)
-    .bind(&trade.id)
-    .fetch_optional(pool)
-    .await?;
-    let excursion_inputs_changed = previous.as_ref().is_some_and(|old| {
-        old.0 != trade.symbol
-            || old.1 != match trade.direction { JournalDirection::Long => "long", JournalDirection::Short => "short" }
-            || old.2 != trade.opened_at
-            || old.3 != trade.closed_at
-            || old.4 != trade.entry_price
-            || old.5 != trade.exit_price
-            || old.6 != trade.stop_loss
-
-    });
     let direction = match trade.direction {
         JournalDirection::Long => "long",
         JournalDirection::Short => "short",
@@ -409,6 +380,34 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
         JournalTradeStatus::Closed => "closed",
         JournalTradeStatus::Cancelled => "cancelled",
     };
+    let previous = sqlx::query_as::<
+        _,
+        (
+            String,
+            String,
+            String,
+            DateTime<Utc>,
+            Option<DateTime<Utc>>,
+            Decimal,
+            Option<Decimal>,
+            Decimal,
+        ),
+    >(
+        "SELECT symbol,direction,status,opened_at,closed_at,entry_price,stop_loss,quantity FROM journal_trades WHERE owner_id=$1 AND id=$2",
+    )
+    .bind(&trade.owner_id)
+    .bind(&trade.id)
+    .fetch_optional(pool)
+    .await?;
+    let excursion_inputs_changed = previous.as_ref().is_some_and(|old| {
+        old.0.as_str() != trade.symbol
+            || old.1 != direction
+            || old.2 != status
+            || old.3 != trade.opened_at
+            || old.4 != trade.closed_at
+            || old.5 != trade.entry_price
+            || old.6 != trade.stop_loss
+    });
     let source = match trade.source {
         JournalTradeSource::Manual => "manual",
         JournalTradeSource::Mt5 => "mt5",
