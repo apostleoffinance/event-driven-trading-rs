@@ -79,7 +79,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const configuredProvider = String(instrument?.default_provider ?? "");
   const selectedProvider = providerOverride || (configuredProvider && configuredProvider !== "demo" ? configuredProvider : fallbackProvider);
   const candleQuery = useQuery({
-    queryKey: ["journal", "trade-replay", trade.id, frame, selectedProvider],
+    queryKey: ["journal", "trade-replay", trade.id, trade.opened_at, trade.closed_at, frame, selectedProvider],
     queryFn: async () => {
       const durationMs: Record<Frame, number> = { M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 };
       const start = new Date(trade.opened_at).getTime();
@@ -133,7 +133,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
     const riskDistance = trade.stop_loss ? Math.abs(entryPrice - Number(trade.stop_loss)) : 0;
     const mfeR = riskDistance > 0 ? ((fullFavorable - entryPrice) * directionSign) / riskDistance : null;
     const maeR = riskDistance > 0 ? ((fullAdverse - entryPrice) * directionSign) / riskDistance : null;
-    const key = [trade.id, frame, selectedProvider, first, last].join(":");
+    const key = [trade.id, frame, selectedProvider, first, last, entryPrice, trade.stop_loss, trade.direction].join(":");
     if (persistedExcursionRef.current === key) return;
     persistedExcursionRef.current = key;
     void journalApi.saveExcursions(trade.id, {
