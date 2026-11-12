@@ -133,7 +133,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
     const riskDistance = trade.stop_loss ? Math.abs(entryPrice - Number(trade.stop_loss)) : 0;
     const mfeR = riskDistance > 0 ? ((fullFavorable - entryPrice) * directionSign) / riskDistance : null;
     const maeR = riskDistance > 0 ? ((fullAdverse - entryPrice) * directionSign) / riskDistance : null;
-    const key = [trade.id, frame, selectedProvider, first, last, entryPrice, trade.stop_loss, trade.direction].join(":");
+    const key = [trade.id, trade.status, frame, selectedProvider, first, last, entryPrice, trade.stop_loss, trade.direction].join(":");
     if (persistedExcursionRef.current === key) return;
     persistedExcursionRef.current = key;
     void journalApi.saveExcursions(trade.id, {
