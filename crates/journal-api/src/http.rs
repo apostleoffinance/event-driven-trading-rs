@@ -390,19 +390,18 @@ async fn update_trade(pool: &PgPool, trade: &JournalTrade) -> Result<bool, sqlx:
             Option<DateTime<Utc>>,
             Decimal,
             Option<Decimal>,
-            Decimal,
         ),
     >(
-        "SELECT symbol,direction,status,opened_at,closed_at,entry_price,stop_loss,quantity FROM journal_trades WHERE owner_id=$1 AND id=$2",
+        "SELECT symbol,direction,status,opened_at,closed_at,entry_price,stop_loss FROM journal_trades WHERE owner_id=$1 AND id=$2",
     )
     .bind(&trade.owner_id)
     .bind(&trade.id)
     .fetch_optional(pool)
     .await?;
     let excursion_inputs_changed = previous.as_ref().is_some_and(|old| {
-        old.0.as_str() != trade.symbol
-            || old.1 != direction
-            || old.2 != status
+        old.0.as_str() != trade.symbol.as_str()
+            || old.1.as_str() != direction
+            || old.2.as_str() != status
             || old.3 != trade.opened_at
             || old.4 != trade.closed_at
             || old.5 != trade.entry_price
