@@ -47,14 +47,14 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
       <div className="analytics-insight-column">
         <h3>Strongest observed groups</h3>
         {candidates.length ? candidates.map(item => <div className="analytics-insight-row" key={item.label}>
-          <span>{item.label}</span><button type="button" className="analytics-insight-select" onClick={() => onSelectGroup(item.label.toLowerCase() as "symbol" | "session" | "setup", item.group!.key)}>{item.group!.key}</button><b className={Number(item.group!.net_pnl) >= 0 ? "pos" : "neg"}>{money(Number(item.group!.net_pnl), currency)}</b>
+          <span>{item.label}</span><button type="button" className="analytics-insight-select" onClick={() => onSelectGroup((item.label === "Instrument" ? "symbol" : item.label.toLowerCase()) as "symbol" | "session" | "setup", item.group!.key)}>{item.group!.key}</button><b className={Number(item.group!.net_pnl) >= 0 ? "pos" : "neg"}>{money(Number(item.group!.net_pnl), currency)}</b>
           <small>{item.group!.trades} trades · {Number(item.group!.win_rate_percent).toFixed(1)}% win rate</small>
         </div>) : <p className="muted">Not enough qualifying trades to identify a strongest group.</p>}
       </div>
       <div className="analytics-insight-column">
         <h3>Groups worth investigating</h3>
         {risks.length ? risks.map(item => <div className="analytics-insight-row" key={item.label}>
-          <span>{item.label}</span><button type="button" className="analytics-insight-select" onClick={() => onSelectGroup(item.label.toLowerCase() as "symbol" | "session" | "setup", item.group!.key)}>{item.group!.key}</button><b className="neg">{money(Number(item.group!.net_pnl), currency)}</b>
+          <span>{item.label}</span><button type="button" className="analytics-insight-select" onClick={() => onSelectGroup((item.label === "Instrument" ? "symbol" : item.label.toLowerCase()) as "symbol" | "session" | "setup", item.group!.key)}>{item.group!.key}</button><b className="neg">{money(Number(item.group!.net_pnl), currency)}</b>
           <small>{item.group!.trades} trades · {Number(item.group!.win_rate_percent).toFixed(1)}% win rate</small>
         </div>) : <p className="muted">No negative group with at least three trades in this sample.</p>}
       </div>
