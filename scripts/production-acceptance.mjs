@@ -79,8 +79,10 @@ try {
     page.on("console", message => { if (message.type() === "error") marketConsoleErrors.push(message.text()); });
     // Deterministic provider fixtures let this preview test real series rendering
     // without relying on CORS or an external market feed.
+    const marketFixtureRequests = [];
     await page.route("**/api/v1/market-data/**", async route => {
       const requestUrl = new URL(route.request().url());
+      marketFixtureRequests.push({ path: requestUrl.pathname, query: requestUrl.search });
       if (requestUrl.pathname.endsWith("/providers")) {
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ providers: [{ id: "biquote-live", name: "BiQuote Live (test fixture)", status: { state: "available" } }] }) });
         return;
@@ -116,7 +118,12 @@ try {
     assert.equal(await page.getByText("Chart could not render", { exact: true }).count(), 0, `Lightweight Charts initialization failed at ${viewport.name}`);
     assert.equal(await page.locator(".market-controls select").count(), 2, `Market Data should have one unified instrument/provider control pair at ${viewport.name}`);
     assert.equal(await page.getByRole("heading", { name: "CANDLE QUERY" }).count(), 0, `Duplicate Candle Query panel remains at ${viewport.name}`);
-    await page.getByText("1.10712", { exact: true }).first().waitFor({ timeout: 15_000 });
+    try {
+      await page.waitForFunction(() => document.querySelector(".market-price-hero strong")?.textContent?.trim() === "1.10712", null, { timeout: 15_000 });
+    } catch {
+      const diagnostic = await page.locator(".market-terminal").innerText().catch(() => "Market terminal not mounted");
+      throw new Error(`Market Data fixture did not render latest close at ${viewport.name}. Requests=${JSON.stringify(marketFixtureRequests)} Console=${JSON.stringify(marketConsoleErrors)} UI=${diagnostic.slice(0, 1200)}`);
+    }
     const timeframeGroup = page.getByRole("group", { name: "Chart timeframe" });
     for (const timeframe of ["M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1"]) {
       const button = timeframeGroup.getByRole("button", { name: timeframe, exact: true });
