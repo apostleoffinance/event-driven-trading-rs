@@ -266,7 +266,7 @@ mod trade_analytics_fact_tests {
         assert!(fact.validate().is_ok());
         assert_eq!(fact.realized_r(), Some(Decimal::from(2)));
         assert_eq!(fact.holding_seconds(), 3_600);
-        assert_eq!(fact.mfe_capture_percent(), Some(Decimal::new(200, 1)));
+        assert_eq!(fact.mfe_capture_percent(), Some(Decimal::from(2) / Decimal::from(3) * Decimal::from(100)));
         assert_eq!(fact.profit_surrendered_r(), Some(Decimal::ONE));
     }
 
