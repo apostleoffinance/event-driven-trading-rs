@@ -12,12 +12,12 @@ pub struct DerivedTradeMetrics {
 }
 
 fn nth_sunday(year: i32, month: u32, nth: u32) -> u32 {
-    let first = NaiveDate::from_ymd_opt(year, month, 1).expect("valid month");
+    let first = NaiveDate::from_ymd_opt(year, month, 1).unwrap_or(NaiveDate::MIN);
     let offset = (7 - first.weekday().num_days_from_sunday()) % 7;
     1 + offset + (nth - 1) * 7
 }
 fn last_sunday(year: i32, month: u32) -> u32 {
-    (1..=31).rev().find(|day| NaiveDate::from_ymd_opt(year, month, *day).is_some_and(|date| date.weekday() == Weekday::Sun)).expect("month has a Sunday")
+    (1..=31).rev().find(|day| NaiveDate::from_ymd_opt(year, month, *day).is_some_and(|date| date.weekday() == Weekday::Sun)).unwrap_or(1)
 }
 fn london_dst(at: DateTime<Utc>) -> bool {
     let month = at.month();
@@ -158,5 +158,13 @@ mod tests {
         assert_eq!(classify_fx_session(at(9)), "London");
         assert_eq!(classify_fx_session(at(13)), "London/New York overlap");
         assert_eq!(classify_fx_session(at(18)), "New York");
+        let before_us_dst = Utc.with_ymd_and_hms(2026, 3, 7, 12, 30, 0).unwrap();
+        let after_us_dst = Utc.with_ymd_and_hms(2026, 3, 8, 12, 30, 0).unwrap();
+        assert_eq!(classify_fx_session(before_us_dst), "London");
+        assert_eq!(classify_fx_session(after_us_dst), "London/New York overlap");
+        let before_us_standard = Utc.with_ymd_and_hms(2026, 10, 31, 12, 30, 0).unwrap();
+        let after_us_standard = Utc.with_ymd_and_hms(2026, 11, 1, 12, 30, 0).unwrap();
+        assert_eq!(classify_fx_session(before_us_standard), "London/New York overlap");
+        assert_eq!(classify_fx_session(after_us_standard), "London");
     }
 }
