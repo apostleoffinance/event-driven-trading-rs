@@ -32,8 +32,9 @@ function timeLabel(time: Time): string {
 }
 
 function movementPips(symbol: string, entry: number, current: number, direction: JournalTrade["direction"]): number | null {
-  const normalized = symbol.replace(/[^A-Z]/gi, "").toUpperCase();
-  if (!/^[A-Z]{6}$/.test(normalized)) return null;
+  const currencies = new Set(["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "TRY", "SGD", "HKD", "MXN", "ZAR", "CNH", "CNY", "INR", "BRL", "RUB", "ILS", "THB", "KRW", "PHP", "IDR", "MYR", "AED", "SAR"]);
+  const normalized = symbol.replace(/[^A-Z]/gi, "").toUpperCase().slice(0, 6);
+  if (!/^[A-Z]{6}$/.test(normalized) || !currencies.has(normalized.slice(0, 3)) || !currencies.has(normalized.slice(3, 6))) return null;
   const pip = normalized.endsWith("JPY") ? 0.01 : 0.0001;
   return ((current - entry) * (direction === "long" ? 1 : -1)) / pip;
 }
