@@ -48,6 +48,10 @@ export const journalApi = {
     return apiRequest<Record<string,unknown>>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy/evaluate`, {method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
   },
 
+  async saveExcursions(tradeId: string, input: {mfe_price:number;mae_price:number;mfe_r:number|null;mae_r:number|null;timeframe:string;provider:string;candle_count:number;coverage_start:string;coverage_end:string}) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean;precision:string}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/excursions`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+  },
   async listAttachments(tradeId: string) {
     requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{baseUrl:journalBaseUrl()})).data;
   },
