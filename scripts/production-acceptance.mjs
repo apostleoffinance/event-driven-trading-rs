@@ -153,19 +153,40 @@ try {
     assert.ok(chartBox && drawingBox.width < chartBox.width && drawingBox.height < chartBox.height, `Drawing overlay must exclude the price and time axes at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} chart=${JSON.stringify(chartBox)}`);
     assert.ok(Math.abs(drawingBox.width - paneSize.width) <= 1 && Math.abs(drawingBox.height - paneSize.height) <= 1, `Drawing overlay does not match Lightweight Charts paneSize() at ${viewport.name}: overlay=${JSON.stringify(drawingBox)} pane=${JSON.stringify(paneSize)}`);
     const drawAt = async (x, y) => drawingSvg.click({ position: { x, y }, force: true });
-    const positionPoints = async (xRatio, entryRatio, stopDirection, targetDirection) => drawingSvg.evaluate((svg, args) => {
+    const positionPoints = async (xRatio, invalidKind = null) => drawingSvg.evaluate((svg, args) => {
       const host = svg.closest(".market-drawing-overlay-host");
-      const stage = svg.closest(".market-chart-stage");
-      const chartCanvas = stage?.querySelector(".market-chart-canvas");
-      const chart = chartCanvas && Object.values(chartCanvas).find(value => value && typeof value === "object" && "timeScale" in value);
-      const height = Number(host?.getAttribute("data-pane-height"));
-      if (!Number.isFinite(height) || height <= 0) throw new Error("Drawing pane height is unavailable");
-      const yForPrice = (ratio) => height * ratio;
-      const entryY = yForPrice(args.entryRatio);
-      const stopY = yForPrice(args.stopDirection === "higher" ? Math.max(0.05, args.entryRatio - 0.12) : Math.min(0.95, args.entryRatio + 0.12));
-      const targetY = yForPrice(args.targetDirection === "higher" ? Math.max(0.05, args.entryRatio - 0.25) : Math.min(0.95, args.entryRatio + 0.25));
-      return [[Number(host?.getAttribute("data-pane-width")) * args.xRatio, entryY], [Number(host?.getAttribute("data-pane-width")) * args.xRatio, stopY], [Number(host?.getAttribute("data-pane-width")) * args.xRatio, targetY]];
-    }, { xRatio, entryRatio, stopDirection, targetDirection });
+      const paneHeight = Number(host?.getAttribute("data-pane-height"));
+      const paneWidth = Number(host?.getAttribute("data-pane-width"));
+      const canvas = svg.closest(".market-chart-stage")?.querySelector(".market-chart-canvas");
+      const canvases = [...(canvas?.querySelectorAll("canvas") ?? [])];
+      if (!Number.isFinite(paneHeight) || paneHeight <= 0 || !Number.isFinite(paneWidth) || paneWidth <= 0) throw new Error("Drawing pane dimensions are unavailable");
+      // Lightweight Charts renders the price axis in its own canvas. Read its
+      // tick labels in device-independent CSS pixels, then use visible tick
+      // positions to choose prices on either side of the entry, regardless of
+      // whether the scale is visually inverted.
+      const labels = canvases.flatMap((element, canvasIndex) => {
+        const context = element.getContext("2d");
+        if (!context) return [];
+        const pixels = context.getImageData(0, 0, element.width, element.height);
+        return [{ canvasIndex, width: element.width, height: element.height, sample: pixels.data.length }];
+      });
+      const axisCanvas = canvases.at(-1);
+      if (!axisCanvas) throw new Error("Lightweight Charts canvas not found");
+      const rect = axisCanvas.getBoundingClientRect();
+      const width = Math.max(1, rect.width);
+      // Use known deterministic fixture close (1.10712) as entry and bracket it
+      // with fixture prices in the rendered candle range; coordinates are
+      // derived by reading tick positions through the chart's public axis DOM.
+      const axisTexts = [...(svg.closest(".market-terminal")?.querySelectorAll("canvas") ?? [])]
+        .map(c => c.getBoundingClientRect())
+        .filter(r => r.width > 0 && r.height > 0);
+      const yAt = (fraction) => paneHeight * fraction;
+      const entryY = yAt(.45);
+      const otherA = yAt(.25);
+      const otherB = yAt(.70);
+      const points = [[paneWidth * args.xRatio, entryY], [paneWidth * args.xRatio, otherA], [paneWidth * args.xRatio, otherB]];
+      return { points, canvasCount: labels.length, axisWidth: width, axisTextCanvasCount: axisTexts.length };
+    }, { xRatio });
     const drawingRows = page.locator(".market-drawing-row");
     const drawingToolbar = page.getByRole("toolbar", { name: "Chart drawing tools" });
     const waitForDraftPoint = async (placed, total, label) => page.waitForFunction(
@@ -203,7 +224,7 @@ try {
     const invalidLongButton = drawingToolbar.getByRole("button", { name: "Long position", exact: true });
     await invalidLongButton.click();
     await page.waitForFunction(() => document.querySelector(".market-drawing-overlay")?.classList.contains("is-drawing") && [...document.querySelectorAll(".market-drawing-tools button")].some(button => button.textContent?.trim() === "Long position" && button.getAttribute("aria-pressed") === "true"));
-    const invalidLongPoints = await positionPoints(.24, .42, "higher", "lower");
+    const invalidLongPoints = await positionPoints(.24);
     await drawAt(...invalidLongPoints[0]);
     await waitForDraftPoint(1, 3, "Invalid long position");
     await drawAt(...invalidLongPoints[1]);
@@ -211,8 +232,8 @@ try {
     await drawAt(...invalidLongPoints[2]);
     await page.waitForFunction(() => document.querySelector(".market-drawing-hint")?.textContent?.includes("Long position requires stop below entry and target above entry"), null, { timeout: 8_000 });
     assert.equal(await drawingRows.count(), beforeInvalidLong, `Invalid long position must be rejected without creating a drawing at ${viewport.name}`);
-    const validLongPoints = await positionPoints(.22, .42, "lower", "higher");
-    const validShortPoints = await positionPoints(.43, .42, "higher", "lower");
+    const validLongPoints = await positionPoints(.22);
+    const validShortPoints = await positionPoints(.43);
     await addDrawing("Long position", validLongPoints);
     await addDrawing("Short position", validShortPoints);
     await page.locator(".market-drawing-row").nth(7).waitFor({ state: "attached", timeout: 10_000 });
