@@ -142,6 +142,10 @@ try {
 
     // Exercise every drawing family, editing controls, templates and browser persistence.
     const drawingSvg = page.locator(".market-drawing-overlay");
+    await page.waitForFunction(() => {
+      const host = document.querySelector(".market-drawing-overlay-host");
+      return Number(host?.getAttribute("data-pane-width")) > 200 && Number(host?.getAttribute("data-pane-height")) > 200;
+    });
     const drawingBox = await drawingSvg.boundingBox();
     const chartBox = await page.locator(".market-chart-canvas").boundingBox();
     const paneSize = await page.locator(".market-drawing-overlay-host").evaluate(element => ({ width: Number(element.getAttribute("data-pane-width")), height: Number(element.getAttribute("data-pane-height")) }));
