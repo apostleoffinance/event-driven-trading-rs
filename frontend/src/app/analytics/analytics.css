@@ -100,3 +100,9 @@
 @media (prefers-reduced-motion: reduce) {
   .analytics-page .calendar-day { transition: none; }
 }
+
+.analytics-summary { margin: 14px 0; }
+.analytics-summary .analytics-section-heading { margin-bottom: 12px; }
+.analytics-summary .analytics-section-heading h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.025em; }
+.analytics-summary .analytics-section-heading p { margin: 4px 0 0; font-size: 12px; }
+.analytics-summary .analytics-kpi-card { min-height: 108px; }
