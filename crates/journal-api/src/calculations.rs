@@ -92,11 +92,18 @@ pub fn calculate_fx_metrics(
     risk_amount: Option<Decimal>,
     opened_at: DateTime<Utc>,
 ) -> DerivedTradeMetrics {
-    const CURRENCIES: [&str; 20] = [
+    const CURRENCIES: [&str; 32] = [
         "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK",
         "DKK", "PLN", "CZK", "HUF", "TRY", "SGD", "HKD", "MXN", "ZAR", "CNH",
+        "CNY", "INR", "BRL", "RUB", "ILS", "THB", "KRW", "PHP", "IDR", "MYR",
+        "AED", "SAR",
     ];
-    let pair = symbol.trim().to_ascii_uppercase();
+    let pair = symbol
+        .chars()
+        .filter(|character| character.is_ascii_alphabetic())
+        .take(6)
+        .collect::<String>()
+        .to_ascii_uppercase();
     let quote = if pair.len() == 6 {
         let base = &pair[0..3];
         let quote = &pair[3..6];
