@@ -1,6 +1,14 @@
 import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
 const journalBaseUrl = () => apiBaseUrl("journal");
 
+export type JournalAnalyticsSavedView = {
+  id: string;
+  name: string;
+  journal_account_id: string | null;
+  filters: { fromDate?: string; toDate?: string; datePreset?: string; symbolFilter?: string; setupFilter?: string };
+  updated_at: string;
+};
+
 export type JournalAccount = {
   id: string; name: string; broker?: string | null; account_type: string;
   currency: string; initial_balance: string; archived?: boolean;
@@ -35,6 +43,22 @@ type DataEnvelope<T> = { data: T };
 export type PaginatedTrades = DataEnvelope<JournalTrade[]> & { pagination: { limit: number; offset: number } };
 
 export const journalApi = {
+  async listAnalyticsSavedViews(accountId?: string) {
+    requireApiMode();
+    const params = new URLSearchParams();
+    if (accountId) params.set("journal_account_id", accountId);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const response = await apiRequest<DataEnvelope<JournalAnalyticsSavedView[]>>(`/api/v1/journal/analytics/saved-views${suffix}`, { baseUrl: journalBaseUrl() });
+    return response.data.map(view => ({ id:view.id, name:view.name, accountId:view.journal_account_id ?? "", fromDate:view.filters.fromDate ?? "", toDate:view.filters.toDate ?? "", datePreset:view.filters.datePreset ?? "all", symbolFilter:view.filters.symbolFilter ?? "", setupFilter:view.filters.setupFilter ?? "" }));
+  },
+  async saveAnalyticsSavedView(input: { name:string; accountId:string | null; filters:{fromDate:string;toDate:string;datePreset:string;symbolFilter:string;setupFilter:string} }) {
+    requireApiMode();
+    return apiRequest<DataEnvelope<JournalAnalyticsSavedView>>("/api/v1/journal/analytics/saved-views", { method:"POST", baseUrl:journalBaseUrl(), body:JSON.stringify({name:input.name,journal_account_id:input.accountId,filters:input.filters}) });
+  },
+  async deleteAnalyticsSavedView(id:string) {
+    requireApiMode();
+    return apiRequest<void>(`/api/v1/journal/analytics/saved-views/${encodeURIComponent(id)}`, { method:"DELETE", baseUrl:journalBaseUrl() });
+  },
   async getRiskPolicy(accountId: string) {
     requireApiMode();
     return apiRequest<{policy:JournalRiskPolicy;version:number;updated_at:string|null;account_currency?:string}>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {baseUrl:journalBaseUrl()});

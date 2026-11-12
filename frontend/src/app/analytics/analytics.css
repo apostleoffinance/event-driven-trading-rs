@@ -226,3 +226,6 @@
     transition-duration: .01ms !important;
   }
 }
+
+.analytics-page .analytics-insight-select { border: 0; padding: 0; background: transparent; color: var(--accent); text-align: left; font: inherit; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.analytics-page .analytics-insight-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
