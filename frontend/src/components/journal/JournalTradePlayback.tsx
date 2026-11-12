@@ -108,8 +108,12 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
   const replayPath = candles.slice(0, Math.max(1, currentIndex + 1));
   const entryPrice = Number(trade.entry_price);
-  const favorablePrice = replayPath.length ? (trade.direction === "long" ? Math.max(...replayPath.map((c) => c.high)) : Math.min(...replayPath.map((c) => c.low))) : entryPrice;
-  const adversePrice = replayPath.length ? (trade.direction === "long" ? Math.min(...replayPath.map((c) => c.low)) : Math.max(...replayPath.map((c) => c.high))) : entryPrice;
+  const favorablePrice = trade.direction === "long"
+    ? replayPath.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
+    : replayPath.reduce((value, candle) => Math.min(value, candle.low), entryPrice);
+  const adversePrice = trade.direction === "long"
+    ? replayPath.reduce((value, candle) => Math.min(value, candle.low), entryPrice)
+    : replayPath.reduce((value, candle) => Math.max(value, candle.high), entryPrice);
   const mfePips = movementPips(trade.symbol, entryPrice, favorablePrice, trade.direction);
   const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
 
