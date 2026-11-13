@@ -314,7 +314,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
             <strong>Historical candle coverage is incomplete.</strong>
             <p className="muted">The returned candles do not cover the complete entry-to-exit interval. Replay is available, but MFE/MAE will not be saved from partial data. Try another provider or a coarser timeframe.</p>
           </div> : null}
-          {!candleQuery.isLoading && !candleQuery.isError && candles.length === 0 ? <div className="panel">
+          {providersQuery.isSuccess && Boolean(selectedProvider) && !closeIsInFuture && !candleQuery.isLoading && !candleQuery.isError && candles.length === 0 ? <div className="panel">
             <strong>No historical candles found for this trade.</strong>
             <p className="muted">Try a different provider or timeframe. EdgeNest does not generate placeholder market data.</p>
           </div> : null}
