@@ -690,7 +690,8 @@ try {
       const response = await replayPage.goto(frontendUrl + "/analytics", { waitUntil: "networkidle", timeout: 45_000 });
       assert.equal(response?.status(), 200, "Analytics replay fixture route failed.");
       await replayPage.getByRole("heading", { name: "Analytics Lab" }).waitFor();
-      await replayPage.getByRole("button", { name: "EURUSD" }).first().click();
+      const recentTradesPanel = replayPage.locator("section.panel").filter({ has: replayPage.getByRole("heading", { name: "RECENT CLOSED TRADES" }) });
+      await recentTradesPanel.getByRole("button", { name: "EURUSD" }).click();
       const dialog = replayPage.getByRole("dialog");
       await dialog.getByRole("heading", { name: "Historical trade replay" }).waitFor();
       await dialog.getByText("Replay ready").waitFor();
@@ -702,7 +703,9 @@ try {
       assert.equal(excursionsSaved.candle_count, 5);
       assert.equal(Number(excursionsSaved.mfe_r), 2);
       assert.equal(Number(excursionsSaved.mae_r), -0.5);
-      await replayPage.getByText("historical_candles", { exact: true }).waitFor();
+      const excursionSourceNote = dialog.locator(".trade-data-note");
+      await excursionSourceNote.waitFor();
+      assert.match(await excursionSourceNote.textContent(), /historical_candles.*H1/);
       assert.deepEqual(replayErrors, [], "Analytics replay browser errors: " + replayErrors.join("; "));
       await replayPage.screenshot({ path: artifactDir + "/analytics-trade-replay-fixture.png", fullPage: true });
       console.log("PASS Analytics trade replay fixture: auto-expanded controls, H1 candles, chart rendering, persisted MFE/MAE and refreshed investigation metrics.");
