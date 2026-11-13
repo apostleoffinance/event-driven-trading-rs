@@ -602,6 +602,9 @@ try {
       }
       assert.deepEqual(policyPageErrors, [], `Risk Policies browser errors: ${policyPageErrors.join("; ")}`);
       console.log("PASS risk-policy UI acceptance: existing policy load, account isolation, save, reload persistence and six responsive viewport screenshots.");
+    } finally {
+      await uiContext.close();
+    }
     // Deterministic Analytics replay fixture. It verifies that the investigation
     // opens the replay, fetches historical candles, saves excursions and refreshes
     // the displayed metrics without modifying any production Journal trade.
@@ -743,9 +746,6 @@ try {
       await replayContext.close();
     }
 
-    } finally {
-      await uiContext.close();
-    }
   } finally {
     if (accessToken) {
       for (const item of created) {
