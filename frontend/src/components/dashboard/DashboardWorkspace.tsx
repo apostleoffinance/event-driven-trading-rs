@@ -68,12 +68,13 @@ export function DashboardWorkspace({
   const journalAccounts = useMemo(() => (accountsQuery.data ?? []).filter(a => !a.archived), [accountsQuery.data]);
   const range = useMemo(() => dateRange(period), [period]);
   const activeAccounts = useMemo(() => selectedAccount === "all" ? journalAccounts : journalAccounts.filter(a => a.id === selectedAccount), [journalAccounts, selectedAccount]);
-  const analyticsQueries = useQueries({ queries: activeAccounts.map(account => ({
+  const analyticsQueries = useQueries({ queries: journalAccounts.map(account => ({
     queryKey: ["journal", "analytics", account.id, "dashboard", period],
     queryFn: () => journalApi.analyticsSummary({ journal_account_id: account.id, ...range }),
     enabled: authenticated, staleTime: 20_000, refetchOnWindowFocus: true, retry: 1,
   })) });
-  const ready = analyticsQueries.filter(q => q.data).map(q => q.data as JournalAnalytics);
+  const activeQueryResults = activeAccounts.map(account => analyticsQueries[journalAccounts.findIndex(item => item.id === account.id)]);
+  const ready = activeQueryResults.filter(q => q?.data).map(q => q!.data as JournalAnalytics);
   const currencies = [...new Set(activeAccounts.map(a => a.currency))];
   const commonCurrency = currencies.length === 1 ? currencies[0] : null;
   const totals = useMemo(() => {
@@ -89,7 +90,7 @@ export function DashboardWorkspace({
       grossProfit, grossLoss,
       maxDrawdown: commonCurrency ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
   }, [ready, commonCurrency]);
-  const selectedAccountData = activeAccounts.length === 1 ? ready[0] : null;
+  const selectedAccountData = activeAccounts.length === 1 ? activeQueryResults[0]?.data : null;
   const isVisible = (key: WidgetKey) => visible.includes(key);
   const toggleWidget = (key: WidgetKey) => setVisible(current => current.includes(key) ? current.filter(x => x !== key) : [...current, key]);
   const persistLayouts = (next: SavedLayout[]) => { setLayouts(next); try { window.localStorage.setItem(LAYOUTS_KEY, JSON.stringify(next)); } catch { setLayoutMessage("Could not save layouts in this browser."); } };
@@ -141,7 +142,7 @@ export function DashboardWorkspace({
     {isVisible("performance") ? <section className="dashboard-main-grid">
       <article className="panel dashboard-panel dashboard-performance">
         <div className="dashboard-panel-heading"><div><h2>Performance overview</h2><p>{selectedAccountData ? activeAccounts[0]?.name + " · " + (range.from ? range.from + " to " + range.to : "All time") : "Select a single account to inspect its equity curve."}</p></div><Link href="/analytics" className="dashboard-text-link">Open Analytics Lab ↗</Link></div>
-        {analyticsQueries.some(q=>q.isLoading) ? <div className="dashboard-chart-empty">Calculating Journal performance…</div> :
+        {activeQueryResults.some(q=>q?.isLoading) ? <div className="dashboard-chart-empty">Calculating Journal performance…</div> :
           selectedAccountData && selectedAccountData.equity_curve.length ? <JournalEquityCurve analytics={selectedAccountData} currency={activeAccounts[0]?.currency || "USD"}/> :
           <>{activeAccounts.length > 1 ? <div className="dashboard-account-comparison">{activeAccounts.map((account,index)=>{const stats=analyticsQueries[index]?.data;return <div className="dashboard-comparison-row" key={account.id}><div><strong>{account.name}</strong><small>{account.currency} · {stats?.trade_count ?? "—"} closed trades</small></div><strong className={stats?(finite(stats.net_profit)>=0?"pos":"neg"):""}>{stats?money(stats.net_profit,account.currency):"—"}</strong><button type="button" className="dashboard-text-link" onClick={()=>setSelectedAccount(account.id)}>Inspect ↗</button></div>;})}</div> : <div className="dashboard-chart-empty"><strong>{activeAccounts.length === 0 ? "No Journal accounts yet" : "No equity history for this period"}</strong><span>Record or import closed trades to build your performance history.</span>{activeAccounts.length === 0 ? <Link href="/journal" className="btn primary">Create Journal account</Link> : null}</div>}</>}
       </article>
@@ -167,7 +168,7 @@ export function DashboardWorkspace({
     {isVisible("accounts") ? <section className="panel dashboard-panel dashboard-accounts">
       <div className="dashboard-panel-heading"><div><h2>Journal accounts</h2><p>Recorded and imported trading history — separate from broker-reported balances and equity.</p></div><div className="dashboard-link-group"><Link href="/journal" className="dashboard-text-link">Open Journal ↗</Link><Link href="/analytics" className="dashboard-text-link">Analytics Lab ↗</Link></div></div>
       {accountsQuery.isLoading ? <p className="muted">Loading accounts…</p> : journalAccounts.length ? <div className="dashboard-account-grid">{journalAccounts.map(account=>{
-        const index=activeAccounts.findIndex(a=>a.id===account.id); const query=index>=0?analyticsQueries[index]:undefined; const stats=query?.data;
+        const index=journalAccounts.findIndex(a=>a.id===account.id); const query=analyticsQueries[index]; const stats=query?.data;
         return <button type="button" className={"dashboard-account-card"+(selectedAccount===account.id?" selected":"")} key={account.id} onClick={()=>setSelectedAccount(selectedAccount===account.id?"all":account.id)}>
           <div className="dashboard-account-top"><div><strong>{account.name}</strong><span>{accountSummaryLabel(account)}</span></div><StatusBadge tone={query?.isError?"warn":query?.isLoading||!stats?"info":"ok"}>{query?.isError?"Unavailable":query?.isLoading||!stats?"Loading":"Journal only"}</StatusBadge></div>
           <div className="dashboard-account-metrics"><div><small>Closed trades</small><strong>{stats?.trade_count ?? "—"}</strong></div><div><small>Net P&amp;L</small><strong className={stats ? finite(stats.net_profit)>=0?"pos":"neg":""}>{stats?money(stats.net_profit,account.currency):"—"}</strong></div><div><small>Win rate</small><strong>{stats?.win_rate_percent == null?"—":Number(stats.win_rate_percent).toFixed(1)+"%"}</strong></div></div>
