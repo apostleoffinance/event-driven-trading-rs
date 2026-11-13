@@ -136,7 +136,7 @@ export default function RiskPage() {
       <aside className="risk-center-side">
         <section className="panel risk-center-panel">
           <PanelHeading eyebrow="CONTROL STATUS" title="Risk readiness" />
-          <div className="risk-readiness-row"><span>Execution engine</span><StatusBadge tone={overview ? riskToneClass(overview.tone) : "UNKNOWN"}>{overview?.engineStatus ?? "Unavailable"}</StatusBadge></div>
+          <div className="risk-readiness-row"><span>Execution engine</span><StatusBadge tone={overview ? riskToneClass(overview.tone) : "warn"}>{overview?.engineStatus ?? "Unavailable"}</StatusBadge></div>
           <div className="risk-readiness-row"><span>Kill switch</span><StatusBadge tone={overview?.killSwitch ? "bad" : "ok"}>{overview?.killSwitch ? "Active" : "Off"}</StatusBadge></div>
           <div className="risk-readiness-row"><span>Account policies saved</span><strong>{configuredPolicies.length} / {journalAccounts.length}</strong></div>
           <div className="risk-readiness-row"><span>Policies needing setup</span><strong>{needsReview.length}</strong></div>
