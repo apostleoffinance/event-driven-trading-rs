@@ -25,10 +25,10 @@ const LAYOUTS_KEY = "edgenest.dashboard.layouts.v1";
 function dateRange(period: Period): { from?: string; to?: string } {
   const to = new Date();
   const from = new Date(to);
-  if (period === "7d") from.setDate(from.getDate() - 7);
-  else if (period === "30d") from.setDate(from.getDate() - 30);
-  else if (period === "90d") from.setDate(from.getDate() - 90);
-  else if (period === "ytd") { from.setMonth(0, 1); from.setHours(0, 0, 0, 0); }
+  if (period === "7d") from.setUTCDate(from.getUTCDate() - 7);
+  else if (period === "30d") from.setUTCDate(from.getUTCDate() - 30);
+  else if (period === "90d") from.setUTCDate(from.getUTCDate() - 90);
+  else if (period === "ytd") { from.setUTCMonth(0, 1); from.setUTCHours(0, 0, 0, 0); }
   else return {};
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
@@ -58,7 +58,7 @@ export function DashboardWorkspace({
 
   useEffect(() => { setAuthenticated(hasSession()); }, []);
   useEffect(() => {
-    try { const raw = window.localStorage.getItem(LAYOUTS_KEY); if (raw) setLayouts(JSON.parse(raw) as SavedLayout[]); } catch { /* ignore invalid local layout data */ }
+    try { const raw = window.localStorage.getItem(LAYOUTS_KEY); if (raw) { const parsed: unknown = JSON.parse(raw); if (Array.isArray(parsed)) setLayouts(parsed.filter((item): item is SavedLayout => Boolean(item && typeof item.id === "string" && typeof item.name === "string" && typeof item.accountId === "string" && Array.isArray(item.visible))); } } catch { /* ignore invalid local layout data */ }
   }, []);
 
   const accountsQuery = useQuery({
