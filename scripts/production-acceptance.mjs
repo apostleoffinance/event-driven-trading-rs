@@ -735,8 +735,8 @@ try {
       assert.ok(excursionsSaved, "Historical replay did not persist the calculated MFE/MAE payload.");
       assert.equal(excursionsSaved.timeframe, "H1");
       assert.equal(excursionsSaved.candle_count, 5);
-      assert.equal(Number(excursionsSaved.mfe_r), 2);
-      assert.equal(Number(excursionsSaved.mae_r), -0.5);
+      assert.ok(Math.abs(Number(excursionsSaved.mfe_r) - 2) < 1e-9, "MFE should be approximately 2R.");
+      assert.ok(Math.abs(Number(excursionsSaved.mae_r) + 0.5) < 1e-9, "MAE should be approximately -0.5R.");
       const excursionSourceNote = dialog.locator(".trade-data-note");
       await excursionSourceNote.waitFor();
       assert.match(await excursionSourceNote.textContent(), /historical_candles.*H1/);
