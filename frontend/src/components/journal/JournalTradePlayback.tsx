@@ -190,10 +190,14 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   useEffect(() => {
     if (!isExpanded || !chartContainerRef.current) return;
     const node = chartContainerRef.current;
+    // Lightweight Charts expects a concrete CSS color, not a CSS var() expression.
+    const chartTextColor = getComputedStyle(node).getPropertyValue("color").trim()
+      || getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim()
+      || "#d1d4dc";
     const chart = createChart(node, {
       width: Math.max(node.clientWidth, 320),
       height: 380,
-      layout: { background: { color: "transparent" }, textColor: "var(--foreground, #d1d4dc)" },
+      layout: { background: { color: "transparent" }, textColor: chartTextColor },
       grid: { vertLines: { color: "rgba(130,130,130,.12)" }, horzLines: { color: "rgba(130,130,130,.12)" } },
       rightPriceScale: { borderColor: "rgba(130,130,130,.25)" },
       timeScale: { borderColor: "rgba(130,130,130,.25)", timeVisible: true, secondsVisible: false },
