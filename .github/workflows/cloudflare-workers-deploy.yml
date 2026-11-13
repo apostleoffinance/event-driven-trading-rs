@@ -79,27 +79,28 @@ jobs:
           PLACEMENT="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps((d.get("result") or {}).get("placement"))) ' "${SETTINGS_FILE}")"
           echo "Existing Worker placement: ${PLACEMENT}"
 
-          if [ "${PLACEMENT}" != "null" ]; then
-            echo "Clearing the pre-existing placement override through Cloudflare's script-settings API."
-            printf '%s' '{"settings":{"placement":null}}' > "${PATCH_FILE}"
+          HAS_TARGETED_PLACEMENT="$(python3 -c 'import json,sys; p=(json.load(open(sys.argv[1])).get("result") or {}).get("placement") or {}; targeted=(p.get("mode") == "targeted" or any(k in p for k in ("region", "host", "hostname", "target"))); print("true" if targeted else "false")' "${SETTINGS_FILE}")"
+          if [ "${HAS_TARGETED_PLACEMENT}" = "true" ]; then
+            echo "Found an explicit targeted placement. Clearing only that placement through Cloudflare's script-settings API."
             STATUS="$(curl --silent --show-error --output "${SETTINGS_FILE}" --write-out "%{http_code}" \
               --request PATCH \
               --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              --header "Content-Type: application/json" \
-              --data-binary "@${PATCH_FILE}" \
+              --form 'settings={"placement":null};type=application/json' \
               "${SETTINGS_URL}")"
             if [ "${STATUS}" != "200" ]; then
-              echo "Cloudflare refused to clear the Worker placement override (HTTP ${STATUS})."
+              echo "Cloudflare refused to clear targeted placement (HTTP ${STATUS})."
               python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get("errors", []), indent=2))' "${SETTINGS_FILE}" || true
               exit 1
             fi
             python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d.get("success") is True, d.get("errors");' "${SETTINGS_FILE}"
             get_settings
-            REMAINING="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps((d.get("result") or {}).get("placement"))) ' "${SETTINGS_FILE}")"
-            if [ "${REMAINING}" != "null" ]; then
-              echo "Worker placement override remains after the settings update: ${REMAINING}"
+            REMAINING="$(python3 -c 'import json,sys; p=(json.load(open(sys.argv[1])).get("result") or {}).get("placement") or {}; print("true" if (p.get("mode") == "targeted" or any(k in p for k in ("region", "host", "hostname", "target"))) else "false")' "${SETTINGS_FILE}")"
+            if [ "${REMAINING}" = "true" ]; then
+              echo "Targeted placement remains after the settings update."
               exit 1
             fi
+          else
+            echo "No targeted placement override found; no Cloudflare settings mutation is necessary."
           fi
 
           echo "Worker placement is compatible with edge-default deployment."
