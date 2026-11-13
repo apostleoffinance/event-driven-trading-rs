@@ -3,7 +3,8 @@
 use std::{env, time::Duration};
 
 use axum::{
-    extract::{Path, State},
+    body::Bytes,
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -30,6 +31,12 @@ pub struct AttachmentWrite {
     pub captured_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UploadQuery {
+    pub original_filename: String,
+    pub attachment_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -194,6 +201,210 @@ fn error(code: &str, message: &str, status: StatusCode) -> Response {
         Json(serde_json::json!({"error":{"code":code,"message":message}})),
     )
         .into_response()
+}
+
+/// Upload a screenshot through the Journal API instead of sending the browser
+/// directly to R2. This avoids browser-to-object-store CORS failures while
+/// keeping R2 credentials and the signed URL entirely server-side.
+pub async fn upload(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(trade_id): Path<String>,
+    Query(input): Query<UploadQuery>,
+    body: Bytes,
+) -> Response {
+    let claims = match state.auth.authenticate(&headers) {
+        Ok(claims) => claims,
+        Err(error) => return error.into_response(),
+    };
+    let content_type = match headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+    {
+        Some(value) => value.split(';').next().unwrap_or("").trim(),
+        None => "",
+    };
+    let extension = match content_type {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => {
+            return error(
+                "unsupported_image",
+                "Only PNG, JPEG, WebP and GIF screenshots are supported",
+                StatusCode::BAD_REQUEST,
+            )
+        }
+    };
+    if body.is_empty() || body.len() > 15 * 1024 * 1024 {
+        return error(
+            "invalid_image_size",
+            "Screenshot must be between 1 byte and 15 MB",
+            StatusCode::BAD_REQUEST,
+        );
+    }
+    if input.original_filename.trim().is_empty() || input.original_filename.len() > 255 {
+        return error(
+            "invalid_filename",
+            "Screenshot filename must contain between 1 and 255 characters",
+            StatusCode::BAD_REQUEST,
+        );
+    }
+    if input
+        .attachment_type
+        .as_deref()
+        .is_some_and(|kind| !["before", "after"].contains(&kind))
+    {
+        return error(
+            "invalid_attachment_type",
+            "attachment_type must be before or after",
+            StatusCode::BAD_REQUEST,
+        );
+    }
+
+    let owned = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM journal_trades WHERE owner_id=$1 AND id=$2)",
+    )
+    .bind(&claims.sub)
+    .bind(&trade_id)
+    .fetch_one(state.store.pool())
+    .await
+    .unwrap_or(false);
+    if !owned {
+        return error(
+            "not_found",
+            "Journal trade not found",
+            StatusCode::NOT_FOUND,
+        );
+    }
+
+    let config = match object_store() {
+        Ok(config) => config,
+        Err(message) => {
+            return error(
+                "storage_not_configured",
+                &message,
+                StatusCode::SERVICE_UNAVAILABLE,
+            )
+        }
+    };
+    let key = format!(
+        "journal/{}/{}/{}.{}",
+        claims.sub,
+        trade_id,
+        uuid::Uuid::new_v4(),
+        extension
+    );
+    let upload_url = match presigned_url(&config, "PUT", &key, 900) {
+        Ok(url) => url,
+        Err(_) => {
+            return error(
+                "storage_error",
+                "Unable to create secure screenshot upload request",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+        }
+    };
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(45))
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => {
+            return error(
+                "storage_error",
+                "Unable to create object storage HTTP client",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+        }
+    };
+    let uploaded = match client
+        .put(upload_url)
+        .header(reqwest::header::CONTENT_TYPE, content_type)
+        .body(body.clone())
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => {
+            return error(
+                "storage_unreachable",
+                "Journal API could not connect to Cloudflare R2. Check the R2 endpoint and Render outbound connectivity.",
+                StatusCode::BAD_GATEWAY,
+            )
+        }
+    };
+    if !uploaded.status().is_success() {
+        let status = uploaded.status();
+        tracing::warn!(%status, "R2 screenshot upload was rejected");
+        return error(
+            "storage_rejected",
+            "Cloudflare R2 rejected the screenshot upload. Verify the R2 endpoint, token permissions and bucket.",
+            StatusCode::BAD_GATEWAY,
+        );
+    }
+
+    let verified = match signed_object_request("HEAD", &key).await {
+        Ok(response) => response,
+        Err(_) => {
+            return error(
+                "storage_verification_failed",
+                "Screenshot was uploaded but the Journal API could not verify it in R2.",
+                StatusCode::BAD_GATEWAY,
+            )
+        }
+    };
+    if !verified.status().is_success() {
+        return error(
+            "storage_verification_failed",
+            "Screenshot upload completed but the object could not be verified in R2.",
+            StatusCode::BAD_GATEWAY,
+        );
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let byte_size = body.len() as i64;
+    let attachment_type = input.attachment_type.unwrap_or_else(|| "before".into());
+    match sqlx::query(
+        "INSERT INTO journal_trade_attachments(id,owner_id,trade_id,attachment_type,storage_provider,storage_key,original_filename,content_type,byte_size,metadata) VALUES($1,$2,$3,$4,'r2',$5,$6,$7,$8,$9)",
+    )
+    .bind(&id)
+    .bind(&claims.sub)
+    .bind(&trade_id)
+    .bind(&attachment_type)
+    .bind(&key)
+    .bind(&input.original_filename)
+    .bind(content_type)
+    .bind(byte_size)
+    .bind(serde_json::json!({"upload_method":"journal_api_proxy"}))
+    .execute(state.store.pool())
+    .await
+    {
+        Ok(_) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "data": {
+                    "id": id,
+                    "trade_id": trade_id,
+                    "saved": true,
+                    "storage_provider": "r2",
+                    "original_filename": input.original_filename,
+                    "byte_size": byte_size
+                }
+            })),
+        )
+            .into_response(),
+        Err(_) => {
+            // Avoid leaving an orphaned private object if metadata persistence fails.
+            let _ = signed_object_request("DELETE", &key).await;
+            error(
+                "internal_error",
+                "Screenshot was uploaded but its attachment record could not be saved.",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+        }
+    }
 }
 
 pub async fn create_upload_url(

@@ -197,6 +197,11 @@ async fn main() {
             axum::routing::post(attachments::create_upload_url),
         )
         .route(
+            "/api/v1/journal/trades/{trade_id}/attachments/upload",
+            axum::routing::post(attachments::upload)
+                .layer(axum::extract::DefaultBodyLimit::max(15 * 1024 * 1024)),
+        )
+        .route(
             "/api/v1/journal/trades/{trade_id}/attachments/{attachment_id}/download-url",
             get(attachments::download_url),
         )

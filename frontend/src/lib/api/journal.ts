@@ -80,6 +80,17 @@ export const journalApi = {
     requireApiMode();
     return (await apiRequest<DataEnvelope<{upload_url:string;storage_key:string;storage_provider:string;content_type:string;byte_size:number;original_filename:string;attachment_type:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload-url`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)})).data;
   },
+  async uploadAttachment(tradeId: string, file: File, attachmentType: "before"|"after") {
+    requireApiMode();
+    const query = new URLSearchParams({
+      original_filename: file.name,
+      attachment_type: attachmentType,
+    });
+    return apiRequest<DataEnvelope<{id:string;trade_id:string;saved:boolean;storage_provider:string;original_filename:string;byte_size:number}>>(
+      `/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload?${query.toString()}`,
+      { method:"POST", baseUrl:journalBaseUrl(), headers:{"Content-Type":file.type}, body:file }
+    );
+  },
   async getAttachmentDownloadUrl(tradeId:string, attachmentId:string) {
     requireApiMode();
     return (await apiRequest<DataEnvelope<{download_url:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,{baseUrl:journalBaseUrl()})).data;
