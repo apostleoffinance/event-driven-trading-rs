@@ -15,11 +15,11 @@ type Period = "7d" | "30d" | "90d" | "ytd" | "all";
 type WidgetKey = "performance" | "risk" | "accounts" | "positions" | "activity" | "orders";
 type SavedLayout = { id: string; name: string; accountId: string; period: Period; visible: WidgetKey[] };
 const WIDGETS: { key: WidgetKey; label: string }[] = [
-  { key: "performance", label: "Performance" }, { key: "risk", label: "Risk overview" },
+  { key: "performance", label: "Performance" }, { key: "risk", label: "Risk overview" }, { key: "execution", label: "Execution accounts" },
   { key: "accounts", label: "Journal accounts" }, { key: "positions", label: "Open positions" },
   { key: "activity", label: "Recent activity" }, { key: "orders", label: "Recent orders" },
 ];
-const DEFAULT_VISIBLE: WidgetKey[] = ["performance", "risk", "accounts", "positions", "activity", "orders"];
+const DEFAULT_VISIBLE: WidgetKey[] = ["performance", "risk", "execution", "accounts", "positions", "activity", "orders"];
 const LAYOUTS_KEY = "edgenest.dashboard.layouts.v1";
 
 function dateRange(period: Period) {
@@ -154,6 +154,14 @@ export function DashboardWorkspace({
           <div className="dashboard-risk-facts"><div><span>Open risk</span><strong>{risk.openRiskPct == null ? "Unavailable" : risk.openRiskPct.toFixed(2)+"%"}</strong></div><div><span>Gross exposure</span><strong>{risk.exposurePct == null ? "Unavailable" : risk.exposurePct.toFixed(1)+"%"}</strong></div><div><span>Kill switch</span><strong>{risk.killSwitch ? "ON" : "OFF"}</strong></div></div>
         </> : <div className="dashboard-chart-empty dashboard-risk-empty"><strong>No execution account connected</strong><span>Journal performance remains available above. Connect a broker account to populate live exposure, open risk and limit utilisation.</span><Link href="/accounts" className="btn primary">Connect account</Link></div>}
       </article> : null}
+    </section> : null}
+
+    {isVisible("execution") ? <section className="panel dashboard-panel dashboard-accounts">
+      <div className="dashboard-panel-heading"><div><h2>Execution accounts</h2><p>Broker-connected balances, equity and connection health — not Journal estimates.</p></div><Link href="/accounts" className="dashboard-text-link">Manage accounts ↗</Link></div>
+      {executionConnected ? <>
+        {portfolio ? <div className="dashboard-execution-totals"><div><small>Portfolio equity</small><strong>{formatMoney(portfolio.totalEquity)}</strong></div><div><small>Available capital</small><strong>{formatMoney(portfolio.availableCapital)}</strong></div><div><small>Today's P&amp;L</small><strong className={finite(portfolio.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(portfolio.dailyPnl)}</strong></div><div><small>Gross exposure</small><strong>{formatMoney(portfolio.grossExposure)}</strong></div></div> : <p className="muted">Broker portfolio values are currently unavailable.</p>}
+        <div className="dashboard-execution-account-list">{executionAccounts.map(account=><div className="dashboard-execution-account" key={account.id}><div><strong>{account.name}</strong><span>{account.venueName} · {account.environment} · {account.type}</span></div><div><small>Equity</small><strong>{formatMoney(account.equity)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(account.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(account.dailyPnl)}</strong></div><div><small>Connection</small><StatusBadge tone={account.connectionStatus==="HEALTHY"?"ok":account.connectionStatus==="DISCONNECTED"||account.connectionStatus==="ERROR"?"bad":"warn"}>{account.connectionStatus}</StatusBadge></div></div>)}</div>
+      </> : <div className="dashboard-empty-inline"><span>No execution account connected. Your Journal accounts and historical performance remain available independently.</span><Link href="/accounts" className="btn primary">Set up execution account</Link></div>}
     </section> : null}
 
     {isVisible("accounts") ? <section className="panel dashboard-panel dashboard-accounts">
