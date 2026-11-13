@@ -4,6 +4,7 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-11-06",
   "compatibility_flags": ["nodejs_compat"],
+  "placement": { "mode": "off" },
   "workers_dev": true,
   "upload_source_maps": true,
   "assets": {
