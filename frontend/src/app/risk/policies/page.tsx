@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { journalApi, type JournalRiskPolicy } from "@/lib/api/journal";
@@ -36,10 +36,10 @@ function validAccountType(value:string): value is JournalRiskPolicy["account_typ
   return accountTypes.includes(value);
 }
 
-function Field({label,hint,children,wide=false}:{label:string;hint?:string;children:React.ReactNode;wide?:boolean}) {
+function Field({label,hint,children,wide=false}:{label:string;hint?:string;children:ReactNode;wide?:boolean}) {
   return <label className={"risk-field"+(wide?" risk-field-wide":"")}><span className="risk-field-label">{label}</span>{children}{hint?<small>{hint}</small>:null}</label>;
 }
-function Section({number:step,title,description,children}:{number:string;title:string;description:string;children:React.ReactNode}) {
+function Section({number:step,title,description,children}:{number:string;title:string;description:string;children:ReactNode}) {
   return <section className="panel risk-section">
     <div className="risk-section-heading"><span className="risk-step">{step}</span><div><h2>{title}</h2><p>{description}</p></div></div>
     {children}
@@ -61,7 +61,7 @@ export default function RiskPoliciesPage() {
   const [error,setError]=useState<string|null>(null);
   const [loadedVersion,setLoadedVersion]=useState<number>(0);
   const selected=useMemo(()=>accounts.data?.find(a=>a.id===accountId),[accounts.data,accountId]);
-  const filteredAccounts=useMemo(()=>accounts.data?.filter(a=>a.name.toLowerCase().includes(accountSearch.toLowerCase())||a.broker?.toLowerCase().includes(accountSearch.toLowerCase()))??[],[accounts.data,accountSearch]);
+  const filteredAccounts=useMemo(()=>{const matches=accounts.data?.filter(a=>a.name.toLowerCase().includes(accountSearch.toLowerCase())||a.broker?.toLowerCase().includes(accountSearch.toLowerCase()))??[];if(selected&&!matches.some(a=>a.id===selected.id))return [selected,...matches];return matches;},[accounts.data,accountSearch,selected]);
   const policyQuery=useQuery({queryKey:["journal","risk-policy",accountId],queryFn:()=>journalApi.getRiskPolicy(accountId),enabled:Boolean(accountId)});
   const dirty=JSON.stringify(form)!==baseline;
   const balance=Number(selected?.initial_balance??0);
@@ -94,7 +94,7 @@ export default function RiskPoliciesPage() {
   function switchAccount(nextId:string) {
     if(nextId===accountId)return;
     if(dirty&&!window.confirm("You have unsaved policy changes. Discard them and switch accounts?"))return;
-    setAccountId(nextId);setSaved(false);setError(null);
+    setAccountId(nextId);setSaved(false);setError(null);setLoadedVersion(0);
   }
   function validateForm():string|null {
     if(!form.profile_name.trim())return "Enter a name for this risk policy.";
@@ -131,7 +131,7 @@ export default function RiskPoliciesPage() {
     }catch(e){setError(e instanceof Error?e.message:"Unable to save risk policy.");}
     finally{setSaving(false);}
   }
-  function discardChanges(){if(!dirty)return;const parsed=JSON.parse(baseline) as PolicyForm;setForm(parsed);setError(null);setSaved(false);}
+  function discardChanges(){if(!dirty)return;const parsed=JSON.parse(baseline) as PolicyForm;setForm(parsed);setError(null);setSaved(false);}\n  function chooseRiskAppetite(value:string){update("risk_appetite",value);if(value==="conservative")update("risk_per_trade_pct","0.25");else if(value==="balanced")update("risk_per_trade_pct","0.5");else if(value==="aggressive")update("risk_per_trade_pct","1");}
 
   if(accounts.isLoading)return <div className="loading">Loading Journal accounts…</div>;
   if(accounts.isError)return <div className="error">Unable to load accounts. Check the Journal API connection.</div>;
@@ -157,7 +157,7 @@ export default function RiskPoliciesPage() {
               <Field label="Program or account stage"><input value={form.program_name} onChange={e=>update("program_name",e.target.value)} placeholder="e.g. Stellar Instant · Funded" maxLength={120}/></Field>
             </div>
             <div className="risk-subheading">Risk appetite</div>
-            <div className="risk-appetite-options">{riskAppetites.map(option=><button key={option.value} type="button" className={"risk-appetite-option"+(form.risk_appetite===option.value?" active":"")} onClick={()=>update("risk_appetite",option.value)} aria-pressed={form.risk_appetite===option.value}><strong>{option.label}</strong><span>{option.detail}</span></button>)}</div>
+            <div className="risk-appetite-options">{riskAppetites.map(option=><button key={option.value} type="button" className={"risk-appetite-option"+(form.risk_appetite===option.value?" active":"")} onClick={()=>chooseRiskAppetite(option.value)} aria-pressed={form.risk_appetite===option.value}><strong>{option.label}</strong><span>{option.detail}</span></button>)}</div>
             <p className="risk-help">Risk appetite is a descriptive profile. Your explicit risk-per-trade value below remains the value used in assessments.</p>
           </Section>
 
