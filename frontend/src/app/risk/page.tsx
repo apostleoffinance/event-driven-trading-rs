@@ -1,172 +1,179 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
-import {
-  riskDecisionTone,
-  riskToneClass,
-  StatusBadge,
-} from "@/components/data-display/StatusBadge";
+import { riskDecisionTone, riskToneClass, StatusBadge } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatQuantity } from "@/lib/format";
+import { formatMoney, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
-import type { RiskDecisionRecord } from "@/types/domain";
+import { journalApi, type JournalAccount, type JournalRiskPolicyEnvelope } from "@/lib/api/journal";
+import type { Position, RiskDecisionRecord } from "@/types/domain";
+
+const amount = (value: string | number | null | undefined) => {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+};
+const pct = (value: number | null | undefined) => value == null ? "—" : `${value.toFixed(2)}%`;
+const limit = (value: number | null | undefined) => value == null ? "Not set" : `${value.toFixed(2)}%`;
+
+function MetricCard({ label, value, detail, tone = "neutral", progress }: {
+  label: string; value: string; detail: string; tone?: "neutral" | "good" | "warning" | "danger"; progress?: number | null;
+}) {
+  return <article className={`risk-center-metric tone-${tone}`}>
+    <div className="risk-center-metric-top"><span>{label}</span><i /></div>
+    <strong>{value}</strong>
+    {progress != null ? <div className="risk-center-progress"><span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div> : null}
+    <small>{detail}</small>
+  </article>;
+}
+
+function PanelHeading({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+  return <div className="risk-center-panel-heading"><div><span>{eyebrow}</span><h2>{title}</h2></div>{action}</div>;
+}
 
 export default function RiskPage() {
-  const overviewQ = useQuery({
-    queryKey: ["risk", "overview"],
-    queryFn: () => getRepositories().risk.getOverview(),
+  const overviewQ = useQuery({ queryKey: ["risk", "overview"], queryFn: () => getRepositories().risk.getOverview(), refetchInterval: 15000 });
+  const decisionsQ = useQuery({ queryKey: ["risk", "decisions"], queryFn: () => getRepositories().risk.listDecisions(), refetchInterval: 15000 });
+  const tradingAccountsQ = useQuery({ queryKey: ["accounts"], queryFn: () => getRepositories().accounts.listAccounts(), refetchInterval: 30000 });
+  const portfolioQ = useQuery({ queryKey: ["portfolio"], queryFn: () => getRepositories().portfolio.getSnapshot(), refetchInterval: 15000 });
+  const positionsQ = useQuery({ queryKey: ["positions"], queryFn: () => getRepositories().positions.listPositions(), refetchInterval: 15000 });
+  const journalAccountsQ = useQuery({ queryKey: ["journal", "accounts"], queryFn: journalApi.listAccounts, refetchInterval: 30000 });
+
+  const policyQueries = useQueries({
+    queries: (journalAccountsQ.data ?? []).filter(account => !account.archived).map(account => ({
+      queryKey: ["journal", "risk-policy", account.id],
+      queryFn: () => journalApi.getRiskPolicy(account.id),
+      staleTime: 15000,
+      refetchInterval: 30000,
+    })),
   });
-  const decisionsQ = useQuery({
-    queryKey: ["risk", "decisions"],
-    queryFn: () => getRepositories().risk.listDecisions(),
-  });
 
-  const columns = useMemo<ColumnDef<RiskDecisionRecord>[]>(
-    () => [
-      {
-        accessorKey: "time",
-        header: "Time",
-        cell: ({ getValue }) => (
-          <span className="num">
-            {new Date(String(getValue())).toLocaleTimeString()}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "tradeIntentId",
-        header: "Intent",
-        cell: ({ getValue }) => <span className="num">{String(getValue())}</span>,
-      },
-      { accessorKey: "strategyId", header: "Strategy" },
-      { accessorKey: "instrumentId", header: "Instrument" },
-      {
-        accessorKey: "requestedQuantity",
-        header: "Requested",
-        cell: ({ row }) => (
-          <span className="num">{row.original.requestedQuantity == null ? "—" : formatQuantity(row.original.requestedQuantity)}</span>
-        ),
-      },
-      {
-        accessorKey: "approvedQuantity",
-        header: "Approved",
-        cell: ({ row }) => (
-          <span className="num">{row.original.approvedQuantity == null ? "—" : formatQuantity(row.original.approvedQuantity)}</span>
-        ),
-      },
-      {
-        accessorKey: "decision",
-        header: "Decision",
-        cell: ({ row }) => (
-          <StatusBadge tone={riskDecisionTone(row.original.decision)}>
-            {row.original.decision}
-          </StatusBadge>
-        ),
-      },
-      { accessorKey: "reason", header: "Reason" },
-    ],
-    [],
-  );
-
-  if (overviewQ.isLoading || decisionsQ.isLoading)
-    return <div className="loading">Loading risk…</div>;
-  if (overviewQ.isError || decisionsQ.isError)
-    return <div className="error">Failed to load risk center.</div>;
-
-  const overview = overviewQ.data!;
   const decisions = decisionsQ.data ?? [];
+  const positions = positionsQ.data ?? [];
+  const journalAccounts = (journalAccountsQ.data ?? []).filter(account => !account.archived);
+  const tradingAccounts = tradingAccountsQ.data ?? [];
+  const policies = useMemo(() => journalAccounts.map((account, index) => ({
+    account,
+    envelope: policyQueries[index]?.data as JournalRiskPolicyEnvelope | undefined,
+    loading: policyQueries[index]?.isLoading ?? false,
+    error: policyQueries[index]?.isError ?? false,
+  })), [journalAccounts, policyQueries]);
+  const configuredPolicies = policies.filter(item => (item.envelope?.version ?? 0) > 0);
+  const needsReview = policies.filter(item => item.envelope && item.envelope.version === 0);
+  const overview = overviewQ.data;
+  const portfolio = portfolioQ.data;
+  const engineTone = overview?.tone === "HEALTHY" ? "good" : overview?.tone === "BREACH" ? "danger" : "warning";
+  const dailyUtilization = overview?.dailyLossLimitPct && overview.dailyLossLimitPct > 0
+    ? (overview.dailyLossPct / overview.dailyLossLimitPct) * 100 : null;
+  const drawdownUtilization = overview?.maxDrawdownLimitPct && overview.maxDrawdownLimitPct > 0
+    ? (overview.maxDrawdownPct / overview.maxDrawdownLimitPct) * 100 : null;
+  const openPositionsPnl = positions.reduce((sum, position) => sum + amount(position.unrealizedPnl), 0);
+  const linkedAccounts = journalAccounts.filter(account => account.linked_trading_account_id).length;
 
-  return (
-    <>
-      <PageHeader
-        title="Risk Center"
-        description="Risk has final authority before OMS. Hierarchy: Firm → Portfolio → Account → Strategy → Trade. No bypass controls."
-      />
-      <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
-        <div className="panel">
-          <div className="metric-label">RISK ENGINE</div>
-          <StatusBadge tone={riskToneClass(overview.tone)}>
-            {overview.engineStatus}
-          </StatusBadge>
-          <div className="metric-sub" style={{ marginTop: 8 }}>
-            Kill switch {overview.killSwitch ? "ON" : "OFF"}
-          </div>
-        </div>
-        <div className="panel">
-          <div className="metric-label">DAILY LOSS</div>
-          <div className="meter">
-            <span
-              style={{
-                width: `${Math.min(
-                  100,
-                  overview.dailyLossLimitPct && overview.dailyLossLimitPct > 0 ? (overview.dailyLossPct / overview.dailyLossLimitPct) * 100 : 0,
-                )}%`,
-              }}
-            />
-          </div>
-          <div className="metric-sub num">
-            {overview.dailyLossPct.toFixed(2)}% /{" "}
-            {overview.dailyLossLimitPct == null ? "Not configured" : `${overview.dailyLossLimitPct.toFixed(2)}%`}
-          </div>
-        </div>
-        <div className="panel">
-          <div className="metric-label">MAX DRAWDOWN</div>
-          <div className="meter">
-            <span
-              style={{
-                width: `${Math.min(
-                  100,
-                  overview.maxDrawdownLimitPct && overview.maxDrawdownLimitPct > 0 ? (overview.maxDrawdownPct / overview.maxDrawdownLimitPct) * 100 : 0,
-                )}%`,
-              }}
-            />
-          </div>
-          <div className="metric-sub num">
-            {overview.maxDrawdownPct.toFixed(2)}% /{" "}
-            {overview.maxDrawdownLimitPct == null ? "Not configured" : `${overview.maxDrawdownLimitPct.toFixed(2)}%`}
-          </div>
-        </div>
-        <div className="panel">
-          <div className="metric-label">OPEN RISK / EXPOSURE</div>
-          <div className="metric-value">{overview.openRiskPct == null ? "Unknown" : `${overview.openRiskPct.toFixed(2)}%`}</div>
-          <div className="metric-sub">
-            Exposure {overview.exposurePct == null ? "Unknown" : `${overview.exposurePct.toFixed(1)}%`}
-          </div>
-        </div>
-      </div>
+  const decisionColumns = useMemo<ColumnDef<RiskDecisionRecord>[]>(() => [
+    { accessorKey: "time", header: "Time", cell: ({ getValue }) => <span className="num">{new Date(String(getValue())).toLocaleString()}</span> },
+    { accessorKey: "strategyId", header: "Strategy" },
+    { accessorKey: "instrumentId", header: "Instrument" },
+    { accessorKey: "accountId", header: "Account", cell: ({ getValue }) => <span className="num">{String(getValue()).slice(0, 12)}</span> },
+    { accessorKey: "decision", header: "Decision", cell: ({ row }) => <StatusBadge tone={riskDecisionTone(row.original.decision)}>{row.original.decision}</StatusBadge> },
+    { accessorKey: "reason", header: "Assessment" },
+  ], []);
 
-      <div className="panel" style={{ marginBottom: 12 }}>
-        <div className="panel-title">RISK HIERARCHY</div>
-        <div className="grid hierarchy-grid">
-          {overview.hierarchy.map((level) => (
-            <div key={level.id} className="pipeline-node hierarchy-card">
-              <div className="metric-label">{level.label}</div>
-              <div className="metric-sub">{level.scope}</div>
-              <StatusBadge tone={riskToneClass(level.tone)}>
-                {level.status}
-              </StatusBadge>
-              <div className="meter" style={{ marginTop: 8 }}>
-                <span style={{ width: `${Math.min(100, level.utilizationPct)}%` }} />
-              </div>
-              <div className="metric-sub num">{level.limitLabel}</div>
-              <div className="metric-sub muted" style={{ fontFamily: "var(--font-sans)" }}>
-                {level.note}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+  if (overviewQ.isLoading && journalAccountsQ.isLoading && tradingAccountsQ.isLoading) {
+    return <div className="loading">Loading risk intelligence…</div>;
+  }
+  if (overviewQ.isError && journalAccountsQ.isError && tradingAccountsQ.isError) {
+    return <div className="error" role="alert">Risk data is unavailable. Check the Trading and Journal API connections.</div>;
+  }
 
-      <div className="panel">
-        <div className="panel-title">RISK DECISIONS</div>
-        <DataTable
-          data={decisions}
-          columns={columns}
-          emptyMessage="No risk decisions."
-        />
-      </div>
-    </>
-  );
+  return <main className="risk-center-page">
+    <PageHeader title="Risk Center" description="A consolidated view of execution controls, account-level risk policies, portfolio exposure and recent risk decisions." />
+    <div className="risk-center-toolbar">
+      <div className="risk-center-live"><span className={overview?.killSwitch ? "is-danger" : "is-live"} />{overview?.killSwitch ? "KILL SWITCH ACTIVE" : "RISK DATA LIVE"}<small>Auto-refresh · 15 seconds</small></div>
+      <div className="risk-center-toolbar-actions"><Link className="btn" href="/risk/policies">Manage account policies ↗</Link><Link className="btn" href="/accounts">View accounts</Link></div>
+    </div>
+
+    <section className="risk-center-metrics-grid" aria-label="Risk overview">
+      <MetricCard label="RISK ENGINE" value={overview?.engineStatus ?? "Unavailable"} detail={overview?.killSwitch ? "Trading halt is active" : "Execution service state"} tone={engineTone} />
+      <MetricCard label="DAILY LOSS" value={pct(overview?.dailyLossPct)} detail={overview?.dailyLossLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.dailyLossLimitPct)}`} tone={dailyUtilization != null && dailyUtilization >= 80 ? "danger" : "neutral"} progress={dailyUtilization} />
+      <MetricCard label="MAX DRAWDOWN" value={pct(overview?.maxDrawdownPct)} detail={overview?.maxDrawdownLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.maxDrawdownLimitPct)}`} tone={drawdownUtilization != null && drawdownUtilization >= 80 ? "warning" : "neutral"} progress={drawdownUtilization} />
+      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatMoney(portfolio.grossExposure) : "—"} detail={portfolio ? `${portfolio.exposurePct.toFixed(1)}% of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} />
+    </section>
+
+    {overview?.killSwitch ? <div className="risk-center-alert danger" role="alert"><strong>Trading kill switch is active.</strong><span>New execution may be blocked by the risk engine. Review the engine and account controls before resuming.</span></div> : null}
+    {overview?.engineStatus === "NOT_CONFIGURED" ? <div className="risk-center-alert warning"><strong>Execution risk limits are not configured.</strong><span>The trading engine currently reports no active daily-loss or drawdown limits. Account policies below are stored separately and are not automatically enforced by the execution engine.</span><Link href="/risk/policies">Review account policies ↗</Link></div> : null}
+
+    <div className="risk-center-main-grid">
+      <section className="panel risk-center-panel">
+        <PanelHeading eyebrow="ACCOUNT GOVERNANCE" title="Risk policy hierarchy" action={<Link href="/risk/policies">Configure policies ↗</Link>} />
+        <p className="risk-center-intro">Firm and personal limits are stored per Journal account. Linked execution accounts are shown where a trading-account connection exists.</p>
+        {journalAccountsQ.isLoading ? <div className="loading">Loading Journal accounts…</div> : journalAccountsQ.isError ? <div className="error">Journal accounts could not be loaded.</div> : journalAccounts.length === 0 ? <div className="risk-center-empty"><strong>No Journal accounts found</strong><span>Create a Journal account to configure and monitor account-specific risk limits.</span><Link className="btn primary" href="/journal">Open Journal</Link></div> : (
+          <div className="risk-policy-list">
+            {policies.map(({ account, envelope, loading, error }) => {
+              const policy = envelope?.policy;
+              const tradingAccount = tradingAccounts.find(item => item.id === account.linked_trading_account_id);
+              const configured = (envelope?.version ?? 0) > 0;
+              return <article className="risk-policy-row" key={account.id}>
+                <div className="risk-policy-identity"><span className="risk-policy-avatar">{account.name.slice(0, 1).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.broker || "Journal"} · {account.account_type} · {account.currency}</small></div></div>
+                <div className="risk-policy-limits">
+                  <div><small>PER TRADE</small><strong>{policy ? `${policy.risk_per_trade_pct}%` : "—"}</strong></div>
+                  <div><small>DAILY LOSS</small><strong>{policy ? limit(policy.max_daily_loss_pct) : "—"}</strong></div>
+                  <div><small>MAX DRAWDOWN</small><strong>{policy ? limit(policy.max_total_drawdown_pct) : "—"}</strong></div>
+                  <div><small>MIN. R:R</small><strong>{policy?.minimum_rr == null ? "—" : `${policy.minimum_rr.toFixed(2)}R`}</strong></div>
+                </div>
+                <div className="risk-policy-state">{loading ? <StatusBadge tone="UNKNOWN">Loading</StatusBadge> : error ? <StatusBadge tone="ERROR">Unavailable</StatusBadge> : configured ? <StatusBadge tone="HEALTHY">Saved · v{envelope?.version}</StatusBadge> : <StatusBadge tone="WARNING">Needs setup</StatusBadge>}<small>{tradingAccount ? `Linked · ${tradingAccount.name}` : account.linked_trading_account_id ? "Trading link unavailable" : "Journal only"}</small></div>
+                <Link className="risk-policy-open" href="/risk/policies" aria-label={`Edit risk policy for ${account.name}`}>↗</Link>
+              </article>;
+            })}
+          </div>
+        )}
+        <div className="risk-center-footnote">Policy configuration is advisory until explicitly integrated with and enforced by the execution risk engine. A saved Journal policy is not represented as an active trading-engine limit.</div>
+      </section>
+
+      <aside className="risk-center-side">
+        <section className="panel risk-center-panel">
+          <PanelHeading eyebrow="CONTROL STATUS" title="Risk readiness" />
+          <div className="risk-readiness-row"><span>Execution engine</span><StatusBadge tone={overview ? riskToneClass(overview.tone) : "UNKNOWN"}>{overview?.engineStatus ?? "Unavailable"}</StatusBadge></div>
+          <div className="risk-readiness-row"><span>Kill switch</span><StatusBadge tone={overview?.killSwitch ? "BREACH" : "HEALTHY"}>{overview?.killSwitch ? "Active" : "Off"}</StatusBadge></div>
+          <div className="risk-readiness-row"><span>Account policies saved</span><strong>{configuredPolicies.length} / {journalAccounts.length}</strong></div>
+          <div className="risk-readiness-row"><span>Policies needing setup</span><strong>{needsReview.length}</strong></div>
+          <div className="risk-readiness-row"><span>Trading accounts linked</span><strong>{linkedAccounts} / {journalAccounts.length}</strong></div>
+          <div className="risk-readiness-row"><span>Open positions</span><strong>{positions.length}</strong></div>
+        </section>
+        <section className="panel risk-center-panel">
+          <PanelHeading eyebrow="LIVE PORTFOLIO" title="Open position risk" />
+          <div className="risk-position-total"><strong className={openPositionsPnl >= 0 ? "pos" : "neg"}>{formatSignedMoney(openPositionsPnl)}</strong><small>Unrealized P&amp;L · {positions.length} positions</small></div>
+          <div className="risk-readiness-row"><span>Gross exposure</span><strong>{portfolio ? formatMoney(portfolio.grossExposure) : "—"}</strong></div>
+          <div className="risk-readiness-row"><span>Net exposure</span><strong>{portfolio ? formatMoney(portfolio.netExposure) : "—"}</strong></div>
+          <div className="risk-readiness-row"><span>Portfolio equity</span><strong>{portfolio ? formatMoney(portfolio.totalEquity) : "—"}</strong></div>
+          <small className="risk-center-footnote">Position stop-risk is not supplied by the current trading positions API; exposure is not a substitute for stop-loss risk.</small>
+        </section>
+      </aside>
+    </div>
+
+    <section className="panel risk-center-panel risk-center-table-panel">
+      <PanelHeading eyebrow="ACTIVE MARKET RISK" title="Open positions" action={<Link href="/positions">View positions ↗</Link>} />
+      {positionsQ.isLoading ? <div className="loading">Loading positions…</div> : positionsQ.isError ? <div className="error">Open positions are unavailable.</div> : positions.length === 0 ? <div className="risk-center-empty compact"><strong>No open positions</strong><span>Open exposure will appear here when positions are available.</span></div> : (
+        <div className="risk-center-position-list">
+          {positions.slice(0, 8).map((position: Position) => <div className="risk-center-position-row" key={position.id}>
+            <div><strong>{position.instrumentId}</strong><small>{position.side} · {position.accountId.slice(0, 12)}</small></div>
+            <div><small>QUANTITY</small><strong>{formatQuantity(position.quantity)}</strong></div>
+            <div><small>ENTRY / MARK</small><strong>{position.entryPrice} / {position.markPrice}</strong></div>
+            <div><small>EXPOSURE</small><strong>{formatMoney(position.exposure)}</strong></div>
+            <div><small>UNREALIZED P&amp;L</small><strong className={amount(position.unrealizedPnl) >= 0 ? "pos" : "neg"}>{formatSignedMoney(position.unrealizedPnl)}</strong></div>
+            <StatusBadge tone="UNKNOWN">{position.riskPct == null ? "Stop risk N/A" : `${position.riskPct.toFixed(2)}% risk`}</StatusBadge>
+          </div>)}
+        </div>
+      )}
+    </section>
+
+    <section className="panel risk-center-panel risk-center-table-panel">
+      <PanelHeading eyebrow="AUDIT TRAIL" title="Recent risk decisions" action={<Link href="/orders">Review order lifecycle ↗</Link>} />
+      {decisionsQ.isLoading ? <div className="loading">Loading risk decisions…</div> : decisionsQ.isError ? <div className="error">Risk decisions are unavailable.</div> : <DataTable data={decisions.slice(0, 10)} columns={decisionColumns} emptyMessage="No execution risk decisions have been recorded yet." />}
+    </section>
+    <div className="risk-center-data-note">Data sources: Trading API (risk engine, portfolio, positions and execution decisions) · Journal API (account risk policies). Values are shown only where the connected services provide them; unavailable stop-risk and enforcement status are not inferred.</div>
+  </main>;
 }
