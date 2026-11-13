@@ -52,6 +52,8 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const persistedExcursionRef = useRef<string>("");
   const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) && new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
+  const closeTimestampMs = new Date(trade.closed_at || "").getTime();
+  const closeIsInFuture = isClosedTrade && Number.isFinite(closeTimestampMs) && closeTimestampMs > Date.now() + 60_000;
 
   const instrumentsQuery = useQuery({
     queryKey: ["market-data", "instruments"],
@@ -99,7 +101,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
       }
       return { candles: all };
     },
-    enabled: isClosedTrade && Boolean(selectedProvider),
+    enabled: isClosedTrade && !closeIsInFuture && Boolean(selectedProvider),
     retry: 1,
   });
 
@@ -118,7 +120,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
   const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
 
   useEffect(() => {
-    if (!isClosedTrade || candles.length === 0 || !Number.isFinite(entryPrice)) return;
+    if (!isClosedTrade || closeIsInFuture || candles.length === 0 || !Number.isFinite(entryPrice)) return;
     const first = Number(candles[0].time) * 1000;
     const last = Number(candles[candles.length - 1].time) * 1000;
     const opened = new Date(trade.opened_at).getTime();
@@ -157,7 +159,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
     }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
+  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
 
   const coverageToleranceMs = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
   const hasFullCandleCoverage = candles.length > 0
@@ -279,6 +281,10 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
         </button>
       </div>
       {!isClosedTrade ? <p className="muted">Replay is available for closed trades with valid entry and exit timestamps.</p> : null}
+      {closeIsInFuture ? <div className="panel error" role="status">
+        <strong>Recorded close time is in the future.</strong>
+        <p>The trade is marked closed at {new Date(closeTimestampMs).toLocaleString()}. Historical MFE and MAE cannot be calculated for a period that has not happened yet. Correct the close date/time in Journal, or wait until the recorded close time has passed.</p>
+      </div> : null}
       {expanded && isClosedTrade ? (
         <div className="journal-playback-body">
           <div className="journal-playback-toolbar">
