@@ -639,6 +639,7 @@ try {
         psychology: { emotion_before: null, emotion_during: null, emotion_after: null, confidence: null, fear: null, fomo: null, frustration: null, revenge_intensity: null, boredom: null },
       };
       let excursionsSaved = null;
+      const replayMarketRequests = [];
       const makeAnalytics = () => ({
         generated_at: new Date().toISOString(), trade_count: 1, wins: 1, losses: 0, breakeven: 0,
         win_rate_percent: "100", gross_profit: "31", gross_loss: "0", net_profit: "31",
@@ -662,6 +663,7 @@ try {
         const request = route.request();
         const url = new URL(request.url());
         const pathname = url.pathname;
+        if (pathname.includes("/market-data/")) replayMarketRequests.push(pathname);
         const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
         if (pathname.endsWith("/auth/me")) return json({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } });
         if (pathname.endsWith("/journal/accounts")) return json({ data: [account] });
@@ -676,9 +678,9 @@ try {
           return json({ data: { trade_id: tradeId, saved: true, precision: excursionsSaved.timeframe } });
         }
         if (pathname.endsWith("/journal/trades/" + tradeId) && request.method() === "GET") return json({ data: tradeRecord });
-        if (pathname.endsWith("/market-data/providers")) return json({ providers: [{ id: "biquote-live", name: "BiQuote Live (fixture)", status: { state: "available" } }] });
-        if (pathname.endsWith("/market-data/instruments")) return json({ instruments: [{ id: "EURUSD", symbol: "EUR/USD", default_provider: "biquote-live" }] });
-        if (pathname.endsWith("/market-data/candles")) {
+        if (pathname.includes("/market-data/providers")) return json({ providers: [{ id: "biquote-live", name: "BiQuote Live (fixture)", status: { state: "available" } }] });
+        if (pathname.includes("/market-data/instruments")) return json({ instruments: [{ id: "EURUSD", symbol: "EUR/USD", default_provider: "biquote-live" }] });
+        if (pathname.includes("/market-data/candles")) {
           assert.equal(url.searchParams.get("timeframe"), "H1", "Replay should start with the H1 history preset.");
           return json({ candles: candleRows, count: candleRows.length, classification: "live", freshness: "historical", last_updated_at: closedAt });
         }
@@ -699,7 +701,11 @@ try {
       await replayPage.waitForFunction(() => {
         const controls = [...document.querySelectorAll(".journal-playback-toolbar select")];
         return controls.length === 3 && controls[0].value === "H1" && controls[1].options.length > 0;
-      }, undefined, { timeout: 20_000 });
+      }, undefined, { timeout: 20_000 }).catch(async error => {
+        console.log("DEBUG replay market requests:", JSON.stringify(replayMarketRequests));
+        console.log("DEBUG replay modal state:", await dialog.innerText());
+        throw error;
+      });
       await playback.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 });
       await replayPage.waitForFunction(() => document.body.innerText.includes("2.00R"), { timeout: 20_000 });
       assert.ok(excursionsSaved, "Historical replay did not persist the calculated MFE/MAE payload.");
