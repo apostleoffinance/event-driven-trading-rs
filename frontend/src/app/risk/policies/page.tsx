@@ -224,7 +224,7 @@ export default function RiskPoliciesPage() {
         </aside>
 
         <div className="risk-savebar">
-          <div className="risk-save-status"><span className={dirty?"risk-unsaved-dot":"risk-saved-dot"}/><div><strong>{dirty?"Unsaved changes":"All changes saved"}</strong><small>{dirty?"Review the summary and save when ready.":"Your current policy matches the saved version."}</small></div></div>
+          <div className="risk-save-status"><span className={dirty||loadedVersion===0?"risk-unsaved-dot":"risk-saved-dot"}/><div><strong>{dirty?"Unsaved changes":loadedVersion===0?"New policy · not saved":"All changes saved"}</strong><small>{dirty?"Review the summary and save when ready.":loadedVersion===0?"Make changes and save to create this account policy.":"Your current policy matches the saved version."}</small></div></div>
           <div className="risk-save-actions"><button type="button" className="btn" onClick={discardChanges} disabled={!dirty||saving}>Discard</button><button type="submit" className="btn primary" disabled={!dirty||saving}>{saving?"Saving policy…":"Save policy"}</button></div>
         </div>
       </form>}
