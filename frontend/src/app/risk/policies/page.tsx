@@ -86,7 +86,7 @@ export default function RiskPoliciesPage() {
       // New policies inherit the Journal account classification where it maps
       // to a supported policy type; existing saved policy values remain authoritative.
       if(policyQuery.data.version===0&&selected&&validAccountType(selected.account_type)) next.account_type=selected.account_type;
-      setForm(next);setBaseline(JSON.stringify(next));setLoadedVersion(policyQuery.data.version);setSaved(false);setError(null);
+      setForm(next);setBaseline(JSON.stringify(next));setLoadedVersion(policyQuery.data.version);setError(null);
     }
   },[policyQuery.data,selected]);
 
