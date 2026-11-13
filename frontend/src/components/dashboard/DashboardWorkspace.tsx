@@ -39,6 +39,11 @@ function money(value: string | number | null | undefined, currency = "USD") {
 }
 function finite(value: string | number | null | undefined) { const n = Number(value); return Number.isFinite(n) ? n : 0; }
 function accountSummaryLabel(account: JournalAccount) { return [account.broker || "Journal", account.account_type, account.currency].filter(Boolean).join(" · "); }
+function isSavedLayout(value: unknown): value is SavedLayout {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === "string" && typeof item.name === "string" && typeof item.accountId === "string" && Array.isArray(item.visible);
+}
 
 export function DashboardWorkspace({
   executionAccounts, portfolio, positions, orders, risk, events, loading, error,
@@ -58,7 +63,7 @@ export function DashboardWorkspace({
 
   useEffect(() => { setAuthenticated(hasSession()); }, []);
   useEffect(() => {
-    try { const raw = window.localStorage.getItem(LAYOUTS_KEY); if (raw) { const parsed: unknown = JSON.parse(raw); if (Array.isArray(parsed)) setLayouts(parsed.filter((item): item is SavedLayout => Boolean(item && typeof item.id === "string" && typeof item.name === "string" && typeof item.accountId === "string" && Array.isArray(item.visible))); } } catch { /* ignore invalid local layout data */ }
+    try { const raw = window.localStorage.getItem(LAYOUTS_KEY); if (raw) { const parsed: unknown = JSON.parse(raw); if (Array.isArray(parsed)) setLayouts(parsed.filter(isSavedLayout)); } } catch { /* ignore invalid local layout data */ }
   }, []);
 
   const accountsQuery = useQuery({
