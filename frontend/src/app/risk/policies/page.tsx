@@ -131,7 +131,8 @@ export default function RiskPoliciesPage() {
     }catch(e){setError(e instanceof Error?e.message:"Unable to save risk policy.");}
     finally{setSaving(false);}
   }
-  function discardChanges(){if(!dirty)return;const parsed=JSON.parse(baseline) as PolicyForm;setForm(parsed);setError(null);setSaved(false);}\n  function chooseRiskAppetite(value:string){update("risk_appetite",value);if(value==="conservative")update("risk_per_trade_pct","0.25");else if(value==="balanced")update("risk_per_trade_pct","0.5");else if(value==="aggressive")update("risk_per_trade_pct","1");}
+  function discardChanges(){if(!dirty)return;const parsed=JSON.parse(baseline) as PolicyForm;setForm(parsed);setError(null);setSaved(false);}
+  function chooseRiskAppetite(value:string){update("risk_appetite",value);if(value==="conservative")update("risk_per_trade_pct","0.25");else if(value==="balanced")update("risk_per_trade_pct","0.5");else if(value==="aggressive")update("risk_per_trade_pct","1");}
 
   if(accounts.isLoading)return <div className="loading">Loading Journal accounts…</div>;
   if(accounts.isError)return <div className="error">Unable to load accounts. Check the Journal API connection.</div>;
