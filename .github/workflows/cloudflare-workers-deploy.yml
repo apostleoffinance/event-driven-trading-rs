@@ -50,6 +50,60 @@ jobs:
           test -s .open-next/worker.js
           python3 -c "import json; c=json.load(open('wrangler.jsonc')); assert c['main'] == '.open-next/worker.js', c.get('main')"
 
+      - name: Normalize existing Worker placement before version upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          SETTINGS_URL="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/edgenest-frontend/settings"
+          SETTINGS_FILE="$(mktemp)"
+          PATCH_FILE="$(mktemp)"
+          trap 'rm -f "${SETTINGS_FILE}" "${PATCH_FILE}"' EXIT
+
+          get_settings() {
+            local status
+            status="$(curl --silent --show-error --output "${SETTINGS_FILE}" --write-out "%{http_code}" \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              "${SETTINGS_URL}")"
+            if [ "${status}" != "200" ]; then
+              echo "Cloudflare Worker settings inspection failed with HTTP ${status}."
+              python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get("errors", []), indent=2))' "${SETTINGS_FILE}" || true
+              exit 1
+            fi
+            python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d.get("success") is True, d.get("errors");' "${SETTINGS_FILE}"
+          }
+
+          get_settings
+          PLACEMENT="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps((d.get("result") or {}).get("placement"))) ' "${SETTINGS_FILE}")"
+          echo "Existing Worker placement: ${PLACEMENT}"
+
+          if [ "${PLACEMENT}" != "null" ]; then
+            echo "Clearing the pre-existing placement override through Cloudflare's script-settings API."
+            printf '%s' '{"settings":{"placement":null}}' > "${PATCH_FILE}"
+            STATUS="$(curl --silent --show-error --output "${SETTINGS_FILE}" --write-out "%{http_code}" \
+              --request PATCH \
+              --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data-binary "@${PATCH_FILE}" \
+              "${SETTINGS_URL}")"
+            if [ "${STATUS}" != "200" ]; then
+              echo "Cloudflare refused to clear the Worker placement override (HTTP ${STATUS})."
+              python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(d.get("errors", []), indent=2))' "${SETTINGS_FILE}" || true
+              exit 1
+            fi
+            python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d.get("success") is True, d.get("errors");' "${SETTINGS_FILE}"
+            get_settings
+            REMAINING="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps((d.get("result") or {}).get("placement"))) ' "${SETTINGS_FILE}")"
+            if [ "${REMAINING}" != "null" ]; then
+              echo "Worker placement override remains after the settings update: ${REMAINING}"
+              exit 1
+            fi
+          fi
+
+          echo "Worker placement is compatible with edge-default deployment."
+
       - name: Deploy to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
