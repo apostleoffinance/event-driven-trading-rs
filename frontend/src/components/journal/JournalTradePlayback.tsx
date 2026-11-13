@@ -39,9 +39,9 @@ function movementPips(symbol: string, entry: number, current: number, direction:
   return ((current - entry) * (direction === "long" ? 1 : -1)) / pip;
 }
 
-export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
+export function JournalTradePlayback({ trade, initiallyExpanded = false }: { trade: JournalTrade; initiallyExpanded?: boolean }) {
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const [frame, setFrame] = useState<Frame>("M1");
   const [providerOverride, setProviderOverride] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -52,6 +52,8 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const persistedExcursionRef = useRef<string>("");
   const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) && new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
+  const closeTimestampMs = new Date(trade.closed_at || "").getTime();
+  const closeIsInFuture = isClosedTrade && Number.isFinite(closeTimestampMs) && closeTimestampMs > Date.now() + 60_000;
 
   const instrumentsQuery = useQuery({
     queryKey: ["market-data", "instruments"],
@@ -99,7 +101,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       }
       return { candles: all };
     },
-    enabled: isClosedTrade && Boolean(selectedProvider),
+    enabled: isClosedTrade && !closeIsInFuture && Boolean(selectedProvider),
     retry: 1,
   });
 
@@ -118,7 +120,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
   const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
 
   useEffect(() => {
-    if (!isClosedTrade || candles.length === 0 || !Number.isFinite(entryPrice)) return;
+    if (!isClosedTrade || closeIsInFuture || candles.length === 0 || !Number.isFinite(entryPrice)) return;
     const first = Number(candles[0].time) * 1000;
     const last = Number(candles[candles.length - 1].time) * 1000;
     const opened = new Date(trade.opened_at).getTime();
@@ -148,10 +150,21 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       candle_count: candles.length,
       coverage_start: new Date(first).toISOString(),
       coverage_end: new Date(last).toISOString(),
-    }).then(() => queryClient.invalidateQueries({ queryKey: ["journal", "trades"] })).catch(() => {
+    }).then(async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["journal", "trades"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal", "analytics"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal", "recent-closed-trades"] }),
+      ]);
+    }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [isClosedTrade, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
+  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
+
+  const coverageToleranceMs = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
+  const hasFullCandleCoverage = candles.length > 0
+    && Number(candles[0].time) * 1000 <= new Date(trade.opened_at).getTime() + coverageToleranceMs
+    && Number(candles[candles.length - 1].time) * 1000 >= new Date(trade.closed_at || "").getTime() - coverageToleranceMs;
 
   const availableProviders = providersQuery.data?.filter((item) => {
     if (item.id === "demo") return false;
@@ -208,7 +221,7 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [expanded, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
+  }, [expanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -268,6 +281,10 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
         </button>
       </div>
       {!isClosedTrade ? <p className="muted">Replay is available for closed trades with valid entry and exit timestamps.</p> : null}
+      {closeIsInFuture ? <div className="panel error" role="status">
+        <strong>Recorded close time is in the future.</strong>
+        <p>The trade is marked closed at {new Date(closeTimestampMs).toLocaleString()}. Historical MFE and MAE cannot be calculated for a period that has not happened yet. Correct the close date/time in Journal, or wait until the recorded close time has passed.</p>
+      </div> : null}
       {expanded && isClosedTrade ? (
         <div className="journal-playback-body">
           <div className="journal-playback-toolbar">
@@ -280,10 +297,16 @@ export function JournalTradePlayback({ trade }: { trade: JournalTrade }) {
             </select></label>
           </div>
           {instrumentsQuery.isLoading || providersQuery.isLoading || candleQuery.isLoading ? <p className="muted">Loading historical candles…</p> : null}
+          {!providersQuery.isLoading && providersQuery.isError ? <p className="muted" role="status">Market-data providers could not be loaded. Retry after checking the market-data service.</p> : null}
+          {!providersQuery.isLoading && providersQuery.isSuccess && availableProviders.length === 0 ? <p className="muted" role="status">No historical market-data provider is currently available. MFE and MAE cannot be calculated until a provider is configured.</p> : null}
           {candleQuery.isError ? <div className="panel error" role="alert">
             <strong>Historical candles unavailable</strong>
             <p>{candleQuery.error instanceof Error ? candleQuery.error.message : "The configured provider could not return candles for this trade period."}</p>
             <button className="btn" type="button" onClick={() => candleQuery.refetch()}>Retry</button>
+          </div> : null}
+          {!candleQuery.isLoading && !candleQuery.isError && candles.length > 0 && !hasFullCandleCoverage ? <div className="panel" role="status">
+            <strong>Historical candle coverage is incomplete.</strong>
+            <p className="muted">The returned candles do not cover the complete entry-to-exit interval. Replay is available, but MFE/MAE will not be saved from partial data. Try another provider or a coarser timeframe.</p>
           </div> : null}
           {!candleQuery.isLoading && !candleQuery.isError && candles.length === 0 ? <div className="panel">
             <strong>No historical candles found for this trade.</strong>

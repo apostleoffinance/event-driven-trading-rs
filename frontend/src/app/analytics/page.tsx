@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { journalApi, type JournalAnalytics } from "@/lib/api/journal";
+import { JournalTradePlayback } from "@/components/journal/JournalTradePlayback";
 import { ApiError } from "@/lib/api/client";
 import { getSessionUser, hasSession } from "@/lib/auth/session";
 import { AnalyticsEquityChart } from "@/components/charts/AnalyticsEquityChart";
@@ -164,6 +165,53 @@ export default function AnalyticsLabPage() {
     refetchOnWindowFocus: true,
     retry: 1,
   });
+
+  const selectedTradeRecord = useQuery({
+    queryKey: ["journal", "trade-detail", selectedTrade?.trade_id],
+    queryFn: () => journalApi.getTrade(selectedTrade!.trade_id),
+    enabled: authenticated && Boolean(selectedTrade?.trade_id),
+    staleTime: 15_000,
+    retry: 1,
+  });
+  const selectedTradeAttachments = useQuery({
+    queryKey: ["journal", "attachments", selectedTrade?.trade_id],
+    queryFn: () => journalApi.listAttachments(selectedTrade!.trade_id),
+    enabled: authenticated && Boolean(selectedTrade?.trade_id),
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const selectedTradeAttachmentUrls = useQuery({
+    queryKey: ["journal", "attachment-download-urls", selectedTrade?.trade_id, selectedTradeAttachments.data?.map(item => item.id).join("|") ?? ""],
+    queryFn: async () => {
+      const items = selectedTradeAttachments.data ?? [];
+      const entries = await Promise.all(items.map(async item => {
+        try {
+          const result = await journalApi.getAttachmentDownloadUrl(selectedTrade!.trade_id, item.id);
+          return [item.id, result.download_url] as const;
+        } catch {
+          return [item.id, item.storage_provider === "external" ? item.storage_key : ""] as const;
+        }
+      }));
+      return Object.fromEntries(entries);
+    },
+    enabled: authenticated && Boolean(selectedTrade?.trade_id) && selectedTradeAttachments.isSuccess,
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (!selectedTrade) return;
+    const refreshed = analytics.data?.trade_metrics?.find(item => item.trade_id === selectedTrade.trade_id);
+    if (!refreshed) return;
+    if (refreshed.mfe_r !== selectedTrade.mfe_r
+      || refreshed.mae_r !== selectedTrade.mae_r
+      || refreshed.mfe_capture_percent !== selectedTrade.mfe_capture_percent
+      || refreshed.profit_surrendered_r !== selectedTrade.profit_surrendered_r
+      || refreshed.mfe_source !== selectedTrade.mfe_source
+      || refreshed.mae_source !== selectedTrade.mae_source) {
+      setSelectedTrade(refreshed);
+    }
+  }, [analytics.data?.trade_metrics, selectedTrade]);
 
   const recentTrades = useQuery({
     queryKey: ["journal", "recent-closed-trades", accountId, fromDate, toDate, symbolFilter, setupFilter],
@@ -356,6 +404,28 @@ export default function AnalyticsLabPage() {
         <section className="trade-investigation-section"><div className="trade-investigation-section-heading"><h3>Execution details</h3><p>Recorded trade setup and order levels</p></div><dl className="trade-detail-grid">
           <div><dt>Instrument</dt><dd>{selectedTrade.symbol}</dd></div><div><dt>Direction</dt><dd>{selectedTrade.direction.toUpperCase()}</dd></div><div><dt>Session</dt><dd>{selectedTrade.session??"Not recorded"}</dd></div><div><dt>Setup</dt><dd>{selectedTrade.setup??"Unassigned"}</dd></div><div><dt>Entry price</dt><dd className="trade-detail-price">{formatInstrumentPrice(selectedTrade.entry_price,selectedTrade.symbol)}</dd></div><div><dt>Exit price</dt><dd className="trade-detail-price">{formatInstrumentPrice(selectedTrade.exit_price,selectedTrade.symbol)}</dd></div><div><dt>Stop loss</dt><dd>{selectedTrade.stop_loss_recorded?"Recorded":"Not recorded"}</dd></div><div><dt>Take profit</dt><dd>{selectedTrade.take_profit_recorded?"Recorded":"Not recorded"}</dd></div>
         </dl></section>
+        <section className="trade-investigation-section trade-investigation-replay">
+          <div className="trade-investigation-section-heading"><h3>Historical trade replay</h3><p>Historical candles are used to calculate MFE and MAE; no market values are invented</p></div>
+          {selectedTradeRecord.isLoading ? <p className="muted">Loading full trade record…</p> : null}
+          {selectedTradeRecord.isError ? <div className="panel error" role="alert"><p>Could not load the full trade record needed for replay.</p><button className="btn" type="button" onClick={() => void selectedTradeRecord.refetch()}>Retry</button></div> : null}
+          {selectedTradeRecord.data ? <JournalTradePlayback key={selectedTrade.trade_id} trade={selectedTradeRecord.data} initiallyExpanded /> : null}
+        </section>
+        <section className="trade-investigation-section">
+          <div className="trade-investigation-section-heading"><h3>Screenshots &amp; trade evidence</h3><p>Private images attached to this Journal trade</p></div>
+          {selectedTradeAttachments.isLoading ? <p className="muted">Loading attached screenshots…</p> : null}
+          {selectedTradeAttachments.isError ? <div className="panel error" role="alert"><p>Could not load this trade’s attachments.</p><button className="btn" type="button" onClick={() => void selectedTradeAttachments.refetch()}>Retry</button></div> : null}
+          {selectedTradeAttachments.data?.length ? <div className="trade-evidence-grid">
+            {selectedTradeAttachments.data.map(item => {
+              const url = selectedTradeAttachmentUrls.data?.[item.id] ?? "";
+              const stage = item.attachment_type === "before" ? "Before trade" : item.attachment_type === "after" ? "After trade" : "Trade evidence";
+              const isImage = (item.content_type ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(item.original_filename ?? item.storage_key);
+              return <article className="trade-evidence-card" key={item.id}>
+                {url && isImage ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${item.original_filename || stage} in full size`}><img src={url} alt={item.original_filename || stage} loading="lazy" /></a> : <div className="trade-evidence-placeholder">{selectedTradeAttachmentUrls.isLoading ? "Preparing secure preview…" : "Preview unavailable"}</div>}
+                <div className="trade-evidence-meta"><strong>{stage}</strong><span>{item.original_filename || "Screenshot"}</span>{url ? <a href={url} target="_blank" rel="noreferrer">Open full size</a> : null}</div>
+              </article>;
+            })}
+          </div> : selectedTradeAttachments.isSuccess ? <p className="muted">No screenshots are attached to this trade. You can add them from Journal → Screenshots / Attachments.</p> : null}
+        </section>
         <section className="trade-investigation-section"><div className="trade-investigation-section-heading"><h3>Psychology &amp; discipline</h3><p>Self-reported context captured in the Journal</p></div><div className="trade-psychology-grid">
           <div><span>Before</span><strong>{selectedTrade.psychology.emotion_before??"Not recorded"}</strong></div><div><span>During</span><strong>{selectedTrade.psychology.emotion_during??"Not recorded"}</strong></div><div><span>After</span><strong>{selectedTrade.psychology.emotion_after??"Not recorded"}</strong></div>
         </div><div className="trade-psychology-scores">{[["Confidence",selectedTrade.psychology.confidence],["Fear",selectedTrade.psychology.fear],["FOMO",selectedTrade.psychology.fomo],["Frustration",selectedTrade.psychology.frustration],["Revenge",selectedTrade.psychology.revenge_intensity],["Boredom",selectedTrade.psychology.boredom]].map(([label,value])=><div key={String(label)}><span>{label}</span><strong>{value==null?"—":value+"/10"}</strong></div>)}</div></section>
