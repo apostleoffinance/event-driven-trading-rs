@@ -124,7 +124,7 @@ export default function RiskPage() {
                   <div><small>MAX DRAWDOWN</small><strong>{policy ? limit(policy.max_total_drawdown_pct) : "—"}</strong></div>
                   <div><small>MIN. R:R</small><strong>{policy?.minimum_rr == null ? "—" : `${policy.minimum_rr.toFixed(2)}R`}</strong></div>
                 </div>
-                <div className="risk-policy-state">{loading ? <StatusBadge tone="warn">Loading</StatusBadge> : error ? <StatusBadge tone="bad">Unavailable</StatusBadge> : configured ? <StatusBadge tone="HEALTHY">Saved · v{envelope?.version}</StatusBadge> : <StatusBadge tone="warn">Needs setup</StatusBadge>}<small>{tradingAccount ? `Linked · ${tradingAccount.name}` : account.linked_trading_account_id ? "Trading link unavailable" : "Journal only"}</small></div>
+                <div className="risk-policy-state">{loading ? <StatusBadge tone="warn">Loading</StatusBadge> : error ? <StatusBadge tone="bad">Unavailable</StatusBadge> : configured ? <StatusBadge tone="ok">Saved · v{envelope?.version}</StatusBadge> : <StatusBadge tone="warn">Needs setup</StatusBadge>}<small>{tradingAccount ? `Linked · ${tradingAccount.name}` : account.linked_trading_account_id ? "Trading link unavailable" : "Journal only"}</small></div>
                 <Link className="risk-policy-open" href="/risk/policies" aria-label={`Edit risk policy for ${account.name}`}>↗</Link>
               </article>;
             })}
