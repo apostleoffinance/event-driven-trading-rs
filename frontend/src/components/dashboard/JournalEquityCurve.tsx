@@ -11,8 +11,8 @@ const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 export function JournalEquityCurve({ analytics, currency }: { analytics: JournalAnalytics; currency: string }) {
   const { theme } = useTheme();
   const option = useMemo(() => {
-    const styles = getComputedStyle(document.documentElement);
-    const css = (key: string, fallback: string) => styles.getPropertyValue(key).trim() || fallback;
+    const styles = typeof document === "undefined" ? null : getComputedStyle(document.documentElement);
+    const css = (key: string, fallback: string) => styles?.getPropertyValue(key).trim() || fallback;
     const line = css("--chart-line", "#1f6feb");
     const axis = css("--chart-axis", "#d5dde8");
     const muted = css("--chart-dim", "#5a687a");
