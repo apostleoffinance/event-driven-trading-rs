@@ -22,7 +22,7 @@ const WIDGETS: { key: WidgetKey; label: string }[] = [
 const DEFAULT_VISIBLE: WidgetKey[] = ["performance", "risk", "execution", "accounts", "positions", "activity", "orders"];
 const LAYOUTS_KEY = "edgenest.dashboard.layouts.v1";
 
-function dateRange(period: Period) {
+function dateRange(period: Period): { from?: string; to?: string } {
   const to = new Date();
   const from = new Date(to);
   if (period === "7d") from.setDate(from.getDate() - 7);
