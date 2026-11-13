@@ -1865,3 +1865,5 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
  .dashboard-layout-actions > * { flex:1 1 100%; }
  .dashboard-layout-actions input,.dashboard-layout-actions select { width:100%; }
 }
+
+.dashboard-main-grid.single { grid-template-columns:minmax(0,1fr); }
