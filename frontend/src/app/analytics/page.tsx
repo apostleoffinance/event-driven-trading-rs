@@ -408,7 +408,7 @@ export default function AnalyticsLabPage() {
           <div className="trade-investigation-section-heading"><h3>Historical trade replay</h3><p>Historical candles are used to calculate MFE and MAE; no market values are invented</p></div>
           {selectedTradeRecord.isLoading ? <p className="muted">Loading full trade record…</p> : null}
           {selectedTradeRecord.isError ? <div className="panel error" role="alert"><p>Could not load the full trade record needed for replay.</p><button className="btn" type="button" onClick={() => void selectedTradeRecord.refetch()}>Retry</button></div> : null}
-          {selectedTradeRecord.data ? <JournalTradePlayback key={selectedTrade.trade_id} trade={selectedTradeRecord.data} initiallyExpanded /> : null}
+          {selectedTradeRecord.data ? <JournalTradePlayback key={selectedTrade.trade_id} trade={{ ...selectedTradeRecord.data, status: "closed", opened_at: selectedTrade.opened_at, closed_at: selectedTrade.closed_at }} alwaysExpanded /> : null}
         </section>
         <section className="trade-investigation-section">
           <div className="trade-investigation-section-heading"><h3>Screenshots &amp; trade evidence</h3><p>Private images attached to this Journal trade</p></div>

@@ -39,10 +39,11 @@ function movementPips(symbol: string, entry: number, current: number, direction:
   return ((current - entry) * (direction === "long" ? 1 : -1)) / pip;
 }
 
-export function JournalTradePlayback({ trade, initiallyExpanded = false }: { trade: JournalTrade; initiallyExpanded?: boolean }) {
+export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysExpanded = false }: { trade: JournalTrade; initiallyExpanded?: boolean; alwaysExpanded?: boolean }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(initiallyExpanded);
-  const [frame, setFrame] = useState<Frame>("M1");
+  const [frame, setFrame] = useState<Frame>("H1");
+  const isExpanded = alwaysExpanded || expanded;
   const [providerOverride, setProviderOverride] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -51,7 +52,11 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const persistedExcursionRef = useRef<string>("");
-  const isClosedTrade = trade.status === "closed" && Boolean(trade.closed_at) && new Date(trade.closed_at || "").getTime() > new Date(trade.opened_at).getTime();
+  const openedTimestampMs = new Date(trade.opened_at).getTime();
+  // A valid close timestamp is the authoritative replay prerequisite. The Analytics
+  // investigation already selects closed-trade facts; imported APIs may serialize
+  // status labels differently, so do not let a status-label mismatch hide replay.
+  const isClosedTrade = Boolean(trade.closed_at) && Number.isFinite(openedTimestampMs) && new Date(trade.closed_at || "").getTime() > openedTimestampMs;
   const closeTimestampMs = new Date(trade.closed_at || "").getTime();
   const closeIsInFuture = isClosedTrade && Number.isFinite(closeTimestampMs) && closeTimestampMs > Date.now() + 60_000;
 
@@ -183,12 +188,16 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
   }, [currentIndex, candles.length]);
 
   useEffect(() => {
-    if (!expanded || !chartContainerRef.current) return;
+    if (!isExpanded || !chartContainerRef.current) return;
     const node = chartContainerRef.current;
+    // Lightweight Charts expects a concrete CSS color, not a CSS var() expression.
+    const chartTextColor = getComputedStyle(node).getPropertyValue("color").trim()
+      || getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim()
+      || "#d1d4dc";
     const chart = createChart(node, {
       width: Math.max(node.clientWidth, 320),
       height: 380,
-      layout: { background: { color: "transparent" }, textColor: "var(--foreground, #d1d4dc)" },
+      layout: { background: { color: "transparent" }, textColor: chartTextColor },
       grid: { vertLines: { color: "rgba(130,130,130,.12)" }, horzLines: { color: "rgba(130,130,130,.12)" } },
       rightPriceScale: { borderColor: "rgba(130,130,130,.25)" },
       timeScale: { borderColor: "rgba(130,130,130,.25)", timeVisible: true, secondsVisible: false },
@@ -221,7 +230,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [expanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
+  }, [isExpanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -276,16 +285,16 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
           <h3 className="panel-title">TRADE PLAYBACK</h3>
           <p className="muted">Replay historical provider candles from entry toward exit. This is analysis only—no orders are placed.</p>
         </div>
-        <button className="btn primary" type="button" onClick={() => { setExpanded((value) => !value); setPlaying(false); }} aria-expanded={expanded}>
-          {expanded ? "Close replay" : "▶ Replay trade"}
-        </button>
+        {!alwaysExpanded ? <button className="btn primary" type="button" onClick={() => { setExpanded((value) => !value); setPlaying(false); }} aria-expanded={isExpanded}>
+          {isExpanded ? "Close replay" : "▶ Replay trade"}
+        </button> : <span className="badge">Replay ready</span>}
       </div>
       {!isClosedTrade ? <p className="muted">Replay is available for closed trades with valid entry and exit timestamps.</p> : null}
       {closeIsInFuture ? <div className="panel error" role="status">
         <strong>Recorded close time is in the future.</strong>
         <p>The trade is marked closed at {new Date(closeTimestampMs).toLocaleString()}. Historical MFE and MAE cannot be calculated for a period that has not happened yet. Correct the close date/time in Journal, or wait until the recorded close time has passed.</p>
       </div> : null}
-      {expanded && isClosedTrade ? (
+      {isExpanded && isClosedTrade ? (
         <div className="journal-playback-body">
           <div className="journal-playback-toolbar">
             <label>Timeframe <select value={frame} onChange={(event) => setFrame(event.target.value as Frame)}>{FRAMES.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -299,6 +308,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
           {instrumentsQuery.isLoading || providersQuery.isLoading || candleQuery.isLoading ? <p className="muted">Loading historical candles…</p> : null}
           {!providersQuery.isLoading && providersQuery.isError ? <p className="muted" role="status">Market-data providers could not be loaded. Retry after checking the market-data service.</p> : null}
           {!providersQuery.isLoading && providersQuery.isSuccess && availableProviders.length === 0 ? <p className="muted" role="status">No historical market-data provider is currently available. MFE and MAE cannot be calculated until a provider is configured.</p> : null}
+          {!providersQuery.isLoading && providersQuery.isSuccess && availableProviders.length > 0 && !selectedProvider ? <p className="muted" role="status">No provider is selected for this instrument. Choose an available historical provider to load candles.</p> : null}
           {candleQuery.isError ? <div className="panel error" role="alert">
             <strong>Historical candles unavailable</strong>
             <p>{candleQuery.error instanceof Error ? candleQuery.error.message : "The configured provider could not return candles for this trade period."}</p>
@@ -308,7 +318,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
             <strong>Historical candle coverage is incomplete.</strong>
             <p className="muted">The returned candles do not cover the complete entry-to-exit interval. Replay is available, but MFE/MAE will not be saved from partial data. Try another provider or a coarser timeframe.</p>
           </div> : null}
-          {!candleQuery.isLoading && !candleQuery.isError && candles.length === 0 ? <div className="panel">
+          {providersQuery.isSuccess && Boolean(selectedProvider) && !closeIsInFuture && !candleQuery.isLoading && !candleQuery.isError && candles.length === 0 ? <div className="panel">
             <strong>No historical candles found for this trade.</strong>
             <p className="muted">Try a different provider or timeframe. EdgeNest does not generate placeholder market data.</p>
           </div> : null}
