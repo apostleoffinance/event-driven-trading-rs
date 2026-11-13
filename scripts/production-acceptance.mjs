@@ -712,6 +712,7 @@ try {
           toolbarCount: document.querySelectorAll(".journal-playback-toolbar").length,
           body: document.body.innerText.slice(-1800),
         }));
+        console.log("DEBUG replay console/page errors:", JSON.stringify(replayErrors));
         console.log("DEBUG replay market requests:", JSON.stringify(replayMarketRequests));
         console.log("DEBUG replay page state:", JSON.stringify(state));
         console.log("DEBUG replay readiness error:", error.message);
