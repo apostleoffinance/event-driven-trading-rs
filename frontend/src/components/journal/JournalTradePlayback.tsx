@@ -221,7 +221,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false }: { tra
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [expanded, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
+  }, [expanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
 
   useEffect(() => {
     const chart = chartRef.current;
