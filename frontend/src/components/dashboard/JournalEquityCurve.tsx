@@ -23,7 +23,6 @@ export function JournalEquityCurve({ analytics, currency }: { analytics: Journal
       animationDuration: 350,
       grid: { left: 64, right: 22, top: 24, bottom: 42 },
       tooltip: { trigger: "axis", formatter: (items: Array<{axisValue:string;value:number;seriesName:string}>) => {
-        const item = items[0];
         return items.length ? items[0].axisValue + items.map(item => "<br/>" + item.seriesName + ": " + formatMoney(item.value, currency)).join("") : "";
       }},
       xAxis: { type: "category", boundaryGap: false, data: points.map(p=>new Date(p.closed_at).toLocaleDateString()), axisLabel: { color: muted, hideOverlap: true }, axisLine: { lineStyle: { color: axis } } },
