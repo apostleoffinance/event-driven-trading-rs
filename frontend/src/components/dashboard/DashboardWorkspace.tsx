@@ -78,17 +78,18 @@ export function DashboardWorkspace({
   const currencies = [...new Set(activeAccounts.map(a => a.currency))];
   const commonCurrency = currencies.length === 1 ? currencies[0] : null;
   const totals = useMemo(() => {
+    const complete = activeQueryResults.length === activeAccounts.length && activeQueryResults.every(q => Boolean(q?.data));
     const sum = (key: "trade_count" | "wins" | "losses" | "breakeven") => ready.reduce((n, x) => n + x[key], 0);
     const grossProfit = ready.reduce((n, x) => n + finite(x.gross_profit), 0);
     const grossLoss = ready.reduce((n, x) => n + Math.abs(finite(x.gross_loss)), 0);
     const netProfit = ready.reduce((n, x) => n + finite(x.net_profit), 0);
     const trades = sum("trade_count"), wins = sum("wins");
-    return { trades, wins, losses: sum("losses"), breakeven: sum("breakeven"),
-      winRate: trades ? wins / trades * 100 : null,
-      netProfit: commonCurrency ? netProfit : null,
-      profitFactor: commonCurrency ? (grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : null) : null,
+    return { complete, trades, wins, losses: sum("losses"), breakeven: sum("breakeven"),
+      winRate: complete && trades ? wins / trades * 100 : null,
+      netProfit: complete && commonCurrency ? netProfit : null,
+      profitFactor: complete && commonCurrency ? (grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : null) : null,
       grossProfit, grossLoss,
-      maxDrawdown: commonCurrency ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
+      maxDrawdown: complete && commonCurrency ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
   }, [ready, commonCurrency]);
   const selectedAccountData = activeAccounts.length === 1 ? activeQueryResults[0]?.data : null;
   const isVisible = (key: WidgetKey) => visible.includes(key);
@@ -133,10 +134,10 @@ export function DashboardWorkspace({
 
     <section className="dashboard-kpis" aria-label="Journal performance summary">
       <article className="panel dashboard-kpi"><span>JOURNAL NET P&amp;L</span><strong className={totals.netProfit == null ? "" : totals.netProfit >= 0 ? "pos" : "neg"}>{totals.netProfit == null ? (currencies.length > 1 ? "Mixed currencies" : "—") : money(totals.netProfit, commonCurrency || "USD")}</strong><small>{commonCurrency ? commonCurrency + " · realized" : "Select one currency to view monetary totals"}</small></article>
-      <article className="panel dashboard-kpi"><span>CLOSED TRADES</span><strong>{totals.trades.toLocaleString()}</strong><small>{totals.wins} wins · {totals.losses} losses · {totals.breakeven} breakeven</small></article>
+      <article className="panel dashboard-kpi"><span>CLOSED TRADES</span><strong>{totals.complete ? totals.trades.toLocaleString() : "—"}</strong><small>{totals.complete ? `${totals.wins} wins · ${totals.losses} losses · ${totals.breakeven} breakeven` : "Waiting for all selected account data"}</small></article>
       <article className="panel dashboard-kpi"><span>WIN RATE</span><strong>{totals.winRate == null ? "—" : totals.winRate.toFixed(1) + "%"}</strong><small>{totals.trades ? "Across selected Journal accounts" : "No closed trades in this period"}</small></article>
       <article className="panel dashboard-kpi"><span>PROFIT FACTOR</span><strong>{totals.profitFactor == null ? "—" : totals.profitFactor.toFixed(2)}</strong><small>{totals.profitFactor == null ? "Insufficient comparable P&amp;L data" : "Gross profit ÷ gross loss"}</small></article>
-      <article className="panel dashboard-kpi"><span>MAX DRAWDOWN</span><strong>{totals.maxDrawdown == null ? "—" : money(totals.maxDrawdown, commonCurrency || "USD")}</strong><small>{totals.maxDrawdown == null ? "Unavailable across mixed currencies" : "Largest reported account drawdown"}</small></article>
+      <article className="panel dashboard-kpi"><span>MAX DRAWDOWN</span><strong>{totals.maxDrawdown == null ? "—" : money(totals.maxDrawdown, commonCurrency || "USD")}</strong><small>{totals.maxDrawdown == null ? "Unavailable across mixed currencies" : "Largest reported realized drawdown"}</small></article>
     </section>
 
     {isVisible("performance") ? <section className="dashboard-main-grid">
