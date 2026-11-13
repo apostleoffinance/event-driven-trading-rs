@@ -1867,3 +1867,6 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 }
 
 .dashboard-main-grid.single { grid-template-columns:minmax(0,1fr); }
+
+.dashboard-kpi > strong.pos,.dashboard-account-metrics strong.pos,.dashboard-execution-totals strong.pos,.dashboard-execution-account > div > strong.pos { color:var(--positive); }
+.dashboard-kpi > strong.neg,.dashboard-account-metrics strong.neg,.dashboard-execution-totals strong.neg,.dashboard-execution-account > div > strong.neg { color:var(--negative); }
