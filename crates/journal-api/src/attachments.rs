@@ -3,8 +3,8 @@
 use std::{env, time::Duration};
 
 use axum::{
-    extract::{Path, Query, State},
     body::Bytes,
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
@@ -202,7 +202,6 @@ fn error(code: &str, message: &str, status: StatusCode) -> Response {
     )
         .into_response()
 }
-
 
 /// Upload a screenshot through the Journal API instead of sending the browser
 /// directly to R2. This avoids browser-to-object-store CORS failures while
