@@ -699,7 +699,7 @@ try {
       await replayPage.waitForFunction(() => {
         const controls = [...document.querySelectorAll(".journal-playback-toolbar select")];
         return controls.length === 3 && controls[0].value === "H1" && controls[1].options.length > 0;
-      }, { timeout: 20_000 });
+      }, undefined, { timeout: 20_000 });
       await playback.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 });
       await replayPage.waitForFunction(() => document.body.innerText.includes("2.00R"), { timeout: 20_000 });
       assert.ok(excursionsSaved, "Historical replay did not persist the calculated MFE/MAE payload.");
