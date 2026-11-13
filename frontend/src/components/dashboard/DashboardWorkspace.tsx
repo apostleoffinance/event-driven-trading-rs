@@ -77,7 +77,7 @@ export function DashboardWorkspace({
   const ready = activeQueryResults.filter(q => q?.data).map(q => q!.data as JournalAnalytics);
   const currencies = [...new Set(activeAccounts.map(a => a.currency))];
   const commonCurrency = currencies.length === 1 ? currencies[0] : null;
-  const totals = useMemo(() => {
+  const totals = (() => {
     const complete = !accountsQuery.isLoading && !accountsQuery.error && activeQueryResults.length === activeAccounts.length && activeQueryResults.every(q => Boolean(q?.data));
     const sum = (key: "trade_count" | "wins" | "losses" | "breakeven") => ready.reduce((n, x) => n + x[key], 0);
     const grossProfit = ready.reduce((n, x) => n + finite(x.gross_profit), 0);
@@ -90,7 +90,7 @@ export function DashboardWorkspace({
       profitFactor: complete && commonCurrency ? (grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : null) : null,
       grossProfit, grossLoss,
       maxDrawdown: complete && commonCurrency && trades > 0 ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
-  }, [ready, commonCurrency, activeQueryResults, activeAccounts, accountsQuery.isLoading, accountsQuery.error]);
+  })();
   const selectedAccountData = activeAccounts.length === 1 ? activeQueryResults[0]?.data : null;
   const isVisible = (key: WidgetKey) => visible.includes(key);
   const toggleWidget = (key: WidgetKey) => setVisible(current => current.includes(key) ? current.filter(x => x !== key) : [...current, key]);
@@ -161,7 +161,7 @@ export function DashboardWorkspace({
     {isVisible("execution") ? <section className="panel dashboard-panel dashboard-accounts">
       <div className="dashboard-panel-heading"><div><h2>Execution accounts</h2><p>Broker-connected balances, equity and connection health — not Journal estimates.</p></div><Link href="/accounts" className="dashboard-text-link">Manage accounts ↗</Link></div>
       {executionConnected ? <>
-        {portfolio ? <div className="dashboard-execution-totals"><div><small>Portfolio equity</small><strong>{formatMoney(portfolio.totalEquity)}</strong></div><div><small>Available capital</small><strong>{formatMoney(portfolio.availableCapital)}</strong></div><div><small>Today's P&amp;L</small><strong className={finite(portfolio.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(portfolio.dailyPnl)}</strong></div><div><small>Gross exposure</small><strong>{formatMoney(portfolio.grossExposure)}</strong></div></div> : <p className="muted">Broker portfolio values are currently unavailable.</p>}
+        {portfolio ? <div className="dashboard-execution-totals"><div><small>Portfolio equity</small><strong>{formatMoney(portfolio.totalEquity)}</strong></div><div><small>Available capital</small><strong>{formatMoney(portfolio.availableCapital)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(portfolio.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(portfolio.dailyPnl)}</strong></div><div><small>Gross exposure</small><strong>{formatMoney(portfolio.grossExposure)}</strong></div></div> : <p className="muted">Broker portfolio values are currently unavailable.</p>}
         <div className="dashboard-execution-account-list">{executionAccounts.map(account=><div className="dashboard-execution-account" key={account.id}><div><strong>{account.name}</strong><span>{account.venueName} · {account.environment} · {account.type}</span></div><div><small>Equity</small><strong>{formatMoney(account.equity)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(account.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(account.dailyPnl)}</strong></div><div><small>Connection</small><StatusBadge tone={account.connectionStatus==="HEALTHY"?"ok":account.connectionStatus==="DISCONNECTED"||account.connectionStatus==="ERROR"?"bad":"warn"}>{account.connectionStatus}</StatusBadge></div></div>)}</div>
       </> : <div className="dashboard-empty-inline"><span>No execution account connected. Your Journal accounts and historical performance remain available independently.</span><Link href="/accounts" className="btn primary">Set up execution account</Link></div>}
     </section> : null}
