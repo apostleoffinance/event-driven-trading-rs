@@ -695,7 +695,10 @@ try {
       const dialog = replayPage.getByRole("dialog");
       await dialog.getByRole("heading", { name: "Historical trade replay" }).waitFor();
       await dialog.getByText("Replay ready").waitFor();
-      await dialog.getByLabel("Timeframe").selectOption("H1");
+      const playback = dialog.locator(".journal-playback");
+      console.log("DEBUG replay component text:", await playback.innerText());
+      console.log("DEBUG replay toolbar count:", await playback.locator(".journal-playback-toolbar").count());
+      await playback.locator(".journal-playback-toolbar select").first().selectOption("H1");
       await dialog.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 });
       await replayPage.waitForFunction(() => document.body.innerText.includes("2.00R"), { timeout: 20_000 });
       assert.ok(excursionsSaved, "Historical replay did not persist the calculated MFE/MAE payload.");
