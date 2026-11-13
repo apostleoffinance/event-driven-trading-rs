@@ -376,7 +376,7 @@ try {
       const raw = sessionStorage.getItem("edgenest.auth.session.v1");
       if (!raw) return null;
       const session = JSON.parse(raw);
-      return { access_token: session.access_token, user_email: session.user?.email };
+      return { access_token: session.access_token, user_email: session.user?.email, raw_session: raw };
     });
     assert.ok(tokenState?.access_token, "Login succeeded but the browser session did not contain an access token.");
     assert.equal(String(tokenState.user_email || "").toLowerCase(), email.toLowerCase(), "Authenticated session user does not match configured acceptance user.");
@@ -463,7 +463,147 @@ try {
       }
       console.log("PASS authenticated acceptance: two-account saved-view scope, reload persistence and fresh-browser persistence.");
     } finally {
+
       await freshContext.close();
+    }
+
+    console.log("Checking existing account risk-policy API load/save/reload persistence...");
+    let existingPolicyCheck = false;
+    for (const account of accounts) {
+      const policyGet = await expectHttp(`${apiUrl}/api/v1/journal/accounts/${encodeURIComponent(account.id)}/risk-policy`, 200, { headers: apiHeaders });
+      const originalEnvelope = await policyGet.json();
+      if (!originalEnvelope?.policy || Number(originalEnvelope.version) < 1) continue;
+
+      // Re-save the exact existing policy, without changing any policy fields.
+      // This exercises the real authenticated PUT + database read-after-write path
+      // while preserving the user's configuration.
+      const saveResponse = await expectHttp(`${apiUrl}/api/v1/journal/accounts/${encodeURIComponent(account.id)}/risk-policy`, 200, {
+        method: "PUT",
+        headers: apiHeaders,
+        body: JSON.stringify(originalEnvelope.policy),
+      });
+      const savedEnvelope = await saveResponse.json();
+      assert.equal(savedEnvelope.version, Number(originalEnvelope.version) + 1, "Risk policy save did not advance its version.");
+      assert.deepEqual(savedEnvelope.policy, originalEnvelope.policy, "Risk policy save response changed existing policy fields.");
+
+      const reloadResponse = await expectHttp(`${apiUrl}/api/v1/journal/accounts/${encodeURIComponent(account.id)}/risk-policy`, 200, { headers: apiHeaders });
+      const reloadedEnvelope = await reloadResponse.json();
+      assert.equal(reloadedEnvelope.version, savedEnvelope.version, "Risk policy version did not persist after a fresh GET.");
+      assert.deepEqual(reloadedEnvelope.policy, originalEnvelope.policy, "Risk policy fields did not persist after a fresh GET.");
+      existingPolicyCheck = true;
+      console.log(`PASS risk-policy API persistence: existing account ${account.id}, version ${originalEnvelope.version} -> ${savedEnvelope.version}; original policy fields preserved.`);
+      break;
+    }
+    if (!existingPolicyCheck) {
+      console.log("SKIP risk-policy API round-trip: no active account has a previously saved policy (version > 0). UI save/reload is still exercised with isolated browser fixtures.");
+    }
+
+    console.log("Checking Account Risk Policies UI save, account isolation, reload persistence and six responsive viewports...");
+    const uiAccounts = [
+      { id: "risk-acceptance-a", name: "Acceptance Funded A", broker: "QuantOS test fixture", account_type: "funded", currency: "USD", initial_balance: "10000", archived: false },
+      { id: "risk-acceptance-b", name: "Acceptance Personal B", broker: "QuantOS test fixture", account_type: "personal", currency: "USD", initial_balance: "25000", archived: false },
+    ];
+    const policyFor = (name, type, risk) => ({
+      profile_name: name, firm_name: type === "funded" ? "Acceptance Firm" : null,
+      program_name: type === "funded" ? "Acceptance Program" : null,
+      account_type: type, risk_appetite: "balanced", risk_per_trade_pct: risk,
+      max_risk_per_trade_amount: null, max_daily_loss_pct: 5, max_daily_risk_pct: 2,
+      daily_loss_basis: "start_of_day_equity", max_total_drawdown_pct: 10,
+      drawdown_basis: "trailing_high_water", max_trades_per_day: 5,
+      max_open_positions: 3, max_total_open_risk_pct: 2, minimum_rr: 1.5,
+      max_lot_size: null, max_leverage: null, firm_limits_enforcement: "block",
+      personal_limits_enforcement: "warn", daily_reset_timezone: "Africa/Lagos",
+      notes: "Acceptance fixture policy; not a real firm preset.",
+    });
+    const uiPolicies = new Map([
+      ["risk-acceptance-a", { policy: policyFor("Existing funded policy A", "funded", 0.75), version: 4, updated_at: new Date().toISOString() }],
+      ["risk-acceptance-b", { policy: policyFor("Existing personal policy B", "personal", 0.5), version: 2, updated_at: new Date().toISOString() }],
+    ]);
+    const uiContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: "Africa/Lagos" });
+    try {
+      await uiContext.addInitScript(rawSession => {
+        if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
+      }, tokenState.raw_session);
+      await uiContext.route("**/api/v1/auth/me", async route => route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
+      }));
+      await uiContext.route("**/api/v1/journal/accounts", async route => route.fulfill({
+        status: 200, contentType: "application/json", body: JSON.stringify({ data: uiAccounts }),
+      }));
+      await uiContext.route("**/api/v1/journal/accounts/*/risk-policy", async route => {
+        const accountId = new URL(route.request().url()).pathname.split("/").at(-2);
+        const current = uiPolicies.get(accountId);
+        if (!current) return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found" } }) });
+        if (route.request().method() === "GET") {
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(current) });
+        }
+        if (route.request().method() === "PUT") {
+          const policy = route.request().postDataJSON();
+          const next = { policy, version: current.version + 1, updated_at: new Date().toISOString() };
+          uiPolicies.set(accountId, next);
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(next) });
+        }
+        return route.fulfill({ status: 405, body: "Method not allowed" });
+      });
+
+      const policyPage = await uiContext.newPage();
+      const policyPageErrors = [];
+      policyPage.on("pageerror", error => policyPageErrors.push(error.message));
+      const policyPageResponse = await policyPage.goto(`${frontendUrl}/risk/policies`, { waitUntil: "networkidle", timeout: 45_000 });
+      assert.equal(policyPageResponse?.status(), 200, "Risk Policies route failed in the PR Worker preview.");
+      await policyPage.getByRole("heading", { name: "Account Risk Policies" }).waitFor();
+      const policyNameInput = policyPage.getByLabel(/Policy name/);
+      await policyNameInput.waitFor();
+      assert.equal(await policyNameInput.inputValue(), "Existing funded policy A", "Existing policy was not loaded into the editor.");
+
+      const savedName = `Acceptance saved policy ${Date.now()}`;
+      await policyNameInput.fill(savedName);
+      await policyPage.getByRole("button", { name: "Save policy" }).click();
+      await policyPage.getByText("Policy saved successfully").waitFor();
+      assert.equal(uiPolicies.get("risk-acceptance-a").policy.profile_name, savedName, "UI save did not update the account-scoped policy fixture.");
+      assert.equal(uiPolicies.get("risk-acceptance-a").version, 5, "UI save did not advance the policy version.");
+
+      await policyPage.reload({ waitUntil: "networkidle" });
+      await policyPage.getByRole("heading", { name: "Account Risk Policies" }).waitFor();
+      assert.equal(await policyPage.getByLabel(/Policy name/).inputValue(), savedName, "Saved policy did not repopulate after a full page reload.");
+
+      const accountSelect = policyPage.getByLabel("Trading account");
+      await accountSelect.selectOption("risk-acceptance-b");
+      await policyPage.waitForFunction(() => {
+        const input = [...document.querySelectorAll("input")].find(el => el.placeholder === "e.g. Funded account — conservative");
+        return Boolean(input && input.value === "Existing personal policy B");
+      }, { timeout: 15_000 }).catch(async () => {
+        await policyPage.getByLabel(/Policy name/).waitFor();
+        assert.equal(await policyPage.getByLabel(/Policy name/).inputValue(), "Existing personal policy B", "Second account policy did not load independently.");
+      });
+      assert.equal(await policyPage.getByLabel(/Policy name/).inputValue(), "Existing personal policy B", "Second account policy did not load independently.");
+      await accountSelect.selectOption("risk-acceptance-a");
+      await policyPage.waitForFunction(expected => {
+        const input = [...document.querySelectorAll("input")].find(el => el.value === expected);
+        return Boolean(input);
+      }, savedName, { timeout: 15_000 });
+      assert.equal(await policyPage.getByLabel(/Policy name/).inputValue(), savedName, "Switching accounts lost the first account's saved policy.");
+
+      for (const viewport of viewports) {
+        await policyPage.setViewportSize({ width: viewport.width, height: viewport.height });
+        await policyPage.waitForTimeout(150);
+        const dimensions = await policyPage.evaluate(() => ({
+          viewportWidth: window.innerWidth,
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+        }));
+        assert.ok(
+          dimensions.documentWidth <= dimensions.viewportWidth && dimensions.bodyWidth <= dimensions.viewportWidth,
+          `Risk Policies horizontal overflow at ${viewport.name}: ${JSON.stringify(dimensions)}`,
+        );
+        await policyPage.screenshot({ path: `${artifactDir}/risk-policy-${viewport.name}.png`, fullPage: true });
+        console.log(`PASS risk-policy UI ${viewport.name}: loaded account policy, no horizontal overflow.`);
+      }
+      assert.deepEqual(policyPageErrors, [], `Risk Policies browser errors: ${policyPageErrors.join("; ")}`);
+      console.log("PASS risk-policy UI acceptance: existing policy load, account isolation, save, reload persistence and six responsive viewport screenshots.");
+    } finally {
+      await uiContext.close();
     }
   } finally {
     if (accessToken) {
