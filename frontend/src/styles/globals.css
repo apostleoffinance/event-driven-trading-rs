@@ -1941,7 +1941,10 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .risk-preview-checks { padding:14px 0; border-bottom:1px solid var(--border); }
 .risk-preview-checks .risk-subheading { margin:0 0 10px; }
 .risk-check { display:flex; align-items:center; gap:8px; margin:8px 0; color:var(--text-muted); font-size:11px; }
-.risk-check>span { display:inline-flex; flex:0 0 17px; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; font-size:10px; font-weight:700; }
+.risk-check>span:first-child { display:inline-flex; flex:0 0 17px; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; font-size:10px; font-weight:700; }
+.risk-check>span:last-child { flex:1 1 auto; min-width:0; color:inherit; line-height:1.45; overflow-wrap:normal; word-break:normal; }
+.risk-policy-aside,.risk-preview,.risk-aside-help { min-width:0; width:100%; box-sizing:border-box; }
+.risk-check { align-items:flex-start; gap:9px; }
 .risk-check .check-ok { color:var(--positive); background:var(--positive-soft); }
 .risk-check .check-pending { color:var(--warning); background:var(--warning-soft); }
 .risk-preview-foot { display:flex; justify-content:space-between; gap:8px; padding-top:12px; color:var(--text-dim); font-size:11px; }
