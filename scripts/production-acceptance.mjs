@@ -702,13 +702,29 @@ try {
         const controls = [...document.querySelectorAll(".journal-playback-toolbar select")];
         return controls.length === 3 && controls[0].value === "H1";
       }, undefined, { timeout: 20_000 }).catch(async error => {
+        const state = await replayPage.evaluate(() => ({
+          url: location.href,
+          modal: document.querySelector(".trade-investigation-backdrop")?.innerText ?? null,
+          playback: document.querySelector(".journal-playback")?.innerText ?? null,
+          toolbarCount: document.querySelectorAll(".journal-playback-toolbar").length,
+          body: document.body.innerText.slice(-1800),
+        }));
         console.log("DEBUG replay market requests:", JSON.stringify(replayMarketRequests));
-        console.log("DEBUG replay modal state:", await dialog.innerText());
+        console.log("DEBUG replay page state:", JSON.stringify(state));
+        console.log("DEBUG replay readiness error:", error.message);
         throw error;
       });
       await playback.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 }).catch(async error => {
+        const state = await replayPage.evaluate(() => ({
+          url: location.href,
+          modal: document.querySelector(".trade-investigation-backdrop")?.innerText ?? null,
+          playback: document.querySelector(".journal-playback")?.innerText ?? null,
+          toolbarCount: document.querySelectorAll(".journal-playback-toolbar").length,
+          body: document.body.innerText.slice(-1800),
+        }));
         console.log("DEBUG replay market requests:", JSON.stringify(replayMarketRequests));
-        console.log("DEBUG replay modal state:", await dialog.innerText());
+        console.log("DEBUG replay page state:", JSON.stringify(state));
+        console.log("DEBUG replay chart error:", error.message);
         throw error;
       });
       await replayPage.waitForFunction(() => document.body.innerText.includes("2.00R"), { timeout: 20_000 });
