@@ -602,6 +602,114 @@ try {
       }
       assert.deepEqual(policyPageErrors, [], `Risk Policies browser errors: ${policyPageErrors.join("; ")}`);
       console.log("PASS risk-policy UI acceptance: existing policy load, account isolation, save, reload persistence and six responsive viewport screenshots.");
+    // Deterministic Analytics replay fixture. It verifies that the investigation
+    // opens the replay, fetches historical candles, saves excursions and refreshes
+    // the displayed metrics without modifying any production Journal trade.
+    const replayContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: "Africa/Lagos" });
+    try {
+      await replayContext.addInitScript(rawSession => {
+        if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
+      }, tokenState.raw_session);
+      const openedAt = "2026-11-12T10:00:00Z";
+      const closedAt = "2026-11-12T15:00:00Z";
+      const tradeId = "acceptance-replay-trade";
+      const account = { id: "acceptance-replay-account", name: "Replay fixture", currency: "USD", initial_balance: "1000", account_type: "demo", archived: false };
+      const candleRows = [
+        { timestamp_ms: Date.parse("2026-11-12T10:00:00Z"), open: 1.1200, high: 1.1208, low: 1.1190, close: 1.1195, volume: 100 },
+        { timestamp_ms: Date.parse("2026-11-12T11:00:00Z"), open: 1.1195, high: 1.1202, low: 1.1175, close: 1.1180, volume: 110 },
+        { timestamp_ms: Date.parse("2026-11-12T12:00:00Z"), open: 1.1180, high: 1.1190, low: 1.1160, close: 1.1168, volume: 120 },
+        { timestamp_ms: Date.parse("2026-11-12T13:00:00Z"), open: 1.1168, high: 1.1205, low: 1.1165, close: 1.1190, volume: 130 },
+        { timestamp_ms: Date.parse("2026-11-12T14:00:00Z"), open: 1.1190, high: 1.1210, low: 1.1185, close: 1.1188, volume: 140 },
+      ];
+      const tradeRecord = {
+        id: tradeId, journal_account_id: account.id, symbol: "EURUSD", direction: "short", status: "closed",
+        source: "manual", source_system: "Journal", opened_at: openedAt, closed_at: closedAt,
+        quantity: "0.01", entry_price: "1.1200", exit_price: "1.1169", stop_loss: "1.1220",
+        take_profit: "1.1140", gross_pnl: "31", commission: "0", swap: "0", other_fees: "0",
+        net_pnl: "31", pnl_currency: "USD", risk_amount: "20", r_multiple: "1.55", session: "London",
+        mfe_r: null, mae_r: null,
+      };
+      const metric = {
+        trade_id: tradeId, symbol: "EURUSD", direction: "short", session: "London", setup: "Acceptance",
+        opened_at: openedAt, closed_at: closedAt, net_pnl: "31", risk_amount: "20", realized_r: "1.55",
+        mfe_r: null, mae_r: null, mfe_source: null, mae_source: null, mfe_precision: null, mae_precision: null,
+        holding_seconds: 18000, mfe_capture_percent: null, profit_surrendered_r: null,
+        stop_loss_recorded: true, take_profit_recorded: true, entry_price: "1.1200", exit_price: "1.1169",
+        setup_valid: true, rules_followed: true, emotional_trade: false, mistake: false, discipline_score: 90,
+        psychology: { emotion_before: null, emotion_during: null, emotion_after: null, confidence: null, fear: null, fomo: null, frustration: null, revenge_intensity: null, boredom: null },
+      };
+      let excursionsSaved = null;
+      const makeAnalytics = () => ({
+        generated_at: new Date().toISOString(), trade_count: 1, wins: 1, losses: 0, breakeven: 0,
+        win_rate_percent: "100", gross_profit: "31", gross_loss: "0", net_profit: "31",
+        profit_factor: null, expectancy: "31", average_win: "31", average_loss: null, max_drawdown: "0",
+        average_r: "1.55", average_mfe_r: excursionsSaved ? "2" : null, average_mae_r: excursionsSaved ? "-0.5" : null,
+        mfe_coverage_count: excursionsSaved ? 1 : 0, mae_coverage_count: excursionsSaved ? 1 : 0,
+        risk_coverage_count: 1, risk_coverage_percent: "100", average_risk_amount: "20", maximum_risk_amount: "20",
+        risk_distribution: { minimum: "20", q1: "20", median: "20", q3: "20", maximum: "20", sample_count: 1 },
+        average_holding_seconds: 18000, median_holding_seconds: 18000, maximum_win_streak: 1, maximum_loss_streak: 0,
+        recovery_factor: null, average_mfe_capture_percent: excursionsSaved ? "77.5" : null, execution_coverage_count: 1,
+        trade_metrics: [{ ...metric, ...(excursionsSaved ? { mfe_r: "2", mae_r: "-0.5", mfe_source: "historical_candles", mae_source: "historical_candles", mfe_precision: "H1", mae_precision: "H1", mfe_capture_percent: "77.5", profit_surrendered_r: "0.45" } : {}) }],
+        equity_curve: [{ trade_id: tradeId, closed_at: closedAt, net_pnl: "31", equity: "31", drawdown: "0" }],
+        by_symbol: [{ key: "EURUSD", trades: 1, net_pnl: "31", win_rate_percent: "100", expectancy: "31" }],
+        by_session: [{ key: "London", trades: 1, net_pnl: "31", win_rate_percent: "100", expectancy: "31" }],
+        by_setup: [], by_weekday: [], by_hour_utc: [], by_day: [], by_month: [],
+        setup_valid_count: 1, rules_followed_count: 1, emotional_trade_count: 0, mistake_count: 0,
+        setup_valid_percent: "100", rules_followed_percent: "100", average_discipline_score: "90",
+        notice: "Acceptance fixture only.",
+      });
+      await replayContext.route("**/api/v1/**", async route => {
+        const request = route.request();
+        const url = new URL(request.url());
+        const pathname = url.pathname;
+        const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+        if (pathname.endsWith("/auth/me")) return json({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } });
+        if (pathname.endsWith("/journal/accounts")) return json({ data: [account] });
+        if (pathname.endsWith("/journal/analytics/saved-views")) return json({ data: [] });
+        if (pathname.endsWith("/journal/setups")) return json({ data: [] });
+        if (pathname.endsWith("/journal/analytics/summary")) return json({ data: makeAnalytics() });
+        if (pathname.endsWith("/journal/analytics/intelligence")) return json({ data: { trade_count: 1, wins: 1, losses: 0, breakeven: 0, win_rate_percent: 100, win_rate_confidence_95: null, sample_status: "insufficient_sample", minimum_sample_recommendation: 30, rule_adherence_percent: 100, rule_adherence_known_count: 1, valid_setup_percent: 100, valid_setup_known_count: 1, emotional_trade_count: 0, mistake_count: 0, average_discipline_score: 90, process_outcomes: { good_process_win: 1, good_process_loss: 0, poor_process_win: 0, poor_process_loss: 0 }, insights: [], notice: "Acceptance fixture." } });
+        if (pathname.endsWith("/journal/trades") && request.method() === "GET") return json({ data: [tradeRecord], pagination: { limit: 10, offset: 0 } });
+        if (pathname.endsWith("/journal/trades/" + tradeId + "/attachments")) return json({ data: [] });
+        if (pathname.endsWith("/journal/trades/" + tradeId + "/excursions") && request.method() === "PUT") {
+          excursionsSaved = request.postDataJSON();
+          return json({ data: { trade_id: tradeId, saved: true, precision: excursionsSaved.timeframe } });
+        }
+        if (pathname.endsWith("/journal/trades/" + tradeId) && request.method() === "GET") return json({ data: tradeRecord });
+        if (pathname.endsWith("/market-data/providers")) return json({ providers: [{ id: "biquote-live", name: "BiQuote Live (fixture)", status: { state: "available" } }] });
+        if (pathname.endsWith("/market-data/instruments")) return json({ instruments: [{ id: "EURUSD", symbol: "EUR/USD", default_provider: "biquote-live" }] });
+        if (pathname.endsWith("/market-data/candles")) {
+          assert.equal(url.searchParams.get("timeframe"), "H1", "Replay should start with the H1 history preset.");
+          return json({ candles: candleRows, count: candleRows.length, classification: "live", freshness: "historical", last_updated_at: closedAt });
+        }
+        return route.continue();
+      });
+      const replayPage = await replayContext.newPage();
+      const replayErrors = [];
+      replayPage.on("pageerror", error => replayErrors.push(error.message));
+      const response = await replayPage.goto(frontendUrl + "/analytics", { waitUntil: "networkidle", timeout: 45_000 });
+      assert.equal(response?.status(), 200, "Analytics replay fixture route failed.");
+      await replayPage.getByRole("heading", { name: "Analytics Lab" }).waitFor();
+      await replayPage.getByRole("button", { name: "EURUSD" }).first().click();
+      const dialog = replayPage.getByRole("dialog");
+      await dialog.getByRole("heading", { name: "Historical trade replay" }).waitFor();
+      await dialog.getByText("Replay ready").waitFor();
+      await dialog.getByLabel("Timeframe").selectOption("H1");
+      await dialog.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 });
+      await replayPage.waitForFunction(() => document.body.innerText.includes("2.00R"), { timeout: 20_000 });
+      assert.ok(excursionsSaved, "Historical replay did not persist the calculated MFE/MAE payload.");
+      assert.equal(excursionsSaved.timeframe, "H1");
+      assert.equal(excursionsSaved.candle_count, 5);
+      assert.equal(Number(excursionsSaved.mfe_r), 2);
+      assert.equal(Number(excursionsSaved.mae_r), -0.5);
+      await replayPage.getByText("historical_candles", { exact: true }).waitFor();
+      assert.deepEqual(replayErrors, [], "Analytics replay browser errors: " + replayErrors.join("; "));
+      await replayPage.screenshot({ path: artifactDir + "/analytics-trade-replay-fixture.png", fullPage: true });
+      console.log("PASS Analytics trade replay fixture: auto-expanded controls, H1 candles, chart rendering, persisted MFE/MAE and refreshed investigation metrics.");
+    } finally {
+      await replayContext.close();
+    }
+
     } finally {
       await uiContext.close();
     }
