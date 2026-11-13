@@ -5,11 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { journalApi, type JournalAccount, type JournalAnalytics } from "@/lib/api/journal";
 import { hasSession } from "@/lib/auth/session";
-import { EquityChart } from "@/components/charts/EquityChart";
+import { JournalEquityCurve } from "@/components/dashboard/JournalEquityCurve";
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { StatusBadge, orderTone, riskToneClass } from "@/components/data-display/StatusBadge";
 import { formatMoney, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
-import type { Account, Order, PortfolioSnapshot, Position, RiskOverview, TradingEvent, EquityPoint } from "@/types/domain";
+import type { Account, Order, PortfolioSnapshot, Position, RiskOverview, TradingEvent } from "@/types/domain";
 
 type Period = "7d" | "30d" | "90d" | "ytd" | "all";
 type WidgetKey = "performance" | "risk" | "accounts" | "positions" | "activity" | "orders";
@@ -90,9 +90,6 @@ export function DashboardWorkspace({
       maxDrawdown: commonCurrency ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
   }, [ready, commonCurrency]);
   const selectedAccountData = activeAccounts.length === 1 ? ready[0] : null;
-  const equitySeries: EquityPoint[] = (selectedAccountData?.equity_curve ?? []).map(point => ({
-    time: point.closed_at, equity: point.equity, realizedPnl: point.net_pnl, drawdownPct: Math.abs(finite(point.drawdown)),
-  }));
   const isVisible = (key: WidgetKey) => visible.includes(key);
   const toggleWidget = (key: WidgetKey) => setVisible(current => current.includes(key) ? current.filter(x => x !== key) : [...current, key]);
   const persistLayouts = (next: SavedLayout[]) => { setLayouts(next); try { window.localStorage.setItem(LAYOUTS_KEY, JSON.stringify(next)); } catch { setLayoutMessage("Could not save layouts in this browser."); } };
@@ -145,7 +142,7 @@ export function DashboardWorkspace({
       <article className="panel dashboard-panel dashboard-performance">
         <div className="dashboard-panel-heading"><div><h2>Performance overview</h2><p>{selectedAccountData ? activeAccounts[0]?.name + " · " + (range.from ? range.from + " to " + range.to : "All time") : "Select a single account to inspect its equity curve."}</p></div><Link href="/analytics" className="dashboard-text-link">Open Analytics Lab ↗</Link></div>
         {analyticsQueries.some(q=>q.isLoading) ? <div className="dashboard-chart-empty">Calculating Journal performance…</div> :
-          selectedAccountData && equitySeries.length ? <EquityChart series={equitySeries}/> :
+          selectedAccountData && selectedAccountData.equity_curve.length ? <JournalEquityCurve analytics={selectedAccountData} currency={activeAccounts[0]?.currency || "USD"}/> :
           <div className="dashboard-chart-empty"><strong>{activeAccounts.length === 0 ? "No Journal accounts yet" : activeAccounts.length > 1 ? "Account comparison" : "No equity history for this period"}</strong><span>{activeAccounts.length > 1 ? "Choose an account above to view its equity curve. Account currencies are kept separate." : "Record or import closed trades to build your performance history."}</span>{activeAccounts.length === 0 ? <Link href="/journal" className="btn primary">Create Journal account</Link> : null}</div>}
       </article>
       {isVisible("risk") ? <article className="panel dashboard-panel dashboard-risk">
@@ -164,7 +161,7 @@ export function DashboardWorkspace({
       {accountsQuery.isLoading ? <p className="muted">Loading accounts…</p> : journalAccounts.length ? <div className="dashboard-account-grid">{journalAccounts.map(account=>{
         const index=activeAccounts.findIndex(a=>a.id===account.id); const query=index>=0?analyticsQueries[index]:undefined; const stats=query?.data;
         return <button type="button" className={"dashboard-account-card"+(selectedAccount===account.id?" selected":"")} key={account.id} onClick={()=>setSelectedAccount(selectedAccount===account.id?"all":account.id)}>
-          <div className="dashboard-account-top"><div><strong>{account.name}</strong><span>{accountSummaryLabel(account)}</span></div><StatusBadge tone={query?.isError?"warning":query?.isLoading||!stats?"neutral":"success"}>{query?.isError?"Unavailable":query?.isLoading||!stats?"Loading":"Journal only"}</StatusBadge></div>
+          <div className="dashboard-account-top"><div><strong>{account.name}</strong><span>{accountSummaryLabel(account)}</span></div><StatusBadge tone={query?.isError?"warn":query?.isLoading||!stats?"info":"ok"}>{query?.isError?"Unavailable":query?.isLoading||!stats?"Loading":"Journal only"}</StatusBadge></div>
           <div className="dashboard-account-metrics"><div><small>Closed trades</small><strong>{stats?.trade_count ?? "—"}</strong></div><div><small>Net P&amp;L</small><strong className={stats ? finite(stats.net_profit)>=0?"pos":"neg":""}>{stats?money(stats.net_profit,account.currency):"—"}</strong></div><div><small>Win rate</small><strong>{stats?.win_rate_percent == null?"—":Number(stats.win_rate_percent).toFixed(1)+"%"}</strong></div></div>
           <span className="dashboard-account-footer">{selectedAccount===account.id?"Selected · click to clear":"View account performance →"}</span>
         </button>;
