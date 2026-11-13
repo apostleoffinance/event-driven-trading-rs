@@ -418,8 +418,9 @@ export default function AnalyticsLabPage() {
             {selectedTradeAttachments.data.map(item => {
               const url = selectedTradeAttachmentUrls.data?.[item.id] ?? "";
               const stage = item.attachment_type === "before" ? "Before trade" : item.attachment_type === "after" ? "After trade" : "Trade evidence";
+              const isImage = (item.content_type ?? "").startsWith("image/") || /\\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(item.original_filename ?? item.storage_key);
               return <article className="trade-evidence-card" key={item.id}>
-                {url && (item.content_type ?? "").startsWith("image/") ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${item.original_filename || stage} in full size`}><img src={url} alt={item.original_filename || stage} loading="lazy" /></a> : <div className="trade-evidence-placeholder">{selectedTradeAttachmentUrls.isLoading ? "Preparing secure preview…" : "Preview unavailable"}</div>}
+                {url && isImage ? <a href={url} target="_blank" rel="noreferrer" aria-label={`Open ${item.original_filename || stage} in full size`}><img src={url} alt={item.original_filename || stage} loading="lazy" /></a> : <div className="trade-evidence-placeholder">{selectedTradeAttachmentUrls.isLoading ? "Preparing secure preview…" : "Preview unavailable"}</div>}
                 <div className="trade-evidence-meta"><strong>{stage}</strong><span>{item.original_filename || "Screenshot"}</span>{url ? <a href={url} target="_blank" rel="noreferrer">Open full size</a> : null}</div>
               </article>;
             })}
