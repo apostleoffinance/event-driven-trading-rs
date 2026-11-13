@@ -78,7 +78,7 @@ export function DashboardWorkspace({
   const currencies = [...new Set(activeAccounts.map(a => a.currency))];
   const commonCurrency = currencies.length === 1 ? currencies[0] : null;
   const totals = useMemo(() => {
-    const complete = activeQueryResults.length === activeAccounts.length && activeQueryResults.every(q => Boolean(q?.data));
+    const complete = !accountsQuery.isLoading && !accountsQuery.error && activeQueryResults.length === activeAccounts.length && activeQueryResults.every(q => Boolean(q?.data));
     const sum = (key: "trade_count" | "wins" | "losses" | "breakeven") => ready.reduce((n, x) => n + x[key], 0);
     const grossProfit = ready.reduce((n, x) => n + finite(x.gross_profit), 0);
     const grossLoss = ready.reduce((n, x) => n + Math.abs(finite(x.gross_loss)), 0);
@@ -90,7 +90,7 @@ export function DashboardWorkspace({
       profitFactor: complete && commonCurrency ? (grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : null) : null,
       grossProfit, grossLoss,
       maxDrawdown: complete && commonCurrency && trades > 0 ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
-  }, [ready, commonCurrency]);
+  }, [ready, commonCurrency, activeQueryResults, activeAccounts, accountsQuery.isLoading, accountsQuery.error]);
   const selectedAccountData = activeAccounts.length === 1 ? activeQueryResults[0]?.data : null;
   const isVisible = (key: WidgetKey) => visible.includes(key);
   const toggleWidget = (key: WidgetKey) => setVisible(current => current.includes(key) ? current.filter(x => x !== key) : [...current, key]);
@@ -129,7 +129,7 @@ export function DashboardWorkspace({
       {layoutMessage?<p className="dashboard-inline-message" role="status">{layoutMessage}</p>:null}
     </section> : null}
 
-    {error ? <section className="panel dashboard-alert" role="alert"><strong>Execution data unavailable</strong><p>{error}</p></section> : null}
+    {error ? <section className="panel dashboard-alert" role="alert"><strong>Execution data unavailable</strong><p>{error}</p><button className="btn" type="button" onClick={()=>window.location.reload()}>Retry execution data</button></section> : null}
     {accountsQuery.error ? <section className="panel dashboard-alert" role="alert"><strong>Journal accounts could not be loaded.</strong><button className="btn" onClick={()=>void accountsQuery.refetch()}>Retry</button></section> : null}
 
     <section className="dashboard-kpis" aria-label="Journal performance summary">
