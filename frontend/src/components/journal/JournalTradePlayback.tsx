@@ -53,7 +53,10 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const persistedExcursionRef = useRef<string>("");
   const openedTimestampMs = new Date(trade.opened_at).getTime();
-  const isClosedTrade = String(trade.status).toLowerCase() === "closed" && Boolean(trade.closed_at) && Number.isFinite(openedTimestampMs) && new Date(trade.closed_at || "").getTime() > openedTimestampMs;
+  // A valid close timestamp is the authoritative replay prerequisite. The Analytics
+  // investigation already selects closed-trade facts; imported APIs may serialize
+  // status labels differently, so do not let a status-label mismatch hide replay.
+  const isClosedTrade = Boolean(trade.closed_at) && Number.isFinite(openedTimestampMs) && new Date(trade.closed_at || "").getTime() > openedTimestampMs;
   const closeTimestampMs = new Date(trade.closed_at || "").getTime();
   const closeIsInFuture = isClosedTrade && Number.isFinite(closeTimestampMs) && closeTimestampMs > Date.now() + 60_000;
 
