@@ -608,7 +608,7 @@ try {
     // Deterministic Analytics replay fixture. It verifies that the investigation
     // opens the replay, fetches historical candles, saves excursions and refreshes
     // the displayed metrics without modifying any production Journal trade.
-    const replayContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: "Africa/Lagos" });
+    const replayContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: "Africa/Lagos", locale: "en-US" });
     try {
       await replayContext.addInitScript(rawSession => {
         if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
