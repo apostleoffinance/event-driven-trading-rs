@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -30,7 +30,7 @@ function MetricCard({ label, value, detail, tone = "neutral", progress }: {
   </article>;
 }
 
-function PanelHeading({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+function PanelHeading({ eyebrow, title, action }: { eyebrow: string; title: string; action?: ReactNode }) {
   return <div className="risk-center-panel-heading"><div><span>{eyebrow}</span><h2>{title}</h2></div>{action}</div>;
 }
 
@@ -124,7 +124,7 @@ export default function RiskPage() {
                   <div><small>MAX DRAWDOWN</small><strong>{policy ? limit(policy.max_total_drawdown_pct) : "—"}</strong></div>
                   <div><small>MIN. R:R</small><strong>{policy?.minimum_rr == null ? "—" : `${policy.minimum_rr.toFixed(2)}R`}</strong></div>
                 </div>
-                <div className="risk-policy-state">{loading ? <StatusBadge tone="UNKNOWN">Loading</StatusBadge> : error ? <StatusBadge tone="ERROR">Unavailable</StatusBadge> : configured ? <StatusBadge tone="HEALTHY">Saved · v{envelope?.version}</StatusBadge> : <StatusBadge tone="WARNING">Needs setup</StatusBadge>}<small>{tradingAccount ? `Linked · ${tradingAccount.name}` : account.linked_trading_account_id ? "Trading link unavailable" : "Journal only"}</small></div>
+                <div className="risk-policy-state">{loading ? <StatusBadge tone="warn">Loading</StatusBadge> : error ? <StatusBadge tone="bad">Unavailable</StatusBadge> : configured ? <StatusBadge tone="HEALTHY">Saved · v{envelope?.version}</StatusBadge> : <StatusBadge tone="warn">Needs setup</StatusBadge>}<small>{tradingAccount ? `Linked · ${tradingAccount.name}` : account.linked_trading_account_id ? "Trading link unavailable" : "Journal only"}</small></div>
                 <Link className="risk-policy-open" href="/risk/policies" aria-label={`Edit risk policy for ${account.name}`}>↗</Link>
               </article>;
             })}
@@ -137,7 +137,7 @@ export default function RiskPage() {
         <section className="panel risk-center-panel">
           <PanelHeading eyebrow="CONTROL STATUS" title="Risk readiness" />
           <div className="risk-readiness-row"><span>Execution engine</span><StatusBadge tone={overview ? riskToneClass(overview.tone) : "UNKNOWN"}>{overview?.engineStatus ?? "Unavailable"}</StatusBadge></div>
-          <div className="risk-readiness-row"><span>Kill switch</span><StatusBadge tone={overview?.killSwitch ? "BREACH" : "HEALTHY"}>{overview?.killSwitch ? "Active" : "Off"}</StatusBadge></div>
+          <div className="risk-readiness-row"><span>Kill switch</span><StatusBadge tone={overview?.killSwitch ? "bad" : "ok"}>{overview?.killSwitch ? "Active" : "Off"}</StatusBadge></div>
           <div className="risk-readiness-row"><span>Account policies saved</span><strong>{configuredPolicies.length} / {journalAccounts.length}</strong></div>
           <div className="risk-readiness-row"><span>Policies needing setup</span><strong>{needsReview.length}</strong></div>
           <div className="risk-readiness-row"><span>Trading accounts linked</span><strong>{linkedAccounts} / {journalAccounts.length}</strong></div>
@@ -164,7 +164,7 @@ export default function RiskPage() {
             <div><small>ENTRY / MARK</small><strong>{position.entryPrice} / {position.markPrice}</strong></div>
             <div><small>EXPOSURE</small><strong>{formatMoney(position.exposure)}</strong></div>
             <div><small>UNREALIZED P&amp;L</small><strong className={amount(position.unrealizedPnl) >= 0 ? "pos" : "neg"}>{formatSignedMoney(position.unrealizedPnl)}</strong></div>
-            <StatusBadge tone="UNKNOWN">{position.riskPct == null ? "Stop risk N/A" : `${position.riskPct.toFixed(2)}% risk`}</StatusBadge>
+            <StatusBadge tone={position.riskPct == null ? "warn" : "info"}>{position.riskPct == null ? "Stop risk N/A" : `${position.riskPct.toFixed(2)}% risk`}</StatusBadge>
           </div>)}
         </div>
       )}
