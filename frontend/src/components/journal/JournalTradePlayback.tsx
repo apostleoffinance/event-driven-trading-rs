@@ -28,7 +28,7 @@ function normalizeCandles(candles: Candle[]): ReplayCandle[] {
 }
 
 function timeLabel(time: Time): string {
-  return new Date(Number(time) * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return new Date(Number(time) * 1000).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
 }
 
 function movementPips(symbol: string, entry: number, current: number, direction: JournalTrade["direction"]): number | null {
