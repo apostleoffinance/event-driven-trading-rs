@@ -292,7 +292,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       {!isClosedTrade ? <p className="muted">Replay is available for closed trades with valid entry and exit timestamps.</p> : null}
       {closeIsInFuture ? <div className="panel error" role="status">
         <strong>Recorded close time is in the future.</strong>
-        <p>The trade is marked closed at {new Date(closeTimestampMs).toLocaleString()}. Historical MFE and MAE cannot be calculated for a period that has not happened yet. Correct the close date/time in Journal, or wait until the recorded close time has passed.</p>
+        <p>The trade is marked closed at {new Date(closeTimestampMs).toLocaleString("en-GB", { timeZone: "UTC" })}. Historical MFE and MAE cannot be calculated for a period that has not happened yet. Correct the close date/time in Journal, or wait until the recorded close time has passed.</p>
       </div> : null}
       {isExpanded && isClosedTrade ? (
         <div className="journal-playback-body">
