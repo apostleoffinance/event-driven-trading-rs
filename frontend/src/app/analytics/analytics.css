@@ -467,3 +467,60 @@
   .analytics-page .analytics-insight-item-head > strong { grid-column: 1 / -1; text-align: left; }
   .analytics-page .analytics-insight-rank { text-align: right; }
 }
+
+/* Trade investigation evidence and historical replay */
+
+.trade-investigation-replay .journal-playback {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.trade-investigation-replay .journal-playback-body {
+  min-width: 0;
+}
+.trade-investigation-replay .journal-playback-chart {
+  width: 100%;
+  min-width: 0;
+}
+.trade-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.trade-evidence-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.trade-evidence-card > a:first-child,
+.trade-evidence-placeholder {
+  display: grid;
+  width: 100%;
+  min-height: 150px;
+  place-items: center;
+  background: var(--bg-2);
+}
+.trade-evidence-card img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+.trade-evidence-placeholder {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.trade-evidence-meta {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+}
+.trade-evidence-meta strong { font-size: 12px; }
+.trade-evidence-meta span { color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.trade-evidence-meta a { width: fit-content; font-size: 11px; font-weight: 650; }
+@media (max-width: 520px) {
+  .trade-evidence-grid { grid-template-columns: 1fr; }
+}
