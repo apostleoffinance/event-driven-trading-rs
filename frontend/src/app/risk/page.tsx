@@ -16,8 +16,14 @@ const amount = (value: string | number | null | undefined) => {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
 };
-const pct = (value: number | null | undefined) => value == null ? "—" : `${value.toFixed(2)}%`;
-const limit = (value: number | null | undefined) => value == null ? "Not set" : `${value.toFixed(2)}%`;
+const numeric = (value: unknown): number | null => {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const pct = (value: unknown) => { const parsed = numeric(value); return parsed == null ? "—" : `${parsed.toFixed(2)}%`; };
+const limit = (value: unknown) => { const parsed = numeric(value); return parsed == null ? "Not set" : `${parsed.toFixed(2)}%`; };
+const fixed = (value: unknown, digits = 2, suffix = "") => { const parsed = numeric(value); return parsed == null ? "—" : `${parsed.toFixed(digits)}${suffix}`; };
 
 function MetricCard({ label, value, detail, tone = "neutral", progress }: {
   label: string; value: string; detail: string; tone?: "neutral" | "good" | "warning" | "danger"; progress?: number | null;
@@ -100,7 +106,7 @@ export default function RiskPage() {
       <MetricCard label="RISK ENGINE" value={overview?.engineStatus ?? "Unavailable"} detail={overview?.killSwitch ? "Trading halt is active" : "Execution service state"} tone={engineTone} />
       <MetricCard label="DAILY LOSS" value={pct(overview?.dailyLossPct)} detail={overview?.dailyLossLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.dailyLossLimitPct)}`} tone={dailyUtilization != null && dailyUtilization >= 80 ? "danger" : "neutral"} progress={dailyUtilization} />
       <MetricCard label="MAX DRAWDOWN" value={pct(overview?.maxDrawdownPct)} detail={overview?.maxDrawdownLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.maxDrawdownLimitPct)}`} tone={drawdownUtilization != null && drawdownUtilization >= 80 ? "warning" : "neutral"} progress={drawdownUtilization} />
-      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatMoney(portfolio.grossExposure) : "—"} detail={portfolio ? `${portfolio.exposurePct.toFixed(1)}% of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} />
+      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatMoney(portfolio.grossExposure) : "—"} detail={portfolio ? `${fixed(portfolio.exposurePct, 1, "%")} of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} />
     </section>
 
     {overview?.killSwitch ? <div className="risk-center-alert danger" role="alert"><strong>Trading kill switch is active.</strong><span>New execution may be blocked by the risk engine. Review the engine and account controls before resuming.</span></div> : null}
@@ -117,12 +123,12 @@ export default function RiskPage() {
               const tradingAccount = tradingAccounts.find(item => item.id === account.linked_trading_account_id);
               const configured = (envelope?.version ?? 0) > 0;
               return <article className="risk-policy-row" key={account.id}>
-                <div className="risk-policy-identity"><span className="risk-policy-avatar">{account.name.slice(0, 1).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.broker || "Journal"} · {account.account_type} · {account.currency}</small></div></div>
+                <div className="risk-policy-identity"><span className="risk-policy-avatar">{String(account.name ?? "?").slice(0, 1).toUpperCase()}</span><div><strong>{account.name || "Unnamed account"}</strong><small>{account.broker || "Journal"} · {account.account_type} · {account.currency}</small></div></div>
                 <div className="risk-policy-limits">
                   <div><small>PER TRADE</small><strong>{policy ? `${policy.risk_per_trade_pct}%` : "—"}</strong></div>
                   <div><small>DAILY LOSS</small><strong>{policy ? limit(policy.max_daily_loss_pct) : "—"}</strong></div>
                   <div><small>MAX DRAWDOWN</small><strong>{policy ? limit(policy.max_total_drawdown_pct) : "—"}</strong></div>
-                  <div><small>MIN. R:R</small><strong>{policy?.minimum_rr == null ? "—" : `${policy.minimum_rr.toFixed(2)}R`}</strong></div>
+                  <div><small>MIN. R:R</small><strong>{policy?.minimum_rr == null ? "—" : `${fixed(policy.minimum_rr, 2, "R")}`}</strong></div>
                 </div>
                 <div className="risk-policy-state">{loading ? <StatusBadge tone="warn">Loading</StatusBadge> : error ? <StatusBadge tone="bad">Unavailable</StatusBadge> : configured ? <StatusBadge tone="ok">Saved · v{envelope?.version}</StatusBadge> : <StatusBadge tone="warn">Needs setup</StatusBadge>}<small>{tradingAccount ? `Linked · ${tradingAccount.name}` : account.linked_trading_account_id ? "Trading link unavailable" : "Journal only"}</small></div>
                 <Link className="risk-policy-open" href="/risk/policies" aria-label={`Edit risk policy for ${account.name}`}>↗</Link>
@@ -159,12 +165,12 @@ export default function RiskPage() {
       {positionsQ.isLoading ? <div className="loading">Loading positions…</div> : positionsQ.isError ? <div className="error">Open positions are unavailable.</div> : positions.length === 0 ? <div className="risk-center-empty compact"><strong>No open positions</strong><span>Open exposure will appear here when positions are available.</span></div> : (
         <div className="risk-center-position-list">
           {positions.slice(0, 8).map((position: Position) => <div className="risk-center-position-row" key={position.id}>
-            <div><strong>{position.instrumentId}</strong><small>{position.side} · {position.accountId.slice(0, 12)}</small></div>
+            <div><strong>{position.instrumentId}</strong><small>{position.side} · {String(position.accountId ?? "Unknown").slice(0, 12)}</small></div>
             <div><small>QUANTITY</small><strong>{formatQuantity(position.quantity)}</strong></div>
             <div><small>ENTRY / MARK</small><strong>{position.entryPrice} / {position.markPrice}</strong></div>
             <div><small>EXPOSURE</small><strong>{formatMoney(position.exposure)}</strong></div>
             <div><small>UNREALIZED P&amp;L</small><strong className={amount(position.unrealizedPnl) >= 0 ? "pos" : "neg"}>{formatSignedMoney(position.unrealizedPnl)}</strong></div>
-            <StatusBadge tone={position.riskPct == null ? "warn" : "info"}>{position.riskPct == null ? "Stop risk N/A" : `${position.riskPct.toFixed(2)}% risk`}</StatusBadge>
+            <StatusBadge tone={position.riskPct == null ? "warn" : "info"}>{position.riskPct == null ? "Stop risk N/A" : `${fixed(position.riskPct, 2, "%")} risk`}</StatusBadge>
           </div>)}
         </div>
       )}
