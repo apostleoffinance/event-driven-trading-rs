@@ -9,7 +9,7 @@ import { riskDecisionTone, riskToneClass, StatusBadge } from "@/components/data-
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatMoney, formatQuantity, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
-import { journalApi, type JournalAccount, type JournalRiskPolicyEnvelope } from "@/lib/api/journal";
+import { journalApi, type JournalRiskPolicyEnvelope } from "@/lib/api/journal";
 import type { Position, RiskDecisionRecord } from "@/types/domain";
 
 const amount = (value: string | number | null | undefined) => {
