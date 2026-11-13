@@ -86,7 +86,7 @@ export function DashboardWorkspace({
     const trades = sum("trade_count"), wins = sum("wins");
     return { complete, trades, wins, losses: sum("losses"), breakeven: sum("breakeven"),
       winRate: complete && trades ? wins / trades * 100 : null,
-      netProfit: complete && commonCurrency ? netProfit : null,
+      netProfit: complete && commonCurrency && trades > 0 ? netProfit : null,
       profitFactor: complete && commonCurrency ? (grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : null) : null,
       grossProfit, grossLoss,
       maxDrawdown: complete && commonCurrency ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
@@ -140,7 +140,7 @@ export function DashboardWorkspace({
       <article className="panel dashboard-kpi"><span>MAX DRAWDOWN</span><strong>{totals.maxDrawdown == null ? "—" : money(totals.maxDrawdown, commonCurrency || "USD")}</strong><small>{totals.maxDrawdown == null ? "Unavailable across mixed currencies" : "Largest reported realized drawdown"}</small></article>
     </section>
 
-    {isVisible("performance") ? <section className="dashboard-main-grid">
+    {isVisible("performance") ? <section className={"dashboard-main-grid"+(!isVisible("risk")?" single":"")}>
       <article className="panel dashboard-panel dashboard-performance">
         <div className="dashboard-panel-heading"><div><h2>Performance overview</h2><p>{selectedAccountData ? activeAccounts[0]?.name + " · " + (range.from ? range.from + " to " + range.to : "All time") : "Select a single account to inspect its equity curve."}</p></div><Link href="/analytics" className="dashboard-text-link">Open Analytics Lab ↗</Link></div>
         {activeQueryResults.some(q=>q?.isLoading) ? <div className="dashboard-chart-empty">Calculating Journal performance…</div> :
@@ -154,7 +154,7 @@ export function DashboardWorkspace({
           <div className="dashboard-risk-row"><div><span>Daily loss utilisation</span><strong>{dailyUtil == null ? "—" : dailyUtil.toFixed(1)+"%"}</strong></div><div className="dashboard-meter"><i className={dailyUtil != null && dailyUtil >= 80 ? "danger" : dailyUtil != null && dailyUtil >= 50 ? "warning" : ""} style={{width: dailyUtil == null ? "0%" : dailyUtil+"%"}}/></div><small>{risk.dailyLossPct.toFixed(2)}% used · limit {risk.dailyLossLimitPct == null ? "not configured" : risk.dailyLossLimitPct.toFixed(2)+"%"}</small></div>
           <div className="dashboard-risk-row"><div><span>Max drawdown utilisation</span><strong>{drawdownUtil == null ? "—" : drawdownUtil.toFixed(1)+"%"}</strong></div><div className="dashboard-meter"><i style={{width: drawdownUtil == null ? "0%" : drawdownUtil+"%"}}/></div><small>{risk.maxDrawdownPct.toFixed(2)}% used · limit {risk.maxDrawdownLimitPct == null ? "not configured" : risk.maxDrawdownLimitPct.toFixed(2)+"%"}</small></div>
           <div className="dashboard-risk-facts"><div><span>Open risk</span><strong>{risk.openRiskPct == null ? "Unavailable" : risk.openRiskPct.toFixed(2)+"%"}</strong></div><div><span>Gross exposure</span><strong>{risk.exposurePct == null ? "Unavailable" : risk.exposurePct.toFixed(1)+"%"}</strong></div><div><span>Kill switch</span><strong>{risk.killSwitch ? "ON" : "OFF"}</strong></div></div>
-        </> : <div className="dashboard-chart-empty dashboard-risk-empty"><strong>No execution account connected</strong><span>Journal performance remains available above. Connect a broker account to populate live exposure, open risk and limit utilisation.</span><Link href="/accounts" className="btn primary">Connect account</Link></div>}
+        </> : executionConnected ? <div className="dashboard-chart-empty dashboard-risk-empty"><strong>Risk data unavailable</strong><span>An execution account exists, but the risk service has not returned a usable overview. Check the Risk Center and connection status.</span><Link href="/risk" className="btn">Open Risk Center</Link></div> : <div className="dashboard-chart-empty dashboard-risk-empty"><strong>No execution account connected</strong><span>Journal performance remains available above. Connect a broker account to populate live exposure, open risk and limit utilisation.</span><Link href="/accounts" className="btn primary">Connect account</Link></div>}
       </article> : null}
     </section> : null}
 
