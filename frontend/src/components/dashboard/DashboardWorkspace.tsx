@@ -12,7 +12,7 @@ import { formatMoney, formatPrice, formatQuantity, formatSignedMoney } from "@/l
 import type { Account, Order, PortfolioSnapshot, Position, RiskOverview, TradingEvent } from "@/types/domain";
 
 type Period = "7d" | "30d" | "90d" | "ytd" | "all";
-type WidgetKey = "performance" | "risk" | "accounts" | "positions" | "activity" | "orders";
+type WidgetKey = "performance" | "risk" | "execution" | "accounts" | "positions" | "activity" | "orders";
 type SavedLayout = { id: string; name: string; accountId: string; period: Period; visible: WidgetKey[] };
 const WIDGETS: { key: WidgetKey; label: string }[] = [
   { key: "performance", label: "Performance" }, { key: "risk", label: "Risk overview" }, { key: "execution", label: "Execution accounts" },
@@ -89,7 +89,7 @@ export function DashboardWorkspace({
       netProfit: complete && commonCurrency && trades > 0 ? netProfit : null,
       profitFactor: complete && commonCurrency ? (grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : null) : null,
       grossProfit, grossLoss,
-      maxDrawdown: complete && commonCurrency ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
+      maxDrawdown: complete && commonCurrency && trades > 0 ? Math.max(0, ...ready.map(x => Math.abs(finite(x.max_drawdown)))) : null };
   }, [ready, commonCurrency]);
   const selectedAccountData = activeAccounts.length === 1 ? activeQueryResults[0]?.data : null;
   const isVisible = (key: WidgetKey) => visible.includes(key);
@@ -142,7 +142,7 @@ export function DashboardWorkspace({
 
     {isVisible("performance") ? <section className={"dashboard-main-grid"+(!isVisible("risk")?" single":"")}>
       <article className="panel dashboard-panel dashboard-performance">
-        <div className="dashboard-panel-heading"><div><h2>Performance overview</h2><p>{selectedAccountData ? activeAccounts[0]?.name + " · " + (range.from ? range.from + " to " + range.to : "All time") : "Select a single account to inspect its equity curve."}</p></div><Link href="/analytics" className="dashboard-text-link">Open Analytics Lab ↗</Link></div>
+        <div className="dashboard-panel-heading"><div><h2>Performance overview</h2><p>{selectedAccountData ? activeAccounts[0]?.name + " · " + (range.from ? range.from + " to " + range.to : "All time") : "Select a single account to inspect cumulative realised P&L and drawdown."}</p></div><Link href="/analytics" className="dashboard-text-link">Open Analytics Lab ↗</Link></div>
         {activeQueryResults.some(q=>q?.isLoading) ? <div className="dashboard-chart-empty">Calculating Journal performance…</div> :
           selectedAccountData && selectedAccountData.equity_curve.length ? <JournalEquityCurve analytics={selectedAccountData} currency={activeAccounts[0]?.currency || "USD"}/> :
           <>{activeAccounts.length > 1 ? <div className="dashboard-account-comparison">{activeAccounts.map((account,index)=>{const stats=analyticsQueries[index]?.data;return <div className="dashboard-comparison-row" key={account.id}><div><strong>{account.name}</strong><small>{account.currency} · {stats?.trade_count ?? "—"} closed trades</small></div><strong className={stats?(finite(stats.net_profit)>=0?"pos":"neg"):""}>{stats?money(stats.net_profit,account.currency):"—"}</strong><button type="button" className="dashboard-text-link" onClick={()=>setSelectedAccount(account.id)}>Inspect ↗</button></div>;})}</div> : <div className="dashboard-chart-empty"><strong>{activeAccounts.length === 0 ? "No Journal accounts yet" : "No equity history for this period"}</strong><span>Record or import closed trades to build your performance history.</span>{activeAccounts.length === 0 ? <Link href="/journal" className="btn primary">Create Journal account</Link> : null}</div>}</>}
