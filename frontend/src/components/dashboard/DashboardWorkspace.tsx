@@ -30,7 +30,16 @@ function dateRange(period: Period): { from?: string; to?: string } {
   else if (period === "90d") from.setUTCDate(from.getUTCDate() - 90);
   else if (period === "ytd") { from.setUTCMonth(0, 1); from.setUTCHours(0, 0, 0, 0); }
   else return {};
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  // The Rust analytics API deserializes these query parameters as DateTime<Utc>.
+  // Date-only strings (YYYY-MM-DD) fail deserialization and make every account
+  // analytics query return 400, which the dashboard displays as "Unavailable".
+  // Send explicit UTC instants and include the full final day in the selected period.
+  const fromDate = from.toISOString().slice(0, 10);
+  const toDate = to.toISOString().slice(0, 10);
+  return {
+    from: `${fromDate}T00:00:00.000Z`,
+    to: `${toDate}T23:59:59.999Z`,
+  };
 }
 function money(value: string | number | null | undefined, currency = "USD") {
   if (value == null || !Number.isFinite(Number(value))) return "—";
