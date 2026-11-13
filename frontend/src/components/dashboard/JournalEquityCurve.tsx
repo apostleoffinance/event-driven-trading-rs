@@ -27,7 +27,8 @@ export function JournalEquityCurve({ analytics, currency }: { analytics: Journal
       }},
       xAxis: { type: "category", boundaryGap: false, data: points.map(p=>new Date(p.closed_at).toLocaleDateString()), axisLabel: { color: muted, hideOverlap: true }, axisLine: { lineStyle: { color: axis } } },
       yAxis: { type: "value", scale: true, axisLabel: { color: muted, formatter: (v:number)=>formatMoney(v,currency) }, splitLine: { lineStyle: { color: grid } } },
-      legend: { data: ["Cumulative realised P&L", "Drawdown from peak"], textStyle: { color: muted, fontSize: 11 }, top: 0 },\n      series: [{ name: "Cumulative realised P&L", type: "line", smooth: true, showSymbol: false, data: points.map(p=>moneyToNumber(p.equity)), lineStyle: { color: line, width: 2.5 }, areaStyle: { color: theme === "light" ? "rgba(31,111,235,0.09)" : "rgba(107,163,247,0.12)" } }, { name: "Drawdown from peak", type: "line", smooth: true, showSymbol: false, data: points.map(p=>moneyToNumber(p.drawdown)), lineStyle: { color: css("--chart-dd", "#c6283a"), width: 1.8 } }],
+      legend: { data: ["Cumulative realised P&L", "Drawdown from peak"], textStyle: { color: muted, fontSize: 11 }, top: 0 },
+      series: [{ name: "Cumulative realised P&L", type: "line", smooth: true, showSymbol: false, data: points.map(p=>moneyToNumber(p.equity)), lineStyle: { color: line, width: 2.5 }, areaStyle: { color: theme === "light" ? "rgba(31,111,235,0.09)" : "rgba(107,163,247,0.12)" } }, { name: "Drawdown from peak", type: "line", smooth: true, showSymbol: false, data: points.map(p=>moneyToNumber(p.drawdown)), lineStyle: { color: css("--chart-dd", "#c6283a"), width: 1.8 } }],
     };
   }, [analytics, currency, theme]);
   return <ReactECharts option={option} style={{height:280,width:"100%"}} opts={{renderer:"canvas"}} notMerge />;
