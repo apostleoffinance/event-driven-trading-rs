@@ -214,7 +214,6 @@ fn normalize_slug(
     })
 }
 
-
 /// Environment assertion supplied by a trusted registry/admission fact source.
 /// Broker-server environments are intentionally not mapped to Quant account
 /// environments (for example, Demo does not imply Paper).
@@ -516,7 +515,8 @@ pub fn evaluate_broker_admission(
                 .account_ref
                 .as_deref()
                 .filter(|value| !value.is_empty())
-                .is_none() {
+                .is_none()
+            {
                 deny(Deny::AccountBindingMissing);
             }
         }
@@ -566,7 +566,8 @@ pub fn evaluate_broker_admission(
         .evidence_ref
         .as_deref()
         .filter(|value| !value.is_empty())
-        .is_none() {
+        .is_none()
+    {
         deny(Deny::EvidenceMissing);
     }
     if evidence.external_account_ref.as_deref() != Some(request.account_ref.as_str())
@@ -579,7 +580,7 @@ pub fn evaluate_broker_admission(
         Some(AdmissionEvidenceAuthentication::Authenticated) => {}
         Some(AdmissionEvidenceAuthentication::Unauthenticated) | None => {
             deny(Deny::EvidenceUnauthenticated)
-        },
+        }
         Some(AdmissionEvidenceAuthentication::Unavailable) => deny(Deny::EvidenceUnauthenticated),
     }
     match evidence.validity {
@@ -588,7 +589,7 @@ pub fn evaluate_broker_admission(
         Some(AdmissionEvidenceValidity::Expired) => deny(Deny::EvidenceExpired),
         Some(AdmissionEvidenceValidity::RevokedOrSuperseded) => {
             deny(Deny::EvidenceRevokedOrSuperseded)
-        },
+        }
         Some(AdmissionEvidenceValidity::Conflict) => deny(Deny::EvidenceConflict),
         Some(AdmissionEvidenceValidity::Unavailable) | None => deny(Deny::EvidenceInvalid),
     }
