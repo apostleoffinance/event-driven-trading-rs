@@ -162,13 +162,7 @@ mod i1_tests {
     use identity_token::AccessClaims;
     use serde_json::Value;
     use std::collections::BTreeMap;
-    use std::sync::OnceLock;
-
-    static TEST_MIGRATIONS: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
-
     async fn migrate_test_database(pool: &PgPool) {
-        let lock = TEST_MIGRATIONS.get_or_init(|| tokio::sync::Mutex::new(()));
-        let _guard = lock.lock().await;
         persistence::migrate(pool).await.unwrap();
     }
 
