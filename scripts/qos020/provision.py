@@ -71,6 +71,9 @@ def main() -> int:
 
     try:
         ensure_unclaimed(run_id, project, volume, network)
+        # GitHub-hosted runners are ephemeral; fetch the exact immutable digest
+        # before inspecting it rather than assuming it is preloaded.
+        run(["docker", "pull", IMAGE])
         image_data = json.loads(run(["docker", "image", "inspect", IMAGE]))[0]
         if IMAGE not in (image_data.get("RepoDigests") or []):
             raise RuntimeError("pinned PostgreSQL digest is not available locally")
