@@ -55,6 +55,7 @@ fn lifecycle_status(value: Option<&str>) -> Option<AdmissionLifecycleStatus> {
 struct CatalogRow {
     broker_status: String,
     server_status: String,
+    provider_type: String,
     environment: String,
     broker_revision: i64,
     server_revision: i64,
@@ -96,6 +97,7 @@ struct EvidenceRow {
     observed_broker_id: Option<String>,
     observed_server_id: Option<String>,
     evidence_status: Option<String>,
+    evidence_provider_type: Option<String>,
     evidence_expires_at: Option<DateTime<Utc>>,
     evidence_revoked_at: Option<DateTime<Utc>>,
     grant_user_id: Option<String>,
@@ -145,6 +147,7 @@ pub async fn evaluate_persisted_broker_admission(
         .fetch_one(&mut *tx)
         .await?;
 
+    let mut catalog_provider_type: Option<String> = None;
     let mut facts = BrokerAdmissionFacts {
         registry_availability: Some(RegistryAvailability::Available),
         ..BrokerAdmissionFacts::default()
@@ -152,7 +155,7 @@ pub async fn evaluate_persisted_broker_admission(
 
     if let Some(row) = sqlx::query_as::<_, CatalogRow>(
         r#"SELECT b.status AS broker_status, s.status AS server_status,
-                  s.environment, b.revision AS broker_revision,
+                  s.provider_type, s.environment, b.revision AS broker_revision,
                   s.revision AS server_revision
              FROM brokers b
              JOIN broker_servers s ON s.broker_id = b.id
@@ -163,6 +166,7 @@ pub async fn evaluate_persisted_broker_admission(
     .fetch_optional(&mut *tx)
     .await?
     {
+        catalog_provider_type = Some(row.provider_type.clone());
         facts.broker = BrokerCatalogAdmissionFacts {
             broker_ref: Some(request.broker_ref.clone()),
             server_ref: Some(request.server_ref.clone()),
@@ -273,7 +277,8 @@ pub async fn evaluate_persisted_broker_admission(
                       v.authority_grant_id, v.authority_grant_revision,
                       e.external_broker_account_id AS observed_external_account_id,
                       e.observed_broker_id, e.observed_broker_server_id AS observed_server_id,
-                      e.evidence_status, e.expires_at AS evidence_expires_at,
+                      e.evidence_status, e.provider_type AS evidence_provider_type,
+                      e.expires_at AS evidence_expires_at,
                       e.revoked_at AS evidence_revoked_at,
                       g.user_id AS grant_user_id, g.permission AS grant_permission,
                       g.status AS grant_status, g.revision AS grant_revision,
@@ -292,11 +297,12 @@ pub async fn evaluate_persisted_broker_admission(
         .await?;
 
         if let Some(row) = evidence {
-            let now = snapshot_time;
+            let now = snapshot_time.clone();
             let identity_matches = row.observed_external_account_id.as_deref()
                 == Some(request.account_ref.as_str())
                 && row.observed_broker_id.as_deref() == Some(request.broker_ref.as_str())
-                && row.observed_server_id.as_deref() == Some(request.server_ref.as_str());
+                && row.observed_server_id.as_deref() == Some(request.server_ref.as_str())
+                && row.evidence_provider_type.as_deref() == catalog_provider_type.as_deref();
 
             let validity = if row.evidence_revoked_at.is_some()
                 || matches!(row.decision.as_str(), "REVOKED" | "SUSPENDED" | "REJECTED")
