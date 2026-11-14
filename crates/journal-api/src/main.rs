@@ -715,8 +715,8 @@ mod qos021a_e3a_r2_api_tests {
                 Some("api-viewer"),
                 Some("api-org-a"),
                 Some(
-                                    json!({"name":"Viewer account","initial_capital":"100","environment":"PAPER"})
-                                ),
+                    json!({"name":"Viewer account","initial_capital":"100","environment":"PAPER"})
+                ),
                 false
             )
             .await,
@@ -921,8 +921,8 @@ mod qos021a_e3a_r2_api_tests {
                 Some("api-owner-a"),
                 Some("api-org-a"),
                 Some(
-                                    json!({"expected_revision":1,"role":"ADMIN","status":"ACTIVE","reason":"stale"})
-                                ),
+                    json!({"expected_revision":1,"role":"ADMIN","status":"ACTIVE","reason":"stale"})
+                ),
                 false
             )
             .await,
