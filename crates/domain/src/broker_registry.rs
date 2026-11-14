@@ -481,14 +481,14 @@ pub fn evaluate_broker_admission(
     }
 
     let broker = &facts.broker;
-    if broker.broker_ref.as_deref().map_or(true, str::is_empty)
+    if broker.broker_ref.as_deref().filter(|value| !value.is_empty()).is_none()
         || broker.broker_status.is_none()
     {
         deny(Deny::UnknownBroker);
     } else if broker.broker_status != Some(BrokerRegistryStatus::Active) {
         deny(Deny::CatalogInactive);
     }
-    if broker.server_ref.as_deref().map_or(true, str::is_empty)
+    if broker.server_ref.as_deref().filter(|value| !value.is_empty()).is_none()
         || broker.server_status.is_none()
     {
         deny(Deny::UnknownServer);
@@ -502,14 +502,14 @@ pub fn evaluate_broker_admission(
     let account = &facts.external_account;
     match account.resolution {
         Some(AccountIdentityResolution::Unique) => {
-            if account.account_ref.as_deref().map_or(true, str::is_empty) {
+            if account.account_ref.as_deref().filter(|value| !value.is_empty()).is_none() {
                 deny(Deny::AccountBindingMissing);
             }
         }
         Some(AccountIdentityResolution::Ambiguous) => deny(Deny::AccountIdentityAmbiguous),
         Some(AccountIdentityResolution::Missing) | None => deny(Deny::AccountBindingMissing),
     }
-    if account.binding_ref.as_deref().map_or(true, str::is_empty)
+    if account.binding_ref.as_deref().filter(|value| !value.is_empty()).is_none()
         || account.binding_status != Some(BrokerBindingStatus::Verified)
     {
         deny(Deny::AccountBindingMissing);
@@ -524,19 +524,19 @@ pub fn evaluate_broker_admission(
     {
         deny(Deny::OrganizationInactive);
     }
-    if organization.membership_ref.as_deref().map_or(true, str::is_empty)
+    if organization.membership_ref.as_deref().filter(|value| !value.is_empty()).is_none()
         || organization.membership_status != Some(AdmissionLifecycleStatus::Active)
     {
         deny(Deny::MembershipMissingOrInactive);
     }
-    if organization.entitlement_ref.as_deref().map_or(true, str::is_empty)
+    if organization.entitlement_ref.as_deref().filter(|value| !value.is_empty()).is_none()
         || organization.entitlement_status != Some(AdmissionLifecycleStatus::Active)
     {
         deny(Deny::EntitlementMissingOrInactive);
     }
 
     let evidence = &facts.evidence;
-    if evidence.evidence_ref.as_deref().map_or(true, str::is_empty) {
+    if evidence.evidence_ref.as_deref().filter(|value| !value.is_empty()).is_none() {
         deny(Deny::EvidenceMissing);
     }
     if evidence.external_account_ref.as_deref() != Some(request.account_ref.as_str())
@@ -569,8 +569,8 @@ pub fn evaluate_broker_admission(
         | Some(WorkerAssignmentResolution::Unavailable)
         | None => deny(Deny::WorkerAssignmentMissingOrAmbiguous),
     }
-    if worker.worker_ref.as_deref().map_or(true, str::is_empty)
-        || worker.assignment_ref.as_deref().map_or(true, str::is_empty)
+    if worker.worker_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+        || worker.assignment_ref.as_deref().filter(|value| !value.is_empty()).is_none()
     {
         deny(Deny::WorkerAssignmentMissingOrAmbiguous);
     }
@@ -616,6 +616,7 @@ pub fn evaluate_broker_admission(
     if revisions.iter().any(|revision| !revision.is_consistent()) {
         deny(Deny::RevisionStaleOrInconsistent);
     }
+    drop(deny);
 
     if !denials.is_empty() {
         denials.sort();
