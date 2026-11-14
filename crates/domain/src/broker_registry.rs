@@ -452,7 +452,7 @@ pub enum BrokerAdmissionDenialReason {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BrokerAdmissionDecision {
-    Admitted(BrokerAdmissionPermit),
+    Admitted(Box<BrokerAdmissionPermit>),
     Denied(Vec<BrokerAdmissionDenialReason>),
 }
 
@@ -698,7 +698,7 @@ pub fn evaluate_broker_admission(
             worker_assignment: worker.revision.observed.unwrap_or_default(),
         },
     };
-    BrokerAdmissionDecision::Admitted(permit)
+    BrokerAdmissionDecision::Admitted(Box::new(permit))
 }
 
 #[cfg(test)]
