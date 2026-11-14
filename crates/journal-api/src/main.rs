@@ -405,16 +405,24 @@ mod qos021a_e3a_r2_api_tests {
             .unwrap();
     }
 
-    async fn request(
-        pool: &PgPool,
-        app: &Router,
+    struct TestRequest<'a> {
         method: Method,
-        path: &str,
-        subject: Option<&str>,
-        organization: Option<&str>,
+        path: &'a str,
+        subject: Option<&'a str>,
+        organization: Option<&'a str>,
         body: Option<Value>,
         expired: bool,
-    ) -> StatusCode {
+    }
+
+    async fn request(pool: &PgPool, app: &Router, input: TestRequest<'_>) -> StatusCode {
+        let TestRequest {
+            method,
+            path,
+            subject,
+            organization,
+            body,
+            expired,
+        } = input;
         let mut builder = Request::builder().method(method).uri(path);
         if let Some(subject) = subject {
             let expiration = if expired {
