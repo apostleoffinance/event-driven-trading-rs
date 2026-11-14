@@ -206,7 +206,7 @@ COMMENT ON TABLE broker_platform_authority_grants IS
 COMMENT ON TABLE broker_worker_assignments IS
     'Trusted, scoped assignment facts provisioned by an authorized control plane; worker_ref must be authenticated by the caller.';
 COMMENT ON TABLE broker_worker_sessions IS
-    'Append-only worker readiness assertions. A current READY row must have ready_until in the future.';
+    'Worker readiness assertions with close-only transitions. A READY row is current only until ready_until.';
 COMMENT ON COLUMN broker_account_evidence.expires_at IS
     'Required for R5-02 admission. NULL legacy evidence fails closed.';
 COMMENT ON COLUMN broker_account_verifications.authority_grant_id IS
