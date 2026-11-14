@@ -306,7 +306,7 @@ pub async fn evaluate_persisted_broker_admission(
         .await?;
 
         if let Some(row) = evidence {
-            let now = snapshot_time.clone();
+            let now = snapshot_time;
             let identity_matches = row.observed_external_account_id.as_deref()
                 == Some(request.account_ref.as_str())
                 && row.observed_broker_id.as_deref() == Some(request.broker_ref.as_str())
@@ -317,7 +317,7 @@ pub async fn evaluate_persisted_broker_admission(
                 || matches!(row.decision.as_str(), "REVOKED" | "SUSPENDED" | "REJECTED")
             {
                 AdmissionEvidenceValidity::RevokedOrSuperseded
-            } else if row.evidence_expires_at.map_or(true, |expiry| expiry <= now) {
+            } else if row.evidence_expires_at.is_none_or(|expiry| expiry <= now) {
                 AdmissionEvidenceValidity::Expired
             } else if !identity_matches {
                 AdmissionEvidenceValidity::Conflict
@@ -336,8 +336,8 @@ pub async fn evaluate_persisted_broker_admission(
                 && row.grant_permission.as_deref() == Some("BROKER_ACCOUNT_VERIFY")
                 && row.grant_status.as_deref() == Some("ACTIVE")
                 && row.user_active == Some(true)
-                && row.grant_valid_from.map_or(false, |start| start <= now)
-                && row.grant_valid_until.map_or(true, |expiry| expiry > now);
+                && row.grant_valid_from.is_some_and(|start| start <= now)
+                && row.grant_valid_until.is_none_or(|expiry| expiry > now);
 
             facts.evidence = EvidenceAdmissionFacts {
                 evidence_ref: row.evidence_id,
@@ -401,7 +401,7 @@ pub async fn evaluate_persisted_broker_admission(
 
         if let Some(row) = worker {
             let worker_matches = row.assigned_worker_ref == worker_ref;
-            let scope_matches = binding.as_ref().map_or(false, |binding| {
+            let scope_matches = binding.as_ref().is_some_and(|binding| {
                 row.organization_id == request.organization_ref
                     && row.quant_account_id == binding.quant_account_id
                     && row.binding_id == request.binding_ref
@@ -415,7 +415,7 @@ pub async fn evaluate_persisted_broker_admission(
                 && row.session_status.as_deref() == Some("READY")
                 && row
                     .session_ready_until
-                    .map_or(false, |until| until > snapshot_time);
+                    .is_some_and(|until| until > snapshot_time);
 
             facts.worker = WorkerAdmissionFacts {
                 worker_ref: assignment_matches.then_some(row.assigned_worker_ref),
