@@ -199,8 +199,14 @@ pub async fn evaluate_persisted_broker_admission(
             account_ref: Some(row.external_account_id.clone()),
             control: Some(if row.external_status == "ACTIVE"
                 && row.verification_status == "VERIFIED"
+                && row.broker_id == request.broker_ref
+                && row.broker_server_id == request.server_ref
             {
                 AccountControlState::Verified
+            } else if row.broker_id != request.broker_ref
+                || row.broker_server_id != request.server_ref
+            {
+                AccountControlState::Conflicting
             } else {
                 AccountControlState::Unverified
             }),
@@ -231,7 +237,7 @@ pub async fn evaluate_persisted_broker_admission(
     )
     .bind(&request.organization_ref)
     .bind(actor_ref)
-    .bind(&request.account_ref)
+    .bind(binding.as_ref().map(|row| row.quant_account_id.as_str()).unwrap_or(""))
     .fetch_optional(&mut *tx)
     .await?;
 
@@ -241,7 +247,7 @@ pub async fn evaluate_persisted_broker_admission(
             organization_status: lifecycle_status(Some(&row.organization_status)),
             membership_ref: row.membership_status.as_ref().map(|_| actor_ref.to_owned()),
             membership_status: lifecycle_status(row.membership_status.as_deref()),
-            entitlement_ref: row.entitlement_status.as_ref().map(|_| request.account_ref.clone()),
+            entitlement_ref: row.entitlement_status.as_ref().and_then(|_| binding.as_ref().map(|b| b.quant_account_id.clone())),
             entitlement_status: lifecycle_status(row.entitlement_status.as_deref()),
             organization_revision: revision(row.organization_revision),
             membership_revision: row.membership_revision.map(revision).unwrap_or_default(),
@@ -374,15 +380,24 @@ pub async fn evaluate_persisted_broker_admission(
 
         if let Some(row) = worker {
             let worker_matches = row.assigned_worker_ref == worker_ref;
-            let session_ready = worker_matches
+            let scope_matches = binding.as_ref().map_or(false, |binding| {
+                row.organization_id == request.organization_ref
+                    && row.quant_account_id == binding.quant_account_id
+                    && row.binding_id == request.binding_ref
+                    && row.external_account_id == request.account_ref
+                    && row.broker_id == request.broker_ref
+                    && row.broker_server_id == request.server_ref
+            });
+            let assignment_matches = worker_matches && scope_matches;
+            let session_ready = assignment_matches
                 && row.session_worker_ref.as_deref() == Some(worker_ref)
                 && row.session_status.as_deref() == Some("READY")
                 && row.session_ready_until.map_or(false, |until| until > Utc::now());
 
             facts.worker = WorkerAdmissionFacts {
-                worker_ref: worker_matches.then_some(row.assigned_worker_ref),
+                worker_ref: assignment_matches.then_some(row.assigned_worker_ref),
                 assignment_ref: Some(row.assignment_id),
-                assignment_resolution: Some(if worker_matches {
+                assignment_resolution: Some(if assignment_matches {
                     WorkerAssignmentResolution::Unique
                 } else {
                     WorkerAssignmentResolution::Missing
