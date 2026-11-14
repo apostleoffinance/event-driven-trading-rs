@@ -149,11 +149,13 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     .await
     .unwrap();
 
+    let lookup_hmac = [0x5a_u8; 32];
+    let attestation_digest = [0x11_u8; 32];
     sqlx::query(
         "INSERT INTO broker_account_evidence(id,external_broker_account_id,provider_type,evidence_type,observed_broker_id,observed_broker_server_id,observed_identifier_key_version,observed_identifier_normalization_version,observed_identifier_hmac,attestation_key_id,attestation_digest,observed_at,evidence_status,source_principal,expires_at) VALUES('r502-evidence','r502-external-account','MT5_PYTHON','ACCOUNT_IDENTITY','r502-broker','r502-server','test-key-v1',1,$1,'test-attestation-key',$2,NOW(),'AUTHENTICATED','test-worker',NOW()+INTERVAL '15 minutes')",
     )
-    .bind([0x5a_u8; 32].as_slice())
-    .bind([0x11_u8; 32].as_slice())
+    .bind(lookup_hmac.as_slice())
+    .bind(attestation_digest.as_slice())
     .execute(&pool)
     .await
     .unwrap();
