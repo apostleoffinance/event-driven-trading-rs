@@ -25,6 +25,9 @@ pub async fn migrate(pool: &PgPool) -> PersistenceResult<()> {
     // Serialize the history read, core bootstrap, and full migration as one
     // session-level critical section. SQLx's per-Migrator lock alone would
     // leave a race between the filtered core migrator and the full migrator.
+    // Use a connection-scoped advisory lock to serialize migrations on a
+    // shared database. Hold one physical PostgreSQL session for the entire
+    // critical section; releasing it always releases the session lock.
     let mut connection = pool.acquire().await?;
     sqlx::query("SELECT pg_advisory_lock(20261111, 21)")
         .execute(&mut *connection)
