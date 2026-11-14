@@ -61,7 +61,7 @@ CREATE INDEX broker_worker_assignment_scope_idx
     ON broker_worker_assignments(organization_id,quant_account_id,worker_ref,status);
 
 CREATE FUNCTION validate_r5_02_worker_assignment_update() RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $$
 BEGIN
     IF ROW(NEW.id,NEW.worker_ref,NEW.organization_id,NEW.quant_account_id,NEW.binding_id,
            NEW.external_broker_account_id,NEW.broker_id,NEW.broker_server_id,
@@ -78,17 +78,17 @@ BEGIN
     NEW.updated_at := NOW();
     RETURN NEW;
 END
-$;
+$$;
 CREATE TRIGGER broker_worker_assignments_close_only
     BEFORE UPDATE ON broker_worker_assignments
     FOR EACH ROW EXECUTE FUNCTION validate_r5_02_worker_assignment_update();
 
 CREATE FUNCTION reject_r5_02_worker_assignment_delete() RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'worker assignments cannot be deleted';
 END
-$;
+$$;
 CREATE TRIGGER broker_worker_assignments_no_delete
     BEFORE DELETE ON broker_worker_assignments
     FOR EACH ROW EXECUTE FUNCTION reject_r5_02_worker_assignment_delete();
@@ -111,17 +111,17 @@ CREATE INDEX broker_worker_session_current_idx
     ON broker_worker_sessions(assignment_id,worker_ref,status,ready_until DESC);
 
 CREATE FUNCTION reject_r5_02_authority_grant_delete() RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'platform authority grants cannot be deleted; revoke them instead';
 END
-$;
+$$;
 CREATE TRIGGER broker_platform_authority_grants_no_delete
     BEFORE DELETE ON broker_platform_authority_grants
     FOR EACH ROW EXECUTE FUNCTION reject_r5_02_authority_grant_delete();
 
 CREATE FUNCTION validate_r5_02_authority_grant_update() RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $$
 BEGIN
     IF ROW(NEW.id,NEW.user_id,NEW.permission,NEW.valid_from,NEW.valid_until,NEW.granted_by,NEW.reason,NEW.created_at)
        IS DISTINCT FROM
@@ -136,13 +136,13 @@ BEGIN
     NEW.updated_at := NOW();
     RETURN NEW;
 END
-$;
+$$;
 CREATE TRIGGER broker_platform_authority_grants_revoke_only
     BEFORE UPDATE ON broker_platform_authority_grants
     FOR EACH ROW EXECUTE FUNCTION validate_r5_02_authority_grant_update();
 
 CREATE FUNCTION validate_r5_02_worker_session_update() RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $$
 BEGIN
     IF ROW(NEW.id,NEW.assignment_id,NEW.worker_ref,NEW.started_at,NEW.created_at)
        IS DISTINCT FROM
@@ -156,17 +156,17 @@ BEGIN
     NEW.updated_at := NOW();
     RETURN NEW;
 END
-$;
+$$;
 CREATE TRIGGER broker_worker_sessions_close_only
     BEFORE UPDATE ON broker_worker_sessions
     FOR EACH ROW EXECUTE FUNCTION validate_r5_02_worker_session_update();
 
 CREATE FUNCTION reject_r5_02_worker_session_delete() RETURNS trigger
-LANGUAGE plpgsql AS $
+LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'worker sessions cannot be deleted';
 END
-$;
+$$;
 CREATE TRIGGER broker_worker_sessions_no_delete
     BEFORE DELETE ON broker_worker_sessions
     FOR EACH ROW EXECUTE FUNCTION reject_r5_02_worker_session_delete();
