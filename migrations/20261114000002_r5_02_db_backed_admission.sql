@@ -72,20 +72,66 @@ CREATE UNIQUE INDEX broker_worker_session_one_ready_uq
 CREATE INDEX broker_worker_session_current_idx
     ON broker_worker_sessions(assignment_id,worker_ref,status,ready_until DESC);
 
-CREATE FUNCTION reject_r5_02_admission_history_mutation() RETURNS trigger
-LANGUAGE plpgsql AS $$
+CREATE FUNCTION reject_r5_02_authority_grant_delete() RETURNS trigger
+LANGUAGE plpgsql AS $
 BEGIN
-    RAISE EXCEPTION 'R5-02 admission authority and worker session history is append-only';
+    RAISE EXCEPTION 'platform authority grants cannot be deleted; revoke them instead';
 END
-$$;
+$;
+CREATE TRIGGER broker_platform_authority_grants_no_delete
+    BEFORE DELETE ON broker_platform_authority_grants
+    FOR EACH ROW EXECUTE FUNCTION reject_r5_02_authority_grant_delete();
 
--- Grant changes are represented by new grant rows (revoke then issue a new ID).
-CREATE TRIGGER broker_platform_authority_grants_no_update_delete
-    BEFORE UPDATE OR DELETE ON broker_platform_authority_grants
-    FOR EACH ROW EXECUTE FUNCTION reject_r5_02_admission_history_mutation();
-CREATE TRIGGER broker_worker_sessions_no_update_delete
-    BEFORE UPDATE OR DELETE ON broker_worker_sessions
-    FOR EACH ROW EXECUTE FUNCTION reject_r5_02_admission_history_mutation();
+CREATE FUNCTION validate_r5_02_authority_grant_update() RETURNS trigger
+LANGUAGE plpgsql AS $
+BEGIN
+    IF ROW(NEW.id,NEW.user_id,NEW.permission,NEW.valid_from,NEW.valid_until,NEW.granted_by,NEW.reason,NEW.created_at)
+       IS DISTINCT FROM
+       ROW(OLD.id,OLD.user_id,OLD.permission,OLD.valid_from,OLD.valid_until,OLD.granted_by,OLD.reason,OLD.created_at)
+       OR OLD.status <> 'ACTIVE'
+       OR NEW.status NOT IN ('REVOKED','EXPIRED')
+       OR NEW.revision <> OLD.revision + 1
+       OR (NEW.status = 'REVOKED' AND NEW.revoked_by IS NULL)
+       OR (NEW.status = 'EXPIRED' AND NEW.revoked_by IS NOT NULL) THEN
+        RAISE EXCEPTION 'authority grants may only be revoked or expired with a revision increment';
+    END IF;
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END
+$;
+CREATE TRIGGER broker_platform_authority_grants_revoke_only
+    BEFORE UPDATE ON broker_platform_authority_grants
+    FOR EACH ROW EXECUTE FUNCTION validate_r5_02_authority_grant_update();
+
+CREATE FUNCTION validate_r5_02_worker_session_update() RETURNS trigger
+LANGUAGE plpgsql AS $
+BEGIN
+    IF ROW(NEW.id,NEW.assignment_id,NEW.worker_ref,NEW.started_at,NEW.created_at)
+       IS DISTINCT FROM
+       ROW(OLD.id,OLD.assignment_id,OLD.worker_ref,OLD.started_at,OLD.created_at)
+       OR OLD.status <> 'READY'
+       OR NEW.status NOT IN ('NOT_READY','REVOKED')
+       OR NEW.revision <> OLD.revision + 1
+       OR NEW.ready_until <> OLD.ready_until THEN
+        RAISE EXCEPTION 'worker sessions may only transition from READY to NOT_READY or REVOKED';
+    END IF;
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END
+$;
+CREATE TRIGGER broker_worker_sessions_close_only
+    BEFORE UPDATE ON broker_worker_sessions
+    FOR EACH ROW EXECUTE FUNCTION validate_r5_02_worker_session_update();
+
+CREATE FUNCTION reject_r5_02_worker_session_delete() RETURNS trigger
+LANGUAGE plpgsql AS $
+BEGIN
+    RAISE EXCEPTION 'worker sessions cannot be deleted';
+END
+$;
+CREATE TRIGGER broker_worker_sessions_no_delete
+    BEFORE DELETE ON broker_worker_sessions
+    FOR EACH ROW EXECUTE FUNCTION reject_r5_02_worker_session_delete();
 
 CREATE FUNCTION validate_r5_02_verified_decision_authority() RETURNS trigger
 LANGUAGE plpgsql AS $$
