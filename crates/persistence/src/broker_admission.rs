@@ -81,6 +81,7 @@ struct OrganizationRow {
     membership_revision: Option<i64>,
     entitlement_status: Option<String>,
     entitlement_revision: Option<i64>,
+    quant_account_status: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -178,7 +179,7 @@ pub async fn evaluate_persisted_broker_admission(
     }
 
     let binding = sqlx::query_as::<_, BindingRow>(
-        r#"SELECT x.organization_id, x.quant_account_id,
+        r#"SELECT x.quant_account_id,
                   x.external_broker_account_id AS external_account_id,
                   x.status AS binding_status, x.revision AS binding_revision,
                   a.broker_id, a.broker_server_id, a.status AS external_status,
@@ -229,12 +230,14 @@ pub async fn evaluate_persisted_broker_admission(
     let organization = sqlx::query_as::<_, OrganizationRow>(
         r#"SELECT o.status AS organization_status, o.revision AS organization_revision,
                   m.status AS membership_status, m.revision AS membership_revision,
-                  e.status AS entitlement_status, e.revision AS entitlement_revision
+                  e.status AS entitlement_status, e.revision AS entitlement_revision,
+                  qa.status AS quant_account_status
              FROM organizations o
              LEFT JOIN organization_memberships m
                ON m.organization_id = o.id AND m.user_id = $2
              LEFT JOIN organization_account_entitlements e
                ON e.organization_id = o.id AND e.account_id = $3
+             LEFT JOIN accounts qa ON qa.id = e.account_id
             WHERE o.id = $1"#,
     )
     .bind(&request.organization_ref)
@@ -250,7 +253,13 @@ pub async fn evaluate_persisted_broker_admission(
             membership_ref: row.membership_status.as_ref().map(|_| actor_ref.to_owned()),
             membership_status: lifecycle_status(row.membership_status.as_deref()),
             entitlement_ref: row.entitlement_status.as_ref().and_then(|_| binding.as_ref().map(|b| b.quant_account_id.clone())),
-            entitlement_status: lifecycle_status(row.entitlement_status.as_deref()),
+            entitlement_status: match row.entitlement_status.as_deref() {
+                Some("ACTIVE") if row.quant_account_status.as_deref() == Some("active") => {
+                    Some(AdmissionLifecycleStatus::Active)
+                }
+                Some(_) => Some(AdmissionLifecycleStatus::Inactive),
+                None => None,
+            },
             organization_revision: revision(row.organization_revision),
             membership_revision: row.membership_revision.map(revision).unwrap_or_default(),
             entitlement_revision: row.entitlement_revision.map(revision).unwrap_or_default(),
