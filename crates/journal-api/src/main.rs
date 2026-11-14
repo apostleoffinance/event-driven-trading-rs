@@ -523,42 +523,114 @@ mod qos021a_e3a_r2_api_tests {
             Vec::new(),
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::OK
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-b", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-b",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-legacy-account", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-legacy-account",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/journal/accounts/journal-owned-a", Some("api-owner-a"), None, None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/journal/accounts/journal-owned-a",
+                Some("api-owner-a"),
+                None,
+                None,
+                false
+            )
             .await,
             StatusCode::OK
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/journal/accounts/journal-owned-a", Some("api-owner-b"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/journal/accounts/journal-owned-a",
+                Some("api-owner-b"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-b", Some("api-owner-a"), Some("api-org-b"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-b",
+                Some("api-owner-a"),
+                Some("api-org-b"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts", Some("api-owner-a"), None, None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts",
+                Some("api-owner-a"),
+                None,
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts", None, Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts",
+                None,
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::UNAUTHORIZED
         );
@@ -574,24 +646,60 @@ mod qos021a_e3a_r2_api_tests {
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts", Some("api-owner-a"), Some("api-org-a"), None, true)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                true
+            )
             .await,
             StatusCode::UNAUTHORIZED
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/organizations/api-org-b/account-entitlements", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/organizations/api-org-b/account-entitlements",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
 
         let assignment = json!({"expected_account_revision":1,"expected_entitlement_revision":0,"reason":"attempt"});
         assert_eq!(
-            request(&pool, &app, Method::PUT, "/api/v1/organizations/api-org-a/account-entitlements/api-account-b", Some("api-admin"), Some("api-org-a"), Some(assignment.clone()), false)
+            request(
+                &pool,
+                &app,
+                Method::PUT,
+                "/api/v1/organizations/api-org-a/account-entitlements/api-account-b",
+                Some("api-admin"),
+                Some("api-org-a"),
+                Some(assignment.clone()),
+                false
+            )
             .await,
             StatusCode::FORBIDDEN
         );
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/trading/accounts", Some("api-owner-a"), Some("api-org-a"), Some(json!({"name":"API paper","initial_capital":"250","environment":"PAPER"})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/trading/accounts",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"name":"API paper","initial_capital":"250","environment":"PAPER"})),
+                false
+            )
             .await,
             StatusCode::CREATED
         );
@@ -599,25 +707,73 @@ mod qos021a_e3a_r2_api_tests {
             .fetch_one(&pool).await.unwrap();
         assert_eq!(owned_count, 2);
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/trading/accounts", Some("api-viewer"), Some("api-org-a"), Some(
-                    json!({"name":"Viewer account","initial_capital":"100","environment":"PAPER"})
-                ), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/trading/accounts",
+                Some("api-viewer"),
+                Some("api-org-a"),
+                Some(
+                                    json!({"name":"Viewer account","initial_capital":"100","environment":"PAPER"})
+                                ),
+                false
+            )
             .await,
             StatusCode::FORBIDDEN
         );
-        assert_eq!(request(&pool, &app, Method::POST, "/api/v1/organizations/api-org-a/owner-transfer", Some("api-admin"), Some("api-org-a"), Some(json!({"target_user_id":"api-trader","actor_expected_revision":1,"target_expected_revision":1,"reason":"attempt"})), false).await,StatusCode::FORBIDDEN);
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/organizations/api-org-a/members", Some("api-trader"), Some("api-org-a"), Some(json!({"user_id":"api-viewer","role":"VIEWER","reason":"attempt"})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations/api-org-a/owner-transfer",
+                Some("api-admin"),
+                Some("api-org-a"),
+                Some(json!({"target_user_id":"api-trader","actor_expected_revision":1,"target_expected_revision":1,"reason":"attempt"})),
+                false
+            ).await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations/api-org-a/members",
+                Some("api-trader"),
+                Some("api-org-a"),
+                Some(json!({"user_id":"api-viewer","role":"VIEWER","reason":"attempt"})),
+                false
+            )
             .await,
             StatusCode::FORBIDDEN
         );
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/trading/risk/decisions", Some("api-risk"), Some("api-org-a"), Some(json!({})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/trading/risk/decisions",
+                Some("api-risk"),
+                Some("api-org-a"),
+                Some(json!({})),
+                false
+            )
             .await,
             StatusCode::METHOD_NOT_ALLOWED
         );
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/trading/execution-authorizations", Some("api-risk"), Some("api-org-a"), Some(json!({})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/trading/execution-authorizations",
+                Some("api-risk"),
+                Some("api-org-a"),
+                Some(json!({})),
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
@@ -633,59 +789,197 @@ mod qos021a_e3a_r2_api_tests {
             .await
             .unwrap();
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_revision":2,"status":"ACTIVE","reason":"restore test"})), false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_revision":2,"status":"ACTIVE","reason":"restore test"})),
+                false
+            )
             .await,
             StatusCode::OK
         );
 
-        assert_eq!(request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/account-entitlements/api-account-a", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_account_revision":1,"expected_entitlement_revision":1,"status":"SUSPENDED","reason":"suspend test"})), false).await,StatusCode::OK);
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/account-entitlements/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_account_revision":1,"expected_entitlement_revision":1,"status":"SUSPENDED","reason":"suspend test"})),
+                false
+            ).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
-        assert_eq!(request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/account-entitlements/api-account-a", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_account_revision":1,"expected_entitlement_revision":1,"status":"ACTIVE","reason":"stale"})), false).await,StatusCode::CONFLICT);
-        assert_eq!(request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/account-entitlements/api-account-a", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_account_revision":1,"expected_entitlement_revision":2,"status":"REVOKED","reason":"revoke test"})), false).await,StatusCode::OK);
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/account-entitlements/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_account_revision":1,"expected_entitlement_revision":1,"status":"ACTIVE","reason":"stale"})),
+                false
+            ).await,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/account-entitlements/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_account_revision":1,"expected_entitlement_revision":2,"status":"REVOKED","reason":"revoke test"})),
+                false
+            ).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
 
-        assert_eq!(request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/members/api-admin", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_revision":1,"role":"ADMIN","status":"SUSPENDED","reason":"suspend member"})), false).await,StatusCode::OK);
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-admin"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/members/api-admin",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_revision":1,"role":"ADMIN","status":"SUSPENDED","reason":"suspend member"})),
+                false
+            ).await,
+            StatusCode::OK
+        );
+        assert_eq!(
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-admin"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/members/api-admin", Some("api-owner-a"), Some("api-org-a"), Some(
-                    json!({"expected_revision":1,"role":"ADMIN","status":"ACTIVE","reason":"stale"})
-                ), false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/members/api-admin",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(
+                                    json!({"expected_revision":1,"role":"ADMIN","status":"ACTIVE","reason":"stale"})
+                                ),
+                false
+            )
             .await,
             StatusCode::CONFLICT
         );
         assert_eq!(
-            request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/members/api-admin", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_revision":2,"role":"ADMIN","status":"ACTIVE","reason":"reinstate"})), false).await,
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/members/api-admin",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_revision":2,"role":"ADMIN","status":"ACTIVE","reason":"reinstate"})),
+                false
+            ).await,
             StatusCode::OK
         );
         assert_eq!(
-            request(&pool, &app, Method::PATCH, "/api/v1/organizations/api-org-a/members/api-admin", Some("api-owner-a"), Some("api-org-a"), Some(json!({"expected_revision":3,"role":"ADMIN","status":"REVOKED","reason":"revoke"})), false).await,
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                "/api/v1/organizations/api-org-a/members/api-admin",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                Some(json!({"expected_revision":3,"role":"ADMIN","status":"REVOKED","reason":"revoke"})),
+                false
+            ).await,
             StatusCode::OK
         );
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-admin"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-admin"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
 
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/organizations", Some("api-owner-a"), None, Some(json!({"name":"Created through authenticated API"})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations",
+                Some("api-owner-a"),
+                None,
+                Some(json!({"name":"Created through authenticated API"})),
+                false
+            )
             .await,
             StatusCode::CREATED
         );
@@ -693,7 +987,16 @@ mod qos021a_e3a_r2_api_tests {
         sqlx::query("UPDATE identity_sessions SET status='REVOKED',revision=revision+1,revoked_at=NOW(),revocation_reason='test logout',updated_at=NOW() WHERE id=$1")
             .bind(owner_session).execute(&pool).await.unwrap();
         assert_eq!(
-            request(&pool, &app, Method::GET, "/api/v1/trading/accounts/api-account-a", Some("api-owner-a"), Some("api-org-a"), None, false)
+            request(
+                &pool,
+                &app,
+                Method::GET,
+                "/api/v1/trading/accounts/api-account-a",
+                Some("api-owner-a"),
+                Some("api-org-a"),
+                None,
+                false
+            )
             .await,
             StatusCode::UNAUTHORIZED
         );
@@ -790,7 +1093,16 @@ mod qos021a_e3a_r2_api_tests {
             "reason":"Owner initiated registration"
         });
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/organizations/r3-api-org-a/broker-account-bindings", Some("r3-api-owner-a"), Some("r3-api-org-a"), Some(registration.clone()), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations/r3-api-org-a/broker-account-bindings",
+                Some("r3-api-owner-a"),
+                Some("r3-api-org-a"),
+                Some(registration.clone()),
+                false
+            )
             .await,
             StatusCode::ACCEPTED
         );
@@ -801,13 +1113,31 @@ mod qos021a_e3a_r2_api_tests {
             "r3-api-risk-manager",
         ] {
             assert_eq!(
-                request(&pool, &app, Method::POST, "/api/v1/organizations/r3-api-org-a/broker-account-bindings", Some(member), Some("r3-api-org-a"), Some(registration.clone()), false)
+                request(
+                    &pool,
+                    &app,
+                    Method::POST,
+                    "/api/v1/organizations/r3-api-org-a/broker-account-bindings",
+                    Some(member),
+                    Some("r3-api-org-a"),
+                    Some(registration.clone()),
+                    false
+                )
                 .await,
                 StatusCode::FORBIDDEN
             );
         }
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/organizations/r3-api-org-a/broker-account-bindings", Some("r3-api-owner-a"), None, Some(registration.clone()), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations/r3-api-org-a/broker-account-bindings",
+                Some("r3-api-owner-a"),
+                None,
+                Some(registration.clone()),
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
@@ -819,7 +1149,16 @@ mod qos021a_e3a_r2_api_tests {
             "reason":"Competing organization claim"
         });
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/organizations/r3-api-org-b/broker-account-bindings", Some("r3-api-owner-b"), Some("r3-api-org-b"), Some(duplicate), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations/r3-api-org-b/broker-account-bindings",
+                Some("r3-api-owner-b"),
+                Some("r3-api-org-b"),
+                Some(duplicate),
+                false
+            )
             .await,
             StatusCode::CONFLICT
         );
@@ -830,17 +1169,44 @@ mod qos021a_e3a_r2_api_tests {
         .await
         .unwrap();
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/organizations/r3-api-org-b/broker-account-bindings", Some("r3-api-owner-a"), Some("r3-api-org-a"), Some(json!({"quant_account_id":"r3-api-account-a","broker_id":"example-broker","broker_server_id":"r3-api-server","external_account_identifier":"another-id","reason":"Cross-tenant path"})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/organizations/r3-api-org-b/broker-account-bindings",
+                Some("r3-api-owner-a"),
+                Some("r3-api-org-a"),
+                Some(json!({"quant_account_id":"r3-api-account-a","broker_id":"example-broker","broker_server_id":"r3-api-server","external_account_identifier":"another-id","reason":"Cross-tenant path"})),
+                false
+            )
             .await,
             StatusCode::NOT_FOUND
         );
         assert_eq!(
-            request(&pool, &app, Method::PATCH, &format!("/api/v1/organizations/r3-api-org-a/broker-account-bindings/{binding_id}"), Some("r3-api-owner-a"), Some("r3-api-org-a"), Some(json!({"expected_revision":1,"status":"VERIFIED","reason":"self approval"})), false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                &format!("/api/v1/organizations/r3-api-org-a/broker-account-bindings/{binding_id}"),
+                Some("r3-api-owner-a"),
+                Some("r3-api-org-a"),
+                Some(json!({"expected_revision":1,"status":"VERIFIED","reason":"self approval"})),
+                false
+            )
             .await,
             StatusCode::FORBIDDEN
         );
         assert_eq!(
-            request(&pool, &app, Method::PATCH, &format!("/api/v1/organizations/r3-api-org-a/broker-account-bindings/{binding_id}"), Some("r3-api-owner-a"), Some("r3-api-org-a"), Some(json!({"expected_revision":1,"status":"SUSPENDED","reason":"owner suspend"})), false)
+            request(
+                &pool,
+                &app,
+                Method::PATCH,
+                &format!("/api/v1/organizations/r3-api-org-a/broker-account-bindings/{binding_id}"),
+                Some("r3-api-owner-a"),
+                Some("r3-api-org-a"),
+                Some(json!({"expected_revision":1,"status":"SUSPENDED","reason":"owner suspend"})),
+                false
+            )
             .await,
             StatusCode::OK
         );
@@ -868,7 +1234,16 @@ mod qos021a_e3a_r2_api_tests {
         assert!(!body_text.contains(&lookup_hex));
         assert!(body_text.contains("SUSPENDED"));
         assert_eq!(
-            request(&pool, &app, Method::POST, "/api/v1/broker-registry/catalog", Some("r3-api-owner-a"), Some("r3-api-org-a"), Some(json!({})), false)
+            request(
+                &pool,
+                &app,
+                Method::POST,
+                "/api/v1/broker-registry/catalog",
+                Some("r3-api-owner-a"),
+                Some("r3-api-org-a"),
+                Some(json!({})),
+                false
+            )
             .await,
             StatusCode::METHOD_NOT_ALLOWED
         );
@@ -886,7 +1261,16 @@ mod qos021a_e3a_r2_api_tests {
             Vec::new(),
         );
         assert_eq!(
-            request(&pool, &no_key_app, Method::POST, "/api/v1/organizations/r3-api-org-a/broker-account-bindings", Some("r3-api-owner-a"), Some("r3-api-org-a"), Some(registration), false)
+            request(
+                &pool,
+                &no_key_app,
+                Method::POST,
+                "/api/v1/organizations/r3-api-org-a/broker-account-bindings",
+                Some("r3-api-owner-a"),
+                Some("r3-api-org-a"),
+                Some(registration),
+                false
+            )
             .await,
             StatusCode::SERVICE_UNAVAILABLE
         );
