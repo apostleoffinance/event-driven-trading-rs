@@ -32,6 +32,10 @@ CREATE UNIQUE INDEX broker_platform_authority_active_user_permission_uq
 CREATE INDEX broker_platform_authority_validity_idx
     ON broker_platform_authority_grants(user_id,status,valid_from,valid_until);
 
+ALTER TABLE broker_account_evidence
+    ADD CONSTRAINT broker_evidence_expiry_after_observation
+    CHECK (expires_at IS NULL OR expires_at > observed_at);
+
 ALTER TABLE broker_account_verifications
     ADD CONSTRAINT broker_verification_authority_grant_fk
     FOREIGN KEY (authority_grant_id)
@@ -77,7 +81,7 @@ BEGIN
     END IF;
     NEW.updated_at := NOW();
     RETURN NEW;
-END
+END;
 $$;
 CREATE TRIGGER broker_worker_assignments_close_only
     BEFORE UPDATE ON broker_worker_assignments
@@ -87,7 +91,7 @@ CREATE FUNCTION reject_r5_02_worker_assignment_delete() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'worker assignments cannot be deleted';
-END
+END;
 $$;
 CREATE TRIGGER broker_worker_assignments_no_delete
     BEFORE DELETE ON broker_worker_assignments
@@ -102,7 +106,8 @@ CREATE TABLE broker_worker_sessions (
     ready_until TIMESTAMPTZ NOT NULL,
     started_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (ready_until > started_at)
 );
 CREATE UNIQUE INDEX broker_worker_session_one_ready_uq
     ON broker_worker_sessions(assignment_id)
@@ -114,7 +119,7 @@ CREATE FUNCTION reject_r5_02_authority_grant_delete() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'platform authority grants cannot be deleted; revoke them instead';
-END
+END;
 $$;
 CREATE TRIGGER broker_platform_authority_grants_no_delete
     BEFORE DELETE ON broker_platform_authority_grants
@@ -135,7 +140,7 @@ BEGIN
     END IF;
     NEW.updated_at := NOW();
     RETURN NEW;
-END
+END;
 $$;
 CREATE TRIGGER broker_platform_authority_grants_revoke_only
     BEFORE UPDATE ON broker_platform_authority_grants
@@ -155,7 +160,7 @@ BEGIN
     END IF;
     NEW.updated_at := NOW();
     RETURN NEW;
-END
+END;
 $$;
 CREATE TRIGGER broker_worker_sessions_close_only
     BEFORE UPDATE ON broker_worker_sessions
@@ -165,7 +170,7 @@ CREATE FUNCTION reject_r5_02_worker_session_delete() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'worker sessions cannot be deleted';
-END
+END;
 $$;
 CREATE TRIGGER broker_worker_sessions_no_delete
     BEFORE DELETE ON broker_worker_sessions
@@ -195,7 +200,7 @@ BEGIN
         END IF;
     END IF;
     RETURN NEW;
-END
+END;
 $$;
 CREATE TRIGGER broker_verification_requires_platform_authority
     BEFORE INSERT ON broker_account_verifications
