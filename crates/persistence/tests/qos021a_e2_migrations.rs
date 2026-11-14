@@ -123,16 +123,41 @@ async fn exact_six_core_history_upgrades_through_full_migrator(pool: PgPool) {
 #[sqlx::test]
 async fn complete_journal_first_history_receives_forward_corrections(pool: PgPool) {
     old_full_migrator(&pool).await;
-    let legacy_total: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let legacy_versions: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+    let full_migrator = Migrator::new(migration_path()).await.unwrap();
+    let expected_forward_versions = full_migrator
+        .iter()
+        .filter(|migration| migration.version >= 20261111000001)
+        .map(|migration| migration.version)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        expected_forward_versions.len(),
+        8,
+        "the journal-first fixture should receive every current forward migration",
+    );
+
     migrate(&pool).await.unwrap();
-    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(total, legacy_total + 6);
+
+    let applied_versions: Vec<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        &applied_versions[..legacy_versions.len()],
+        legacy_versions.as_slice(),
+        "forward correction must preserve the complete historical migration prefix",
+    );
+    assert_eq!(
+        &applied_versions[legacy_versions.len()..],
+        expected_forward_versions.as_slice(),
+        "journal-first history must receive every currently defined forward migration",
+    );
 }
 
 #[sqlx::test]
