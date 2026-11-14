@@ -318,7 +318,7 @@ impl AdmissionRevision {
 /// Opaque identifiers only. Never place broker logins, account numbers,
 /// HMAC material, tokens, passwords, or certificate contents in these fields.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BrokerAdmissionFacts {
+pub struct BrokerCatalogAdmissionFacts {
     pub broker_ref: Option<String>,
     pub server_ref: Option<String>,
     pub broker_status: Option<BrokerRegistryStatus>,
@@ -355,6 +355,9 @@ pub struct OrganizationAdmissionFacts {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EvidenceAdmissionFacts {
     pub evidence_ref: Option<String>,
+    pub external_account_ref: Option<String>,
+    pub broker_ref: Option<String>,
+    pub server_ref: Option<String>,
     pub authentication: Option<AdmissionEvidenceAuthentication>,
     pub validity: Option<AdmissionEvidenceValidity>,
     pub verification_authority: Option<VerificationAuthorityState>,
@@ -388,7 +391,7 @@ pub struct BrokerAdmissionRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BrokerAdmissionFacts {
     pub registry_availability: Option<RegistryAvailability>,
-    pub broker: BrokerAdmissionFacts,
+    pub broker: BrokerCatalogAdmissionFacts,
     pub external_account: ExternalAccountAdmissionFacts,
     pub organization: OrganizationAdmissionFacts,
     pub evidence: EvidenceAdmissionFacts,
@@ -536,6 +539,12 @@ pub fn evaluate_broker_admission(
     if evidence.evidence_ref.as_deref().is_none_or(str::is_empty) {
         deny(Deny::EvidenceMissing);
     }
+    if evidence.external_account_ref.as_deref() != Some(request.account_ref.as_str())
+        || evidence.broker_ref.as_deref() != Some(request.broker_ref.as_str())
+        || evidence.server_ref.as_deref() != Some(request.server_ref.as_str())
+    {
+        deny(Deny::EvidenceConflict);
+    }
     match evidence.authentication {
         Some(AdmissionEvidenceAuthentication::Authenticated) => {}
         Some(AdmissionEvidenceAuthentication::Unauthenticated) | None => deny(Deny::EvidenceUnauthenticated),
@@ -662,7 +671,7 @@ mod tests {
         };
         let facts = BrokerAdmissionFacts {
             registry_availability: Some(RegistryAvailability::Available),
-            broker: BrokerAdmissionFacts {
+            broker: BrokerCatalogAdmissionFacts {
                 broker_ref: Some("broker-opaque".into()),
                 server_ref: Some("server-opaque".into()),
                 broker_status: Some(BrokerRegistryStatus::Active),
@@ -693,6 +702,9 @@ mod tests {
             },
             evidence: EvidenceAdmissionFacts {
                 evidence_ref: Some("evidence-opaque".into()),
+                external_account_ref: Some("account-opaque".into()),
+                broker_ref: Some("broker-opaque".into()),
+                server_ref: Some("server-opaque".into()),
                 authentication: Some(AdmissionEvidenceAuthentication::Authenticated),
                 validity: Some(AdmissionEvidenceValidity::Valid),
                 verification_authority: Some(VerificationAuthorityState::Authorized),
@@ -716,7 +728,7 @@ mod tests {
     fn denial_reasons(decision: BrokerAdmissionDecision) -> Vec<BrokerAdmissionDenialReason> {
         match decision {
             BrokerAdmissionDecision::Denied(reasons) => reasons,
-            BrokerAdmissionDecision::Admitted(_) => panic!("expected denial"),
+            BrokerAdmissionDecision::Admitted(_) => Vec::new(),
         }
     }
 
@@ -724,8 +736,12 @@ mod tests {
     fn admission_evaluator_admits_only_matching_read_only_scope() {
         let (request, facts) = valid_admission_fixture();
         let decision = evaluate_broker_admission(&request, &facts);
-        let BrokerAdmissionDecision::Admitted(permit) = decision else {
-            panic!("expected admission");
+        let permit = match decision {
+            BrokerAdmissionDecision::Admitted(permit) => permit,
+            BrokerAdmissionDecision::Denied(reasons) => {
+                assert!(reasons.is_empty(), "unexpected denial reasons: {reasons:?}");
+                return;
+            }
         };
         assert_eq!(permit.request_ref, request.request_ref);
         assert_eq!(permit.account_ref, request.account_ref);
