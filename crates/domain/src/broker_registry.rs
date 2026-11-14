@@ -215,7 +215,6 @@ fn normalize_slug(
 }
 
 
-
 /// Environment assertion supplied by a trusted registry/admission fact source.
 /// Broker-server environments are intentionally not mapped to Quant account
 /// environments (for example, Demo does not imply Paper).
@@ -481,35 +480,54 @@ pub fn evaluate_broker_admission(
     }
 
     let broker = &facts.broker;
-    if broker.broker_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+    if broker
+        .broker_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none()
         || broker.broker_status.is_none()
     {
         deny(Deny::UnknownBroker);
     } else if broker.broker_status != Some(BrokerRegistryStatus::Active) {
         deny(Deny::CatalogInactive);
     }
-    if broker.server_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+    if broker
+        .server_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none()
         || broker.server_status.is_none()
     {
         deny(Deny::UnknownServer);
     } else if broker.server_status != Some(BrokerRegistryStatus::Active) {
         deny(Deny::CatalogInactive);
     }
-    if !matches!(broker.environment, Some(AdmissionEnvironment::Demo | AdmissionEnvironment::Live)) {
+    if !matches!(
+        broker.environment,
+        Some(AdmissionEnvironment::Demo | AdmissionEnvironment::Live)
+    ) {
         deny(Deny::EnvironmentUnknownOrUnsupported);
     }
 
     let account = &facts.external_account;
     match account.resolution {
         Some(AccountIdentityResolution::Unique) => {
-            if account.account_ref.as_deref().filter(|value| !value.is_empty()).is_none() {
+            if account
+                .account_ref
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .is_none() {
                 deny(Deny::AccountBindingMissing);
             }
         }
         Some(AccountIdentityResolution::Ambiguous) => deny(Deny::AccountIdentityAmbiguous),
         Some(AccountIdentityResolution::Missing) | None => deny(Deny::AccountBindingMissing),
     }
-    if account.binding_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+    if account
+        .binding_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none()
         || account.binding_status != Some(BrokerBindingStatus::Verified)
     {
         deny(Deny::AccountBindingMissing);
@@ -524,19 +542,31 @@ pub fn evaluate_broker_admission(
     {
         deny(Deny::OrganizationInactive);
     }
-    if organization.membership_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+    if organization
+        .membership_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none()
         || organization.membership_status != Some(AdmissionLifecycleStatus::Active)
     {
         deny(Deny::MembershipMissingOrInactive);
     }
-    if organization.entitlement_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+    if organization
+        .entitlement_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none()
         || organization.entitlement_status != Some(AdmissionLifecycleStatus::Active)
     {
         deny(Deny::EntitlementMissingOrInactive);
     }
 
     let evidence = &facts.evidence;
-    if evidence.evidence_ref.as_deref().filter(|value| !value.is_empty()).is_none() {
+    if evidence
+        .evidence_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none() {
         deny(Deny::EvidenceMissing);
     }
     if evidence.external_account_ref.as_deref() != Some(request.account_ref.as_str())
@@ -547,14 +577,18 @@ pub fn evaluate_broker_admission(
     }
     match evidence.authentication {
         Some(AdmissionEvidenceAuthentication::Authenticated) => {}
-        Some(AdmissionEvidenceAuthentication::Unauthenticated) | None => deny(Deny::EvidenceUnauthenticated),
+        Some(AdmissionEvidenceAuthentication::Unauthenticated) | None => {
+            deny(Deny::EvidenceUnauthenticated)
+        },
         Some(AdmissionEvidenceAuthentication::Unavailable) => deny(Deny::EvidenceUnauthenticated),
     }
     match evidence.validity {
         Some(AdmissionEvidenceValidity::Valid) => {}
         Some(AdmissionEvidenceValidity::Invalid) => deny(Deny::EvidenceInvalid),
         Some(AdmissionEvidenceValidity::Expired) => deny(Deny::EvidenceExpired),
-        Some(AdmissionEvidenceValidity::RevokedOrSuperseded) => deny(Deny::EvidenceRevokedOrSuperseded),
+        Some(AdmissionEvidenceValidity::RevokedOrSuperseded) => {
+            deny(Deny::EvidenceRevokedOrSuperseded)
+        },
         Some(AdmissionEvidenceValidity::Conflict) => deny(Deny::EvidenceConflict),
         Some(AdmissionEvidenceValidity::Unavailable) | None => deny(Deny::EvidenceInvalid),
     }
@@ -569,8 +603,16 @@ pub fn evaluate_broker_admission(
         | Some(WorkerAssignmentResolution::Unavailable)
         | None => deny(Deny::WorkerAssignmentMissingOrAmbiguous),
     }
-    if worker.worker_ref.as_deref().filter(|value| !value.is_empty()).is_none()
-        || worker.assignment_ref.as_deref().filter(|value| !value.is_empty()).is_none()
+    if worker
+        .worker_ref
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_none()
+        || worker
+            .assignment_ref
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .is_none()
     {
         deny(Deny::WorkerAssignmentMissingOrAmbiguous);
     }
@@ -639,9 +681,18 @@ pub fn evaluate_broker_admission(
             server: broker.server_revision.observed.unwrap_or_default(),
             external_account: account.account_revision.observed.unwrap_or_default(),
             binding: account.binding_revision.observed.unwrap_or_default(),
-            organization: organization.organization_revision.observed.unwrap_or_default(),
-            membership: organization.membership_revision.observed.unwrap_or_default(),
-            entitlement: organization.entitlement_revision.observed.unwrap_or_default(),
+            organization: organization
+                .organization_revision
+                .observed
+                .unwrap_or_default(),
+            membership: organization
+                .membership_revision
+                .observed
+                .unwrap_or_default(),
+            entitlement: organization
+                .entitlement_revision
+                .observed
+                .unwrap_or_default(),
             evidence: evidence.revision.observed.unwrap_or_default(),
             worker_assignment: worker.revision.observed.unwrap_or_default(),
         },
@@ -655,9 +706,11 @@ mod tests {
 
     use super::*;
 
-
     fn revision(value: u64) -> AdmissionRevision {
-        AdmissionRevision { expected: Some(value), observed: Some(value) }
+        AdmissionRevision {
+            expected: Some(value),
+            observed: Some(value),
+        }
     }
 
     fn valid_admission_fixture() -> (BrokerAdmissionRequest, BrokerAdmissionFacts) {
@@ -800,7 +853,8 @@ mod tests {
         let reasons = denial_reasons(evaluate_broker_admission(&request, &facts));
         assert!(reasons.contains(&BrokerAdmissionDenialReason::EvidenceUnauthenticated));
         assert!(reasons.contains(&BrokerAdmissionDenialReason::EvidenceExpired));
-        assert!(reasons.contains(&BrokerAdmissionDenialReason::VerificationAuthorityMissingOrUnauthorized));
+        assert!(reasons
+            .contains(&BrokerAdmissionDenialReason::VerificationAuthorityMissingOrUnauthorized));
     }
 
     #[test]
