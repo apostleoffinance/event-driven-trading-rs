@@ -1,11 +1,11 @@
 #![allow(clippy::unwrap_used)]
 
 use chrono::Utc;
-use domain::{Organization, OrganizationId};
 use domain::broker_registry::{
-    BrokerAdmissionDecision, BrokerAdmissionDenialReason, BrokerAdmissionRequest,
-    AdmissionOperation,
+    AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionDenialReason,
+    BrokerAdmissionRequest,
 };
+use domain::{Organization, OrganizationId};
 use persistence::{evaluate_persisted_broker_admission, migrate, TradingStore};
 use sqlx::PgPool;
 
@@ -117,14 +117,10 @@ async fn persisted_pending_binding_fails_closed(pool: PgPool) {
     seed_tenant_and_account(&pool).await;
     seed_pending_binding(&pool).await;
 
-    let decision = evaluate_persisted_broker_admission(
-        &pool,
-        &request(),
-        "r502-owner",
-        "r502-worker",
-    )
-    .await
-    .unwrap();
+    let decision =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await
+            .unwrap();
     assert!(matches!(
         decision,
         BrokerAdmissionDecision::Denied(ref reasons)
@@ -194,14 +190,10 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     .await
     .unwrap();
 
-    let decision = evaluate_persisted_broker_admission(
-        &pool,
-        &request(),
-        "r502-owner",
-        "r502-worker",
-    )
-    .await
-    .unwrap();
+    let decision =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await
+            .unwrap();
     assert!(matches!(
         decision,
         BrokerAdmissionDecision::Admitted(ref permit)
@@ -216,14 +208,10 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     .execute(&pool)
     .await
     .unwrap();
-    let session_denied = evaluate_persisted_broker_admission(
-        &pool,
-        &request(),
-        "r502-owner",
-        "r502-worker",
-    )
-    .await
-    .unwrap();
+    let session_denied =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await
+            .unwrap();
     assert!(matches!(
         session_denied,
         BrokerAdmissionDecision::Denied(ref reasons)
@@ -236,14 +224,10 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     .execute(&pool)
     .await
     .unwrap();
-    let authority_denied = evaluate_persisted_broker_admission(
-        &pool,
-        &request(),
-        "r502-owner",
-        "r502-worker",
-    )
-    .await
-    .unwrap();
+    let authority_denied =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await
+            .unwrap();
     assert!(matches!(
         authority_denied,
         BrokerAdmissionDecision::Denied(ref reasons)
