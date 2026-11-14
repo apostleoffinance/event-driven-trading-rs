@@ -727,6 +727,11 @@ mod tests {
     }
 
     fn denial_reasons(decision: BrokerAdmissionDecision) -> Vec<BrokerAdmissionDenialReason> {
+        assert!(
+            matches!(&decision, BrokerAdmissionDecision::Denied(_)),
+            "expected denial, got: {decision:?}"
+        );
+
         match decision {
             BrokerAdmissionDecision::Denied(reasons) => reasons,
             BrokerAdmissionDecision::Admitted(_) => Vec::new(),
@@ -737,12 +742,15 @@ mod tests {
     fn admission_evaluator_admits_only_matching_read_only_scope() {
         let (request, facts) = valid_admission_fixture();
         let decision = evaluate_broker_admission(&request, &facts);
+
+        assert!(
+            matches!(&decision, BrokerAdmissionDecision::Admitted(_)),
+            "expected admission, got: {decision:?}"
+        );
+
         let permit = match decision {
             BrokerAdmissionDecision::Admitted(permit) => permit,
-            BrokerAdmissionDecision::Denied(reasons) => {
-                assert!(reasons.is_empty(), "unexpected denial reasons: {reasons:?}");
-                return;
-            }
+            BrokerAdmissionDecision::Denied(_) => return,
         };
         assert_eq!(permit.request_ref, request.request_ref);
         assert_eq!(permit.account_ref, request.account_ref);
