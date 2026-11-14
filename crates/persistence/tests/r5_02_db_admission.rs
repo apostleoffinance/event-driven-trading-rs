@@ -112,11 +112,26 @@ fn request() -> BrokerAdmissionRequest {
 }
 
 #[sqlx::test]
-async fn persisted_pending_binding_fails_closed() {
-    let pool = sqlx::PgPoolOptions::new()
-        .connect_lazy("postgres://postgres:postgres@localhost/r502-unused")
-        .unwrap();
-    let _ = pool;
+async fn persisted_pending_binding_fails_closed(pool: PgPool) {
+    migrate(&pool).await.unwrap();
+    seed_tenant_and_account(&pool).await;
+    seed_pending_binding(&pool).await;
+
+    let decision = evaluate_persisted_broker_admission(
+        &pool,
+        &request(),
+        "r502-owner",
+        "r502-worker",
+    )
+    .await
+    .unwrap();
+    assert!(matches!(
+        decision,
+        BrokerAdmissionDecision::Denied(ref reasons)
+            if reasons.contains(&BrokerAdmissionDenialReason::AccountControlUnverified)
+                && reasons.contains(&BrokerAdmissionDenialReason::EvidenceMissing)
+                && reasons.contains(&BrokerAdmissionDenialReason::WorkerAssignmentMissingOrAmbiguous)
+    ));
 }
 
 #[sqlx::test]
