@@ -9,14 +9,13 @@
 
 use chrono::{DateTime, Utc};
 use domain::broker_registry::{
-    evaluate_broker_admission as evaluate_facts, AccountControlState,
-    AccountIdentityResolution, AdmissionEnvironment, AdmissionEvidenceAuthentication,
-    AdmissionEvidenceValidity, AdmissionLifecycleStatus, AdmissionRevision,
-    AdmissionSessionState, BrokerAdmissionDecision, BrokerAdmissionFacts,
-    BrokerAdmissionRequest, BrokerCatalogAdmissionFacts, BrokerBindingStatus,
-    ExternalAccountAdmissionFacts, EvidenceAdmissionFacts, OrganizationAdmissionFacts,
-    RegistryAvailability, VerificationAuthorityState, WorkerAdmissionFacts,
-    WorkerAssignmentResolution, BrokerRegistryStatus,
+    evaluate_broker_admission as evaluate_facts, AccountControlState, AccountIdentityResolution,
+    AdmissionEnvironment, AdmissionEvidenceAuthentication, AdmissionEvidenceValidity,
+    AdmissionLifecycleStatus, AdmissionRevision, AdmissionSessionState, BrokerAdmissionDecision,
+    BrokerAdmissionFacts, BrokerAdmissionRequest, BrokerBindingStatus,
+    BrokerCatalogAdmissionFacts, BrokerRegistryStatus, EvidenceAdmissionFacts,
+    ExternalAccountAdmissionFacts, OrganizationAdmissionFacts, RegistryAvailability,
+    VerificationAuthorityState, WorkerAdmissionFacts, WorkerAssignmentResolution,
 };
 use sqlx::{FromRow, PgPool};
 
@@ -204,19 +203,21 @@ pub async fn evaluate_persisted_broker_admission(
         facts.external_account = ExternalAccountAdmissionFacts {
             resolution: Some(AccountIdentityResolution::Unique),
             account_ref: Some(row.external_account_id.clone()),
-            control: Some(if row.external_status == "ACTIVE"
-                && row.verification_status == "VERIFIED"
-                && row.broker_id == request.broker_ref
-                && row.broker_server_id == request.server_ref
-            {
-                AccountControlState::Verified
-            } else if row.broker_id != request.broker_ref
-                || row.broker_server_id != request.server_ref
-            {
-                AccountControlState::Conflicting
-            } else {
-                AccountControlState::Unverified
-            }),
+            control: Some(
+                if row.external_status == "ACTIVE"
+                    && row.verification_status == "VERIFIED"
+                    && row.broker_id == request.broker_ref
+                    && row.broker_server_id == request.server_ref
+                {
+                    AccountControlState::Verified
+                } else if row.broker_id != request.broker_ref
+                    || row.broker_server_id != request.server_ref
+                {
+                    AccountControlState::Conflicting
+                } else {
+                    AccountControlState::Unverified
+                },
+            ),
             binding_ref: Some(request.binding_ref.clone()),
             binding_status: match row.binding_status.as_str() {
                 "PENDING_EVIDENCE" => Some(BrokerBindingStatus::PendingEvidence),
@@ -246,7 +247,12 @@ pub async fn evaluate_persisted_broker_admission(
     )
     .bind(&request.organization_ref)
     .bind(actor_ref)
-    .bind(binding.as_ref().map(|row| row.quant_account_id.as_str()).unwrap_or(""))
+    .bind(
+        binding
+            .as_ref()
+            .map(|row| row.quant_account_id.as_str())
+            .unwrap_or(""),
+    )
     .fetch_optional(&mut *tx)
     .await?;
 
@@ -256,7 +262,10 @@ pub async fn evaluate_persisted_broker_admission(
             organization_status: lifecycle_status(Some(&row.organization_status)),
             membership_ref: row.membership_status.as_ref().map(|_| actor_ref.to_owned()),
             membership_status: lifecycle_status(row.membership_status.as_deref()),
-            entitlement_ref: row.entitlement_status.as_ref().and_then(|_| binding.as_ref().map(|b| b.quant_account_id.clone())),
+            entitlement_ref: row
+                .entitlement_status
+                .as_ref()
+                .and_then(|_| binding.as_ref().map(|b| b.quant_account_id.clone())),
             entitlement_status: match row.entitlement_status.as_deref() {
                 Some("ACTIVE") if row.quant_account_status.as_deref() == Some("active") => {
                     Some(AdmissionLifecycleStatus::Active)
@@ -348,7 +357,6 @@ pub async fn evaluate_persisted_broker_admission(
                 }),
                 revision: revision(row.verification_revision),
             };
-
         }
     }
 
@@ -405,7 +413,9 @@ pub async fn evaluate_persisted_broker_admission(
             let session_ready = assignment_matches
                 && row.session_worker_ref.as_deref() == Some(worker_ref)
                 && row.session_status.as_deref() == Some("READY")
-                && row.session_ready_until.map_or(false, |until| until > snapshot_time);
+                && row
+                    .session_ready_until
+                    .map_or(false, |until| until > snapshot_time);
 
             facts.worker = WorkerAdmissionFacts {
                 worker_ref: assignment_matches.then_some(row.assigned_worker_ref),
