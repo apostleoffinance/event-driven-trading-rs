@@ -62,7 +62,6 @@ struct CatalogRow {
 
 #[derive(FromRow)]
 struct BindingRow {
-    organization_id: String,
     quant_account_id: String,
     external_account_id: String,
     binding_status: String,
@@ -111,7 +110,6 @@ struct EvidenceRow {
 struct WorkerRow {
     assignment_id: String,
     assigned_worker_ref: String,
-    assignment_status: String,
     assignment_revision: i64,
     organization_id: String,
     quant_account_id: String,
@@ -140,6 +138,10 @@ pub async fn evaluate_persisted_broker_admission(
     let mut tx = pool.begin().await?;
     sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
         .execute(&mut *tx)
+        .await?;
+
+    let snapshot_time: DateTime<Utc> = sqlx::query_scalar("SELECT NOW()")
+        .fetch_one(&mut *tx)
         .await?;
 
     let mut facts = BrokerAdmissionFacts {
@@ -281,8 +283,7 @@ pub async fn evaluate_persisted_broker_admission(
         .await?;
 
         if let Some(row) = evidence {
-            let now = Utc::now();
-            let evidence_present = row.evidence_id.is_some();
+            let now = snapshot_time;
             let identity_matches = row.observed_external_account_id.as_deref()
                 == Some(request.account_ref.as_str())
                 && row.observed_broker_id.as_deref() == Some(request.broker_ref.as_str())
@@ -333,9 +334,6 @@ pub async fn evaluate_persisted_broker_admission(
                 revision: revision(row.verification_revision),
             };
 
-            if !evidence_present {
-                facts.evidence.evidence_ref = None;
-            }
         }
     }
 
@@ -356,7 +354,7 @@ pub async fn evaluate_persisted_broker_admission(
     } else {
         let worker = sqlx::query_as::<_, WorkerRow>(
             r#"SELECT a.id AS assignment_id, a.worker_ref AS assigned_worker_ref,
-                      a.status AS assignment_status, a.revision AS assignment_revision,
+                      a.revision AS assignment_revision,
                       a.organization_id, a.quant_account_id, a.binding_id,
                       a.external_broker_account_id AS external_account_id,
                       a.broker_id, a.broker_server_id,
@@ -392,7 +390,7 @@ pub async fn evaluate_persisted_broker_admission(
             let session_ready = assignment_matches
                 && row.session_worker_ref.as_deref() == Some(worker_ref)
                 && row.session_status.as_deref() == Some("READY")
-                && row.session_ready_until.map_or(false, |until| until > Utc::now());
+                && row.session_ready_until.map_or(false, |until| until > snapshot_time);
 
             facts.worker = WorkerAdmissionFacts {
                 worker_ref: assignment_matches.then_some(row.assigned_worker_ref),
