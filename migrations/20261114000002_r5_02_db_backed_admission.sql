@@ -32,6 +32,11 @@ CREATE UNIQUE INDEX broker_platform_authority_active_user_permission_uq
 CREATE INDEX broker_platform_authority_validity_idx
     ON broker_platform_authority_grants(user_id,status,valid_from,valid_until);
 
+ALTER TABLE broker_account_verifications
+    ADD CONSTRAINT broker_verification_authority_grant_fk
+    FOREIGN KEY (authority_grant_id)
+    REFERENCES broker_platform_authority_grants(id) ON DELETE RESTRICT;
+
 CREATE TABLE broker_worker_assignments (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) BETWEEN 1 AND 128),
     worker_ref TEXT NOT NULL CHECK (length(trim(worker_ref)) BETWEEN 1 AND 128),
@@ -54,6 +59,39 @@ CREATE UNIQUE INDEX broker_worker_assignment_active_binding_uq
     WHERE status = 'ACTIVE';
 CREATE INDEX broker_worker_assignment_scope_idx
     ON broker_worker_assignments(organization_id,quant_account_id,worker_ref,status);
+
+CREATE FUNCTION validate_r5_02_worker_assignment_update() RETURNS trigger
+LANGUAGE plpgsql AS $
+BEGIN
+    IF ROW(NEW.id,NEW.worker_ref,NEW.organization_id,NEW.quant_account_id,NEW.binding_id,
+           NEW.external_broker_account_id,NEW.broker_id,NEW.broker_server_id,
+           NEW.valid_from,NEW.valid_until,NEW.created_at)
+       IS DISTINCT FROM
+       ROW(OLD.id,OLD.worker_ref,OLD.organization_id,OLD.quant_account_id,OLD.binding_id,
+           OLD.external_broker_account_id,OLD.broker_id,OLD.broker_server_id,
+           OLD.valid_from,OLD.valid_until,OLD.created_at)
+       OR OLD.status <> 'ACTIVE'
+       OR NEW.status NOT IN ('SUSPENDED','REVOKED')
+       OR NEW.revision <> OLD.revision + 1 THEN
+        RAISE EXCEPTION 'worker assignments may only transition from ACTIVE to SUSPENDED or REVOKED';
+    END IF;
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END
+$;
+CREATE TRIGGER broker_worker_assignments_close_only
+    BEFORE UPDATE ON broker_worker_assignments
+    FOR EACH ROW EXECUTE FUNCTION validate_r5_02_worker_assignment_update();
+
+CREATE FUNCTION reject_r5_02_worker_assignment_delete() RETURNS trigger
+LANGUAGE plpgsql AS $
+BEGIN
+    RAISE EXCEPTION 'worker assignments cannot be deleted';
+END
+$;
+CREATE TRIGGER broker_worker_assignments_no_delete
+    BEFORE DELETE ON broker_worker_assignments
+    FOR EACH ROW EXECUTE FUNCTION reject_r5_02_worker_assignment_delete();
 
 CREATE TABLE broker_worker_sessions (
     id TEXT PRIMARY KEY CHECK (length(trim(id)) BETWEEN 1 AND 128),
