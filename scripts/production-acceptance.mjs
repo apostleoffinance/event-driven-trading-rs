@@ -634,7 +634,9 @@ try {
       };
       const metric = {
         trade_id: tradeId, symbol: "EURUSD", direction: "short", session: "London", setup: "Acceptance",
-        opened_at: openedAt, closed_at: closedAt, net_pnl: "31", risk_amount: "20", realized_r: "1.55",
+        // Simulate a stale Analytics summary while the authoritative Journal
+        // trade detail already contains the user's corrected close timestamp.
+        opened_at: openedAt, closed_at: "2026-11-20T15:00:00Z", net_pnl: "31", risk_amount: "20", realized_r: "1.55",
         mfe_r: null, mae_r: null, mfe_source: null, mae_source: null, mfe_precision: null, mae_precision: null,
         holding_seconds: 18000, mfe_capture_percent: null, profit_surrendered_r: null,
         stop_loss_recorded: true, take_profit_recorded: true, entry_price: "1.1200", exit_price: "1.1169",
@@ -701,6 +703,11 @@ try {
       await dialog.getByRole("heading", { name: "Historical trade replay" }).waitFor();
       await dialog.getByText("Replay ready").waitFor();
       const playback = dialog.locator(".journal-playback");
+      assert.equal(
+        await playback.getByText("Recorded close time is in the future.").count(),
+        0,
+        "Replay must use the corrected full Journal trade timestamp, not the stale Analytics summary timestamp.",
+      );
       await replayPage.waitForFunction(() => {
         const controls = [...document.querySelectorAll(".journal-playback-toolbar select")];
         return controls.length === 3 && controls[0].value === "H1";
