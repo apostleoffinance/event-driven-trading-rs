@@ -20,13 +20,19 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
     python -m pip install --upgrade pip
     pip install -e ".[terminal]"
 
+Run the DPAPI secret helper from the repository root while signed in as the dedicated Windows worker service identity:
+
+    .\\adapters\\mt5-python\\scripts\\protect-mt5-password.ps1
+
+The helper prompts securely and writes a CurrentUser DPAPI-protected file with restrictive ACLs. Set `MT5_PASSWORD_DPAPI_FILE` to that path in the worker's protected service configuration. The same Windows identity must run the worker. Do not set `MT5_PASSWORD`; the worker rejects plaintext password environment variables. DPAPI protects the local file at rest but is not a substitute for an organization-managed secret manager, credential rotation or revocation service.
+
 ## Required Python worker environment variables
 
 | Variable | Purpose |
 |---|---|
 | MT5_TERMINAL_PATH | Windows: absolute path to terminal64.exe. Native macOS provider: installed MT5 app path/label (not used to launch or authenticate the terminal). |
 | MT5_LOGIN | Expected numeric demo login |
-| MT5_PASSWORD | Windows default provider only; never logged. The native macOS provider uses the account already logged into the terminal UI and does not need or transmit this value. |
+| MT5_PASSWORD_DPAPI_FILE | Windows default provider only; path to a CurrentUser DPAPI-protected UTF-8 secret file. Create it with `scripts/protect-mt5-password.ps1` while running as the exact Windows service identity. Plaintext `MT5_PASSWORD` is rejected. Native macOS provider needs no password. |
 | MT5_SERVER | Exact broker demo server name |
 | MT5_TERMINAL_ID | Stable host-assigned terminal identity |
 | MT5_BRIDGE_HOST | Rust listener host; use 127.0.0.1 when colocated |
@@ -34,11 +40,12 @@ PowerShell on the Windows VPS, with MT5 installed and logged into the intended d
 | MT5_BRIDGE_CA_FILE | CA certificate used to validate the Rust server |
 | MT5_BRIDGE_CLIENT_CERT | Client certificate issued for this worker |
 | MT5_BRIDGE_CLIENT_KEY | Matching private key, ACL-restricted to the service account |
-| MT5_ACCOUNT_ID | Optional Rust account ID; defaults to the numeric login |
+| MT5_ACCOUNT_ID | Required opaque QuantOS account ID. Never use the numeric broker login as a substitute. |
 | MT5_BRIDGE_SERVER_NAME | Optional TLS hostname override; defaults to bridge host |
-| MT5_SEQUENCE_FILE | Optional durable sequence checkpoint path |
+| MT5_SEQUENCE_FILE | Optional durable sequence checkpoint path. Default is isolated under `ProgramData\\QuantOS\\streams\\<account-terminal-hash>\\sequence.json`. |
 | MT5_POLL_INTERVAL_SECONDS | Snapshot interval, 1–300 seconds; defaults to 10 |
 | MT5_SYMBOLS | Required comma-separated list of 1–64 exact broker symbols to monitor, e.g. EURUSD.a,GBPUSD.a |
+| MT5_EXPECTED_ACCOUNT_CURRENCY | Required Windows DEMO account currency; worker rejects a mismatch before emitting snapshots. |
 
 ## Start the Rust read-only daemon
 
