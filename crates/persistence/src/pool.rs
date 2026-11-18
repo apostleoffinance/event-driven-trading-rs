@@ -105,6 +105,8 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             ..Migrator::DEFAULT
         };
         ordered_migrator.run(&mut *connection).await?;
+        tracing::info!("fresh database migrations applied");
+        return Ok(());
     } else {
         let applied_versions = applied.keys().copied().collect::<Vec<_>>();
         let core_history = core_versions.to_vec();
