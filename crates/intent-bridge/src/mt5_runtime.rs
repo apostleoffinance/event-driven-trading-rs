@@ -567,6 +567,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn admission_guard_binds_quant_account_external_account_and_worker() {
+        let fingerprint = "a".repeat(64);
+        let guard = Mt5AdmissionGuard::new(
+            "org-1",
+            "quant-account-1",
+            "external-account-1",
+            "binding-1",
+            "broker-1",
+            "broker-server-1",
+            &fingerprint,
+        ).unwrap();
+        assert_eq!(guard.request.operation, AdmissionOperation::ReadOnlyMarketData);
+        assert_eq!(guard.request.account_ref, "external-account-1");
+        assert_eq!(guard.quant_account_ref, "quant-account-1");
+        assert_eq!(guard.worker_ref, fingerprint);
+    }
+
+    #[test]
+    fn admission_guard_rejects_unbound_or_malformed_worker_identity() {
+        assert!(Mt5AdmissionGuard::new(
+            "org-1", "quant-1", "external-1", "binding-1", "broker-1", "server-1", "worker-1"
+        ).is_err());
+        assert!(Mt5AdmissionGuard::new(
+            "org-1 ", "quant-1", "external-1", "binding-1", "broker-1", "server-1", &"a".repeat(64)
+        ).is_err());
+    }
+
+    #[test]
     fn runtime_dispatch_result_never_claims_a_fill() {
         let result = Mt5RuntimeDispatchResult::OutcomePersisted;
         assert_eq!(result, Mt5RuntimeDispatchResult::OutcomePersisted);
