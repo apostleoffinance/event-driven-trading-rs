@@ -3,7 +3,7 @@
 **Review status:** NOT YET REVIEWED  
 **Requested disposition:** Approve, approve with conditions, defer, or reject  
 **Related implementation:** PR #143 — `feat/r5-02-db-backed-admission`  
-**Current implementation branch head at packet creation:** `af463ad48761197370b7e7522d302ade3f13ac72`  
+**Implementation branch head at packet creation:** `168ac178b3b3d26334dfe7223c5349c648036d54`  
 **Owner implementation authorization:** `docs/MT5-MVP-MILESTONE-1-2-OWNER-IMPLEMENTATION-AUTHORIZATION.md`
 
 > This packet is evidence for a qualified reviewer. It is not itself an approval, certification, or authorization to operate the bridge.

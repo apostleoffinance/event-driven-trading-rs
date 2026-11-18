@@ -87,6 +87,24 @@ impl TradingStore {
         &self.pool
     }
 
+    /// Resolve the canonical server identifier from the trusted broker catalog.
+    /// The identifier is immutable; callers still re-evaluate catalog status via
+    /// the database-backed admission check before accepting each MT5 frame.
+    pub async fn broker_server_canonical_identifier(
+        &self,
+        broker_ref: &str,
+        server_ref: &str,
+    ) -> PersistenceResult<Option<String>> {
+        sqlx::query_scalar(
+            "SELECT canonical_identifier FROM broker_servers WHERE id=$1 AND broker_id=$2 AND status='ACTIVE'",
+        )
+        .bind(server_ref)
+        .bind(broker_ref)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn validate_access_token(
         &self,
         claims: &identity_token::AccessClaims,

@@ -4,7 +4,7 @@
 //! watchdog, checkpoints incoming heartbeats, persists external reconciliation state,
 //! and consumes durable dispatch permits through the authenticated transport. It is
 //! not wired to a production daemon or MT5 EA by this crate alone; the host must create
-//! it only after TLS authentication and must provide authoritative venue snapshots.
+//! it with a persisted admission guard and must provide authoritative venue snapshots.
 
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -100,7 +100,7 @@ impl Mt5AdmissionGuard {
                 server_ref: broker_server_ref.to_owned(),
             },
             quant_account_ref: quant_account_ref.to_owned(),
-            observed_server_name: observed_server_name.to_owned(),
+            observed_server_name: observed_server_name.to_ascii_lowercase(),
             worker_ref: worker_ref.to_ascii_lowercase(),
         })
     }
@@ -201,7 +201,7 @@ impl Mt5BridgeRuntime {
                 "MT5 heartbeat watchdog poll interval must be positive".into(),
             ));
         }
-        validate_initial_session(&connection, &session, self.admission.is_some())?
+        validate_initial_session(&connection, &session, self.admission.is_some())?;
         if let Some(guard) = self.admission.as_ref() {
             guard.validate_transport(&connection)?;
         }
@@ -236,7 +236,10 @@ impl Mt5BridgeRuntime {
             if let (Some(account_id), Some(terminal_id)) =
                 (session.account_id(), session.terminal_id())
             {
-                let _ = self.store.mark_mt5_stream_degraded(account_id, terminal_id, 0).await;
+                let _ = self
+                    .store
+                    .mark_mt5_stream_degraded(account_id, terminal_id, 0)
+                    .await;
             }
             return Err(error);
         }
@@ -273,9 +276,11 @@ impl Mt5BridgeRuntime {
             &guard.worker_ref,
         )
         .await
-        .map_err(|_| BridgeError::Invalid(
-            "MT5 broker admission registry is unavailable; refusing frame ingestion".into(),
-        ))?;
+        .map_err(|_| {
+            BridgeError::Invalid(
+                "MT5 broker admission registry is unavailable; refusing frame ingestion".into(),
+            )
+        })?;
         match decision {
             BrokerAdmissionDecision::Admitted(permit)
                 if permit.worker_ref == guard.worker_ref
@@ -284,16 +289,19 @@ impl Mt5BridgeRuntime {
                 // The catalog identifier is immutable. Check that the exact
                 // server name authenticated by the worker maps to this registry
                 // server, not merely to a caller-supplied server ID.
-                let canonical_server: Option<String> = sqlx::query_scalar(
-                    "SELECT canonical_identifier FROM broker_servers WHERE id=$1 AND broker_id=$2 AND status='ACTIVE'",
-                )
-                .bind(&guard.request.server_ref)
-                .bind(&guard.request.broker_ref)
-                .fetch_optional(self.store.pool())
-                .await
-                .map_err(|_| BridgeError::Invalid(
-                    "MT5 broker-server catalog is unavailable; refusing frame ingestion".into(),
-                ))?;
+                let canonical_server = self
+                    .store
+                    .broker_server_canonical_identifier(
+                        &guard.request.broker_ref,
+                        &guard.request.server_ref,
+                    )
+                    .await
+                    .map_err(|_| {
+                        BridgeError::Invalid(
+                            "MT5 broker-server catalog is unavailable; refusing frame ingestion"
+                                .into(),
+                        )
+                    })?;
                 if canonical_server.as_deref() != Some(guard.observed_server_name.as_str()) {
                     return Err(BridgeError::Invalid(
                         "MT5 observed server name does not match the verified broker-server catalog".into(),
@@ -302,7 +310,8 @@ impl Mt5BridgeRuntime {
                 Ok(())
             }
             BrokerAdmissionDecision::Admitted(_) => Err(BridgeError::Invalid(
-                "MT5 broker admission permit scope does not match the configured QuantOS account or worker".into(),
+                "MT5 broker admission permit scope does not match the configured QuantOS account or worker"
+                    .into(),
             )),
             BrokerAdmissionDecision::Denied(reasons) => Err(BridgeError::Invalid(format!(
                 "MT5 broker admission denied: {reasons:?}"
@@ -622,6 +631,7 @@ mod tests {
         assert_eq!(guard.request.operation, AdmissionOperation::ReadOnlyMarketData);
         assert_eq!(guard.request.account_ref, "external-account-1");
         assert_eq!(guard.quant_account_ref, "quant-account-1");
+        assert_eq!(guard.observed_server_name, "broker-demo-server");
         assert_eq!(guard.worker_ref, fingerprint);
     }
 
