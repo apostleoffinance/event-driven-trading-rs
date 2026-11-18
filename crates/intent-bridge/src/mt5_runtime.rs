@@ -634,6 +634,8 @@ impl Drop for Mt5BridgeRuntime {
 mod tests {
     use super::*;
 
+    // Constructor failure must fail this test; keep the crate-wide expect lint strict elsewhere.
+    #[allow(clippy::expect_used)]
     #[test]
     fn admission_guard_binds_quant_account_external_account_and_worker() {
         let fingerprint = "a".repeat(64);
