@@ -26,7 +26,7 @@ pub use mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
     Mt5PositionSnapshot, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
 };
-pub use mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
+pub use mt5_runtime::{Mt5AdmissionGuard, Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
 pub use mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 pub use mt5_transport::{
     spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
