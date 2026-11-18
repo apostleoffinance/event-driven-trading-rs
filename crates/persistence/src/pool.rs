@@ -29,9 +29,15 @@ pub async fn migrate(pool: &PgPool) -> PersistenceResult<()> {
     // shared database. Hold one physical PostgreSQL session for the entire
     // critical section; releasing it always releases the session lock.
     let mut connection = pool.acquire().await?;
-    sqlx::query("SELECT pg_advisory_lock(20261111, 21)")
-        .execute(&mut *connection)
-        .await?;
+    let lock_acquired: Option<i32> =
+        sqlx::query_scalar("SELECT 1 FROM (SELECT pg_advisory_lock(20261111, 21)) AS lock_result")
+            .fetch_optional(&mut *connection)
+            .await?;
+    if lock_acquired != Some(1) {
+        return Err(crate::error::PersistenceError::Other(
+            "failed to acquire migration bootstrap advisory lock".into(),
+        ));
+    }
     let result = migrate_locked(&mut connection).await;
     let unlock_result = sqlx::query_scalar::<_, bool>("SELECT pg_advisory_unlock(20261111, 21)")
         .fetch_one(&mut *connection)
