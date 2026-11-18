@@ -15,6 +15,19 @@ fn migration_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../migrations")
 }
 
+#[tokio::test]
+async fn migration_versions_are_unique() {
+    let migrator = Migrator::new(migration_path()).await.unwrap();
+    let mut versions = BTreeMap::new();
+    for migration in migrator.iter() {
+        assert!(
+            versions.insert(migration.version, ()).is_none(),
+            "duplicate SQLx migration version {}",
+            migration.version
+        );
+    }
+}
+
 async fn selected_migrator(pool: &PgPool, predicate: impl Fn(i64) -> bool) {
     let all = Migrator::new(migration_path()).await.unwrap();
     let selected = all
@@ -264,7 +277,7 @@ async fn exact_e2_to_r2_upgrade_preserves_verified_account_grants_and_journal(po
         .fetch_all(&pool).await.unwrap();
     assert_eq!(new_history, old_history);
     let r2_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM _sqlx_migrations WHERE version=20261112000001 AND success",
+        "SELECT count(*) FROM _sqlx_migrations WHERE version=20261112000002 AND success",
     )
     .fetch_one(&pool)
     .await
