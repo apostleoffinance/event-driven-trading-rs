@@ -5,6 +5,8 @@ code paths. Financial values on the wire are decimal strings.
 """
 from __future__ import annotations
 
+import base64
+import ctypes
 import hashlib
 import importlib
 import json
@@ -55,6 +57,51 @@ def required_text(value: Any, field: str) -> str:
     if not result.strip() or result.strip() != result:
         raise AdapterError(f"MT5 returned invalid required field: {field}")
     return result
+
+
+def read_windows_dpapi_secret(path: str) -> str:
+    """Decrypt a CurrentUser DPAPI-protected UTF-8 secret for the service identity."""
+    if sys.platform != "win32":
+        raise AdapterError("DPAPI broker secrets can only be decrypted on Windows")
+    try:
+        encoded = Path(path).read_text(encoding="ascii").strip()
+        if not encoded or len(encoded) > 131072:
+            raise AdapterError("DPAPI secret file is empty or exceeds the permitted size")
+        encrypted = base64.b64decode(encoded, validate=True)
+        if not encrypted:
+            raise AdapterError("DPAPI secret file is invalid")
+        class DataBlob(ctypes.Structure):
+            _fields_ = [("cbData", ctypes.c_uint32), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+        input_buffer = ctypes.create_string_buffer(encrypted)
+        input_blob = DataBlob(len(encrypted), ctypes.cast(input_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+        output_blob = DataBlob()
+        crypt32 = ctypes.WinDLL("Crypt32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("Kernel32", use_last_error=True)
+        crypt32.CryptUnprotectData.argtypes = [
+            ctypes.POINTER(DataBlob), ctypes.POINTER(ctypes.c_wchar_p),
+            ctypes.POINTER(DataBlob), ctypes.c_void_p, ctypes.c_void_p,
+            ctypes.c_uint32, ctypes.POINTER(DataBlob),
+        ]
+        crypt32.CryptUnprotectData.restype = ctypes.c_int
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel32.LocalFree.restype = ctypes.c_void_p
+        if not crypt32.CryptUnprotectData(
+            ctypes.byref(input_blob), None, None, None, None, 0, ctypes.byref(output_blob)
+        ):
+            raise AdapterError("Windows DPAPI could not decrypt the broker secret for this service identity")
+        try:
+            raw = ctypes.string_at(output_blob.pbData, output_blob.cbData)
+            secret = raw.decode("utf-8")
+        finally:
+            kernel32.LocalFree(ctypes.cast(output_blob.pbData, ctypes.c_void_p))
+        if not secret or secret.strip() != secret:
+            raise AdapterError("decrypted broker secret is empty or contains surrounding whitespace")
+        return secret
+    except AdapterError:
+        raise
+    except (OSError, ValueError, UnicodeError, ctypes.ArgumentError) as exc:
+        raise AdapterError("could not read the protected Windows broker secret") from exc
 
 
 @dataclass(frozen=True)
@@ -109,7 +156,12 @@ class Config:
         is_macos_socket_provider = provider_spec == "mt5_adapter.macos_socket_provider:create_terminal_provider"
         if not is_macos_socket_provider and not expected_currency:
             raise AdapterError("required environment variable is missing or invalid: MT5_EXPECTED_ACCOUNT_CURRENCY")
-        password = os.environ.get("MT5_PASSWORD", "") if is_macos_socket_provider else need("MT5_PASSWORD")
+        if is_macos_socket_provider:
+            password = ""
+        else:
+            if os.environ.get("MT5_PASSWORD"):
+                raise AdapterError("plaintext MT5_PASSWORD is not accepted; use a CurrentUser DPAPI secret file")
+            password = read_windows_dpapi_secret(need("MT5_PASSWORD_DPAPI_FILE"))
         stream_key = hashlib.sha256((account_id + chr(0) + terminal_id).encode("utf-8")).hexdigest()[:24]
 
         return cls(
