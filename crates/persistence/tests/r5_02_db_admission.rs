@@ -265,6 +265,12 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     // Entitlement suspension must remove admission without changing the
     // broker evidence or worker session.
     let store = TradingStore::new(pool.clone());
+    let canonical_server = store
+        .broker_server_canonical_identifier("r502-broker", "r502-server")
+        .await
+        .unwrap();
+    assert_eq!(canonical_server.as_deref(), Some("r502.demo"));
+
     store
         .set_account_entitlement_status(
             "r502-org",

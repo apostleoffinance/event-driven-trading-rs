@@ -633,13 +633,13 @@ mod tests {
             "binding-1",
             "broker-1",
             "broker-server-1",
-            "Broker-Demo-Server",
+            "R502.Demo",
             &fingerprint,
         ).unwrap();
         assert_eq!(guard.request.operation, AdmissionOperation::ReadOnlyMarketData);
         assert_eq!(guard.request.account_ref, "external-account-1");
         assert_eq!(guard.quant_account_ref, "quant-account-1");
-        assert_eq!(guard.observed_server_name, "broker-demo-server");
+        assert_eq!(guard.observed_server_name, "r502.demo");
         assert_eq!(guard.worker_ref, fingerprint);
     }
 
@@ -652,7 +652,7 @@ mod tests {
             "binding-1",
             "broker-1",
             "server-1",
-            "Broker-Demo-Server",
+            "R502.Demo",
             "worker-1"
         ).is_err());
         assert!(Mt5AdmissionGuard::new(
@@ -662,7 +662,7 @@ mod tests {
             "binding-1",
             "broker-1",
             "server-1",
-            "Broker-Demo-Server",
+            "R502.Demo",
             &"a".repeat(64)
         ).is_err());
     }
