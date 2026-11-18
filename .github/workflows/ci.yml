@@ -43,7 +43,7 @@ jobs:
           --secrets-dir "${{ steps.qos020.outputs.secrets_dir }}"
           --lane integration-test
           --run-id "${{ steps.qos020.outputs.run_id }}"
-          -- bash -euc 'cargo fmt --all -- --check && cargo check --workspace && cargo test --workspace -- --test-threads=1 && cargo clippy --workspace --all-targets -- -D warnings'
+          -- bash -euc 'cargo fmt --all -- --check && cargo check --workspace && cargo test --workspace --jobs 1 -- --test-threads=1 && cargo clippy --workspace --all-targets -- -D warnings'
       - name: Verify SQLx test databases were cleaned up
         run: >-
           python scripts/qos020/qos020_guard.py
