@@ -82,9 +82,7 @@ impl Mt5AdmissionGuard {
                 "MT5 admission configuration contains an empty or padded identity".into(),
             ));
         }
-        if worker_ref.len() != 64
-            || !worker_ref.bytes().all(|byte| byte.is_ascii_hexdigit())
-        {
+        if worker_ref.len() != 64 || !worker_ref.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(BridgeError::Invalid(
                 "MT5 admission worker identity must be a SHA-256 certificate fingerprint".into(),
             ));
@@ -156,7 +154,13 @@ impl Mt5BridgeRuntime {
         admission: Mt5AdmissionGuard,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
-        Self::build(store, connection, session, Some(admission), watchdog_poll_interval)
+        Self::build(
+            store,
+            connection,
+            session,
+            Some(admission),
+            watchdog_poll_interval,
+        )
     }
 
     fn build(
@@ -338,7 +342,8 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
-        self.validate_persisted_admission_or_degrade(snapshot.sequence).await?;
+        self.validate_persisted_admission_or_degrade(snapshot.sequence)
+            .await?;
         let mut session = self.session.lock().await;
         persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
     }
@@ -641,8 +646,12 @@ mod tests {
             "broker-server-1",
             "R502.Demo",
             &fingerprint,
-        ).unwrap();
-        assert_eq!(guard.request.operation, AdmissionOperation::ReadOnlyMarketData);
+        )
+        .unwrap();
+        assert_eq!(
+            guard.request.operation,
+            AdmissionOperation::ReadOnlyMarketData
+        );
         assert_eq!(guard.request.account_ref, "external-account-1");
         assert_eq!(guard.quant_account_ref, "quant-account-1");
         assert_eq!(guard.observed_server_name, "r502.demo");
@@ -660,7 +669,8 @@ mod tests {
             "server-1",
             "R502.Demo",
             "worker-1"
-        ).is_err());
+        )
+        .is_err());
         assert!(Mt5AdmissionGuard::new(
             "org-1 ",
             "quant-1",
