@@ -63,8 +63,11 @@ async fn fresh_bootstrap_uses_original_core_migrations_and_is_repeatable(pool: P
     .await
     .unwrap();
     assert_eq!(core_count, 6);
-    let ordering = sqlx::query_as::<_, (chrono::DateTime<Utc>, chrono::DateTime<Utc>)>(
-        "SELECT max(installed_on) FILTER (WHERE version IN (20260306000001,20260906000001,20261027000001,20261027000002,20261027000003,20261027000004)), min(installed_on) FILTER (WHERE version IN (202611070001,202611070002)) FROM _sqlx_migrations",
+    // SQLx stores installed_on at millisecond precision. Several migrations
+    // can therefore share a timestamp; compare the ordered ledger positions
+    // rather than relying on strict timestamp inequality.
+    let ordering = sqlx::query_as::<_, (i64, i64)>(
+        "SELECT max(version) FILTER (WHERE version IN (20260306000001,20260906000001,20261027000001,20261027000002,20261027000003,20261027000004)), min(version) FILTER (WHERE version IN (202611070001,202611070002)) FROM _sqlx_migrations",
     )
     .fetch_one(&pool)
     .await
