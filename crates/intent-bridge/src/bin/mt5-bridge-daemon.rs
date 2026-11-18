@@ -114,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         required_identity(&args.external_account_id, "MT5_EXTERNAL_ACCOUNT_ID")?;
     let binding_id = required_identity(&args.binding_id, "MT5_BINDING_ID")?;
     let broker_id = required_identity(&args.broker_id, "MT5_BROKER_ID")?;
-    let broker_server_id = required_identity(&args.broker_server_id, "MT5_BROKER_SERVER_ID")?
+    let broker_server_id = required_identity(&args.broker_server_id, "MT5_BROKER_SERVER_ID")?;
     let principal_sha256 =
         required_identity(&args.principal_sha256, "MT5_BRIDGE_PRINCIPAL_SHA256")?
             .to_ascii_lowercase();
