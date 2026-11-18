@@ -126,6 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &binding_id,
         &broker_id,
         &broker_server_id,
+        &server,
         &principal_sha256,
     )?;
     let principal = Mt5TransportPrincipal {

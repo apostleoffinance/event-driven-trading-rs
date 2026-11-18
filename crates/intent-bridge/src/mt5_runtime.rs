@@ -48,6 +48,7 @@ pub enum Mt5RuntimeDispatchResult {
 pub struct Mt5AdmissionGuard {
     request: BrokerAdmissionRequest,
     quant_account_ref: String,
+    observed_server_name: String,
     worker_ref: String,
 }
 
@@ -60,6 +61,7 @@ impl Mt5AdmissionGuard {
         binding_ref: &str,
         broker_ref: &str,
         broker_server_ref: &str,
+        observed_server_name: &str,
         worker_ref: &str,
     ) -> BridgeResult<Self> {
         let values = [
@@ -69,6 +71,7 @@ impl Mt5AdmissionGuard {
             binding_ref,
             broker_ref,
             broker_server_ref,
+            observed_server_name,
             worker_ref,
         ];
         if values
@@ -97,6 +100,7 @@ impl Mt5AdmissionGuard {
                 server_ref: broker_server_ref.to_owned(),
             },
             quant_account_ref: quant_account_ref.to_owned(),
+            observed_server_name: observed_server_name.to_owned(),
             worker_ref: worker_ref.to_ascii_lowercase(),
         })
     }
@@ -277,6 +281,24 @@ impl Mt5BridgeRuntime {
                 if permit.worker_ref == guard.worker_ref
                     && permit.quant_account_ref == guard.quant_account_ref =>
             {
+                // The catalog identifier is immutable. Check that the exact
+                // server name authenticated by the worker maps to this registry
+                // server, not merely to a caller-supplied server ID.
+                let canonical_server: Option<String> = sqlx::query_scalar(
+                    "SELECT canonical_identifier FROM broker_servers WHERE id=$1 AND broker_id=$2 AND status='ACTIVE'",
+                )
+                .bind(&guard.request.server_ref)
+                .bind(&guard.request.broker_ref)
+                .fetch_optional(self.store.pool())
+                .await
+                .map_err(|_| BridgeError::Invalid(
+                    "MT5 broker-server catalog is unavailable; refusing frame ingestion".into(),
+                ))?;
+                if canonical_server.as_deref() != Some(guard.observed_server_name.as_str()) {
+                    return Err(BridgeError::Invalid(
+                        "MT5 observed server name does not match the verified broker-server catalog".into(),
+                    ));
+                }
                 Ok(())
             }
             BrokerAdmissionDecision::Admitted(_) => Err(BridgeError::Invalid(
@@ -450,6 +472,7 @@ impl Mt5BridgeRuntime {
                 })
                 .collect(),
         };
+        self.validate_persisted_admission().await?;
         let mut session = self.session.lock().await;
         if market_data_fresh {
             persist_and_confirm_reconciliation(
@@ -593,6 +616,7 @@ mod tests {
             "binding-1",
             "broker-1",
             "broker-server-1",
+            "Broker-Demo-Server",
             &fingerprint,
         ).unwrap();
         assert_eq!(guard.request.operation, AdmissionOperation::ReadOnlyMarketData);
@@ -604,10 +628,24 @@ mod tests {
     #[test]
     fn admission_guard_rejects_unbound_or_malformed_worker_identity() {
         assert!(Mt5AdmissionGuard::new(
-            "org-1", "quant-1", "external-1", "binding-1", "broker-1", "server-1", "worker-1"
+            "org-1",
+            "quant-1",
+            "external-1",
+            "binding-1",
+            "broker-1",
+            "server-1",
+            "Broker-Demo-Server",
+            "worker-1"
         ).is_err());
         assert!(Mt5AdmissionGuard::new(
-            "org-1 ", "quant-1", "external-1", "binding-1", "broker-1", "server-1", &"a".repeat(64)
+            "org-1 ",
+            "quant-1",
+            "external-1",
+            "binding-1",
+            "broker-1",
+            "server-1",
+            "Broker-Demo-Server",
+            &"a".repeat(64)
         ).is_err());
     }
 
