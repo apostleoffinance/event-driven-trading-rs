@@ -28,27 +28,25 @@ pub async fn migrate(pool: &PgPool) -> PersistenceResult<()> {
     // Use a connection-scoped advisory lock to serialize migrations on a
     // shared database. Hold one physical PostgreSQL session for the entire
     // critical section; releasing it always releases the session lock.
-    let mut connection = pool.acquire().await?;
-    let lock_acquired: Option<i32> =
-        sqlx::query_scalar("SELECT 1 FROM (SELECT pg_advisory_lock(20261111, 21)) AS lock_result")
-            .fetch_optional(&mut *connection)
-            .await?;
-    if lock_acquired != Some(1) {
-        return Err(crate::error::PersistenceError::Other(
-            "failed to acquire migration bootstrap advisory lock".into(),
-        ));
-    }
-    let result = migrate_locked(&mut connection).await;
-    let unlock_result = sqlx::query_scalar::<_, bool>("SELECT pg_advisory_unlock(20261111, 21)")
-        .fetch_one(&mut *connection)
-        .await;
-    match (result, unlock_result) {
-        (Err(error), _) => Err(error),
-        (Ok(()), Err(error)) => Err(error.into()),
-        (Ok(()), Ok(true)) => Ok(()),
-        (Ok(()), Ok(false)) => Err(crate::error::PersistenceError::Other(
-            "migration bootstrap advisory lock was not held at unlock".into(),
-        )),
+    // Use a transaction-scoped advisory lock. PostgreSQL releases it reliably
+    // on commit/rollback, even if migration execution returns early or the
+    // connection is dropped. The transaction also pins all bootstrap reads and
+    // migration DDL to the same physical session.
+    let mut transaction = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(20261111, 21)")
+        .execute(&mut *transaction)
+        .await?;
+    match migrate_locked(&mut transaction).await {
+        Ok(()) => {
+            transaction.commit().await?;
+            Ok(())
+        }
+        Err(error) => {
+            // Roll back the transaction before returning the original
+            // migration error. The xact advisory lock is released with it.
+            let _ = transaction.rollback().await;
+            Err(error)
+        }
     }
 }
 
