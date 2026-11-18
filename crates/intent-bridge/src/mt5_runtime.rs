@@ -11,7 +11,7 @@ use std::time::Duration as StdDuration;
 
 use chrono::{DateTime, Duration, Utc};
 use domain::broker_registry::{
-    AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
+    normalize_mt5_server_id, AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
 };
 use persistence::{evaluate_persisted_broker_admission, Mt5DurableOrderState, TradingStore};
 use tokio::sync::Mutex;
@@ -100,7 +100,13 @@ impl Mt5AdmissionGuard {
                 server_ref: broker_server_ref.to_owned(),
             },
             quant_account_ref: quant_account_ref.to_owned(),
-            observed_server_name: observed_server_name.to_ascii_lowercase(),
+            observed_server_name: normalize_mt5_server_id(observed_server_name)
+                .map_err(|_| {
+                    BridgeError::Invalid(
+                        "MT5 server name does not satisfy registry normalization v1".into(),
+                    )
+                })?
+                .canonical,
             worker_ref: worker_ref.to_ascii_lowercase(),
         })
     }
