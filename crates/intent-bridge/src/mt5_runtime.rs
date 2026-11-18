@@ -680,7 +680,8 @@ mod tests {
             "server-1",
             "R502.Demo",
             &"a".repeat(64)
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
