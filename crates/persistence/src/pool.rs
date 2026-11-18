@@ -22,12 +22,9 @@ fn migrations_path() -> PathBuf {
 
 /// Run SQL migrations from the workspace `migrations/` directory.
 pub async fn migrate(pool: &PgPool) -> PersistenceResult<()> {
-    // Serialize the history read, core bootstrap, and full migration as one
-    // session-level critical section. SQLx's per-Migrator lock alone would
-    // leave a race between the filtered core migrator and the full migrator.
-    // Use a connection-scoped advisory lock to serialize migrations on a
-    // shared database. Hold one physical PostgreSQL session for the entire
-    // critical section; releasing it always releases the session lock.
+    // Serialize history classification, bootstrap, and all migrations as one
+    // transaction-scoped critical section. This also binds the lock lifetime to
+    // the schema changes: commit or rollback releases it automatically.
     // Use a transaction-scoped advisory lock. PostgreSQL releases it reliably
     // on commit/rollback, even if migration execution returns early or the
     // connection is dropped. The transaction also pins all bootstrap reads and
