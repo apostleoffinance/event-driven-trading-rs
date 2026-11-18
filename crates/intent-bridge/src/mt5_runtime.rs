@@ -160,7 +160,7 @@ impl Mt5BridgeRuntime {
                 "MT5 heartbeat watchdog poll interval must be positive".into(),
             ));
         }
-        validate_initial_session(&connection, &session)?;
+        validate_initial_session(&connection, &session, admission.is_some())?
         if let Some(guard) = admission.as_ref() {
             guard.validate_transport(&connection)?;
         }
@@ -196,7 +196,7 @@ impl Mt5BridgeRuntime {
                 "MT5 heartbeat watchdog poll interval must be positive".into(),
             ));
         }
-        validate_initial_session(&connection, &session)?;
+        validate_initial_session(&connection, &session, self.admission.is_some())?
         if let Some(guard) = self.admission.as_ref() {
             guard.validate_transport(&connection)?;
         }
@@ -549,12 +549,17 @@ impl Mt5BridgeRuntime {
 fn validate_initial_session(
     connection: &AuthenticatedMt5Connection,
     session: &Mt5SessionGate,
+    require_authenticated_identity: bool,
 ) -> BridgeResult<()> {
     let principal = connection.principal();
+    let identity_mismatch = require_authenticated_identity
+        && (session.expected_terminal_id() != Some(principal.terminal_id.as_str())
+            || session.expected_server() != Some(principal.server.as_str()));
     if session.state() != Mt5SessionState::AwaitingHeartbeat
         || session.account_id().is_some()
         || session.terminal_id().is_some()
         || session.server().is_some()
+        || identity_mismatch
         || !principal
             .allowed_accounts
             .iter()

@@ -167,8 +167,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
                 let authenticated_principal = connection.principal().clone();
-                let policy = match Mt5SessionPolicy::new(
+                let policy = match Mt5SessionPolicy::new_with_identity(
                     authenticated_principal.allowed_accounts.iter().cloned(),
+                    &authenticated_principal.terminal_id,
+                    &authenticated_principal.server,
                 ) {
                     Ok(policy) => policy,
                     Err(error) => {
