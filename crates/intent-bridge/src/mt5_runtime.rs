@@ -230,19 +230,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         allowed_clock_skew: Duration,
     ) -> BridgeResult<BridgeFrame> {
-        if let Err(error) = self.validate_persisted_admission().await {
-            let mut session = self.session.lock().await;
-            session.degrade();
-            if let (Some(account_id), Some(terminal_id)) =
-                (session.account_id(), session.terminal_id())
-            {
-                let _ = self
-                    .store
-                    .mark_mt5_stream_degraded(account_id, terminal_id, 0)
-                    .await;
-            }
-            return Err(error);
-        }
+        self.validate_persisted_admission_or_degrade(0).await?;
         let mut connection = self.connection.lock().await;
         let mut session = self.session.lock().await;
         match connection
@@ -263,6 +251,23 @@ impl Mt5BridgeRuntime {
                 Err(error)
             }
         }
+    }
+
+    async fn validate_persisted_admission_or_degrade(&self, sequence: i64) -> BridgeResult<()> {
+        if let Err(error) = self.validate_persisted_admission().await {
+            let mut session = self.session.lock().await;
+            session.degrade();
+            if let (Some(account_id), Some(terminal_id)) =
+                (session.account_id(), session.terminal_id())
+            {
+                let _ = self
+                    .store
+                    .mark_mt5_stream_degraded(account_id, terminal_id, sequence)
+                    .await;
+            }
+            return Err(error);
+        }
+        Ok(())
     }
 
     async fn validate_persisted_admission(&self) -> BridgeResult<()> {
@@ -327,7 +332,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
-        self.validate_persisted_admission().await?;
+        self.validate_persisted_admission_or_degrade(snapshot.sequence).await?;
         let mut session = self.session.lock().await;
         persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
     }
@@ -374,6 +379,8 @@ impl Mt5BridgeRuntime {
                         "MT5 market-data identity does not match authenticated session".into(),
                     ));
                 }
+                self.validate_persisted_admission_or_degrade(snapshot.sequence)
+                    .await?;
                 let serialized = serde_json::to_value(snapshot)?;
                 if let Err(error) = self
                     .store
@@ -481,7 +488,8 @@ impl Mt5BridgeRuntime {
                 })
                 .collect(),
         };
-        self.validate_persisted_admission().await?;
+        self.validate_persisted_admission_or_degrade(snapshot.sequence)
+            .await?;
         let mut session = self.session.lock().await;
         if market_data_fresh {
             persist_and_confirm_reconciliation(
@@ -513,7 +521,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
-        self.validate_persisted_admission().await?;
+        self.validate_persisted_admission_or_degrade(0).await?;
         let (account_id, terminal_id, server) = {
             let session = self.session.lock().await;
             if session.state() != Mt5SessionState::ReconciliationRequired {
