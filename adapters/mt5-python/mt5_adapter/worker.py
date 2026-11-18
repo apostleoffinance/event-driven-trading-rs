@@ -107,8 +107,10 @@ class Config:
             raise AdapterError("MT5_SYMBOLS must contain 1–64 unique, exact broker symbol names")
         provider_spec = os.environ.get("MT5_TERMINAL_PROVIDER", "").strip()
         is_macos_socket_provider = provider_spec == "mt5_adapter.macos_socket_provider:create_terminal_provider"
+        if not is_macos_socket_provider and not expected_currency:
+            raise AdapterError("required environment variable is missing or invalid: MT5_EXPECTED_ACCOUNT_CURRENCY")
         password = os.environ.get("MT5_PASSWORD", "") if is_macos_socket_provider else need("MT5_PASSWORD")
-        stream_key = hashlib.sha256(f"{account_id}\\0{terminal_id}".encode("utf-8")).hexdigest()[:24]
+        stream_key = hashlib.sha256((account_id + chr(0) + terminal_id).encode("utf-8")).hexdigest()[:24]
 
         return cls(
             terminal_path=need("MT5_TERMINAL_PATH"),
