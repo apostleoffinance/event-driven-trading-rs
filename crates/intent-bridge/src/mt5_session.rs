@@ -238,11 +238,11 @@ impl Mt5SessionGate {
         if self
             .policy
             .expected_terminal_id()
-            .is_some_and(|expected| expected != heartbeat.terminal_id)
+            .is_some_and(|expected| expected != heartbeat.terminal_id.as_str())
             || self
                 .policy
                 .expected_server()
-                .is_some_and(|expected| expected != heartbeat.server)
+                .is_some_and(|expected| expected != heartbeat.server.as_str())
         {
             self.state = Mt5SessionState::Closed;
             return Err(BridgeError::Invalid(
