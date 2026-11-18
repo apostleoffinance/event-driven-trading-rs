@@ -122,6 +122,50 @@ class AdapterContractTests(unittest.TestCase):
             self.assertEqual(SequenceStore(path).next(), 0)
             self.assertEqual(SequenceStore(path).next(), 1)
 
+    def test_worker_requires_quant_account_id_instead_of_defaulting_to_broker_login(self):
+        environment = {
+            "MT5_LOGIN": "123456",
+            "MT5_TERMINAL_ID": "terminal-1",
+            "MT5_EXPECTED_ACCOUNT_CURRENCY": "USD",
+            "MT5_BRIDGE_HOST": "127.0.0.1",
+            "MT5_SYMBOLS": "EURUSD",
+            "MT5_PASSWORD_DPAPI_FILE": "protected.dpapi",
+            "MT5_TERMINAL_PATH": "C:/terminal64.exe",
+            "MT5_SERVER": "Broker-Demo",
+            "MT5_BRIDGE_CA_FILE": "ca.pem",
+            "MT5_BRIDGE_CLIENT_CERT": "client.pem",
+            "MT5_BRIDGE_CLIENT_KEY": "client.key",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(AdapterError, "MT5_ACCOUNT_ID"):
+                Config.from_env()
+
+    def test_worker_scopes_default_sequence_checkpoint_to_account_and_terminal(self):
+        from unittest.mock import patch as mock_patch
+
+        environment = {
+            "MT5_LOGIN": "123456",
+            "MT5_ACCOUNT_ID": "quant-account-1",
+            "MT5_TERMINAL_ID": "terminal-1",
+            "MT5_EXPECTED_ACCOUNT_CURRENCY": "USD",
+            "MT5_BRIDGE_HOST": "127.0.0.1",
+            "MT5_SYMBOLS": "EURUSD",
+            "MT5_PASSWORD_DPAPI_FILE": "protected.dpapi",
+            "MT5_TERMINAL_PATH": "C:/terminal64.exe",
+            "MT5_SERVER": "Broker-Demo",
+            "MT5_BRIDGE_CA_FILE": "ca.pem",
+            "MT5_BRIDGE_CLIENT_CERT": "client.pem",
+            "MT5_BRIDGE_CLIENT_KEY": "client.key",
+            "PROGRAMDATA": "C:/ProgramData",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with mock_patch("mt5_adapter.worker.read_windows_dpapi_secret", return_value="protected-secret"):
+                cfg = Config.from_env()
+        self.assertEqual(cfg.account_id, "quant-account-1")
+        self.assertIn("streams", cfg.sequence_file)
+        self.assertIn("sequence.json", cfg.sequence_file)
+        self.assertTrue(cfg.require_demo)
+
     def test_dpapi_secret_loader_refuses_non_windows_hosts(self):
         if sys.platform != "win32":
             with self.assertRaisesRegex(AdapterError, "only be decrypted on Windows"):
