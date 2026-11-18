@@ -163,14 +163,6 @@ mod i1_tests {
     use serde_json::Value;
     use std::collections::BTreeMap;
 
-    // SQLx creates an isolated database for each #[sqlx::test]. Each test
-    // must apply the application migrations to its own database.
-    async fn migrate_test_database(pool: &PgPool) {
-        persistence::migrate(pool)
-            .await
-            .expect("identity integration test database migrations must succeed");
-    }
-
     const PRIVATE: &[u8] = include_bytes!("../../journal-api/tests/fixtures/r2_test_private.pem");
     const PUBLIC: &[u8] = include_bytes!("../../journal-api/tests/fixtures/r2_test_public.pem");
 
@@ -229,9 +221,8 @@ mod i1_tests {
         headers
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn session_issue_refresh_replay_revokes_and_logout_invalidates_access(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-flow@example.test").await;
         let issued_access = issued["access_token"].as_str().unwrap();
@@ -315,9 +306,8 @@ mod i1_tests {
             .unwrap());
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn concurrent_refresh_replay_has_one_rotation_and_revokes_the_family(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-concurrent@example.test").await;
         let refresh_token = issued["refresh_token"].as_str().unwrap().to_owned();
@@ -340,9 +330,8 @@ mod i1_tests {
         assert_eq!(session_status, "REVOKED");
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn suspension_revokes_tokens_and_reactivation_does_not_restore_session(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-suspension@example.test").await;
         let access = issued["access_token"].as_str().unwrap();
@@ -384,9 +373,8 @@ mod i1_tests {
         assert_eq!(revision, claims.session_revision + 1);
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn suspension_audit_failure_rolls_back_user_and_session_state(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-suspend-fault@example.test").await;
         let access = issued["access_token"].as_str().unwrap();
@@ -425,9 +413,8 @@ mod i1_tests {
         assert!(trigger_drop.is_ok());
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn session_event_truncate_and_cross_user_attribution_are_rejected(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let first = register(&app, "i1-event-owner@example.test").await;
         let second = register(&app, "i1-event-other@example.test").await;
@@ -445,9 +432,8 @@ mod i1_tests {
             .is_err());
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn concurrent_refresh_and_logout_finish_with_revoked_session(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-refresh-logout@example.test").await;
         let access = issued["access_token"].as_str().unwrap().to_owned();
@@ -485,9 +471,8 @@ mod i1_tests {
         assert_eq!(status, "REVOKED");
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn refresh_event_failure_rolls_back_token_rotation(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-refresh-fault@example.test").await;
         let old_refresh = issued["refresh_token"].as_str().unwrap().to_owned();
@@ -523,9 +508,8 @@ mod i1_tests {
         assert_eq!(retry.status(), StatusCode::OK);
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn concurrent_refresh_and_access_token_revocation_preserve_both_intents(pool: PgPool) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-refresh-access-revoke@example.test").await;
         let access = issued["access_token"].as_str().unwrap().to_owned();
@@ -552,11 +536,10 @@ mod i1_tests {
             .unwrap());
     }
 
-    #[sqlx::test(migrations = false)]
+    #[sqlx::test(migrations = "../../migrations")]
     async fn concurrent_refresh_and_suspension_leave_user_inactive_and_session_revoked(
         pool: PgPool,
     ) {
-        migrate_test_database(&pool).await;
         let app = state(pool.clone());
         let issued = register(&app, "i1-refresh-suspension@example.test").await;
         let access = issued["access_token"].as_str().unwrap();
