@@ -19,6 +19,7 @@ from mt5_adapter.worker import (
     load_terminal_runtime,
     run_worker,
     send_frame,
+    read_windows_dpapi_secret,
 )
 
 
@@ -120,6 +121,11 @@ class AdapterContractTests(unittest.TestCase):
             path = str(Path(directory) / "sequence.json")
             self.assertEqual(SequenceStore(path).next(), 0)
             self.assertEqual(SequenceStore(path).next(), 1)
+
+    def test_dpapi_secret_loader_refuses_non_windows_hosts(self):
+        if sys.platform != "win32":
+            with self.assertRaisesRegex(AdapterError, "only be decrypted on Windows"):
+                read_windows_dpapi_secret("unused.dpapi")
 
     def test_live_account_is_rejected_before_reconciliation_or_market_data(self):
         terminal = FakeTerminal()
