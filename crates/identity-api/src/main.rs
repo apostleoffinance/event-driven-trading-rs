@@ -224,7 +224,7 @@ mod i1_tests {
         headers
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn session_issue_refresh_replay_revokes_and_logout_invalidates_access(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -310,7 +310,7 @@ mod i1_tests {
             .unwrap());
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn concurrent_refresh_replay_has_one_rotation_and_revokes_the_family(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -335,7 +335,7 @@ mod i1_tests {
         assert_eq!(session_status, "REVOKED");
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn suspension_revokes_tokens_and_reactivation_does_not_restore_session(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -379,7 +379,7 @@ mod i1_tests {
         assert_eq!(revision, claims.session_revision + 1);
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn suspension_audit_failure_rolls_back_user_and_session_state(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -420,7 +420,7 @@ mod i1_tests {
         assert!(trigger_drop.is_ok());
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn session_event_truncate_and_cross_user_attribution_are_rejected(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -440,7 +440,7 @@ mod i1_tests {
             .is_err());
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn concurrent_refresh_and_logout_finish_with_revoked_session(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -480,7 +480,7 @@ mod i1_tests {
         assert_eq!(status, "REVOKED");
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn refresh_event_failure_rolls_back_token_rotation(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -518,7 +518,7 @@ mod i1_tests {
         assert_eq!(retry.status(), StatusCode::OK);
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn concurrent_refresh_and_access_token_revocation_preserve_both_intents(pool: PgPool) {
         migrate_test_database(&pool).await;
         let app = state(pool.clone());
@@ -547,7 +547,7 @@ mod i1_tests {
             .unwrap());
     }
 
-    #[sqlx::test]
+    #[sqlx::test(migrations = false)]
     async fn concurrent_refresh_and_suspension_leave_user_inactive_and_session_revoked(
         pool: PgPool,
     ) {
