@@ -5,7 +5,7 @@ use domain::broker_registry::{
     AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionDenialReason,
     BrokerAdmissionRequest,
 };
-use domain::{Organization, OrganizationId};
+use domain::{EntitlementStatus, Organization, OrganizationId};
 use persistence::{evaluate_persisted_broker_admission, migrate, TradingStore};
 use sqlx::PgPool;
 
@@ -201,6 +201,56 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
                 && permit.account_ref == "r502-external-account"
                 && permit.revisions.worker_assignment == 1
     ));
+
+    // Evidence revocation must invalidate a previously admissible binding on
+    // the very next database-backed evaluation.
+    sqlx::query("UPDATE broker_account_evidence SET revoked_at=NOW() WHERE id='r502-evidence'")
+        .execute(&pool).await.unwrap();
+    let evidence_revoked =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await.unwrap();
+    assert!(matches!(
+        evidence_revoked,
+        BrokerAdmissionDecision::Denied(ref reasons)
+            if reasons.contains(&BrokerAdmissionDenialReason::EvidenceRevokedOrSuperseded)
+    ));
+    sqlx::query("UPDATE broker_account_evidence SET revoked_at=NULL WHERE id='r502-evidence'")
+        .execute(&pool).await.unwrap();
+
+    // Expiry is evaluated against the database snapshot clock, not the
+    // worker's timestamp or an application-provided clock.
+    sqlx::query("UPDATE broker_account_evidence SET expires_at=NOW()-INTERVAL '1 second' WHERE id='r502-evidence'")
+        .execute(&pool).await.unwrap();
+    let evidence_expired =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await.unwrap();
+    assert!(matches!(
+        evidence_expired,
+        BrokerAdmissionDecision::Denied(ref reasons)
+            if reasons.contains(&BrokerAdmissionDenialReason::EvidenceExpired)
+    ));
+    sqlx::query("UPDATE broker_account_evidence SET expires_at=NOW()+INTERVAL '15 minutes' WHERE id='r502-evidence'")
+        .execute(&pool).await.unwrap();
+
+    // Entitlement suspension must remove admission without changing the
+    // broker evidence or worker session.
+    let store = TradingStore::new(pool.clone());
+    store.set_account_entitlement_status(
+        "r502-org", "r502-quant-account", "r502-owner", 1, 1,
+        EntitlementStatus::Suspended, "R5-02 revocation test",
+    ).await.unwrap();
+    let entitlement_suspended =
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await.unwrap();
+    assert!(matches!(
+        entitlement_suspended,
+        BrokerAdmissionDecision::Denied(ref reasons)
+            if reasons.contains(&BrokerAdmissionDenialReason::EntitlementMissingOrInactive)
+    ));
+    store.set_account_entitlement_status(
+        "r502-org", "r502-quant-account", "r502-owner", 1, 2,
+        EntitlementStatus::Active, "R5-02 restore test",
+    ).await.unwrap();
 
     sqlx::query(
         "UPDATE broker_worker_sessions SET status='NOT_READY',revision=revision+1 WHERE id='r502-session-1'",
