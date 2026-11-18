@@ -5,6 +5,7 @@ code paths. Financial values on the wire are decimal strings.
 """
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import os
@@ -73,6 +74,8 @@ class Config:
     sequence_file: str
     symbols: tuple[str, ...]
     poll_seconds: float = 10.0
+    expected_currency: str = ""
+    require_demo: bool = True
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -90,9 +93,9 @@ class Config:
             raise AdapterError("MT5 login, bridge port, or poll interval has invalid format") from exc
         if login <= 0 or not 1 <= port <= 65535 or not 1 <= poll <= 300:
             raise AdapterError("login, bridge port, or poll interval is outside its allowed range")
-        account_id = os.environ.get("MT5_ACCOUNT_ID", str(login))
-        if not account_id or account_id.strip() != account_id:
-            raise AdapterError("MT5_ACCOUNT_ID is invalid")
+        account_id = need("MT5_ACCOUNT_ID")
+        terminal_id = need("MT5_TERMINAL_ID")
+        expected_currency = need("MT5_EXPECTED_ACCOUNT_CURRENCY")
         bridge_host = need("MT5_BRIDGE_HOST")
         symbols = tuple(symbol.strip() for symbol in need("MT5_SYMBOLS").split(","))
         if (
@@ -103,9 +106,9 @@ class Config:
         ):
             raise AdapterError("MT5_SYMBOLS must contain 1–64 unique, exact broker symbol names")
         provider_spec = os.environ.get("MT5_TERMINAL_PROVIDER", "").strip()
-        password = os.environ.get("MT5_PASSWORD", "")
-        if provider_spec != "mt5_adapter.macos_socket_provider:create_terminal_provider":
-            password = need("MT5_PASSWORD")
+        is_macos_socket_provider = provider_spec == "mt5_adapter.macos_socket_provider:create_terminal_provider"
+        password = os.environ.get("MT5_PASSWORD", "") if is_macos_socket_provider else need("MT5_PASSWORD")
+        stream_key = hashlib.sha256(f"{account_id}\\0{terminal_id}".encode("utf-8")).hexdigest()[:24]
 
         return cls(
             terminal_path=need("MT5_TERMINAL_PATH"),
@@ -113,7 +116,7 @@ class Config:
             password=password,
             server=need("MT5_SERVER"),
             account_id=account_id,
-            terminal_id=need("MT5_TERMINAL_ID"),
+            terminal_id=terminal_id,
             bridge_host=bridge_host,
             bridge_port=port,
             bridge_server_name=os.environ.get("MT5_BRIDGE_SERVER_NAME", bridge_host),
@@ -122,10 +125,12 @@ class Config:
             client_key=need("MT5_BRIDGE_CLIENT_KEY"),
             sequence_file=os.environ.get(
                 "MT5_SEQUENCE_FILE",
-                str(Path(os.environ.get("PROGRAMDATA", ".")) / "QuantOS" / "mt5-sequence.json"),
+                str(Path(os.environ.get("PROGRAMDATA", ".")) / "QuantOS" / "streams" / stream_key / "sequence.json"),
             ),
             symbols=symbols,
             poll_seconds=poll,
+            expected_currency=expected_currency,
+            require_demo=not is_macos_socket_provider,
         )
 
 
@@ -165,8 +170,7 @@ class MetaTraderTerminal:
         if not self.connected():
             raise AdapterError("MT5 terminal is not connected to its trade server")
         account = self.account_info()
-        if account is None or int(account.login) != config.login or str(account.server) != config.server:
-            raise AdapterError("connected MT5 account/server does not match configured identity")
+        _validate_account_identity(config, account, require_demo=True)
 
     def connected(self) -> bool:
         info = self.mt5.terminal_info()
@@ -232,6 +236,18 @@ class SequenceStore:
         return sequence
 
 
+def _validate_account_identity(config: Config, account: Any, *, require_demo: bool) -> None:
+    if account is None:
+        raise AdapterError("MT5 account information is unavailable")
+    if int(account.login) != config.login or str(account.server) != config.server:
+        raise AdapterError("MT5 account login/server does not match configured identity")
+    currency = required_text(getattr(account, "currency", None), "account currency")
+    if config.expected_currency and currency != config.expected_currency:
+        raise AdapterError("MT5 account currency does not match the approved DEMO account")
+    if require_demo and getattr(account, "trade_mode", None) != 0:
+        raise AdapterError("MT5 account is not in DEMO trade mode; refusing to emit data")
+
+
 def _order_type(mt5: Any, value: Any) -> str:
     mapping = {
         mt5.ORDER_TYPE_BUY: "market_buy",
@@ -250,8 +266,7 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
     if not terminal.connected():
         raise AdapterError("MT5 terminal disconnected; refusing to emit a reconciliation snapshot")
     account = terminal.account_info()
-    if account is None or int(account.login) != config.login or str(account.server) != config.server:
-        raise AdapterError("MT5 account identity changed; refusing to emit a reconciliation snapshot")
+    _validate_account_identity(config, account, require_demo=config.require_demo)
 
     orders = []
     for order in terminal.orders():
@@ -310,8 +325,7 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
     if not terminal.connected():
         raise AdapterError("MT5 terminal disconnected; refusing to emit market data")
     account = terminal.account_info()
-    if account is None or int(account.login) != config.login or str(account.server) != config.server:
-        raise AdapterError("MT5 account identity changed; refusing to emit market data")
+    _validate_account_identity(config, account, require_demo=config.require_demo)
 
     instruments = []
     quotes = []
