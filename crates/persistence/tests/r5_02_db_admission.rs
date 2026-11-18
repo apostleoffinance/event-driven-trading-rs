@@ -336,4 +336,13 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
         BrokerAdmissionDecision::Denied(ref reasons)
             if reasons.contains(&BrokerAdmissionDenialReason::VerificationAuthorityMissingOrUnauthorized)
     ));
+
+    // A closed pool represents an unavailable admission registry. The caller
+    // must receive an error, never an implicit allow decision.
+    pool.close().await;
+    assert!(
+        evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
+            .await
+            .is_err()
+    );
 }

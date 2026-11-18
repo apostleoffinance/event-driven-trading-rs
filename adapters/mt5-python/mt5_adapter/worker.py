@@ -87,7 +87,7 @@ def read_windows_dpapi_secret(path: str) -> str:
         kernel32.LocalFree.argtypes = [ctypes.c_void_p]
         kernel32.LocalFree.restype = ctypes.c_void_p
         if not crypt32.CryptUnprotectData(
-            ctypes.byref(input_blob), None, None, None, None, 0, ctypes.byref(output_blob)
+            ctypes.byref(input_blob), None, None, None, None, 0x1, ctypes.byref(output_blob)
         ):
             raise AdapterError("Windows DPAPI could not decrypt the broker secret for this service identity")
         try:

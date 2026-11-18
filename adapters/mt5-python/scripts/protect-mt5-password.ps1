@@ -9,17 +9,14 @@ if ($env:OS -ne "Windows_NT") {
     throw "This helper must run on the Windows host under the dedicated MT5 worker service identity."
 }
 
-$protectedDataAvailable = $false
 foreach ($assembly in @("System.Security", "System.Security.Cryptography.ProtectedData")) {
     try {
         Add-Type -AssemblyName $assembly -ErrorAction Stop
-        $protectedDataAvailable = $true
     } catch {
         # Try the other assembly identity; the type name is checked below.
     }
 }
-if (-not $protectedDataAvailable -or
-    -not ("System.Security.Cryptography.ProtectedData" -as [type])) {
+if (-not ("System.Security.Cryptography.ProtectedData" -as [type])) {
     throw "The .NET ProtectedData type is unavailable on this Windows PowerShell/.NET runtime."
 }
 
@@ -40,7 +37,7 @@ try {
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
     $plainBytes = [Text.Encoding]::UTF8.GetBytes($plain)
-    $protectedBytes = [Security.Cryptography.ProtectedData]::Protect(
+    $protectedBytes = [System.Security.Cryptography.ProtectedData]::Protect(
         $plainBytes,
         $null,
         [Security.Cryptography.DataProtectionScope]::CurrentUser
