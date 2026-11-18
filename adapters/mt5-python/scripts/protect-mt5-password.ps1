@@ -40,7 +40,7 @@ try {
     $protectedBytes = [System.Security.Cryptography.ProtectedData]::Protect(
         $plainBytes,
         $null,
-        [Security.Cryptography.DataProtectionScope]::CurrentUser
+        [System.Security.Cryptography.DataProtectionScope]::CurrentUser
     )
 
     $directory = Split-Path -Parent $OutputPath
