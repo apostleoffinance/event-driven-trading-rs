@@ -10,7 +10,12 @@ use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
 use chrono::{DateTime, Duration, Utc};
-use persistence::{Mt5DurableOrderState, TradingStore};
+use domain::broker_registry::{
+    AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
+};
+use persistence::{
+    evaluate_persisted_broker_admission, Mt5DurableOrderState, TradingStore,
+};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -37,10 +42,75 @@ pub enum Mt5RuntimeDispatchResult {
     },
 }
 
+/// Immutable registry scope for one mTLS-authenticated worker. The worker
+/// certificate fingerprint is also the provisioned service-user ID in
+/// identity_users and broker_worker_assignments; that service principal must
+/// have an active membership in the target organization.
+#[derive(Debug, Clone)]
+pub struct Mt5AdmissionGuard {
+    request: BrokerAdmissionRequest,
+    quant_account_ref: String,
+    worker_ref: String,
+}
+
+impl Mt5AdmissionGuard {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        organization_ref: &str,
+        quant_account_ref: &str,
+        external_account_ref: &str,
+        binding_ref: &str,
+        broker_ref: &str,
+        broker_server_ref: &str,
+        worker_ref: &str,
+    ) -> BridgeResult<Self> {
+        let values = [
+            organization_ref, quant_account_ref, external_account_ref, binding_ref,
+            broker_ref, broker_server_ref, worker_ref,
+        ];
+        if values.iter().any(|value| value.trim().is_empty() || value.trim() != *value) {
+            return Err(BridgeError::Invalid(
+                "MT5 admission configuration contains an empty or padded identity".into(),
+            ));
+        }
+        if worker_ref.len() != 64 || !worker_ref.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(BridgeError::Invalid(
+                "MT5 admission worker identity must be a SHA-256 certificate fingerprint".into(),
+            ));
+        }
+        Ok(Self {
+            request: BrokerAdmissionRequest {
+                request_ref: format!("mt5-readonly-{worker_ref}"),
+                operation: AdmissionOperation::ReadOnlyMarketData,
+                organization_ref: organization_ref.to_owned(),
+                account_ref: external_account_ref.to_owned(),
+                binding_ref: binding_ref.to_owned(),
+                broker_ref: broker_ref.to_owned(),
+                server_ref: broker_server_ref.to_owned(),
+            },
+            quant_account_ref: quant_account_ref.to_owned(),
+            worker_ref: worker_ref.to_ascii_lowercase(),
+        })
+    }
+
+    fn validate_transport(&self, connection: &AuthenticatedMt5Connection) -> BridgeResult<()> {
+        let principal = connection.principal();
+        if principal.certificate_sha256.to_ascii_lowercase() != self.worker_ref
+            || !principal.allowed_accounts.contains(&self.quant_account_ref)
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 admission scope does not match the authenticated worker certificate and QuantOS account".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub struct Mt5BridgeRuntime {
     store: TradingStore,
     connection: Arc<Mutex<AuthenticatedMt5Connection>>,
     session: Arc<Mutex<Mt5SessionGate>>,
+    admission: Option<Mt5AdmissionGuard>,
     watchdog: JoinHandle<()>,
 }
 
@@ -53,7 +123,38 @@ impl Mt5BridgeRuntime {
         session: Mt5SessionGate,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
+        Self::build(store, connection, session, None, watchdog_poll_interval)
+    }
+
+    /// Production constructor: every incoming frame is gated against the current
+    /// persisted broker binding, entitlement, evidence, verifier authority and
+    /// worker session before the frame is checkpointed or persisted.
+    pub fn new_with_admission(
+        store: TradingStore,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        admission: Mt5AdmissionGuard,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<Self> {
+        Self::build(store, connection, session, Some(admission), watchdog_poll_interval)
+    }
+
+    fn build(
+        store: TradingStore,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        admission: Option<Mt5AdmissionGuard>,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<Self> {
+        if watchdog_poll_interval.is_zero() {
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat watchdog poll interval must be positive".into(),
+            ));
+        }
         validate_initial_session(&connection, &session)?;
+        if let Some(guard) = admission.as_ref() {
+            guard.validate_transport(&connection)?;
+        }
         let connection = Arc::new(Mutex::new(connection));
         let session = Arc::new(Mutex::new(session));
         let watchdog = spawn_heartbeat_watchdog(
@@ -66,6 +167,7 @@ impl Mt5BridgeRuntime {
             store,
             connection,
             session,
+            admission,
             watchdog,
         })
     }
@@ -86,6 +188,9 @@ impl Mt5BridgeRuntime {
             ));
         }
         validate_initial_session(&connection, &session)?;
+        if let Some(guard) = self.admission.as_ref() {
+            guard.validate_transport(&connection)?;
+        }
         self.watchdog.abort();
         {
             let mut current_connection = self.connection.lock().await;
@@ -111,6 +216,16 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         allowed_clock_skew: Duration,
     ) -> BridgeResult<BridgeFrame> {
+        if let Err(error) = self.validate_persisted_admission().await {
+            let mut session = self.session.lock().await;
+            session.degrade();
+            if let (Some(account_id), Some(terminal_id)) =
+                (session.account_id(), session.terminal_id())
+            {
+                let _ = self.store.mark_mt5_stream_degraded(account_id, terminal_id, 0).await;
+            }
+            return Err(error);
+        }
         let mut connection = self.connection.lock().await;
         let mut session = self.session.lock().await;
         match connection
@@ -130,6 +245,36 @@ impl Mt5BridgeRuntime {
                 }
                 Err(error)
             }
+        }
+    }
+
+    async fn validate_persisted_admission(&self) -> BridgeResult<()> {
+        let Some(guard) = self.admission.as_ref() else {
+            return Ok(());
+        };
+        let decision = evaluate_persisted_broker_admission(
+            self.store.pool(),
+            &guard.request,
+            &guard.worker_ref,
+            &guard.worker_ref,
+        )
+        .await
+        .map_err(|_| BridgeError::Invalid(
+            "MT5 broker admission registry is unavailable; refusing frame ingestion".into(),
+        ))?;
+        match decision {
+            BrokerAdmissionDecision::Admitted(permit)
+                if permit.worker_ref == guard.worker_ref
+                    && permit.quant_account_ref == guard.quant_account_ref =>
+            {
+                Ok(())
+            }
+            BrokerAdmissionDecision::Admitted(_) => Err(BridgeError::Invalid(
+                "MT5 broker admission permit scope does not match the configured QuantOS account or worker".into(),
+            )),
+            BrokerAdmissionDecision::Denied(reasons) => Err(BridgeError::Invalid(format!(
+                "MT5 broker admission denied: {reasons:?}"
+            ))),
         }
     }
 
