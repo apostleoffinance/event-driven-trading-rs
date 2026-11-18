@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: unless-stopped
+    ports:
+      - target: 5432
+        published: ${QOS020_HOST_PORT:?QOS020_HOST_PORT is required}
+        host_ip: 127.0.0.1
+        protocol: tcp
+    environment:
+      POSTGRES_DB: qos020_test_master
+      POSTGRES_USER: qos020_bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/qos020_bootstrap_password
+    secrets:
+      - qos020_bootstrap_password
+    volumes:
+      - data:/var/lib/postgresql/data
+    labels:
+      qos020.environment: integration-test
+      qos020.run_id: ${QOS020_RUN_ID}
+      qos020.provisioning_id: ${QOS020_PROVISIONING_ID}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qos020_bootstrap -d qos020_test_master"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+secrets:
+  qos020_bootstrap_password:
+    file: ${QOS020_SECRET_DIR:?QOS020_SECRET_DIR is required}/bootstrap_password
+volumes:
+  data:
+    name: ${QOS020_VOLUME_NAME:?QOS020_VOLUME_NAME is required}
+    labels:
+      qos020.environment: integration-test
+      qos020.run_id: ${QOS020_RUN_ID}
+      qos020.provisioning_id: ${QOS020_PROVISIONING_ID}
+
+networks:
+  default:
+    name: ${QOS020_NETWORK_NAME:?QOS020_NETWORK_NAME is required}
+    driver: bridge
+    internal: false
+    labels:
+      qos020.environment: integration-test
+      qos020.run_id: ${QOS020_RUN_ID}
+      qos020.provisioning_id: ${QOS020_PROVISIONING_ID}

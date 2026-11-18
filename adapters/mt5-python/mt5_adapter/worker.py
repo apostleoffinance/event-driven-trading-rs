@@ -5,6 +5,9 @@ code paths. Financial values on the wire are decimal strings.
 """
 from __future__ import annotations
 
+import base64
+import ctypes
+import hashlib
 import importlib
 import json
 import os
@@ -56,6 +59,51 @@ def required_text(value: Any, field: str) -> str:
     return result
 
 
+def read_windows_dpapi_secret(path: str) -> str:
+    """Decrypt a CurrentUser DPAPI-protected UTF-8 secret for the service identity."""
+    if sys.platform != "win32":
+        raise AdapterError("DPAPI broker secrets can only be decrypted on Windows")
+    try:
+        encoded = Path(path).read_text(encoding="ascii").strip()
+        if not encoded or len(encoded) > 131072:
+            raise AdapterError("DPAPI secret file is empty or exceeds the permitted size")
+        encrypted = base64.b64decode(encoded, validate=True)
+        if not encrypted:
+            raise AdapterError("DPAPI secret file is invalid")
+        class DataBlob(ctypes.Structure):
+            _fields_ = [("cbData", ctypes.c_uint32), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+        input_buffer = ctypes.create_string_buffer(encrypted)
+        input_blob = DataBlob(len(encrypted), ctypes.cast(input_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+        output_blob = DataBlob()
+        crypt32 = ctypes.WinDLL("Crypt32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("Kernel32", use_last_error=True)
+        crypt32.CryptUnprotectData.argtypes = [
+            ctypes.POINTER(DataBlob), ctypes.POINTER(ctypes.c_wchar_p),
+            ctypes.POINTER(DataBlob), ctypes.c_void_p, ctypes.c_void_p,
+            ctypes.c_uint32, ctypes.POINTER(DataBlob),
+        ]
+        crypt32.CryptUnprotectData.restype = ctypes.c_int
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel32.LocalFree.restype = ctypes.c_void_p
+        if not crypt32.CryptUnprotectData(
+            ctypes.byref(input_blob), None, None, None, None, 0x1, ctypes.byref(output_blob)
+        ):
+            raise AdapterError("Windows DPAPI could not decrypt the broker secret for this service identity")
+        try:
+            raw = ctypes.string_at(output_blob.pbData, output_blob.cbData)
+            secret = raw.decode("utf-8")
+        finally:
+            kernel32.LocalFree(ctypes.cast(output_blob.pbData, ctypes.c_void_p))
+        if not secret or secret.strip() != secret:
+            raise AdapterError("decrypted broker secret is empty or contains surrounding whitespace")
+        return secret
+    except AdapterError:
+        raise
+    except (OSError, ValueError, UnicodeError, ctypes.ArgumentError) as exc:
+        raise AdapterError("could not read the protected Windows broker secret") from exc
+
+
 @dataclass(frozen=True)
 class Config:
     terminal_path: str
@@ -73,6 +121,8 @@ class Config:
     sequence_file: str
     symbols: tuple[str, ...]
     poll_seconds: float = 10.0
+    expected_currency: str = ""
+    require_demo: bool = True
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -90,9 +140,9 @@ class Config:
             raise AdapterError("MT5 login, bridge port, or poll interval has invalid format") from exc
         if login <= 0 or not 1 <= port <= 65535 or not 1 <= poll <= 300:
             raise AdapterError("login, bridge port, or poll interval is outside its allowed range")
-        account_id = os.environ.get("MT5_ACCOUNT_ID", str(login))
-        if not account_id or account_id.strip() != account_id:
-            raise AdapterError("MT5_ACCOUNT_ID is invalid")
+        account_id = need("MT5_ACCOUNT_ID")
+        terminal_id = need("MT5_TERMINAL_ID")
+        expected_currency = os.environ.get("MT5_EXPECTED_ACCOUNT_CURRENCY", "")
         bridge_host = need("MT5_BRIDGE_HOST")
         symbols = tuple(symbol.strip() for symbol in need("MT5_SYMBOLS").split(","))
         if (
@@ -103,9 +153,16 @@ class Config:
         ):
             raise AdapterError("MT5_SYMBOLS must contain 1–64 unique, exact broker symbol names")
         provider_spec = os.environ.get("MT5_TERMINAL_PROVIDER", "").strip()
-        password = os.environ.get("MT5_PASSWORD", "")
-        if provider_spec != "mt5_adapter.macos_socket_provider:create_terminal_provider":
-            password = need("MT5_PASSWORD")
+        is_macos_socket_provider = provider_spec == "mt5_adapter.macos_socket_provider:create_terminal_provider"
+        if not is_macos_socket_provider and not expected_currency:
+            raise AdapterError("required environment variable is missing or invalid: MT5_EXPECTED_ACCOUNT_CURRENCY")
+        if is_macos_socket_provider:
+            password = ""
+        else:
+            if os.environ.get("MT5_PASSWORD"):
+                raise AdapterError("plaintext MT5_PASSWORD is not accepted; use a CurrentUser DPAPI secret file")
+            password = read_windows_dpapi_secret(need("MT5_PASSWORD_DPAPI_FILE"))
+        stream_key = hashlib.sha256((account_id + chr(0) + terminal_id).encode("utf-8")).hexdigest()[:24]
 
         return cls(
             terminal_path=need("MT5_TERMINAL_PATH"),
@@ -113,7 +170,7 @@ class Config:
             password=password,
             server=need("MT5_SERVER"),
             account_id=account_id,
-            terminal_id=need("MT5_TERMINAL_ID"),
+            terminal_id=terminal_id,
             bridge_host=bridge_host,
             bridge_port=port,
             bridge_server_name=os.environ.get("MT5_BRIDGE_SERVER_NAME", bridge_host),
@@ -122,10 +179,12 @@ class Config:
             client_key=need("MT5_BRIDGE_CLIENT_KEY"),
             sequence_file=os.environ.get(
                 "MT5_SEQUENCE_FILE",
-                str(Path(os.environ.get("PROGRAMDATA", ".")) / "QuantOS" / "mt5-sequence.json"),
+                str(Path(os.environ.get("PROGRAMDATA", ".")) / "QuantOS" / "streams" / stream_key / "sequence.json"),
             ),
             symbols=symbols,
             poll_seconds=poll,
+            expected_currency=expected_currency,
+            require_demo=not is_macos_socket_provider,
         )
 
 
@@ -165,8 +224,7 @@ class MetaTraderTerminal:
         if not self.connected():
             raise AdapterError("MT5 terminal is not connected to its trade server")
         account = self.account_info()
-        if account is None or int(account.login) != config.login or str(account.server) != config.server:
-            raise AdapterError("connected MT5 account/server does not match configured identity")
+        _validate_account_identity(config, account, require_demo=True)
 
     def connected(self) -> bool:
         info = self.mt5.terminal_info()
@@ -232,6 +290,18 @@ class SequenceStore:
         return sequence
 
 
+def _validate_account_identity(config: Config, account: Any, *, require_demo: bool) -> None:
+    if account is None:
+        raise AdapterError("MT5 account information is unavailable")
+    if int(account.login) != config.login or str(account.server) != config.server:
+        raise AdapterError("MT5 account login/server does not match configured identity")
+    currency = required_text(getattr(account, "currency", None), "account currency")
+    if config.expected_currency and currency != config.expected_currency:
+        raise AdapterError("MT5 account currency does not match the approved DEMO account")
+    if require_demo and getattr(account, "trade_mode", None) != 0:
+        raise AdapterError("MT5 account is not in DEMO trade mode; refusing to emit data")
+
+
 def _order_type(mt5: Any, value: Any) -> str:
     mapping = {
         mt5.ORDER_TYPE_BUY: "market_buy",
@@ -250,8 +320,7 @@ def build_snapshot(config: Config, terminal: Terminal, mt5_constants: Any, seque
     if not terminal.connected():
         raise AdapterError("MT5 terminal disconnected; refusing to emit a reconciliation snapshot")
     account = terminal.account_info()
-    if account is None or int(account.login) != config.login or str(account.server) != config.server:
-        raise AdapterError("MT5 account identity changed; refusing to emit a reconciliation snapshot")
+    _validate_account_identity(config, account, require_demo=config.require_demo)
 
     orders = []
     for order in terminal.orders():
@@ -310,8 +379,7 @@ def build_market_data_snapshot(config: Config, terminal: Terminal, sequence: int
     if not terminal.connected():
         raise AdapterError("MT5 terminal disconnected; refusing to emit market data")
     account = terminal.account_info()
-    if account is None or int(account.login) != config.login or str(account.server) != config.server:
-        raise AdapterError("MT5 account identity changed; refusing to emit market data")
+    _validate_account_identity(config, account, require_demo=config.require_demo)
 
     instruments = []
     quotes = []

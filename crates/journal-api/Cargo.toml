@@ -18,6 +18,7 @@ sha2 = "0.10"
 url = "2"
 chrono = { workspace = true }
 domain = { path = "../domain" }
+identity-token = { path = "../identity-token" }
 jsonwebtoken = "9.3"
 persistence = { path = "../persistence" }
 rust_decimal = { workspace = true }
@@ -29,6 +30,7 @@ tower-http = { version = "0.6", default-features = false, features = ["cors"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.11", features = ["v4"] }
+zeroize = "1.8"
 
 [dev-dependencies]
 http-body-util = "0.1"

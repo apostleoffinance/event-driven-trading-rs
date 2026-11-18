@@ -14,7 +14,7 @@ argon2 = "0.5"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
 chrono = { workspace = true }
 hex = "0.4"
-jsonwebtoken = "9.3"
+identity-token = { path = "../identity-token" }
 persistence = { path = "../persistence" }
 rand_core = { version = "0.6", features = ["getrandom"] }
 serde = { workspace = true }
@@ -26,3 +26,6 @@ tower-http = { version = "0.6", default-features = false, features = ["cors"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.11", features = ["v4"] }
+
+[dev-dependencies]
+http-body-util = "0.1"

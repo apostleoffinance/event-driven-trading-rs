@@ -10,91 +10,45 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use chrono::{DateTime, Duration, Utc};
+use identity_token::AccessClaims;
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::AppState;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccessClaims {
-    pub sub: String,
-    pub iss: String,
-    pub aud: String,
-    pub exp: usize,
-    pub iat: usize,
-    pub token_type: String,
+fn access_claims(
+    jwt: &identity_token::JwtKeyRing,
+    user_id: &str,
+    session_id: &str,
+    session_revision: i64,
+    ttl_seconds: i64,
+) -> Result<AccessClaims, ()> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| ())?
+        .as_secs() as usize;
+    Ok(AccessClaims {
+        sub: user_id.to_owned(),
+        iss: jwt.issuer().to_owned(),
+        aud: jwt.audience().to_owned(),
+        exp: now.saturating_add(ttl_seconds.max(1) as usize),
+        iat: now,
+        token_type: "access".into(),
+        jti: uuid::Uuid::new_v4().to_string(),
+        session_id: session_id.to_owned(),
+        session_revision,
+    })
 }
 
-pub struct JwtService {
-    encoding: EncodingKey,
-    decoding: DecodingKey,
-    issuer: String,
-    audience: String,
-    validation: Validation,
-}
-
-impl JwtService {
-    pub fn new(
-        private_pem: &[u8],
-        public_pem: &[u8],
-        issuer: String,
-        audience: String,
-    ) -> Result<Self, String> {
-        let encoding = EncodingKey::from_rsa_pem(private_pem)
-            .map_err(|e| format!("invalid private RSA PEM: {e}"))?;
-        let decoding = DecodingKey::from_rsa_pem(public_pem)
-            .map_err(|e| format!("invalid public RSA PEM: {e}"))?;
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.set_issuer(&[issuer.as_str()]);
-        validation.set_audience(&[audience.as_str()]);
-        validation.validate_exp = true;
-        validation.required_spec_claims.insert("sub".into());
-        validation.required_spec_claims.insert("exp".into());
-        Ok(Self {
-            encoding,
-            decoding,
-            issuer,
-            audience,
-            validation,
-        })
-    }
-
-    pub fn issue_access(&self, user_id: &str, ttl_seconds: i64) -> Result<(String, usize), String> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| e.to_string())?
-            .as_secs() as usize;
-        let exp = now.saturating_add(ttl_seconds.max(1) as usize);
-        let claims = AccessClaims {
-            sub: user_id.to_owned(),
-            iss: self.issuer.clone(),
-            aud: self.audience.clone(),
-            exp,
-            iat: now,
-            token_type: "access".into(),
-        };
-        let token = encode(&Header::new(Algorithm::RS256), &claims, &self.encoding)
-            .map_err(|e| format!("JWT signing failed: {e}"))?;
-        Ok((token, exp))
-    }
-
-    pub fn authenticate(&self, headers: &HeaderMap) -> Result<AccessClaims, AuthError> {
-        let bearer = headers
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .ok_or(AuthError)?;
-        let claims = decode::<AccessClaims>(bearer, &self.decoding, &self.validation)
-            .map_err(|_| AuthError)?
-            .claims;
-        if claims.token_type != "access" || claims.sub.trim().is_empty() {
-            return Err(AuthError);
-        }
-        Ok(claims)
-    }
+fn bearer_claims(state: &AppState, headers: &HeaderMap) -> Result<AccessClaims, AuthError> {
+    let bearer = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .ok_or(AuthError)?;
+    state.jwt.verify(bearer).map_err(|_| AuthError)
 }
 
 #[derive(Debug)]
@@ -208,23 +162,60 @@ fn token_hash(raw: &str) -> String {
     hex::encode(Sha256::digest(raw.as_bytes()))
 }
 
+fn new_session_id() -> String {
+    let mut bytes = [0_u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    hex::encode(bytes)
+}
+
+async fn issue_access_in_tx(
+    state: &AppState,
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: &str,
+    session_id: &str,
+    session_revision: i64,
+) -> Result<(String, DateTime<Utc>), ()> {
+    let claims = access_claims(
+        &state.jwt,
+        user_id,
+        session_id,
+        session_revision,
+        state.access_ttl_seconds,
+    )?;
+    let token = state.jwt.issue(&claims).map_err(|_| ())?;
+    let expiry = DateTime::<Utc>::from_timestamp(claims.exp as i64, 0).ok_or(())?;
+    sqlx::query("INSERT INTO identity_access_tokens(jti,session_id,user_id,session_revision,issued_at,expires_at) VALUES($1,$2,$3,$4,to_timestamp($5),$6)")
+        .bind(&claims.jti).bind(session_id).bind(user_id).bind(session_revision)
+        .bind(claims.iat as i64).bind(expiry).execute(&mut **tx).await.map_err(|_| ())?;
+    Ok((token, expiry))
+}
+
 async fn issue_pair(state: &AppState, user: UserView) -> Result<TokenResponse, ()> {
-    let (access_token, _expires_at) = state
-        .jwt
-        .issue_access(&user.id, state.access_ttl_seconds)
-        .map_err(|_| ())?;
-    let refresh_token = new_refresh_token();
-    let expires = Utc::now() + Duration::days(state.refresh_ttl_days);
-    sqlx::query(
-        "INSERT INTO identity_refresh_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)",
+    let mut tx = state.pool.begin().await.map_err(|_| ())?;
+    let active = sqlx::query_scalar::<_, bool>(
+        "SELECT is_active FROM identity_users WHERE id=$1 FOR UPDATE",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
     .bind(&user.id)
-    .bind(token_hash(&refresh_token))
-    .bind(expires)
-    .execute(&state.pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| ())?;
+    if active != Some(true) {
+        return Err(());
+    }
+    let now = Utc::now();
+    let session_id = new_session_id();
+    let session_expiry = now + Duration::days(state.refresh_ttl_days);
+    let family_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO identity_sessions(id,user_id,revision,status,issued_at,expires_at,last_used_at) VALUES($1,$2,1,'ACTIVE',$3,$4,$3)")
+        .bind(&session_id).bind(&user.id).bind(now).bind(session_expiry).execute(&mut *tx).await.map_err(|_| ())?;
+    let refresh_token = new_refresh_token();
+    sqlx::query("INSERT INTO identity_refresh_tokens(id,user_id,token_hash,expires_at,session_id,token_family_id) VALUES($1,$2,$3,$4,$5,$6)")
+        .bind(uuid::Uuid::new_v4().to_string()).bind(&user.id).bind(token_hash(&refresh_token))
+        .bind(session_expiry).bind(&session_id).bind(&family_id).execute(&mut *tx).await.map_err(|_| ())?;
+    let (access_token, _) = issue_access_in_tx(state, &mut tx, &user.id, &session_id, 1).await?;
+    sqlx::query("INSERT INTO identity_session_events(session_id,user_id,actor_user_id,event_type,session_revision,token_family_id,reason) VALUES($1,$2,$2,'SESSION_ISSUED',1,$3,'primary authentication succeeded')")
+        .bind(&session_id).bind(&user.id).bind(&family_id).execute(&mut *tx).await.map_err(|_| ())?;
+    tx.commit().await.map_err(|_| ())?;
     Ok(TokenResponse {
         token_type: "Bearer",
         access_token,
@@ -334,11 +325,21 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
         Ok(tx) => tx,
         Err(_) => return internal(),
     };
-    let user_id = sqlx::query_scalar::<_, String>(
-        "UPDATE identity_refresh_tokens SET revoked_at=NOW(),last_used_at=NOW() WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>NOW() RETURNING user_id")
-        .bind(token_hash(&input.refresh_token)).fetch_optional(&mut *tx).await;
-    let user_id = match user_id {
-        Ok(Some(id)) => id,
+    // Discover the lock keys without locking, then take locks in the global
+    // order used by suspension and access-token validation: user, session,
+    // refresh token. The token row is re-read after the locks are held.
+    let refresh_key = sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT user_id,session_id FROM identity_refresh_tokens WHERE token_hash=$1",
+    )
+    .bind(token_hash(&input.refresh_token))
+    .fetch_optional(&mut *tx)
+    .await;
+    let (user_id, session_id) = match refresh_key {
+        Ok(Some((user_id, Some(session_id)))) => (user_id, session_id),
+        Ok(Some((_, None))) => {
+            let _ = tx.rollback().await;
+            return unauthorized();
+        }
         Ok(None) => {
             let _ = tx.rollback().await;
             return unauthorized();
@@ -349,7 +350,7 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
         }
     };
     let user = sqlx::query_as::<_, (String, String, String, bool)>(
-        "SELECT id,email,display_name,is_active FROM identity_users WHERE id=$1",
+        "SELECT id,email,display_name,is_active FROM identity_users WHERE id=$1 FOR UPDATE",
     )
     .bind(&user_id)
     .fetch_optional(&mut *tx)
@@ -365,30 +366,141 @@ pub async fn refresh(State(state): State<AppState>, Json(input): Json<RefreshReq
             return internal();
         }
     };
-    if !is_active {
-        let _ = tx.rollback().await;
-        return unauthorized();
-    }
-    let (access_token, _expires_at) = match state.jwt.issue_access(&id, state.access_ttl_seconds) {
-        Ok(token) => token,
+    let session = sqlx::query_as::<_, (i64, String, DateTime<Utc>)>("SELECT revision,status,expires_at FROM identity_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE")
+        .bind(&session_id).bind(&user_id).fetch_optional(&mut *tx).await;
+    let (session_revision, session_status, session_expiry) = match session {
+        Ok(Some(row)) => row,
+        Ok(None) => {
+            let _ = tx.rollback().await;
+            return unauthorized();
+        }
         Err(_) => {
             let _ = tx.rollback().await;
             return internal();
         }
     };
+    let refresh_row = sqlx::query_as::<_, (String, String, DateTime<Utc>, Option<DateTime<Utc>>)>(
+        "SELECT id,token_family_id,expires_at,revoked_at FROM identity_refresh_tokens WHERE token_hash=$1 AND user_id=$2 AND session_id=$3 FOR UPDATE",
+    )
+    .bind(token_hash(&input.refresh_token))
+    .bind(&user_id)
+    .bind(&session_id)
+    .fetch_optional(&mut *tx)
+    .await;
+    let (token_id, family_id, refresh_expires, refresh_revoked) = match refresh_row {
+        Ok(Some(row)) => row,
+        Ok(None) => {
+            let _ = tx.rollback().await;
+            return unauthorized();
+        }
+        Err(_) => {
+            let _ = tx.rollback().await;
+            return internal();
+        }
+    };
+    if refresh_revoked.is_some() {
+        let session = sqlx::query_scalar::<_, String>(
+            "SELECT status FROM identity_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE",
+        )
+        .bind(&session_id)
+        .bind(&user_id)
+        .fetch_optional(&mut *tx)
+        .await;
+        match session {
+            Ok(Some(status)) if status == "ACTIVE" => {
+                if revoke_session_tx(
+                    &mut tx,
+                    &session_id,
+                    &user_id,
+                    "refresh token reuse detected",
+                    "REFRESH_TOKEN_REUSE_REVOKED_SESSION",
+                )
+                .await
+                .is_err()
+                {
+                    let _ = tx.rollback().await;
+                    return internal();
+                }
+            }
+            Err(_) => {
+                let _ = tx.rollback().await;
+                return internal();
+            }
+            _ => {}
+        }
+        return match tx.commit().await {
+            Ok(()) => unauthorized(),
+            Err(_) => internal(),
+        };
+    }
+    if refresh_expires <= Utc::now() {
+        if sqlx::query(
+            "UPDATE identity_refresh_tokens SET revoked_at=NOW(),last_used_at=NOW() WHERE id=$1",
+        )
+        .bind(&token_id)
+        .execute(&mut *tx)
+        .await
+        .is_err()
+        {
+            let _ = tx.rollback().await;
+            return internal();
+        }
+        return match tx.commit().await {
+            Ok(()) => unauthorized(),
+            Err(_) => internal(),
+        };
+    }
+    if session_status != "ACTIVE" || session_expiry <= Utc::now() {
+        let _ = tx.rollback().await;
+        return unauthorized();
+    }
+    if !is_active {
+        if revoke_session_tx(
+            &mut tx,
+            &session_id,
+            &id,
+            "identity account inactive",
+            "SESSION_REVOKED",
+        )
+        .await
+        .is_err()
+        {
+            let _ = tx.rollback().await;
+            return internal();
+        }
+        return match tx.commit().await {
+            Ok(()) => unauthorized(),
+            Err(_) => internal(),
+        };
+    }
+    if !matches!(sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW(),last_used_at=NOW() WHERE id=$1 AND revoked_at IS NULL")
+        .bind(&token_id).execute(&mut *tx).await.map(|result| result.rows_affected() == 1), Ok(true)) {
+        let _ = tx.rollback().await;
+        return unauthorized();
+    }
     let refresh_token = new_refresh_token();
     let expiry = Utc::now() + Duration::days(state.refresh_ttl_days);
-    if sqlx::query(
-        "INSERT INTO identity_refresh_tokens(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,$4)",
-    )
-    .bind(uuid::Uuid::new_v4().to_string())
-    .bind(&id)
-    .bind(token_hash(&refresh_token))
-    .bind(expiry)
-    .execute(&mut *tx)
-    .await
-    .is_err()
-    {
+    let (access_token, _) =
+        match issue_access_in_tx(&state, &mut tx, &id, &session_id, session_revision).await {
+            Ok(tokens) => tokens,
+            Err(_) => {
+                let _ = tx.rollback().await;
+                return internal();
+            }
+        };
+    if !matches!(sqlx::query("UPDATE identity_sessions SET expires_at=$2,last_used_at=NOW(),updated_at=NOW() WHERE id=$1 AND revision=$3 AND status='ACTIVE'")
+        .bind(&session_id).bind(expiry).bind(session_revision).execute(&mut *tx).await.map(|result| result.rows_affected() == 1), Ok(true)) {
+        let _ = tx.rollback().await;
+        return unauthorized();
+    }
+    if sqlx::query("INSERT INTO identity_refresh_tokens(id,user_id,token_hash,expires_at,session_id,token_family_id) VALUES($1,$2,$3,$4,$5,$6)")
+        .bind(uuid::Uuid::new_v4().to_string()).bind(&id).bind(token_hash(&refresh_token)).bind(expiry).bind(&session_id).bind(&family_id)
+        .execute(&mut *tx).await.is_err() {
+        let _ = tx.rollback().await;
+        return internal();
+    }
+    if sqlx::query("INSERT INTO identity_session_events(session_id,user_id,actor_user_id,event_type,session_revision,token_family_id,reason) VALUES($1,$2,$2,'SESSION_REFRESHED',$3,$4,'refresh token rotated')")
+        .bind(&session_id).bind(&id).bind(session_revision).bind(&family_id).execute(&mut *tx).await.is_err() {
         let _ = tx.rollback().await;
         return internal();
     }
@@ -414,22 +526,82 @@ pub async fn logout(
     headers: HeaderMap,
     Json(input): Json<RefreshRequest>,
 ) -> Response {
-    let claims = match state.jwt.authenticate(&headers) {
+    let claims = match bearer_claims(&state, &headers) {
         Ok(claims) => claims,
         Err(e) => return e.into_response(),
     };
-    match sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=NOW() WHERE user_id=$1 AND token_hash=$2 AND revoked_at IS NULL")
-        .bind(claims.sub).bind(token_hash(&input.refresh_token)).execute(&state.pool).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+    let _ = input;
+    if !session_token_is_current(&state, &claims).await {
+        return unauthorized();
+    }
+    let mut tx = match state.pool.begin().await {
+        Ok(tx) => tx,
+        Err(_) => return internal(),
+    };
+    if !lock_current_user_session(&mut tx, &claims).await {
+        let _ = tx.rollback().await;
+        return unauthorized();
+    }
+    match revoke_session_tx(
+        &mut tx,
+        &claims.session_id,
+        &claims.sub,
+        "user logout",
+        "SESSION_REVOKED",
+    )
+    .await
+    {
+        Ok(_) => match tx.commit().await {
+            Ok(_) => StatusCode::NO_CONTENT.into_response(),
+            Err(_) => internal(),
+        },
+        Err(_) => internal(),
+    }
+}
+
+pub async fn revoke_access_token(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let claims = match bearer_claims(&state, &headers) {
+        Ok(claims) => claims,
+        Err(error) => return error.into_response(),
+    };
+    if !session_token_is_current(&state, &claims).await {
+        return unauthorized();
+    }
+    let mut tx = match state.pool.begin().await {
+        Ok(tx) => tx,
+        Err(_) => return internal(),
+    };
+    if !lock_current_user_session(&mut tx, &claims).await {
+        let _ = tx.rollback().await;
+        return unauthorized();
+    }
+    let result = sqlx::query("UPDATE identity_access_tokens SET revoked_at=NOW(),revocation_reason='explicit access-token revocation' WHERE jti=$1 AND session_id=$2 AND user_id=$3 AND session_revision=$4 AND revoked_at IS NULL AND EXISTS (SELECT 1 FROM identity_sessions s WHERE s.id=$2 AND s.user_id=$3 AND s.status='ACTIVE' AND s.revision=$4)")
+        .bind(&claims.jti).bind(&claims.session_id).bind(&claims.sub).bind(claims.session_revision).execute(&mut *tx).await;
+    match result {
+        Ok(result) if result.rows_affected() == 1 => {
+            let event = sqlx::query("INSERT INTO identity_session_events(session_id,user_id,actor_user_id,event_type,session_revision,token_jti,reason) VALUES($1,$2,$2,'ACCESS_TOKEN_REVOKED',$3,$4,'explicit access-token revocation')")
+                .bind(&claims.session_id).bind(&claims.sub).bind(claims.session_revision).bind(&claims.jti).execute(&mut *tx).await;
+            if event.is_err() || tx.commit().await.is_err() {
+                return internal();
+            }
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(_) => {
+            let _ = tx.rollback().await;
+            unauthorized()
+        }
         Err(_) => internal(),
     }
 }
 
 pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let claims = match state.jwt.authenticate(&headers) {
+    let claims = match bearer_claims(&state, &headers) {
         Ok(claims) => claims,
         Err(e) => return e.into_response(),
     };
+    if !session_token_is_current(&state, &claims).await {
+        return unauthorized();
+    }
     match sqlx::query_as::<_, (String, String, String, bool)>(
         "SELECT id,email,display_name,is_active FROM identity_users WHERE id=$1",
     )
@@ -444,6 +616,57 @@ pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> Response {
         Ok(_) => unauthorized(),
         Err(_) => internal(),
     }
+}
+
+async fn session_token_is_current(state: &AppState, claims: &AccessClaims) -> bool {
+    persistence::TradingStore::new(state.pool.clone())
+        .validate_access_token(claims)
+        .await
+        .unwrap_or(false)
+}
+
+async fn lock_current_user_session(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &AccessClaims,
+) -> bool {
+    let user_active = sqlx::query_scalar::<_, bool>(
+        "SELECT is_active FROM identity_users WHERE id=$1 FOR UPDATE",
+    )
+    .bind(&claims.sub)
+    .fetch_optional(&mut **tx)
+    .await;
+    if !matches!(user_active, Ok(Some(true))) {
+        return false;
+    }
+    let session = sqlx::query_as::<_, (i64, String)>(
+        "SELECT revision,status FROM identity_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE",
+    )
+    .bind(&claims.session_id)
+    .bind(&claims.sub)
+    .fetch_optional(&mut **tx)
+    .await;
+    matches!(session, Ok(Some((revision, status))) if revision == claims.session_revision && status == "ACTIVE")
+}
+
+async fn revoke_session_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    session_id: &str,
+    user_id: &str,
+    reason: &str,
+    event_type: &str,
+) -> Result<i64, sqlx::Error> {
+    let revision = sqlx::query_scalar::<_, i64>("UPDATE identity_sessions SET status='REVOKED',revision=revision+1,revoked_at=NOW(),revocation_reason=$3,updated_at=NOW() WHERE id=$1 AND user_id=$2 AND status='ACTIVE' RETURNING revision")
+        .bind(session_id).bind(user_id).bind(reason).fetch_optional(&mut **tx).await?;
+    let Some(revision) = revision else {
+        return Ok(0);
+    };
+    sqlx::query("UPDATE identity_refresh_tokens SET revoked_at=COALESCE(revoked_at,NOW()),last_used_at=COALESCE(last_used_at,NOW()) WHERE session_id=$1 AND revoked_at IS NULL")
+        .bind(session_id).execute(&mut **tx).await?;
+    sqlx::query("UPDATE identity_access_tokens SET revoked_at=COALESCE(revoked_at,NOW()),revocation_reason=COALESCE(revocation_reason,$2) WHERE session_id=$1 AND revoked_at IS NULL")
+        .bind(session_id).bind(reason).execute(&mut **tx).await?;
+    sqlx::query("INSERT INTO identity_session_events(session_id,user_id,actor_user_id,event_type,session_revision,reason) VALUES($1,$2,$2,$3,$4,$5)")
+        .bind(session_id).bind(user_id).bind(event_type).bind(revision).bind(reason).execute(&mut **tx).await?;
+    Ok(revision)
 }
 
 #[cfg(test)]

@@ -17,7 +17,7 @@ use execution_engine::{ExecutionEngine, NewOrderRequest};
 use rust_decimal::Decimal;
 use tokio::time::sleep;
 use venue_connectors::{
-    submit_approved_order, CancelRequest, OrderAck, OrderRequest, SimulatedVenue, VenueAdapter,
+    execute_simulated_order, CancelRequest, OrderAck, OrderRequest, SimulatedVenue, VenueAdapter,
     VenueError, VenueResult,
 };
 
@@ -50,33 +50,6 @@ impl VenueAdapter for InjectedVenue {
         self.inner.account_state(account_id).await
     }
 
-    async fn submit_order(&self, request: OrderRequest) -> VenueResult<OrderAck> {
-        match self.mode {
-            FailureMode::DisconnectBeforeSubmit => Err(VenueError::Failed(
-                "injected disconnect before venue submission".into(),
-            )),
-            FailureMode::AmbiguousAfterVenueCommit => {
-                let _ack = self.inner.submit_order(request).await?;
-                Err(VenueError::Ambiguous(
-                    "injected response loss after venue commit".into(),
-                ))
-            }
-            FailureMode::DelayBeforeSubmit => {
-                sleep(Duration::from_millis(25)).await;
-                self.inner.submit_order(request).await
-            }
-            FailureMode::TruncateFillAcknowledgement => {
-                let mut ack = self.inner.submit_order(request).await?;
-                ack.fills.truncate(1);
-                Ok(ack)
-            }
-        }
-    }
-
-    async fn cancel_order(&self, request: CancelRequest) -> VenueResult<()> {
-        self.inner.cancel_order(request).await
-    }
-
     async fn open_orders(&self, account_id: &AccountId) -> VenueResult<Vec<Order>> {
         self.inner.open_orders(account_id).await
     }
@@ -87,6 +60,38 @@ impl VenueAdapter for InjectedVenue {
 
     async fn get_order(&self, order_id: &OrderId) -> VenueResult<Order> {
         self.inner.get_order(order_id).await
+    }
+}
+
+impl venue_connectors::adapter::private::Sealed for InjectedVenue {}
+
+#[async_trait]
+impl venue_connectors::SimulationExecutionAdapter for InjectedVenue {
+    async fn submit_simulated_order(&self, request: OrderRequest) -> VenueResult<OrderAck> {
+        match self.mode {
+            FailureMode::DisconnectBeforeSubmit => Err(VenueError::Failed(
+                "injected disconnect before venue submission".into(),
+            )),
+            FailureMode::AmbiguousAfterVenueCommit => {
+                let _ack = self.inner.submit_simulated_order(request).await?;
+                Err(VenueError::Ambiguous(
+                    "injected response loss after venue commit".into(),
+                ))
+            }
+            FailureMode::DelayBeforeSubmit => {
+                sleep(Duration::from_millis(25)).await;
+                self.inner.submit_simulated_order(request).await
+            }
+            FailureMode::TruncateFillAcknowledgement => {
+                let mut ack = self.inner.submit_simulated_order(request).await?;
+                ack.fills.truncate(1);
+                Ok(ack)
+            }
+        }
+    }
+
+    async fn cancel_simulated_order(&self, request: CancelRequest) -> VenueResult<()> {
+        self.inner.cancel_simulated_order(request).await
     }
 }
 
@@ -129,7 +134,7 @@ async fn disconnect_before_submit_is_failed_not_unknown() {
     let venue = InjectedVenue::new(inner, FailureMode::DisconnectBeforeSubmit);
     let mut oms = ExecutionEngine::new();
 
-    let result = submit_approved_order(
+    let result = execute_simulated_order(
         &mut oms,
         &venue,
         approved_request(
@@ -163,7 +168,7 @@ async fn response_loss_after_venue_commit_keeps_oms_unknown_without_blind_retry(
         Decimal::ONE,
     );
 
-    let first = submit_approved_order(&mut oms, &venue, request.clone())
+    let first = execute_simulated_order(&mut oms, &venue, request.clone())
         .await
         .unwrap();
     assert_eq!(first.order.status, OrderStatus::Unknown);
@@ -173,7 +178,7 @@ async fn response_loss_after_venue_commit_keeps_oms_unknown_without_blind_retry(
     assert_eq!(venue_order.status, OrderStatus::Filled);
 
     // A same-client-ID replay is handled by OMS and does not submit a second order.
-    let replay = submit_approved_order(&mut oms, &venue, request)
+    let replay = execute_simulated_order(&mut oms, &venue, request)
         .await
         .unwrap();
     assert!(!replay.created);
@@ -190,7 +195,7 @@ async fn delayed_ack_is_handled_without_changing_order_identity() {
     let venue = InjectedVenue::new(inner, FailureMode::DelayBeforeSubmit);
     let mut oms = ExecutionEngine::new();
 
-    let outcome = submit_approved_order(
+    let outcome = execute_simulated_order(
         &mut oms,
         &venue,
         approved_request(
@@ -220,7 +225,7 @@ async fn truncated_fill_ack_exposes_reconciliation_break_instead_of_matching_ven
     let venue = InjectedVenue::new(inner, FailureMode::TruncateFillAcknowledgement);
     let mut oms = ExecutionEngine::new();
 
-    let outcome = submit_approved_order(
+    let outcome = execute_simulated_order(
         &mut oms,
         &venue,
         approved_request(

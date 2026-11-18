@@ -1,4 +1,4 @@
-//! Simulated venue: paper execution behind [`VenueAdapter`].
+//! Simulated venue: paper execution behind [`SimulationExecutionAdapter`].
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -12,6 +12,8 @@ use domain::{
 use rust_decimal::Decimal;
 use tokio::sync::Mutex;
 
+#[cfg(test)]
+use crate::adapter::SimulationExecutionAdapter;
 use crate::adapter::VenueAdapter;
 use crate::error::{VenueError, VenueResult};
 use crate::types::{same_submission_payload, CancelRequest, OrderAck, OrderRequest};
@@ -37,7 +39,7 @@ struct Inner {
     fills: Vec<Fill>,
 }
 
-/// Paper-trading venue. OMS talks only through [`VenueAdapter`].
+/// Paper-trading venue. Order execution uses [`SimulationExecutionAdapter`].
 #[derive(Debug)]
 pub struct SimulatedVenue {
     venue_id: VenueId,
@@ -182,7 +184,39 @@ impl VenueAdapter for SimulatedVenue {
             .ok_or_else(|| VenueError::AccountNotFound(account_id.as_str().to_string()))
     }
 
-    async fn submit_order(&self, request: OrderRequest) -> VenueResult<OrderAck> {
+    async fn open_orders(&self, account_id: &AccountId) -> VenueResult<Vec<Order>> {
+        let inner = self.inner.lock().await;
+        Ok(inner
+            .orders
+            .values()
+            .filter(|o| &o.account_id == account_id && !o.status.is_terminal())
+            .cloned()
+            .collect())
+    }
+
+    async fn positions(&self, account_id: &AccountId) -> VenueResult<Vec<Position>> {
+        let inner = self.inner.lock().await;
+        Ok(inner
+            .positions
+            .iter()
+            .filter(|((a, _), _)| a == account_id.as_str())
+            .map(|(_, p)| p.clone())
+            .collect())
+    }
+
+    async fn get_order(&self, order_id: &OrderId) -> VenueResult<Order> {
+        let inner = self.inner.lock().await;
+        inner
+            .orders
+            .get(order_id)
+            .cloned()
+            .ok_or_else(|| VenueError::OrderNotFound(order_id.as_str().to_string()))
+    }
+}
+
+#[async_trait]
+impl crate::adapter::SimulationExecutionAdapter for SimulatedVenue {
+    async fn submit_simulated_order(&self, request: OrderRequest) -> VenueResult<OrderAck> {
         if request.venue_id != self.venue_id {
             return Err(VenueError::Rejected(format!(
                 "venue mismatch: expected {}, got {}",
@@ -307,7 +341,7 @@ impl VenueAdapter for SimulatedVenue {
         Ok(ack)
     }
 
-    async fn cancel_order(&self, request: CancelRequest) -> VenueResult<()> {
+    async fn cancel_simulated_order(&self, request: CancelRequest) -> VenueResult<()> {
         let mut inner = self.inner.lock().await;
         let order = inner
             .orders
@@ -326,36 +360,9 @@ impl VenueAdapter for SimulatedVenue {
         order.updated_at = Utc::now();
         Ok(())
     }
-
-    async fn open_orders(&self, account_id: &AccountId) -> VenueResult<Vec<Order>> {
-        let inner = self.inner.lock().await;
-        Ok(inner
-            .orders
-            .values()
-            .filter(|o| &o.account_id == account_id && !o.status.is_terminal())
-            .cloned()
-            .collect())
-    }
-
-    async fn positions(&self, account_id: &AccountId) -> VenueResult<Vec<Position>> {
-        let inner = self.inner.lock().await;
-        Ok(inner
-            .positions
-            .iter()
-            .filter(|((a, _), _)| a == account_id.as_str())
-            .map(|(_, p)| p.clone())
-            .collect())
-    }
-
-    async fn get_order(&self, order_id: &OrderId) -> VenueResult<Order> {
-        let inner = self.inner.lock().await;
-        inner
-            .orders
-            .get(order_id)
-            .cloned()
-            .ok_or_else(|| VenueError::OrderNotFound(order_id.as_str().to_string()))
-    }
 }
+
+impl crate::adapter::private::Sealed for SimulatedVenue {}
 
 #[cfg(test)]
 mod tests {
@@ -399,7 +406,7 @@ mod tests {
         .unwrap();
 
         let ack = venue
-            .submit_order(OrderRequest { venue_id, order })
+            .submit_simulated_order(OrderRequest { venue_id, order })
             .await
             .unwrap();
         assert!(ack.accepted);
@@ -446,7 +453,7 @@ mod tests {
 
         let first = idempotency_order("ord-idempotency-1", Decimal::from(2));
         let first_ack = venue
-            .submit_order(OrderRequest {
+            .submit_simulated_order(OrderRequest {
                 venue_id: venue_id.clone(),
                 order: first,
             })
@@ -454,7 +461,7 @@ mod tests {
             .unwrap();
         let replay = idempotency_order("ord-idempotency-2", Decimal::from(2));
         let replay_ack = venue
-            .submit_order(OrderRequest {
+            .submit_simulated_order(OrderRequest {
                 venue_id,
                 order: replay,
             })
@@ -490,14 +497,14 @@ mod tests {
             .unwrap();
 
         venue
-            .submit_order(OrderRequest {
+            .submit_simulated_order(OrderRequest {
                 venue_id: venue_id.clone(),
                 order: idempotency_order("ord-idempotency-1", Decimal::from(2)),
             })
             .await
             .unwrap();
         let result = venue
-            .submit_order(OrderRequest {
+            .submit_simulated_order(OrderRequest {
                 venue_id,
                 order: idempotency_order("ord-idempotency-2", Decimal::from(3)),
             })

@@ -13,7 +13,7 @@ pub struct Fill {
 /// Simulate fills with basic partial fill handling
 ///
 /// **Deprecated for new work:** use `venue_connectors::SimulatedVenue`
-/// behind `VenueAdapter`.
+/// behind `SimulationExecutionAdapter`; this helper is a local simulator.
 pub struct FillSimulator;
 
 impl FillSimulator {

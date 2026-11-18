@@ -10,11 +10,14 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::FromRow;
 
-use crate::{auth::ApiAuthError, AppState};
-use domain::{Account, AccountId, AccountState, AccountType, Venue, VenueId, VenueType};
+use crate::AppState;
+use domain::{Account, AccountEnvironment, AccountId, AccountState, AccountType, VenueId};
 
-fn auth(state: &AppState, headers: &HeaderMap) -> Result<String, ApiAuthError> {
-    state.auth.authenticate(headers).map(|claims| claims.sub)
+#[allow(clippy::result_large_err)]
+async fn tenant(state: &AppState, headers: &HeaderMap) -> Result<String, Response> {
+    crate::organizations_api::authorize(state, headers, crate::organizations_api::Permission::Read)
+        .await
+        .map(|principal| principal.organization_id)
 }
 
 fn error(status: StatusCode, code: &str, message: &str) -> Response {
@@ -102,7 +105,11 @@ fn status_case(v: &str) -> String {
 struct AccountRow {
     id: String,
     account_type: String,
-    environment: String,
+    environment: Option<String>,
+    environment_verification: String,
+    environment_revision: i64,
+    environment_verified_at: Option<DateTime<Utc>>,
+    environment_verified_by: Option<String>,
     status: String,
     venue_id: String,
     venue_name: String,
@@ -121,21 +128,22 @@ struct AccountRow {
 
 async fn account_rows(
     state: &AppState,
-    owner: &str,
+    organization: &str,
     account_id: Option<&str>,
 ) -> Result<Vec<AccountRow>, sqlx::Error> {
     sqlx::query_as::<_,AccountRow>(r#"
-        SELECT a.id,a.account_type,a.environment,a.status,a.venue_id,v.name AS venue_name,v.enabled AS venue_enabled,
+        SELECT a.id,a.account_type,a.environment,a.environment_verification,a.environment_revision,
+               a.environment_verified_at,a.environment_verified_by,a.status,a.venue_id,v.name AS venue_name,v.enabled AS venue_enabled,
                a.label,s.balance,s.equity,s.used_margin,s.open_position_count,
                s.daily_realized_pnl,(SELECT ps.realized_pnl FROM performance_snapshots ps WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1) AS realized_pnl,
                s.peak_equity,s.kill_switch,s.updated_at
-        FROM dashboard_account_access g
+        FROM organization_account_entitlements g
         JOIN accounts a ON a.id=g.account_id
         JOIN venues v ON v.id=a.venue_id
         JOIN account_states s ON s.account_id=a.id
-        WHERE g.owner_id=$1 AND ($2::TEXT IS NULL OR a.id=$2)
+        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND ($2::TEXT IS NULL OR a.id=$2)
         ORDER BY a.created_at DESC
-    "#).bind(owner).bind(account_id).fetch_all(state.store.pool()).await
+    "#).bind(organization).bind(account_id).fetch_all(state.store.pool()).await
 }
 fn account_json(a: AccountRow) -> serde_json::Value {
     let drawdown = if a.peak_equity > Decimal::ZERO {
@@ -150,7 +158,9 @@ fn account_json(a: AccountRow) -> serde_json::Value {
     serde_json::json!({
         "id":a.id,"name":a.label.unwrap_or_else(||a.id.clone()),
         "type":status_case(&a.account_type),"venueId":a.venue_id,"venueName":a.venue_name,
-        "environment":a.environment,"balance":dec(a.balance),"equity":dec(a.equity),
+        "environment":a.environment,"environmentVerification":a.environment_verification,
+        "environmentRevision":a.environment_revision,"environmentVerifiedAt":a.environment_verified_at,
+        "environmentVerifiedBy":a.environment_verified_by,"balance":dec(a.balance),"equity":dec(a.equity),
         "availableCapital":dec((a.equity-a.used_margin).max(Decimal::ZERO)),
         "dailyPnl":dec(a.daily_realized_pnl),"unrealizedPnl":dec(a.equity-a.balance),
         "realizedPnl":a.realized_pnl.map(dec),"drawdownPct":drawdown,
@@ -165,6 +175,7 @@ use rust_decimal::prelude::ToPrimitive;
 pub struct PaperAccountWrite {
     pub name: String,
     pub initial_capital: Decimal,
+    pub environment: AccountEnvironment,
 }
 
 pub async fn create_paper_account(
@@ -172,10 +183,18 @@ pub async fn create_paper_account(
     headers: HeaderMap,
     Json(input): Json<PaperAccountWrite>,
 ) -> Response {
-    let owner = match auth(&state, &headers) {
+    let principal = match crate::organizations_api::authorize(
+        &state,
+        &headers,
+        crate::organizations_api::Permission::Owner,
+    )
+    .await
+    {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
+    let organization_id = principal.organization_id;
+    let actor_id = principal.user_id;
     let name = input.name.trim();
     if name.is_empty() || name.len() > 80 || input.initial_capital <= Decimal::ZERO {
         return error(
@@ -194,10 +213,18 @@ pub async fn create_paper_account(
         Ok(id) => id,
         Err(_) => return internal(),
     };
+    if input.environment != AccountEnvironment::Paper {
+        return error(
+            StatusCode::BAD_REQUEST,
+            "invalid_environment",
+            "Paper account creation requires environment PAPER.",
+        );
+    }
     let account = Account::new(
         account_id.clone(),
         AccountType::Simulated,
         venue_id.clone(),
+        input.environment,
         now,
     );
     let account_state = match AccountState::new(account_id.clone(), input.initial_capital, now) {
@@ -207,28 +234,21 @@ pub async fn create_paper_account(
                 StatusCode::BAD_REQUEST,
                 "invalid_capital",
                 "initial_capital must be positive.",
-            )
+            );
         }
     };
-    let venue = Venue::new(venue_id, VenueType::Simulated, "Paper Simulator", now);
-
-    if state.store.upsert_venue(&venue).await.is_err()
-        || state
-            .store
-            .upsert_account(&account, input.initial_capital, Some(name), &account_state)
-            .await
-            .is_err()
-    {
-        return internal();
-    }
-    if sqlx::query(
-        "INSERT INTO dashboard_account_access(owner_id,account_id,access_role,granted_by) VALUES($1,$2,'owner',$1)",
-    )
-    .bind(&owner)
-    .bind(account_id.as_str())
-    .execute(state.store.pool())
-    .await
-    .is_err()
+    if state
+        .store
+        .create_paper_account_for_owner(
+            &organization_id,
+            &actor_id,
+            &account,
+            input.initial_capital,
+            name,
+            &account_state,
+        )
+        .await
+        .is_err()
     {
         return internal();
     }
@@ -237,7 +257,8 @@ pub async fn create_paper_account(
         StatusCode::CREATED,
         Json(serde_json::json!({"data":{
             "id":account_id.as_str(),"name":name,"type":"Simulated","venueId":"simulated",
-            "venueName":"Paper Simulator","environment":"PAPER","balance":dec(input.initial_capital),
+            "venueName":"Paper Simulator","environment":input.environment,"environmentVerification":"UNVERIFIED",
+            "environmentRevision":1,"environmentVerifiedAt":null,"environmentVerifiedBy":null,"balance":dec(input.initial_capital),
             "equity":dec(input.initial_capital),"availableCapital":dec(input.initial_capital),
             "dailyPnl":"0","unrealizedPnl":"0","realizedPnl":null,"drawdownPct":0.0,
             "openPositionCount":0,"status":"Active","riskStatus":"WARNING","connectionStatus":"UNKNOWN"
@@ -246,9 +267,9 @@ pub async fn create_paper_account(
 }
 
 pub async fn accounts(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     match account_rows(&state, &owner, None).await {
         Ok(rows) => {
@@ -263,9 +284,9 @@ pub async fn account(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     match account_rows(&state, &owner, Some(&id)).await {
         Ok(mut rows) => match rows.pop() {
@@ -277,9 +298,9 @@ pub async fn account(
 }
 
 pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
 
     let totals = sqlx::query_as::<
@@ -298,10 +319,10 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
              COALESCE(SUM(s.equity-s.used_margin),0),COALESCE(SUM(s.daily_realized_pnl),0),
              COALESCE(SUM(s.equity-s.balance),0),COALESCE(SUM(a.starting_capital),0),
              COALESCE(MAX(CASE WHEN s.peak_equity>0 THEN (s.peak_equity-s.equity)/s.peak_equity*100 ELSE 0 END),0)
-      FROM dashboard_account_access g
+      FROM organization_account_entitlements g
       JOIN accounts a ON a.id=g.account_id
       JOIN account_states s ON s.account_id=a.id
-      WHERE g.owner_id=$1
+      WHERE g.organization_id=$1 AND g.status='ACTIVE'
     "#)
     .bind(&owner)
     .fetch_one(state.store.pool())
@@ -322,13 +343,13 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
 
     let realized = sqlx::query_scalar::<_, Option<Decimal>>(r#"
       SELECT CASE WHEN COUNT(*)=COUNT(latest.realized_pnl) THEN SUM(latest.realized_pnl) ELSE NULL END
-      FROM dashboard_account_access g
+      FROM organization_account_entitlements g
       JOIN accounts a ON a.id=g.account_id
       LEFT JOIN LATERAL (
         SELECT ps.realized_pnl FROM performance_snapshots ps
         WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1
       ) latest ON TRUE
-      WHERE g.owner_id=$1
+      WHERE g.organization_id=$1 AND g.status='ACTIVE'
     "#)
     .bind(&owner)
     .fetch_one(state.store.pool())
@@ -345,8 +366,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
           ps.account_id,date_trunc('hour', ps.captured_at) AS captured_at,
           ps.equity,ps.realized_pnl,ps.drawdown_pct
         FROM performance_snapshots ps
-        JOIN dashboard_account_access g ON g.account_id=ps.account_id
-        WHERE g.owner_id=$1
+        JOIN organization_account_entitlements g ON g.account_id=ps.account_id
+        WHERE g.organization_id=$1 AND g.status='ACTIVE'
         ORDER BY ps.account_id,date_trunc('hour', ps.captured_at),ps.captured_at DESC
       )
       SELECT captured_at,SUM(equity),SUM(realized_pnl),MAX(drawdown_pct)
@@ -374,8 +395,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     let gross = sqlx::query_scalar::<_, Option<Decimal>>(
         r#"
       SELECT SUM(ABS(p.quantity*p.mark_price))
-      FROM positions p JOIN dashboard_account_access g ON g.account_id=p.account_id
-      WHERE g.owner_id=$1
+      FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE'
     "#,
     )
     .bind(&owner)
@@ -388,8 +409,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
 
     let net = sqlx::query_scalar::<_, Option<Decimal>>(r#"
       SELECT SUM(CASE WHEN p.side='long' THEN p.quantity*p.mark_price ELSE -(p.quantity*p.mark_price) END)
-      FROM positions p JOIN dashboard_account_access g ON g.account_id=p.account_id
-      WHERE g.owner_id=$1
+      FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE'
     "#)
     .bind(&owner)
     .fetch_one(state.store.pool())
@@ -402,8 +423,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     let max_drawdown = sqlx::query_scalar::<_, Option<Decimal>>(
         r#"
       SELECT MAX(ps.drawdown_pct)
-      FROM performance_snapshots ps JOIN dashboard_account_access g ON g.account_id=ps.account_id
-      WHERE g.owner_id=$1
+      FROM performance_snapshots ps JOIN organization_account_entitlements g ON g.account_id=ps.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE'
     "#,
     )
     .bind(&owner)
@@ -433,15 +454,15 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
 }
 
 pub async fn positions(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let rows=sqlx::query_as::<_,(String,String,String,String,Decimal,Decimal,Decimal,Decimal,DateTime<Utc>)>(r#"
       SELECT p.id,p.account_id,i.symbol,p.side,p.quantity,p.avg_entry_price,p.mark_price,p.realized_pnl,p.opened_at
       FROM positions p JOIN instruments i ON i.id=p.instrument_id
-      JOIN dashboard_account_access g ON g.account_id=p.account_id
-      WHERE g.owner_id=$1 AND p.quantity>0 ORDER BY p.opened_at DESC
+      JOIN organization_account_entitlements g ON g.account_id=p.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND p.quantity>0 ORDER BY p.opened_at DESC
     "#).bind(&owner).fetch_all(state.store.pool()).await;
     match rows { Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,account,symbol,side,qty,entry,mark,realized,opened)|{
       let unrealized=if side=="long"{(mark-entry)*qty}else{(entry-mark)*qty};
@@ -479,9 +500,9 @@ pub async fn orders(
     headers: HeaderMap,
     Query(q): Query<ListLimit>,
 ) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let rows = sqlx::query_as::<_, OrderRow>(
@@ -490,8 +511,8 @@ pub async fn orders(
              i.symbol,o.side,o.order_type,o.time_in_force,o.quantity,o.price,o.filled_quantity,
              o.status,o.created_at,o.submitted_at,o.updated_at
       FROM orders o JOIN instruments i ON i.id=o.instrument_id
-      JOIN dashboard_account_access g ON g.account_id=o.account_id
-      WHERE g.owner_id=$1 ORDER BY o.created_at DESC LIMIT $2
+      JOIN organization_account_entitlements g ON g.account_id=o.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY o.created_at DESC LIMIT $2
     "#,
     )
     .bind(&owner)
@@ -513,38 +534,38 @@ pub async fn orders(
 }
 
 pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
-    let rows=sqlx::query_as::<_,(String,String,String,String,bool,DateTime<Utc>,String)>(r#"
+    let rows=sqlx::query_as::<_,(String,String,String,String,bool,DateTime<Utc>,Option<String>)>(r#"
       SELECT d.id,s.name,d.strategy_version,d.account_id,d.enabled,d.created_at,a.environment
       FROM strategy_deployments d JOIN strategies s ON s.id=d.strategy_id JOIN accounts a ON a.id=d.account_id
-      JOIN dashboard_account_access g ON g.account_id=d.account_id
-      WHERE g.owner_id=$1 ORDER BY d.created_at DESC
+      JOIN organization_account_entitlements g ON g.account_id=d.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY d.created_at DESC
     "#).bind(&owner).fetch_all(state.store.pool()).await;
     match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,environment)|serde_json::json!({
-      "id":id,"name":name,"version":version,"status":if enabled{environment.as_str()}else{"STOPPED"},"environment":environment,
+      "id":id,"name":name,"version":version,"status":if enabled{environment.as_deref().unwrap_or("UNCLASSIFIED")}else{"STOPPED"},"environment":environment,
       "instrumentId":null,"signals":null,"trades":null,"returnPct":null,"sharpe":null,"maxDrawdownPct":null,"winRatePct":null,"profitFactor":null,
       "description":format!("Deployment for account {account}; strategy performance metrics are not yet persisted."),"configuration":[],"recentIntentIds":[],"createdAt":created
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
 pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let row=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<bool>,i64,Option<Decimal>,Option<Decimal>)>(r#"
       WITH owned AS (
         SELECT g.account_id,s.daily_realized_pnl,s.balance,s.equity,s.peak_equity,s.kill_switch
-        FROM dashboard_account_access g JOIN account_states s ON s.account_id=g.account_id WHERE g.owner_id=$1
+        FROM organization_account_entitlements g JOIN account_states s ON s.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE'
       ), limits AS (
         SELECT MIN(NULLIF(rp.policy_json->>'max_daily_loss_pct','')::NUMERIC) AS daily_limit,
                MIN(NULLIF(rp.policy_json->>'max_drawdown_pct','')::NUMERIC) AS dd_limit
-        FROM dashboard_account_access g
+        FROM organization_account_entitlements g
         JOIN strategy_deployments d ON d.account_id=g.account_id
-        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.owner_id=$1
+        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.organization_id=$1 AND g.status='ACTIVE'
       )
       SELECT COALESCE(SUM(o.daily_realized_pnl),0),COALESCE(SUM(o.balance),0),
         COALESCE(MAX(CASE WHEN o.peak_equity>0 THEN (o.peak_equity-o.equity)/o.peak_equity*100 ELSE 0 END),0),
@@ -591,14 +612,14 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
 }
 
 pub async fn risk_decisions(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let rows=sqlx::query_as::<_,(i64,DateTime<Utc>,String,String,String,String,Option<Decimal>,Option<Decimal>,String,Option<String>)>(r#"
       SELECT r.id,r.created_at,r.trade_intent_id,ti.strategy_id,ti.instrument_id,r.account_id,ti.target_quantity,r.quantity,r.decision_type,r.reason
       FROM risk_decisions r JOIN trade_intents ti ON ti.id=r.trade_intent_id
-      JOIN dashboard_account_access g ON g.account_id=r.account_id WHERE g.owner_id=$1 ORDER BY r.created_at DESC LIMIT 100
+      JOIN organization_account_entitlements g ON g.account_id=r.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY r.created_at DESC LIMIT 100
     "#).bind(&owner).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,time,intent,strategy,instrument,account,requested,approved,decision,reason)|serde_json::json!({
       "id":id.to_string(),"time":time,"tradeIntentId":intent,"strategyId":strategy,"instrumentId":instrument,"accountId":account,
@@ -611,15 +632,15 @@ pub async fn events(
     headers: HeaderMap,
     Query(q): Query<ListLimit>,
 ) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
     let rows=sqlx::query_as::<_,(i64,Option<String>,Option<String>,String,serde_json::Value,DateTime<Utc>,String,String,String)>(r#"
       SELECT e.id,e.order_id,e.venue_id,e.event_type,e.payload_json,e.created_at,o.account_id,o.strategy_id,i.symbol FROM execution_events e
-      JOIN orders o ON o.id=e.order_id JOIN instruments i ON i.id=o.instrument_id JOIN dashboard_account_access g ON g.account_id=o.account_id
-      WHERE g.owner_id=$1 ORDER BY e.created_at DESC LIMIT $2
+      JOIN orders o ON o.id=e.order_id JOIN instruments i ON i.id=o.instrument_id JOIN organization_account_entitlements g ON g.account_id=o.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY e.created_at DESC LIMIT $2
     "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time,account,strategy,instrument)|serde_json::json!({
       "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":"Trading activity recorded","payload":payload,"correlationId":venue
@@ -627,13 +648,13 @@ pub async fn events(
 }
 
 pub async fn reconciliation(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let rows=sqlx::query_as::<_,(String,String,DateTime<Utc>,serde_json::Value)>(r#"
       SELECT r.account_id,r.terminal_id,r.captured_at,r.snapshot FROM mt5_bridge_reconciliation_snapshots r
-      JOIN dashboard_account_access g ON g.account_id=r.account_id WHERE g.owner_id=$1
+      JOIN organization_account_entitlements g ON g.account_id=r.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE'
       ORDER BY r.created_at DESC LIMIT 1
     "#).bind(&owner).fetch_optional(state.store.pool()).await;
     match rows{Ok(Some((account,terminal,time,snapshot)))=>Json(serde_json::json!({"data":{"accountId":account,"venueId":terminal,"status":"ALERT","lines":[],"alerts":[{"title":"Reconciliation snapshot available","detail":"Snapshot data is available; live venue comparison is not exposed by this API.","action":"ALERT_ONLY"}],"lastRunAt":time,"snapshot":snapshot}})).into_response(),
@@ -641,9 +662,9 @@ pub async fn reconciliation(State(state): State<AppState>, headers: HeaderMap) -
 }
 
 pub async fn system_components(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let _owner = match auth(&state, &headers) {
+    let _owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
     let db = sqlx::query_scalar::<_, i32>("SELECT 1")
         .fetch_one(state.store.pool())
@@ -672,13 +693,13 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
     .into_response()
 }
 pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match auth(&state, &headers) {
+    let owner = match tenant(&state, &headers).await {
         Ok(v) => v,
-        Err(e) => return e.into_response(),
+        Err(response) => return response,
     };
 
     let account_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM dashboard_account_access WHERE owner_id=$1",
+        "SELECT COUNT(*) FROM organization_account_entitlements WHERE organization_id=$1 AND status='ACTIVE'",
     )
     .bind(&owner)
     .fetch_one(state.store.pool())
@@ -718,8 +739,60 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
 }
 #[cfg(test)]
 mod tests {
-    use super::status_case;
+    use super::{account_json, status_case, AccountRow, PaperAccountWrite};
+    use chrono::Utc;
     use rust_decimal::Decimal;
+
+    fn account_row(environment: Option<&str>, verification: &str) -> AccountRow {
+        AccountRow {
+            id: "account-1".into(),
+            account_type: "simulated".into(),
+            environment: environment.map(str::to_string),
+            environment_verification: verification.into(),
+            environment_revision: 0,
+            environment_verified_at: None,
+            environment_verified_by: None,
+            status: "active".into(),
+            venue_id: "simulated".into(),
+            venue_name: "Simulator".into(),
+            venue_enabled: false,
+            label: None,
+            balance: Decimal::ZERO,
+            equity: Decimal::ZERO,
+            used_margin: Decimal::ZERO,
+            open_position_count: 0,
+            daily_realized_pnl: Decimal::ZERO,
+            realized_pnl: None,
+            peak_equity: Decimal::ZERO,
+            kill_switch: false,
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn dashboard_preserves_unclassified_and_legacy_environment_states() {
+        let unclassified = account_json(account_row(None, "UNCLASSIFIED"));
+        assert!(unclassified["environment"].is_null());
+        assert_eq!(unclassified["environmentVerification"], "UNCLASSIFIED");
+        let legacy = account_json(account_row(Some("PAPER"), "UNVERIFIED_LEGACY"));
+        assert_eq!(legacy["environment"], "PAPER");
+        assert_eq!(legacy["environmentVerification"], "UNVERIFIED_LEGACY");
+    }
+
+    #[test]
+    fn paper_account_api_requires_an_explicit_environment() {
+        let complete = serde_json::from_value::<PaperAccountWrite>(serde_json::json!({
+            "name": "Paper test",
+            "initial_capital": "1000",
+            "environment": "PAPER"
+        }));
+        assert!(complete.is_ok());
+        let missing = serde_json::from_value::<PaperAccountWrite>(serde_json::json!({
+            "name": "Paper test",
+            "initial_capital": "1000"
+        }));
+        assert!(missing.is_err());
+    }
 
     #[test]
     fn risk_status_distinguishes_unconfigured_from_breach() {

@@ -26,6 +26,8 @@ pub enum Mt5SessionState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mt5SessionPolicy {
     allowed_accounts: BTreeSet<String>,
+    expected_terminal_id: Option<String>,
+    expected_server: Option<String>,
 }
 
 impl Mt5SessionPolicy {
@@ -46,7 +48,44 @@ impl Mt5SessionPolicy {
         }
         Ok(Self {
             allowed_accounts: accounts,
+            expected_terminal_id: None,
+            expected_server: None,
         })
+    }
+
+    /// Bind the account allow-list to the terminal and server authenticated by
+    /// the mTLS principal. Production runtimes must use this constructor.
+    pub fn new_with_identity<I, S>(
+        allowed_accounts: I,
+        terminal_id: &str,
+        server: &str,
+    ) -> BridgeResult<Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        if terminal_id.trim().is_empty()
+            || terminal_id.trim() != terminal_id
+            || server.trim().is_empty()
+            || server.trim() != server
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 transport terminal and server identities must be non-empty and unpadded"
+                    .into(),
+            ));
+        }
+        let mut policy = Self::new(allowed_accounts)?;
+        policy.expected_terminal_id = Some(terminal_id.to_owned());
+        policy.expected_server = Some(server.to_owned());
+        Ok(policy)
+    }
+
+    pub fn expected_terminal_id(&self) -> Option<&str> {
+        self.expected_terminal_id.as_deref()
+    }
+
+    pub fn expected_server(&self) -> Option<&str> {
+        self.expected_server.as_deref()
     }
 
     pub fn allows_account(&self, account_id: &str) -> bool {
@@ -106,6 +145,14 @@ impl Mt5SessionGate {
         self.capabilities.as_ref()
     }
 
+    pub fn expected_terminal_id(&self) -> Option<&str> {
+        self.policy.expected_terminal_id()
+    }
+
+    pub fn expected_server(&self) -> Option<&str> {
+        self.policy.expected_server()
+    }
+
     /// Validate heartbeat identity before the transport persists any sequence
     /// state. This check is side-effect-free so untrusted account IDs cannot create
     /// durable stream rows before allow-list and immutable-binding checks pass.
@@ -126,6 +173,19 @@ impl Mt5SessionGate {
         {
             return Err(BridgeError::Invalid(
                 "MT5 account, terminal and server identities must be non-empty and unpadded".into(),
+            ));
+        }
+        if self
+            .policy
+            .expected_terminal_id()
+            .is_some_and(|expected| expected != heartbeat.terminal_id.as_str())
+            || self
+                .policy
+                .expected_server()
+                .is_some_and(|expected| expected != heartbeat.server.as_str())
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat terminal/server does not match the authenticated transport principal".into(),
             ));
         }
         if !self.policy.allows_account(&frame.account_id) {
@@ -164,12 +224,29 @@ impl Mt5SessionGate {
         };
 
         if frame.account_id.trim().is_empty()
+            || frame.account_id.trim() != frame.account_id
             || heartbeat.terminal_id.trim().is_empty()
+            || heartbeat.terminal_id.trim() != heartbeat.terminal_id
             || heartbeat.server.trim().is_empty()
+            || heartbeat.server.trim() != heartbeat.server
         {
             self.state = Mt5SessionState::Closed;
             return Err(BridgeError::Invalid(
                 "MT5 account, terminal and server identities must be non-empty and unpadded".into(),
+            ));
+        }
+        if self
+            .policy
+            .expected_terminal_id()
+            .is_some_and(|expected| expected != heartbeat.terminal_id.as_str())
+            || self
+                .policy
+                .expected_server()
+                .is_some_and(|expected| expected != heartbeat.server.as_str())
+        {
+            self.state = Mt5SessionState::Closed;
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat terminal/server does not match the authenticated transport principal".into(),
             ));
         }
 
@@ -412,6 +489,35 @@ mod tests {
                 time_in_force: TimeInForce::Day,
             }),
         }
+    }
+
+    #[test]
+    fn heartbeat_terminal_and_server_must_match_authenticated_transport_identity() {
+        let policy =
+            Mt5SessionPolicy::new_with_identity(["acct-1"], "terminal-1", "Broker-Demo-Server")
+                .unwrap();
+        let gate = Mt5SessionGate::after_transport_authentication(policy);
+        let wrong_terminal = heartbeat(
+            "acct-1",
+            "terminal-2",
+            "Broker-Demo-Server",
+            ConnectionState::Connected,
+        );
+        let wrong_server = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "Broker-Live-Server",
+            ConnectionState::Connected,
+        );
+        let correct = heartbeat(
+            "acct-1",
+            "terminal-1",
+            "Broker-Demo-Server",
+            ConnectionState::Connected,
+        );
+        assert!(gate.validate_heartbeat_identity(&wrong_terminal).is_err());
+        assert!(gate.validate_heartbeat_identity(&wrong_server).is_err());
+        assert!(gate.validate_heartbeat_identity(&correct).is_ok());
     }
 
     #[test]

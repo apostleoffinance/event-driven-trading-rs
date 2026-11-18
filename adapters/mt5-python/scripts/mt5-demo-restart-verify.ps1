@@ -17,8 +17,8 @@ foreach ($name in @("DATABASE_URL", "MT5_ACCOUNT_ID", "MT5_TERMINAL_ID")) {
     if ([string]::IsNullOrWhiteSpace($value) -or $value.Trim() -ne $value) { throw "Required environment variable is missing or invalid: $name" }
 }
 $databaseUrl = $env:DATABASE_URL
-$accountId = $env:MT5_ACCOUNT_ID.Replace("'", "''")
-$terminalId = $env:MT5_TERMINAL_ID.Replace("'", "''")
+$accountId = $env:MT5_ACCOUNT_ID
+$terminalId = $env:MT5_TERMINAL_ID
 $worker = Get-Service -Name $WorkerServiceName
 $daemon = Get-Service -Name $DaemonServiceName
 if ($worker.Status -ne "Running") { throw "Worker service '$WorkerServiceName' must already be running before the first smoke pass." }
@@ -29,7 +29,7 @@ function Get-LatestSnapshot {
 WITH market AS (
   SELECT sequence, captured_at
   FROM public.mt5_bridge_market_data_snapshots
-  WHERE account_id = '$accountId' AND terminal_id = '$terminalId'
+  WHERE account_id = :'account_id' AND terminal_id = :'terminal_id'
   ORDER BY captured_at DESC LIMIT 1
 ), reconciliation AS (
   SELECT reconciled_sequence, captured_at
@@ -45,14 +45,20 @@ SELECT json_build_object(
 )::text
 FROM market CROSS JOIN reconciliation;
 "@
-    $raw = & psql -X -qAt -v ON_ERROR_STOP=1 -d $databaseUrl -c $query 2>$null | Select-Object -Last 1
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) { return $null }
+    $previousPgDatabase = $env:PGDATABASE
+    $env:PGDATABASE = $databaseUrl
+    try {
+        $raw = & psql -X -qAt -v ON_ERROR_STOP=1 -v "account_id=$accountId" -v "terminal_id=$terminalId" -c $query 2>$null | Select-Object -Last 1
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) { return $null }
+    } finally {
+        $env:PGDATABASE = $previousPgDatabase
+    }
     try { return ($raw | ConvertFrom-Json) } catch { return $null }
 }
 function Invoke-Smoke([string]$PassName) {
     Write-Host ("[{0}] Starting smoke pass at {1}" -f $PassName, [DateTimeOffset]::UtcNow.ToString("o"))
     & "$PSScriptRoot\mt5-demo-smoke.ps1" -TimeoutSeconds $TimeoutSeconds -PollSeconds $PollSeconds
-    if ($LASTEXITCODE -ne 0) { throw "$PassName smoke pass failed. Do not treat restart conformance as passed." }
+    if (-not $?) { throw "$PassName smoke pass failed. Do not treat restart conformance as passed." }
 }
 function Write-Evidence([System.Collections.IDictionary]$Record) {
     $full = [System.IO.Path]::GetFullPath($EvidencePath)
@@ -78,6 +84,9 @@ $record = [ordered]@{
     sequence_advanced = $false
     post_restart_reconciliation_fresh = $false
     second_smoke = "NOT_RUN"
+    worker_restore_attempted = $false
+    worker_restored = $false
+    worker_restore_error = $null
     result = "BLOCKED"
 }
 
@@ -142,6 +151,21 @@ try {
     Write-Error $_.Exception.Message
     throw
 } finally {
+    # This script owns the worker stop. Restore the service even if an assertion
+    # fails after the stop so a failed test cannot strand the demo connection.
+    try {
+        $worker = Get-Service -Name $WorkerServiceName -ErrorAction Stop
+        if ($worker.Status -ne "Running") {
+            $record.worker_restore_attempted = $true
+            Start-Service -Name $WorkerServiceName -ErrorAction Stop
+            $worker = Get-Service -Name $WorkerServiceName
+            $worker.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(30))
+        }
+        $record.worker_restored = ((Get-Service -Name $WorkerServiceName).Status -eq "Running")
+    } catch {
+        $record.worker_restore_error = $_.Exception.Message
+        $record.result = "FAILED_WORKER_RESTORE"
+    }
     $record.finished_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     Write-Evidence $record
 }

@@ -15,32 +15,34 @@ Required environment:
 | Variable | Meaning |
 |---|---|
 | `DATABASE_URL` | EdgeNest PostgreSQL connection string |
+| `MIGRATOR_DATABASE_URL` | Separate schema-owner/migration connection used only during startup migrations; the pool is closed before the runtime connection is opened |
 | `EDGENEST_JWT_ISSUER` | Exact `iss` claim expected from EdgeNest Identity |
 | `EDGENEST_JWT_AUDIENCE` | Exact API audience expected in JWT `aud` |
-| `EDGENEST_JWT_PUBLIC_KEY_PEM` | RSA public key in PEM format (literal newlines or escaped `\\n`) |
+| `EDGENEST_JWT_VERIFICATION_KEY_FILES` | Semicolon-separated `kid=/absolute/path/public.pem` verification key ring; include active and overlapping old public keys |
 
 Optional:
 - `JOURNAL_API_BIND` defaults to `0.0.0.0:8080`.
 - `JOURNAL_CORS_ORIGINS` is a comma-separated allowlist; default is no browser origins.
 - `RUST_LOG` controls tracing.
 
-The API applies existing SQL migrations on startup. Use a migration-capable deployment identity in production; consider separating migration execution from runtime DB permissions for a hardened deployment.
+The API applies forward-only SQL migrations through `MIGRATOR_DATABASE_URL`, closes that pool, then connects through `DATABASE_URL`. The runtime role must not own or inherit the owner role for `identity_session_events`; it must have SELECT/INSERT only for that table, no TRIGGER or schema CREATE privilege, and must not be superuser, CREATEROLE, or CREATEDB. Startup fails closed unless the full supported migration history and required grants are present. Identity and Journal binaries must be rolled together across the I1-R1 migration boundary; old binaries are not supported against the upgraded history. There is no down migration: rollback means a forward fix or separately approved restore. Existing users must reauthenticate because I1 revoked legacy refresh tokens and suspension invalidates prior sessions.
 
 ## EdgeNest JWT contract
 
 - EdgeNest Identity issues tokens; this API is a relying party.
-- RS256 only. The service pins the algorithm and validates signature, `exp`, `iss`, and `aud`.
-- Required claims: `sub`, `iss`, `aud`, `exp`. `sub` is the canonical immutable EdgeNest user ID.
+- RS256 only. The service validates `kid`, signature, `exp`, `iss`, `aud`, and the access-token type.
+- Required claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `sid`, and `srv`. `sub` is the canonical immutable EdgeNest user ID; `sid` and `srv` bind the token to a server-managed session and revision.
+- Every `/api/` request also checks the user's active state, session state and expiry, session revision, and token allowlist/revocation record in PostgreSQL. Database errors fail closed with service unavailable; revoked or stale sessions return unauthorized.
 - Owner/tenant scope is derived exclusively from verified `sub`; payloads and query strings cannot override owner ID.
-- Keep the RSA private signing key in EdgeNest Identity secret storage/KMS. Only the public PEM belongs in this API's configuration.
-- Rotate keys deliberately (future JWKS support should overlap old/new keys during token TTL). Do not accept TraderOS tokens or reuse its auth infrastructure.
+- Keep the active RSA private signing key in externally managed secret storage; only public key files belong in this API's configuration. The service does not implement KMS/HSM retrieval.
+- To rotate, add the new public key to this verifier before switching the issuer's active `kid`; retain the old public key through the maximum access-token lifetime and deployment overlap, then remove it. Emergency removal invalidates tokens signed by that key. Do not accept TraderOS tokens or reuse its auth infrastructure.
 - No API keys, refresh-token endpoints, password storage, or login UI are implemented by this Journal service.
 
 The EdgeNest Identity issuer is implemented in the sibling `identity-api` workspace service. Deploy both with identical issuer/audience/public-key configuration. Do not guess production values.
 
 ## Routes
 
-All `/api/v1/journal/**` endpoints require `Authorization: Bearer <EdgeNest JWT>`.
+All `/api/**` application endpoints require `Authorization: Bearer <EdgeNest JWT>` bound to an active server-managed identity session; `/healthz` and `/readyz` remain health probes.
 
 | Method | Route | Notes |
 |---|---|---|
@@ -78,7 +80,7 @@ Journal account must already exist and belong to the authenticated owner. Cross-
 ## Important current limitations
 
 - Journal account/setup CRUD is available in this service. These are separate journal entities and do not create EdgeNest OMS accounts or broker connections.
-- JWT key discovery/JWKS and key rotation are not implemented; the API accepts one configured RSA public key.
+- JWT keys are configured as a local verification key ring; network JWKS discovery and automatic key rollover are not implemented.
 - `PATCH` is full replacement, not partial JSON Merge Patch.
 - Screenshot URL/attachment metadata is available. Binary upload to R2/S3 is not implemented yet; object storage needs a separately configured upload service. Deleting metadata does not delete the external file.
 - Analytics endpoints are descriptive only; they do not predict outcomes or authorize execution.

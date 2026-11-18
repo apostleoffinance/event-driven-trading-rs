@@ -41,7 +41,7 @@ $terminalId = Require-Env "MT5_TERMINAL_ID"
 $server = Require-Env "MT5_SERVER"
 $accountId = Require-Env "MT5_ACCOUNT_ID"
 $login = Require-Env "MT5_LOGIN"
-$password = Require-Env "MT5_PASSWORD"
+$passwordFile = Require-Env "MT5_PASSWORD_DPAPI_FILE"
 $symbols = Require-Env "MT5_SYMBOLS"
 $expectedCurrency = Require-Env "MT5_EXPECTED_ACCOUNT_CURRENCY"
 $fingerprint = (Require-Env "MT5_BRIDGE_PRINCIPAL_SHA256").ToLowerInvariant()
@@ -62,7 +62,8 @@ if ($symbolList.Count -lt 1 -or $symbolList.Count -gt 64 -or ($symbolList | Sele
 Write-Host "[1/5] Checking read-only MT5 account, configured symbols, and worker certificate..."
 $env:SMOKE_TERMINAL_PATH = $terminalPath
 $env:SMOKE_LOGIN = $login
-$env:SMOKE_PASSWORD = $password
+$env:SMOKE_PASSWORD_DPAPI_FILE = $passwordFile
+$env:SMOKE_ADAPTER_ROOT = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $env:SMOKE_SERVER = $server
 $env:SMOKE_EXPECTED_CURRENCY = $expectedCurrency
 $env:SMOKE_SYMBOLS = ($symbolList -join ",")
@@ -76,6 +77,8 @@ $pythonProbe = @'
 import hashlib, os, ssl, sys
 from datetime import datetime, timezone
 from pathlib import Path
+sys.path.insert(0, os.environ["SMOKE_ADAPTER_ROOT"])
+from mt5_adapter.worker import read_windows_dpapi_secret
 
 def fail(message):
     print("FAIL: " + message, file=sys.stderr)
@@ -92,6 +95,7 @@ try:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER if cert_var == "SMOKE_SERVER_CERT" else ssl.PROTOCOL_TLS_CLIENT)
         context.load_cert_chain(os.environ[cert_var], os.environ[key_var])
     import MetaTrader5 as mt5
+    password = read_windows_dpapi_secret(os.environ["SMOKE_PASSWORD_DPAPI_FILE"])
 except Exception as exc:
     fail("certificate or MetaTrader5 preflight failed: " + type(exc).__name__)
 
@@ -100,7 +104,7 @@ try:
     initialized = bool(mt5.initialize(
         path=os.environ["SMOKE_TERMINAL_PATH"],
         login=int(os.environ["SMOKE_LOGIN"]),
-        password=os.environ["SMOKE_PASSWORD"],
+        password=password,
         server=os.environ["SMOKE_SERVER"],
     ))
     if not initialized:
@@ -114,6 +118,8 @@ try:
         fail("authenticated MT5 server does not match MT5_SERVER")
     if str(account.currency) != os.environ["SMOKE_EXPECTED_CURRENCY"]:
         fail("authenticated MT5 account currency does not match MT5_EXPECTED_ACCOUNT_CURRENCY")
+    if int(account.trade_mode) != int(mt5.ACCOUNT_TRADE_MODE_DEMO):
+        fail("authenticated MT5 account is not DEMO; no data acceptance is permitted")
     now = datetime.now(timezone.utc).timestamp()
     symbols = os.environ["SMOKE_SYMBOLS"].split(",")
     for symbol in symbols:
@@ -132,7 +138,7 @@ try:
                 float(info.trade_contract_size) > 0 and float(info.volume_min) > 0 and
                 float(info.volume_step) > 0 and float(info.volume_max) >= float(info.volume_min)):
             fail("broker sizing metadata missing or inconsistent for: " + symbol)
-    print("PASS: demo account identity, account currency, client certificate fingerprint, and fresh broker metadata/ticks validated.")
+    print("PASS: DEMO account identity, trade mode, currency, client certificate fingerprint, and fresh broker metadata/ticks validated.")
 finally:
     if initialized:
         mt5.shutdown()

@@ -11,7 +11,7 @@ use domain::{
 use execution_engine::{ExecutionEngine, NewOrderRequest};
 use risk_engine::{DefaultRiskEvaluator, RiskEvaluator};
 use rust_decimal::Decimal;
-use venue_connectors::{submit_approved_order, SimulatedVenue, VenueAdapter};
+use venue_connectors::{execute_simulated_order, SimulatedVenue, VenueAdapter};
 
 #[tokio::test]
 async fn intent_risk_oms_venue_fill_position() {
@@ -67,7 +67,7 @@ async fn intent_risk_oms_venue_fill_position() {
     let quantity = decision.approved_quantity().unwrap();
 
     let mut oms = ExecutionEngine::new();
-    let outcome = submit_approved_order(
+    let outcome = execute_simulated_order(
         &mut oms,
         &venue,
         NewOrderRequest {

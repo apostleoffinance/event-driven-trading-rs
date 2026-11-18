@@ -5,6 +5,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{DomainError, DomainResult};
+use crate::execution_authorization::{AccountEnvironment, EnvironmentVerification};
 use crate::ids::{AccountId, VenueId};
 use crate::money::{require_non_negative, require_positive};
 
@@ -36,6 +37,11 @@ pub struct Account {
     pub status: AccountStatus,
     /// Default execution venue for this account (Account ≠ Venue).
     pub venue_id: VenueId,
+    pub environment: Option<AccountEnvironment>,
+    pub environment_revision: u64,
+    pub environment_verification: EnvironmentVerification,
+    pub environment_verified_by: Option<String>,
+    pub environment_verification_reason: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -44,6 +50,7 @@ impl Account {
         id: AccountId,
         account_type: AccountType,
         venue_id: VenueId,
+        environment: AccountEnvironment,
         created_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -51,6 +58,11 @@ impl Account {
             account_type,
             status: AccountStatus::Active,
             venue_id,
+            environment: Some(environment),
+            environment_revision: 1,
+            environment_verification: EnvironmentVerification::Unverified,
+            environment_verified_by: None,
+            environment_verification_reason: None,
             created_at,
         }
     }
@@ -173,6 +185,7 @@ mod tests {
             AccountId::new("a1").unwrap(),
             AccountType::Prop,
             VenueId::new("simulated").unwrap(),
+            AccountEnvironment::Paper,
             Utc::now(),
         );
         let state = AccountState::new(

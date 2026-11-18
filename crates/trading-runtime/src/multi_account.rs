@@ -7,7 +7,7 @@
 
 use domain::{AccountId, OrderStatus, TradeIntent, TradeIntentId};
 use events::EventPublisher;
-use venue_connectors::VenueAdapter;
+use venue_connectors::SimulationExecutionAdapter;
 
 use crate::{
     InstrumentSizingSnapshotProvider, IntentOutcome, RuntimeError, RuntimeInstrumentSizingContext,
@@ -17,7 +17,7 @@ use crate::{
 /// One account's independent execution route for multi-account intent fan-out.
 pub struct AccountExecutionTarget<'a> {
     pub runtime: &'a mut TradingRuntime,
-    pub venue: &'a dyn VenueAdapter,
+    pub venue: &'a dyn SimulationExecutionAdapter,
     pub events_out: &'a EventPublisher,
     /// If set, the account must obtain instrument-aware sizing from this provider.
     /// Provider failure is recorded for this account and never falls back to legacy sizing.

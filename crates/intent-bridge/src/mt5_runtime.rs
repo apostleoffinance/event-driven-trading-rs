@@ -4,17 +4,19 @@
 //! watchdog, checkpoints incoming heartbeats, persists external reconciliation state,
 //! and consumes durable dispatch permits through the authenticated transport. It is
 //! not wired to a production daemon or MT5 EA by this crate alone; the host must create
-//! it only after TLS authentication and must provide authoritative venue snapshots.
+//! it with a persisted admission guard and must provide authoritative venue snapshots.
 
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
 use chrono::{DateTime, Duration, Utc};
-use persistence::{Mt5DurableOrderState, TradingStore};
+use domain::broker_registry::{
+    normalize_mt5_server_id, AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
+};
+use persistence::{evaluate_persisted_broker_admission, Mt5DurableOrderState, TradingStore};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::mt5_dispatch::{prepare_submit, Mt5DispatchDecision};
 use crate::mt5_reconciliation::{
     persist_and_confirm_reconciliation, persist_reconciliation_without_confirmation,
     Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
@@ -38,23 +40,145 @@ pub enum Mt5RuntimeDispatchResult {
     },
 }
 
+/// Immutable registry scope for one mTLS-authenticated worker. The worker
+/// certificate fingerprint is also the provisioned service-user ID in
+/// identity_users and broker_worker_assignments; that service principal must
+/// have an active membership in the target organization.
+#[derive(Debug, Clone)]
+pub struct Mt5AdmissionGuard {
+    request: BrokerAdmissionRequest,
+    quant_account_ref: String,
+    observed_server_name: String,
+    worker_ref: String,
+}
+
+impl Mt5AdmissionGuard {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        organization_ref: &str,
+        quant_account_ref: &str,
+        external_account_ref: &str,
+        binding_ref: &str,
+        broker_ref: &str,
+        broker_server_ref: &str,
+        observed_server_name: &str,
+        worker_ref: &str,
+    ) -> BridgeResult<Self> {
+        let values = [
+            organization_ref,
+            quant_account_ref,
+            external_account_ref,
+            binding_ref,
+            broker_ref,
+            broker_server_ref,
+            observed_server_name,
+            worker_ref,
+        ];
+        if values
+            .iter()
+            .any(|value| value.trim().is_empty() || value.trim() != *value)
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 admission configuration contains an empty or padded identity".into(),
+            ));
+        }
+        if worker_ref.len() != 64 || !worker_ref.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(BridgeError::Invalid(
+                "MT5 admission worker identity must be a SHA-256 certificate fingerprint".into(),
+            ));
+        }
+        Ok(Self {
+            request: BrokerAdmissionRequest {
+                request_ref: format!("mt5-readonly-{worker_ref}"),
+                operation: AdmissionOperation::ReadOnlyMarketData,
+                organization_ref: organization_ref.to_owned(),
+                account_ref: external_account_ref.to_owned(),
+                binding_ref: binding_ref.to_owned(),
+                broker_ref: broker_ref.to_owned(),
+                server_ref: broker_server_ref.to_owned(),
+            },
+            quant_account_ref: quant_account_ref.to_owned(),
+            observed_server_name: normalize_mt5_server_id(observed_server_name)
+                .map_err(|_| {
+                    BridgeError::Invalid(
+                        "MT5 server name does not satisfy registry normalization v1".into(),
+                    )
+                })?
+                .canonical,
+            worker_ref: worker_ref.to_ascii_lowercase(),
+        })
+    }
+
+    fn validate_transport(&self, connection: &AuthenticatedMt5Connection) -> BridgeResult<()> {
+        let principal = connection.principal();
+        if principal.certificate_sha256.to_ascii_lowercase() != self.worker_ref
+            || !principal.allowed_accounts.contains(&self.quant_account_ref)
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 admission scope does not match the authenticated worker certificate and QuantOS account"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub struct Mt5BridgeRuntime {
     store: TradingStore,
     connection: Arc<Mutex<AuthenticatedMt5Connection>>,
     session: Arc<Mutex<Mt5SessionGate>>,
+    admission: Option<Mt5AdmissionGuard>,
     watchdog: JoinHandle<()>,
 }
 
 impl Mt5BridgeRuntime {
-    /// Construct only after the TLS transport has authenticated the client certificate
-    /// and the session policy is bound to the intended account allow-list.
+    /// Unadmitted constructor for isolated tests and non-production harnesses only.
+    /// Production ingestion must use new_with_admission and a policy created with
+    /// Mt5SessionPolicy::new_with_identity.
     pub fn new(
         store: TradingStore,
         connection: AuthenticatedMt5Connection,
         session: Mt5SessionGate,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
-        validate_initial_session(&connection, &session)?;
+        Self::build(store, connection, session, None, watchdog_poll_interval)
+    }
+
+    /// Production constructor: every incoming frame is gated against the current
+    /// persisted broker binding, entitlement, evidence, verifier authority and
+    /// worker session before the frame is checkpointed or persisted.
+    pub fn new_with_admission(
+        store: TradingStore,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        admission: Mt5AdmissionGuard,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<Self> {
+        Self::build(
+            store,
+            connection,
+            session,
+            Some(admission),
+            watchdog_poll_interval,
+        )
+    }
+
+    fn build(
+        store: TradingStore,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        admission: Option<Mt5AdmissionGuard>,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<Self> {
+        if watchdog_poll_interval.is_zero() {
+            return Err(BridgeError::Invalid(
+                "MT5 heartbeat watchdog poll interval must be positive".into(),
+            ));
+        }
+        validate_initial_session(&connection, &session, admission.is_some())?;
+        if let Some(guard) = admission.as_ref() {
+            guard.validate_transport(&connection)?;
+        }
         let connection = Arc::new(Mutex::new(connection));
         let session = Arc::new(Mutex::new(session));
         let watchdog = spawn_heartbeat_watchdog(
@@ -67,6 +191,7 @@ impl Mt5BridgeRuntime {
             store,
             connection,
             session,
+            admission,
             watchdog,
         })
     }
@@ -86,7 +211,10 @@ impl Mt5BridgeRuntime {
                 "MT5 heartbeat watchdog poll interval must be positive".into(),
             ));
         }
-        validate_initial_session(&connection, &session)?;
+        validate_initial_session(&connection, &session, self.admission.is_some())?;
+        if let Some(guard) = self.admission.as_ref() {
+            guard.validate_transport(&connection)?;
+        }
         self.watchdog.abort();
         {
             let mut current_connection = self.connection.lock().await;
@@ -112,6 +240,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         allowed_clock_skew: Duration,
     ) -> BridgeResult<BridgeFrame> {
+        self.validate_persisted_admission_or_degrade(0).await?;
         let mut connection = self.connection.lock().await;
         let mut session = self.session.lock().await;
         match connection
@@ -134,6 +263,77 @@ impl Mt5BridgeRuntime {
         }
     }
 
+    async fn validate_persisted_admission_or_degrade(&self, sequence: u64) -> BridgeResult<()> {
+        if let Err(error) = self.validate_persisted_admission().await {
+            let mut session = self.session.lock().await;
+            session.degrade();
+            if let (Some(account_id), Some(terminal_id)) =
+                (session.account_id(), session.terminal_id())
+            {
+                let _ = self
+                    .store
+                    .mark_mt5_stream_degraded(account_id, terminal_id, sequence)
+                    .await;
+            }
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    async fn validate_persisted_admission(&self) -> BridgeResult<()> {
+        let Some(guard) = self.admission.as_ref() else {
+            return Ok(());
+        };
+        let decision = evaluate_persisted_broker_admission(
+            self.store.pool(),
+            &guard.request,
+            &guard.worker_ref,
+            &guard.worker_ref,
+        )
+        .await
+        .map_err(|_| {
+            BridgeError::Invalid(
+                "MT5 broker admission registry is unavailable; refusing frame ingestion".into(),
+            )
+        })?;
+        match decision {
+            BrokerAdmissionDecision::Admitted(permit)
+                if permit.worker_ref == guard.worker_ref
+                    && permit.quant_account_ref == guard.quant_account_ref =>
+            {
+                // The catalog identifier is immutable. Check that the exact
+                // server name authenticated by the worker maps to this registry
+                // server, not merely to a caller-supplied server ID.
+                let canonical_server = self
+                    .store
+                    .broker_server_canonical_identifier(
+                        &guard.request.broker_ref,
+                        &guard.request.server_ref,
+                    )
+                    .await
+                    .map_err(|_| {
+                        BridgeError::Invalid(
+                            "MT5 broker-server catalog is unavailable; refusing frame ingestion"
+                                .into(),
+                        )
+                    })?;
+                if canonical_server.as_deref() != Some(guard.observed_server_name.as_str()) {
+                    return Err(BridgeError::Invalid(
+                        "MT5 observed server name does not match the verified broker-server catalog".into(),
+                    ));
+                }
+                Ok(())
+            }
+            BrokerAdmissionDecision::Admitted(_) => Err(BridgeError::Invalid(
+                "MT5 broker admission permit scope does not match the configured QuantOS account or worker"
+                    .into(),
+            )),
+            BrokerAdmissionDecision::Denied(reasons) => Err(BridgeError::Invalid(format!(
+                "MT5 broker admission denied: {reasons:?}"
+            ))),
+        }
+    }
+
     /// Reconcile a fresh authoritative snapshot of account state, all open orders,
     /// and all positions before releasing the session readiness latch.
     pub async fn reconcile(
@@ -142,6 +342,8 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
+        self.validate_persisted_admission_or_degrade(snapshot.sequence)
+            .await?;
         let mut session = self.session.lock().await;
         persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
     }
@@ -188,6 +390,8 @@ impl Mt5BridgeRuntime {
                         "MT5 market-data identity does not match authenticated session".into(),
                     ));
                 }
+                self.validate_persisted_admission_or_degrade(snapshot.sequence)
+                    .await?;
                 let serialized = serde_json::to_value(snapshot)?;
                 if let Err(error) = self
                     .store
@@ -295,6 +499,8 @@ impl Mt5BridgeRuntime {
                 })
                 .collect(),
         };
+        self.validate_persisted_admission_or_degrade(snapshot.sequence)
+            .await?;
         let mut session = self.session.lock().await;
         if market_data_fresh {
             persist_and_confirm_reconciliation(
@@ -326,6 +532,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
+        self.validate_persisted_admission_or_degrade(0).await?;
         let (account_id, terminal_id, server) = {
             let session = self.session.lock().await;
             if session.state() != Mt5SessionState::ReconciliationRequired {
@@ -374,40 +581,16 @@ impl Mt5BridgeRuntime {
     /// authenticated connection. Existing keys are returned for reconciliation only.
     pub async fn dispatch_submit(
         &self,
-        frame: &BridgeFrame,
-        now: DateTime<Utc>,
-        allowed_clock_skew: Duration,
+        _frame: &BridgeFrame,
+        _now: DateTime<Utc>,
+        _allowed_clock_skew: Duration,
     ) -> BridgeResult<Mt5RuntimeDispatchResult> {
-        let decision = {
-            let session = self.session.lock().await;
-            prepare_submit(&self.store, &session, frame, now, allowed_clock_skew).await?
-        };
-        match decision {
-            Mt5DispatchDecision::SendOnce(permit) => {
-                let mut connection = self.connection.lock().await;
-                let mut session = self.session.lock().await;
-                permit
-                    .execute_over_transport(
-                        &mut connection,
-                        &self.store,
-                        &mut session,
-                        allowed_clock_skew,
-                    )
-                    .await?;
-                Ok(Mt5RuntimeDispatchResult::OutcomePersisted)
-            }
-            Mt5DispatchDecision::ReconcileRequired {
-                client_order_id,
-                prior_state,
-                venue_order_id,
-                reason_code,
-            } => Ok(Mt5RuntimeDispatchResult::ReconciliationRequired {
-                client_order_id,
-                prior_state,
-                venue_order_id,
-                reason_code,
-            }),
-        }
+        // The current schema has no verified environment/provenance or durable
+        // execution-authorization record. Until QOS-021A-E2 supplies that trusted
+        // persistence boundary, no application caller may dispatch a broker frame.
+        Err(BridgeError::Invalid(
+            "MT5 order dispatch is disabled: verified account environment and execution authorization are unavailable".into(),
+        ))
     }
 
     pub async fn session_state(&self) -> Mt5SessionState {
@@ -418,12 +601,17 @@ impl Mt5BridgeRuntime {
 fn validate_initial_session(
     connection: &AuthenticatedMt5Connection,
     session: &Mt5SessionGate,
+    require_authenticated_identity: bool,
 ) -> BridgeResult<()> {
     let principal = connection.principal();
+    let identity_mismatch = require_authenticated_identity
+        && (session.expected_terminal_id() != Some(principal.terminal_id.as_str())
+            || session.expected_server() != Some(principal.server.as_str()));
     if session.state() != Mt5SessionState::AwaitingHeartbeat
         || session.account_id().is_some()
         || session.terminal_id().is_some()
         || session.server().is_some()
+        || identity_mismatch
         || !principal
             .allowed_accounts
             .iter()
@@ -445,6 +633,58 @@ impl Drop for Mt5BridgeRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Constructor failure must fail this test; keep the crate-wide expect lint strict elsewhere.
+    #[allow(clippy::expect_used)]
+    #[test]
+    fn admission_guard_binds_quant_account_external_account_and_worker() {
+        let fingerprint = "a".repeat(64);
+        let guard = Mt5AdmissionGuard::new(
+            "org-1",
+            "quant-account-1",
+            "external-account-1",
+            "binding-1",
+            "broker-1",
+            "broker-server-1",
+            "R502.Demo",
+            &fingerprint,
+        )
+        .expect("valid admission guard configuration");
+        assert_eq!(
+            guard.request.operation,
+            AdmissionOperation::ReadOnlyMarketData
+        );
+        assert_eq!(guard.request.account_ref, "external-account-1");
+        assert_eq!(guard.quant_account_ref, "quant-account-1");
+        assert_eq!(guard.observed_server_name, "r502.demo");
+        assert_eq!(guard.worker_ref, fingerprint);
+    }
+
+    #[test]
+    fn admission_guard_rejects_unbound_or_malformed_worker_identity() {
+        assert!(Mt5AdmissionGuard::new(
+            "org-1",
+            "quant-1",
+            "external-1",
+            "binding-1",
+            "broker-1",
+            "server-1",
+            "R502.Demo",
+            "worker-1"
+        )
+        .is_err());
+        assert!(Mt5AdmissionGuard::new(
+            "org-1 ",
+            "quant-1",
+            "external-1",
+            "binding-1",
+            "broker-1",
+            "server-1",
+            "R502.Demo",
+            &"a".repeat(64)
+        )
+        .is_err());
+    }
 
     #[test]
     fn runtime_dispatch_result_never_claims_a_fill() {

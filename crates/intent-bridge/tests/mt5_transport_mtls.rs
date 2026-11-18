@@ -20,7 +20,7 @@ use intent_bridge::mt5_reconciliation::{
     persist_and_confirm_reconciliation, Mt5AccountStateSnapshot, Mt5OpenOrderSnapshot,
     Mt5PositionSnapshot, Mt5ReconciliationSnapshot, Mt5ReconciliationSource,
 };
-use intent_bridge::mt5_runtime::{Mt5BridgeRuntime, Mt5RuntimeDispatchResult};
+use intent_bridge::mt5_runtime::Mt5BridgeRuntime;
 use intent_bridge::mt5_session::{Mt5SessionGate, Mt5SessionPolicy, Mt5SessionState};
 use intent_bridge::mt5_transport::{
     spawn_heartbeat_watchdog, AuthenticatedMt5Connection, Mt5TransportConfig, Mt5TransportLimits,
@@ -29,9 +29,9 @@ use intent_bridge::mt5_transport::{
 use intent_bridge::mt5_v1::{
     BridgeCapabilities, BridgeFrame, BridgePayload, ConnectionState, Heartbeat,
     InstrumentMarketDataWire, MarketDataSnapshotWire, MarketDataStatus, OrderSide, OrderType,
-    QuoteWire, SubmitOrder, SubmitOutcome, SubmitState, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
+    QuoteWire, SubmitOrder, TimeInForce, MT5_BRIDGE_SCHEMA_VERSION,
 };
-use persistence::{Mt5DurableOrderState, Mt5OrderClaim, Mt5StreamReadiness, TradingStore};
+use persistence::{Mt5StreamReadiness, TradingStore};
 use sqlx::PgPool;
 
 struct FixedSnapshotSource(Mt5ReconciliationSnapshot);
@@ -526,7 +526,7 @@ async fn autonomous_watchdog_degrades_session_after_heartbeat_expiry(
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
+async fn dispatch_fails_closed_without_sending_or_claiming_order(
     pool: PgPool,
 ) -> Result<(), Box<dyn Error>> {
     let pki = make_pki()?;
@@ -589,90 +589,29 @@ async fn durable_dispatch_sends_once_and_persists_correlated_outcome(
         }),
     };
 
-    let responder = tokio::spawn(async move {
-        async {
-            let mut bytes = Vec::new();
-            loop {
-                let mut byte = [0_u8; 1];
-                let count = client.read(&mut byte).await?;
-                if count == 0 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "transport closed before submit frame",
-                    )
-                    .into());
-                }
-                if byte[0] == b'\n' {
-                    break;
-                }
-                bytes.push(byte[0]);
-                if bytes.len() > intent_bridge::mt5_v1::MAX_MT5_BRIDGE_FRAME_BYTES {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "submit frame exceeded test limit",
-                    )
-                    .into());
-                }
-            }
-            let received: BridgeFrame = serde_json::from_slice(&bytes)?;
-            let client_order_id = match &received.payload {
-                BridgePayload::SubmitOrder(order) => order.client_order_id.clone(),
-                _ => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "expected submit_order frame",
-                    )
-                    .into());
-                }
-            };
-            let response = BridgeFrame {
-                schema_version: MT5_BRIDGE_SCHEMA_VERSION,
-                message_id: "submit-outcome-1".into(),
-                correlation_id: received.correlation_id,
-                account_id: received.account_id,
-                sent_at: Utc::now(),
-                payload: BridgePayload::SubmitOutcome(SubmitOutcome {
-                    client_order_id,
-                    outcome: SubmitState::Accepted,
-                    venue_order_id: Some("broker-ticket-9001".into()),
-                    reason_code: None,
-                    observed_at: Utc::now(),
-                }),
-            };
-            let mut encoded = serde_json::to_vec(&response)?;
-            encoded.push(b'\n');
-            client.write_all(&encoded).await?;
-            client.flush().await?;
-            Ok::<(), Box<dyn Error + Send + Sync>>(())
-        }
-        .await
-    });
+    let dispatch = runtime
+        .dispatch_submit(&submit, Utc::now(), Duration::seconds(5))
+        .await;
+    assert!(dispatch.is_err(), "unauthorized dispatch must fail closed");
 
-    assert_eq!(
-        runtime
-            .dispatch_submit(&submit, Utc::now(), Duration::seconds(5))
-            .await?,
-        Mt5RuntimeDispatchResult::OutcomePersisted
+    // Closing the server side lets the test prove that no outbound submit frame
+    // was written to the authenticated peer.
+    drop(runtime);
+    let mut received = [0_u8; 1];
+    let peer_result = client.read(&mut received).await;
+    assert!(
+        matches!(peer_result, Err(ref error) if error.kind() == std::io::ErrorKind::UnexpectedEof),
+        "peer must receive no frame before the TLS connection closes"
     );
-    responder
-        .await?
-        .map_err(|error| -> Box<dyn Error> { error })?;
 
-    let replay = store
-        .claim_mt5_order(
-            "account-001",
-            "stable-order-001",
-            serde_json::to_value(&submit.payload)?,
-        )
-        .await?;
-    assert_eq!(
-        replay,
-        Mt5OrderClaim::Existing {
-            state: Mt5DurableOrderState::Accepted,
-            venue_order_id: Some("broker-ticket-9001".into()),
-            reason_code: None,
-        }
-    );
+    let claims: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM mt5_bridge_order_keys WHERE account_id = $1 AND client_order_id = $2",
+    )
+    .bind("account-001")
+    .bind("stable-order-001")
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(claims, 0, "denied dispatch must not create an order claim");
     let restarted = TradingStore::new(pool);
     assert_eq!(
         restarted

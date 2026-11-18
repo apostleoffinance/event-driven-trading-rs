@@ -14,39 +14,44 @@ jobs:
   rust:
     name: Rust format, check, test, clippy
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: quant_os_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d quant_os_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/quant_os_test
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Setup Python for QOS-020 guard
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Run QOS-020 guard negative tests
+        run: python scripts/qos020/test_guard.py
+      - name: Provision isolated QOS-020 PostgreSQL
+        id: qos020
+        run: python scripts/qos020/provision.py
       - name: Install Rust 1.99.1 with components
         uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Check workspace
-        run: cargo check --workspace
-      - name: Test workspace
-        run: cargo test --workspace
-      - name: Clippy all targets (warnings are errors)
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Guard Rust workspace checks and SQLx tests
+        run: >-
+          python scripts/qos020/qos020_guard.py
+          --manifest "${{ steps.qos020.outputs.manifest }}"
+          --secrets-dir "${{ steps.qos020.outputs.secrets_dir }}"
+          --lane integration-test
+          --run-id "${{ steps.qos020.outputs.run_id }}"
+          -- bash -euc 'cargo fmt --all -- --check && cargo check --workspace && cargo test --workspace --jobs 1 -- --test-threads=1 && cargo clippy --workspace --all-targets -- -D warnings'
+      - name: Verify SQLx test databases were cleaned up
+        run: >-
+          python scripts/qos020/qos020_guard.py
+          --manifest "${{ steps.qos020.outputs.manifest }}"
+          --secrets-dir "${{ steps.qos020.outputs.secrets_dir }}"
+          --lane integration-test
+          --run-id "${{ steps.qos020.outputs.run_id }}"
+          --verify-sqlx-cleanup
 
   mt5-python-adapter:
     name: MT5 Python adapter contract tests

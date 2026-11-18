@@ -14,7 +14,7 @@ use risk_engine::{InstrumentSizingContext, InstrumentSizingOutcome, LossModel, R
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use tokio::sync::RwLock;
-use venue_connectors::{submit_approved_order, VenueAdapter};
+use venue_connectors::{execute_simulated_order, SimulationExecutionAdapter};
 
 use crate::error::RuntimeResult;
 use crate::ids::client_order_id_for_account_intent;
@@ -170,7 +170,7 @@ impl TradingRuntime {
     pub async fn execute_intent(
         &mut self,
         intent: &TradeIntent,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
     ) -> RuntimeResult<IntentOutcome> {
         self.execute_intent_inner(intent, venue, events_out, None)
@@ -183,7 +183,7 @@ impl TradingRuntime {
     pub async fn execute_intent_with_snapshot_provider(
         &mut self,
         intent: &TradeIntent,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
         provider: &dyn InstrumentSizingSnapshotProvider,
     ) -> RuntimeResult<IntentOutcome> {
@@ -201,7 +201,7 @@ impl TradingRuntime {
     pub async fn execute_intent_with_instrument_sizing(
         &mut self,
         intent: &TradeIntent,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
         sizing_context: &RuntimeInstrumentSizingContext,
     ) -> RuntimeResult<IntentOutcome> {
@@ -212,7 +212,7 @@ impl TradingRuntime {
     async fn execute_intent_inner(
         &mut self,
         intent: &TradeIntent,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
         sizing_context: Option<&RuntimeInstrumentSizingContext>,
     ) -> RuntimeResult<IntentOutcome> {
@@ -325,7 +325,7 @@ impl TradingRuntime {
 
         let client_order_id =
             client_order_id_for_account_intent(&self.config.account_id, &intent.id)?;
-        let outcome = submit_approved_order(
+        let outcome = execute_simulated_order(
             &mut self.oms,
             venue,
             NewOrderRequest {

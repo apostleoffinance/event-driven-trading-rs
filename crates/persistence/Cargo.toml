@@ -8,6 +8,7 @@ description = "PostgreSQL persistence for trading domain entities"
 [dependencies]
 chrono = { workspace = true }
 domain = { path = "../domain" }
+identity-token = { path = "../identity-token" }
 execution-engine = { path = "../execution-engine" }
 rust_decimal = { workspace = true }
 serde = { workspace = true }

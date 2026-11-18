@@ -12,7 +12,7 @@ use reconciliation::{InternalSnapshot, Reconciler, ReconciliationReport};
 use risk_engine::DefaultRiskEvaluator;
 use rust_decimal::Decimal;
 use strategy_runtime::{process_market_envelope_with_health, Strategy, StrategyContext};
-use venue_connectors::{PropVenue, SimulatedVenue, VenueAdapter};
+use venue_connectors::{PropVenue, SimulatedVenue, SimulationExecutionAdapter, VenueAdapter};
 
 use crate::config::RuntimeConfig;
 use crate::error::{RuntimeError, RuntimeResult};
@@ -108,7 +108,7 @@ impl TradingRuntime {
         &mut self,
         strategy: &mut dyn Strategy,
         ctx: &StrategyContext,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         envelope: &EventEnvelope,
         events_out: &EventPublisher,
     ) -> RuntimeResult<TickOutcome> {
@@ -139,7 +139,7 @@ impl TradingRuntime {
         &mut self,
         strategy: &mut dyn Strategy,
         ctx: &StrategyContext,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         envelope: &EventEnvelope,
         events_out: &EventPublisher,
     ) -> RuntimeResult<TickOutcome> {
@@ -167,7 +167,7 @@ impl TradingRuntime {
         market_in: &mut EventSubscriber,
         strategy: &mut dyn Strategy,
         ctx: &StrategyContext,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
     ) -> RuntimeResult<()> {
         while let Some(envelope) = market_in.recv().await {
@@ -183,7 +183,7 @@ impl TradingRuntime {
         market_in: &mut EventSubscriber,
         strategy: &mut dyn Strategy,
         ctx: &StrategyContext,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
         max_ticks: usize,
     ) -> RuntimeResult<Vec<TickOutcome>> {
@@ -206,7 +206,7 @@ impl TradingRuntime {
         market_in: &mut EventSubscriber,
         strategy: &mut dyn Strategy,
         ctx: &StrategyContext,
-        venue: &dyn VenueAdapter,
+        venue: &dyn SimulationExecutionAdapter,
         events_out: &EventPublisher,
         mut predicate: F,
     ) -> RuntimeResult<Vec<TickOutcome>>

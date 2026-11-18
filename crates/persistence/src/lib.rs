@@ -6,12 +6,15 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+pub mod broker_admission;
 pub mod error;
 pub mod pool;
 pub mod repos;
 
+pub use broker_admission::evaluate_persisted_broker_admission;
 pub use error::{PersistenceError, PersistenceResult};
-pub use pool::{check_database_health, connect, migrate};
+pub use pool::{check_database_health, connect, migrate, validate_identity_runtime_role};
 pub use repos::{
-    Mt5DurableOrderState, Mt5OrderClaim, Mt5SequenceObservation, Mt5StreamReadiness, TradingStore,
+    BrokerBindingTransition, BrokerBindingView, BrokerCatalogEntry, Mt5DurableOrderState,
+    Mt5OrderClaim, Mt5SequenceObservation, Mt5StreamReadiness, TradingStore,
 };

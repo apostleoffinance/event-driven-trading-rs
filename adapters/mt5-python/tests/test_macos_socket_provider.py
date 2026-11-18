@@ -59,6 +59,7 @@ class MacOsProviderTests(unittest.TestCase):
             "MT5_TERMINAL_PROVIDER": "mt5_adapter.macos_socket_provider:create_terminal_provider",
             "MT5_TERMINAL_PATH": "/Applications/MetaTrader 5.app",
             "MT5_LOGIN": "123456",
+            "MT5_ACCOUNT_ID": "demo-123456",
             "MT5_SERVER": "Broker-Demo",
             "MT5_TERMINAL_ID": "mac-demo-01",
             "MT5_BRIDGE_HOST": "127.0.0.1",
