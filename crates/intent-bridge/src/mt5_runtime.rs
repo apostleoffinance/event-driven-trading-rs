@@ -171,7 +171,7 @@ impl Mt5BridgeRuntime {
                 "MT5 heartbeat watchdog poll interval must be positive".into(),
             ));
         }
-        validate_initial_session(&connection, &session, admission.is_some())?
+        validate_initial_session(&connection, &session, admission.is_some())?;
         if let Some(guard) = admission.as_ref() {
             guard.validate_transport(&connection)?;
         }
