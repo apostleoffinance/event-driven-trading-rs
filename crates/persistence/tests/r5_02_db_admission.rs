@@ -202,10 +202,14 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
                 && permit.revisions.worker_assignment == 1
     ));
 
-    // Evidence revocation must invalidate a previously admissible binding on
-    // the very next database-backed evaluation.
-    sqlx::query("UPDATE broker_account_evidence SET revoked_at=NOW() WHERE id='r502-evidence'")
-        .execute(&pool).await.unwrap();
+    // Evidence is append-only: revocation is represented by a new immutable
+    // verification decision, never by mutating the evidence row.
+    sqlx::query(
+        "INSERT INTO broker_account_verifications(id,external_broker_account_id,evidence_id,decision,revision,previous_revision,approval_actor_id,approval_authority,approval_reference,reason) VALUES('r502-revocation','r502-external-account','r502-evidence','REVOKED',3,2,'r502-verifier','PLATFORM_VERIFIER','R5-02-REVOKE','test evidence revocation')",
+    ).execute(&pool).await.unwrap();
+    sqlx::query(
+        "UPDATE external_broker_accounts SET verification_status='REVOKED',revision=revision+1,updated_at=NOW() WHERE id='r502-external-account'",
+    ).execute(&pool).await.unwrap();
     let evidence_revoked =
         evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
             .await.unwrap();
@@ -214,13 +218,19 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
         BrokerAdmissionDecision::Denied(ref reasons)
             if reasons.contains(&BrokerAdmissionDenialReason::EvidenceRevokedOrSuperseded)
     ));
-    sqlx::query("UPDATE broker_account_evidence SET revoked_at=NULL WHERE id='r502-evidence'")
-        .execute(&pool).await.unwrap();
 
-    // Expiry is evaluated against the database snapshot clock, not the
-    // worker's timestamp or an application-provided clock.
-    sqlx::query("UPDATE broker_account_evidence SET expires_at=NOW()-INTERVAL '1 second' WHERE id='r502-evidence'")
+    // A new immutable evidence record with an already-expired validity window
+    // proves expiry is evaluated against the database snapshot clock.
+    sqlx::query(
+        "INSERT INTO broker_account_evidence(id,external_broker_account_id,provider_type,evidence_type,observed_broker_id,observed_broker_server_id,observed_identifier_key_version,observed_identifier_normalization_version,observed_identifier_hmac,attestation_key_id,attestation_digest,observed_at,evidence_status,source_principal,expires_at) VALUES('r502-evidence-expired','r502-external-account','MT5_PYTHON','ACCOUNT_IDENTITY','r502-broker','r502-server','test-key-v1',1,$1,'test-attestation-key',$2,NOW()-INTERVAL '2 minutes','AUTHENTICATED','test-worker',NOW()-INTERVAL '1 second')",
+    ).bind([0x5a_u8; 32].as_slice()).bind([0x22_u8; 32].as_slice())
         .execute(&pool).await.unwrap();
+    sqlx::query(
+        "INSERT INTO broker_account_verifications(id,external_broker_account_id,evidence_id,decision,revision,previous_revision,approval_actor_id,approval_authority,approval_reference,reason,authority_grant_id,authority_grant_revision) VALUES('r502-expired-verification','r502-external-account','r502-evidence-expired','VERIFIED',4,3,'r502-verifier','PLATFORM_VERIFIER','R5-02-EXPIRED','expired evidence test','r502-verifier-grant',1)",
+    ).execute(&pool).await.unwrap();
+    sqlx::query(
+        "UPDATE external_broker_accounts SET verification_status='VERIFIED',revision=revision+1,updated_at=NOW() WHERE id='r502-external-account'",
+    ).execute(&pool).await.unwrap();
     let evidence_expired =
         evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
             .await.unwrap();
@@ -229,8 +239,6 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
         BrokerAdmissionDecision::Denied(ref reasons)
             if reasons.contains(&BrokerAdmissionDenialReason::EvidenceExpired)
     ));
-    sqlx::query("UPDATE broker_account_evidence SET expires_at=NOW()+INTERVAL '15 minutes' WHERE id='r502-evidence'")
-        .execute(&pool).await.unwrap();
 
     // Entitlement suspension must remove admission without changing the
     // broker evidence or worker session.
