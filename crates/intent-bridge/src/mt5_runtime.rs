@@ -286,6 +286,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
+        self.validate_persisted_admission().await?;
         let mut session = self.session.lock().await;
         persist_and_confirm_reconciliation(&self.store, &mut session, snapshot, now, max_age).await
     }
@@ -470,6 +471,7 @@ impl Mt5BridgeRuntime {
         now: DateTime<Utc>,
         max_age: Duration,
     ) -> BridgeResult<()> {
+        self.validate_persisted_admission().await?;
         let (account_id, terminal_id, server) = {
             let session = self.session.lock().await;
             if session.state() != Mt5SessionState::ReconciliationRequired {
