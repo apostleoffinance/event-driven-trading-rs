@@ -263,7 +263,7 @@ impl Mt5BridgeRuntime {
         }
     }
 
-    async fn validate_persisted_admission_or_degrade(&self, sequence: i64) -> BridgeResult<()> {
+    async fn validate_persisted_admission_or_degrade(&self, sequence: u64) -> BridgeResult<()> {
         if let Err(error) = self.validate_persisted_admission().await {
             let mut session = self.session.lock().await;
             session.degrade();
