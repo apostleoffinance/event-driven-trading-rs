@@ -4,7 +4,7 @@
 
 ## Context
 
-The Windows worker currently reads `MT5_PASSWORD` from environment in `Config.from_env` in `adapters/mt5-python/mt5_adapter/worker.py`, then passes it to `MetaTrader5.initialize`. `adapters/mt5-python/README.md` documents certificate paths and ACL restriction but says certificate issuance, private-key storage and rotation are managed externally. `mt5-certificate-acl-review.ps1` checks file ACLs, certificate/private-key pairing, pin match, validity and online chain/revocation verification where `certutil` supports it; it explicitly does not prove runtime revocation enforcement or exercised rotation. Rust `Mt5TransportConfig::from_pem_files` loads PEM private keys at process startup and pins exact client leaf fingerprint; no registry-backed revocation refresh is wired.
+The Windows worker now reads `MT5_PASSWORD_DPAPI_FILE` and decrypts a CurrentUser DPAPI-protected UTF-8 secret under the same Windows identity. Plaintext `MT5_PASSWORD` is rejected. `scripts/protect-mt5-password.ps1` provisions the local protected file and restrictive ACLs. This reduces plaintext-at-rest exposure but is not a managed secret manager and does not provide centralized rotation, revocation, audit or workload-identity delivery. `mt5-certificate-acl-review.ps1` checks file ACLs, certificate/private-key pairing, pin match, validity and online chain/revocation verification where `certutil` supports it; it explicitly does not prove runtime revocation enforcement or exercised rotation. Rust `Mt5TransportConfig::from_pem_files` loads PEM private keys at process startup and pins exact client leaf fingerprint; registry-backed revocation refresh is not yet wired.
 
 ## Options considered and decision
 
