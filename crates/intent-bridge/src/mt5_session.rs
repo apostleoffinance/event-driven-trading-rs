@@ -493,12 +493,9 @@ mod tests {
 
     #[test]
     fn heartbeat_terminal_and_server_must_match_authenticated_transport_identity() {
-        let policy = Mt5SessionPolicy::new_with_identity(
-            ["acct-1"],
-            "terminal-1",
-            "Broker-Demo-Server",
-        )
-        .unwrap();
+        let policy =
+            Mt5SessionPolicy::new_with_identity(["acct-1"], "terminal-1", "Broker-Demo-Server")
+                .unwrap();
         let gate = Mt5SessionGate::after_transport_authentication(policy);
         let wrong_terminal = heartbeat(
             "acct-1",
