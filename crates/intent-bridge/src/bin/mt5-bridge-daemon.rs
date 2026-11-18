@@ -11,7 +11,8 @@ use std::time::Duration as StdDuration;
 use chrono::Duration;
 use clap::Parser;
 use intent_bridge::{
-    Mt5BridgeRuntime, Mt5SessionGate, Mt5SessionPolicy, Mt5TransportConfig, Mt5TransportPrincipal,
+    Mt5AdmissionGuard, Mt5BridgeRuntime, Mt5SessionGate, Mt5SessionPolicy,
+    Mt5TransportConfig, Mt5TransportPrincipal,
 };
 use persistence::{connect, TradingStore};
 use tracing::{info, warn};
@@ -57,6 +58,26 @@ struct Args {
     #[arg(long, env = "MT5_ACCOUNT_ID")]
     account_id: String,
 
+    /// Organization that owns the QuantOS account and verified broker binding.
+    #[arg(long, env = "MT5_ORGANIZATION_ID")]
+    organization_id: String,
+
+    /// Opaque registry ID for the external MT5 account (never the numeric login).
+    #[arg(long, env = "MT5_EXTERNAL_ACCOUNT_ID")]
+    external_account_id: String,
+
+    /// Verified QuantOS-to-broker binding ID.
+    #[arg(long, env = "MT5_BINDING_ID")]
+    binding_id: String,
+
+    /// Canonical broker registry ID.
+    #[arg(long, env = "MT5_BROKER_ID")]
+    broker_id: String,
+
+    /// Canonical broker-server registry ID (not the display/server string).
+    #[arg(long, env = "MT5_BROKER_SERVER_ID")]
+    broker_server_id: String,
+
     /// Permit binding to a non-loopback address. Requires explicit true.
     #[arg(long, env = "MT5_BRIDGE_ALLOW_REMOTE_BIND", default_value = "false")]
     allow_remote_bind: bool,
@@ -88,11 +109,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let account_id = required_identity(&args.account_id, "MT5_ACCOUNT_ID")?;
     let terminal_id = required_identity(&args.terminal_id, "MT5_TERMINAL_ID")?;
     let server = required_identity(&args.server, "MT5_SERVER")?;
+    let organization_id = required_identity(&args.organization_id, "MT5_ORGANIZATION_ID")?;
+    let external_account_id = required_identity(&args.external_account_id, "MT5_EXTERNAL_ACCOUNT_ID")?;
+    let binding_id = required_identity(&args.binding_id, "MT5_BINDING_ID")?;
+    let broker_id = required_identity(&args.broker_id, "MT5_BROKER_ID")?;
+    let broker_server_id = required_identity(&args.broker_server_id, "MT5_BROKER_SERVER_ID")?;
+    let principal_sha256 = required_identity(&args.principal_sha256, "MT5_BRIDGE_PRINCIPAL_SHA256")?
+        .to_ascii_lowercase();
+    let admission = Mt5AdmissionGuard::new(
+        &organization_id,
+        &account_id,
+        &external_account_id,
+        &binding_id,
+        &broker_id,
+        &broker_server_id,
+        &principal_sha256,
+    )?;
     let principal = Mt5TransportPrincipal {
-        certificate_sha256: required_identity(
-            &args.principal_sha256,
-            "MT5_BRIDGE_PRINCIPAL_SHA256",
-        )?,
+        certificate_sha256: principal_sha256,
         terminal_id: terminal_id.clone(),
         server: server.clone(),
         allowed_accounts: BTreeSet::from([account_id.clone()]),
@@ -111,7 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         bind = %args.bind,
         terminal_id = %terminal_id,
         server = %server,
-        "read-only MT5 bridge listening; order execution is not exposed"
+        "read-only MT5 bridge listening; registry admission is enforced before frame ingestion; order execution is not exposed"
     );
 
     loop {
@@ -140,10 +174,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
                 let session = Mt5SessionGate::after_transport_authentication(policy);
-                let runtime = match Mt5BridgeRuntime::new(
+                let runtime = match Mt5BridgeRuntime::new_with_admission(
                     store.clone(),
                     connection,
                     session,
+                    admission.clone(),
                     StdDuration::from_secs(2),
                 ) {
                     Ok(runtime) => runtime,
