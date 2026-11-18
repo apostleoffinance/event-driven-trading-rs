@@ -237,9 +237,6 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     sqlx::query(
         "INSERT INTO broker_account_verifications(id,external_broker_account_id,evidence_id,decision,revision,previous_revision,approval_actor_id,approval_authority,approval_reference,reason,authority_grant_id,authority_grant_revision) VALUES('r502-expired-verification','r502-external-account','r502-evidence-expired','VERIFIED',4,3,'r502-verifier','PLATFORM_VERIFIER','R5-02-EXPIRED','expired evidence test','r502-verifier-grant',1)",
     ).execute(&pool).await.unwrap();
-    sqlx::query(
-        "UPDATE external_broker_accounts SET verification_status='VERIFIED',revision=revision+1,updated_at=NOW() WHERE id='r502-external-account'",
-    ).execute(&pool).await.unwrap();
     let evidence_expired =
         evaluate_persisted_broker_admission(&pool, &request(), "r502-owner", "r502-worker")
             .await.unwrap();
