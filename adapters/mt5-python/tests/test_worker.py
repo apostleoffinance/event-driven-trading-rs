@@ -23,9 +23,6 @@ from mt5_adapter.worker import (
 
 
 class FakeTerminal:
-    def __init__(self):
-        self.is_connected = True
-
     def connect(self, config):
         self.is_connected = True
 
