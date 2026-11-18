@@ -9,10 +9,24 @@ Before running the matrix:
 1. Approve the Windows host owner, supported Windows build, service identity, terminal installation path/version, and patch/reboot policy.
 2. Approve credential custody and delivery. The worker now rejects plaintext `MT5_PASSWORD` and supports a CurrentUser DPAPI-protected secret file provisioned by `scripts/protect-mt5-password.ps1`. This is a local encrypted cache, not a managed secret manager; the selected host/provider, service identity, ACL review, rotation and revocation owner still require approval. The real-host credential gate remains **BLOCKED** until those controls are approved.
 3. Resolve the DEMO-to-Quant account environment mapping (`accounts.environment` currently allows PAPER/SHADOW/LIVE, while the broker registry allows DEMO/LIVE/UNKNOWN).
-4. Provision an organization entitlement and external broker account binding. Have a separate authorized operator verify the broker login/server/environment evidence, create/approve a `VERIFIED` binding revision, and record evidence and approval references. The daemon must enforce that binding before ingestion; current inspected daemon is environment allowlist based and does not perform this registry check.
+4. Provision an organization entitlement and external broker account binding. Have a separate authorized operator verify the broker login/server/environment evidence, create/approve a `VERIFIED` binding revision, and record evidence and approval references. The daemon now has a per-frame database-backed admission guard; it fails closed on binding, entitlement, evidence, verifier-authority, worker-assignment or READY-session revocation. This is repository implementation, not yet real-host acceptance evidence.
 5. Pin build/source hashes for worker and daemon, Python and official `MetaTrader5` package versions, Windows terminal build, configuration revision, client certificate fingerprint, and protocol schema version. Keep certificate/key secrets outside the evidence bundle.
 6. Confirm isolated target database and migrations through the approved QOS-020 lane. No MT5 staging or production database is permitted for this acceptance plan.
 7. Confirm order submission/modification/cancellation/close are unavailable and remain disabled. Use DEMO account only.
+
+## Registry admission provisioning
+
+The daemon requires these registry references in its protected service configuration:
+
+- `MT5_ORGANIZATION_ID`: owning organization.
+- `MT5_ACCOUNT_ID`: QuantOS account ID (never the numeric MT5 login).
+- `MT5_EXTERNAL_ACCOUNT_ID`: opaque external broker-account registry ID.
+- `MT5_BINDING_ID`: verified QuantOS-to-broker binding ID.
+- `MT5_BROKER_ID` and `MT5_BROKER_SERVER_ID`: canonical registry IDs, not display labels.
+
+The worker's mTLS leaf-certificate SHA-256 fingerprint is the immutable `worker_ref`. Provision the same lowercase fingerprint as a non-human service principal ID in `identity_users`, give that service principal an active membership in the owning organization, and use the same value in `broker_worker_assignments.worker_ref`. The assignment must be unique and in scope for the organization, QuantOS account, binding, external account, broker and server. Its session must be READY and unexpired. The service principal is the authenticated actor for the read-only admission check because the certificate authenticates that identity.
+
+The daemon re-evaluates the persisted admission snapshot before every incoming frame is sequence-checkpointed or persisted. Database errors, missing facts, expired/revoked evidence, revoked verifier authority, suspended entitlement, assignment/session mismatch, or stale scope deny ingestion. The permit's QuantOS account must match the account configured in the authenticated worker principal.
 
 ## Execution evidence rules
 
