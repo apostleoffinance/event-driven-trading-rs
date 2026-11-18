@@ -7,7 +7,7 @@
 Before running the matrix:
 
 1. Approve the Windows host owner, supported Windows build, service identity, terminal installation path/version, and patch/reboot policy.
-2. Approve a credential delivery mechanism that does not require plaintext broker password in source or ordinary long-lived process environment. Current repository documents `MT5_PASSWORD` environment use but no approved secret store; this gate is currently **BLOCKED**.
+2. Approve credential custody and delivery. The worker now rejects plaintext `MT5_PASSWORD` and supports a CurrentUser DPAPI-protected secret file provisioned by `scripts/protect-mt5-password.ps1`. This is a local encrypted cache, not a managed secret manager; the selected host/provider, service identity, ACL review, rotation and revocation owner still require approval. The real-host credential gate remains **BLOCKED** until those controls are approved.
 3. Resolve the DEMO-to-Quant account environment mapping (`accounts.environment` currently allows PAPER/SHADOW/LIVE, while the broker registry allows DEMO/LIVE/UNKNOWN).
 4. Provision an organization entitlement and external broker account binding. Have a separate authorized operator verify the broker login/server/environment evidence, create/approve a `VERIFIED` binding revision, and record evidence and approval references. The daemon must enforce that binding before ingestion; current inspected daemon is environment allowlist based and does not perform this registry check.
 5. Pin build/source hashes for worker and daemon, Python and official `MetaTrader5` package versions, Windows terminal build, configuration revision, client certificate fingerprint, and protocol schema version. Keep certificate/key secrets outside the evidence bundle.
