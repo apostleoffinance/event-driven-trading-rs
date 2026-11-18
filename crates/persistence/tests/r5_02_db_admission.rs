@@ -219,6 +219,15 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
             if reasons.contains(&BrokerAdmissionDenialReason::EvidenceRevokedOrSuperseded)
     ));
 
+    // Return the external account to the explicit evidence-review state;
+    // the verified-decision trigger only permits approval from PENDING_APPROVAL.
+    sqlx::query(
+        "UPDATE external_broker_accounts SET verification_status='PENDING_APPROVAL',revision=revision+1,updated_at=NOW() WHERE id='r502-external-account'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
     // A new immutable evidence record with an already-expired validity window
     // proves expiry is evaluated against the database snapshot clock.
     sqlx::query(
