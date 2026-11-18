@@ -93,7 +93,7 @@ The worker and daemon are read-only. Heartbeat capabilities disable market/limit
 
 The Rust daemon additionally requires `MT5_ORGANIZATION_ID`, `MT5_EXTERNAL_ACCOUNT_ID`, `MT5_BINDING_ID`, `MT5_BROKER_ID` and `MT5_BROKER_SERVER_ID`. `MT5_ACCOUNT_ID` must be the QuantOS account ID, not the numeric MT5 login. The daemon maps the authenticated worker certificate fingerprint to the `worker_ref` and service-principal user ID. That service principal must have an active organization membership; its worker assignment must be unique, in-scope and READY. The verified binding, active entitlement, current evidence and verifier authority must all remain valid.
 
-The daemon checks the database-backed admission state before every incoming frame is checkpointed or persisted. A database outage or any revoked/expired/mismatched fact fails closed and stops the stream. This is a read-only ingestion gate; it does not authorize broker order execution.
+The daemon checks the database-backed admission state before every incoming frame is checkpointed or persisted. A database outage or any revoked/expired/mismatched fact fails closed and stops the stream. The database worker-session READY row is a short-lived control-plane ingestion lease, not the runtime reconciliation-ready flag; it must be provisioned before the first heartbeat. This is a read-only ingestion gate; it does not authorize broker order execution.
 
 ## Windows demo smoke test (QOS-015A / QOS-015B)
 

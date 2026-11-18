@@ -124,8 +124,9 @@ pub struct Mt5BridgeRuntime {
 }
 
 impl Mt5BridgeRuntime {
-    /// Construct only after the TLS transport has authenticated the client certificate
-    /// and the session policy is bound to the intended account allow-list.
+    /// Unadmitted constructor for isolated tests and non-production harnesses only.
+    /// Production ingestion must use new_with_admission and a policy created with
+    /// Mt5SessionPolicy::new_with_identity.
     pub fn new(
         store: TradingStore,
         connection: AuthenticatedMt5Connection,

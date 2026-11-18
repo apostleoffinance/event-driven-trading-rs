@@ -70,7 +70,8 @@ impl Mt5SessionPolicy {
             || server.trim() != server
         {
             return Err(BridgeError::Invalid(
-                "MT5 transport terminal and server identities must be non-empty and unpadded".into(),
+                "MT5 transport terminal and server identities must be non-empty and unpadded"
+                    .into(),
             ));
         }
         let mut policy = Self::new(allowed_accounts)?;
@@ -177,11 +178,11 @@ impl Mt5SessionGate {
         if self
             .policy
             .expected_terminal_id()
-            .is_some_and(|expected| expected != heartbeat.terminal_id)
+            .is_some_and(|expected| expected != heartbeat.terminal_id.as_str())
             || self
                 .policy
                 .expected_server()
-                .is_some_and(|expected| expected != heartbeat.server)
+                .is_some_and(|expected| expected != heartbeat.server.as_str())
         {
             return Err(BridgeError::Invalid(
                 "MT5 heartbeat terminal/server does not match the authenticated transport principal".into(),
