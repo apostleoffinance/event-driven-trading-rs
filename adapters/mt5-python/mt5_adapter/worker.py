@@ -95,7 +95,7 @@ class Config:
             raise AdapterError("login, bridge port, or poll interval is outside its allowed range")
         account_id = need("MT5_ACCOUNT_ID")
         terminal_id = need("MT5_TERMINAL_ID")
-        expected_currency = need("MT5_EXPECTED_ACCOUNT_CURRENCY")
+        expected_currency = os.environ.get("MT5_EXPECTED_ACCOUNT_CURRENCY", "")
         bridge_host = need("MT5_BRIDGE_HOST")
         symbols = tuple(symbol.strip() for symbol in need("MT5_SYMBOLS").split(","))
         if (
