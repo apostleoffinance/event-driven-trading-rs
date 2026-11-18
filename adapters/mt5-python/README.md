@@ -89,6 +89,12 @@ The worker and Rust daemon use MT5 Bridge v2 (`schema_version: 2`); upgrade them
 
 The worker and daemon are read-only. Heartbeat capabilities disable market/limit/stop submission and cancellation, and the daemon exposes no order-dispatch command. Market-data snapshots carry explicit `fresh`, `stale`, `unavailable`, or `invalid` states per symbol and in aggregate. A stale quote preserves its actual price and timestamp while remaining explicitly stale; an unavailable quote has null prices/timestamp and never receives a fabricated value. The worker continues account, order, and position reconciliation when market data is not fresh. Rust persists the market-data state separately from account reconciliation readiness, marks the stream degraded, and restores readiness only after fresh quotes and successful reconciliation. Risk sizing rejects every non-fresh status in addition to enforcing the existing strict timestamp-age guard. See [`docs/MT5_BRIDGE_V2.md`](../../docs/MT5_BRIDGE_V2.md) and the versioned schema. Snapshot persistence is not proof that a Windows terminal has been smoke-tested. Do not proceed to order execution until a real demo-terminal smoke test, fresh quote feed, credential lifecycle review, and all acceptance checks pass.
 
+## Registry-backed daemon admission
+
+The Rust daemon additionally requires `MT5_ORGANIZATION_ID`, `MT5_EXTERNAL_ACCOUNT_ID`, `MT5_BINDING_ID`, `MT5_BROKER_ID` and `MT5_BROKER_SERVER_ID`. `MT5_ACCOUNT_ID` must be the QuantOS account ID, not the numeric MT5 login. The daemon maps the authenticated worker certificate fingerprint to the `worker_ref` and service-principal user ID. That service principal must have an active organization membership; its worker assignment must be unique, in-scope and READY. The verified binding, active entitlement, current evidence and verifier authority must all remain valid.
+
+The daemon checks the database-backed admission state before every incoming frame is checkpointed or persisted. A database outage or any revoked/expired/mismatched fact fails closed and stops the stream. This is a read-only ingestion gate; it does not authorize broker order execution.
+
 ## Windows demo smoke test (QOS-015A / QOS-015B)
 
 After applying migrations and starting the Rust daemon and Python worker in separate PowerShell sessions, open a third PowerShell session on the same Windows host. Set `MT5_EXPECTED_ACCOUNT_CURRENCY` to the expected demo-account currency, ensure the other variables above are set in that session, and run:
