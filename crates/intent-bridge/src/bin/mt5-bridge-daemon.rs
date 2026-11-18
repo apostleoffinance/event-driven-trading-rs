@@ -110,12 +110,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let terminal_id = required_identity(&args.terminal_id, "MT5_TERMINAL_ID")?;
     let server = required_identity(&args.server, "MT5_SERVER")?;
     let organization_id = required_identity(&args.organization_id, "MT5_ORGANIZATION_ID")?;
-    let external_account_id = required_identity(&args.external_account_id, "MT5_EXTERNAL_ACCOUNT_ID")?;
+    let external_account_id =
+        required_identity(&args.external_account_id, "MT5_EXTERNAL_ACCOUNT_ID")?;
     let binding_id = required_identity(&args.binding_id, "MT5_BINDING_ID")?;
     let broker_id = required_identity(&args.broker_id, "MT5_BROKER_ID")?;
-    let broker_server_id = required_identity(&args.broker_server_id, "MT5_BROKER_SERVER_ID")?;
-    let principal_sha256 = required_identity(&args.principal_sha256, "MT5_BRIDGE_PRINCIPAL_SHA256")?
-        .to_ascii_lowercase();
+    let broker_server_id =
+        required_identity(&args.broker_server_id, "MT5_BROKER_SERVER_ID")?;
+    let principal_sha256 =
+        required_identity(&args.principal_sha256, "MT5_BRIDGE_PRINCIPAL_SHA256")?
+            .to_ascii_lowercase();
     let admission = Mt5AdmissionGuard::new(
         &organization_id,
         &account_id,

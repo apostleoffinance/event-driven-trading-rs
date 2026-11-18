@@ -13,9 +13,7 @@ use chrono::{DateTime, Duration, Utc};
 use domain::broker_registry::{
     AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
 };
-use persistence::{
-    evaluate_persisted_broker_admission, Mt5DurableOrderState, TradingStore,
-};
+use persistence::{evaluate_persisted_broker_admission, Mt5DurableOrderState, TradingStore};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -65,15 +63,25 @@ impl Mt5AdmissionGuard {
         worker_ref: &str,
     ) -> BridgeResult<Self> {
         let values = [
-            organization_ref, quant_account_ref, external_account_ref, binding_ref,
-            broker_ref, broker_server_ref, worker_ref,
+            organization_ref,
+            quant_account_ref,
+            external_account_ref,
+            binding_ref,
+            broker_ref,
+            broker_server_ref,
+            worker_ref,
         ];
-        if values.iter().any(|value| value.trim().is_empty() || value.trim() != *value) {
+        if values
+            .iter()
+            .any(|value| value.trim().is_empty() || value.trim() != *value)
+        {
             return Err(BridgeError::Invalid(
                 "MT5 admission configuration contains an empty or padded identity".into(),
             ));
         }
-        if worker_ref.len() != 64 || !worker_ref.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        if worker_ref.len() != 64
+            || !worker_ref.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
             return Err(BridgeError::Invalid(
                 "MT5 admission worker identity must be a SHA-256 certificate fingerprint".into(),
             ));
@@ -99,7 +107,8 @@ impl Mt5AdmissionGuard {
             || !principal.allowed_accounts.contains(&self.quant_account_ref)
         {
             return Err(BridgeError::Invalid(
-                "MT5 admission scope does not match the authenticated worker certificate and QuantOS account".into(),
+                "MT5 admission scope does not match the authenticated worker certificate and QuantOS account"
+                    .into(),
             ));
         }
         Ok(())
