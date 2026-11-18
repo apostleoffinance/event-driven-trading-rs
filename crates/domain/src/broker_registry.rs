@@ -400,6 +400,8 @@ pub struct BrokerAdmissionFacts {
 pub struct BrokerAdmissionPermit {
     pub request_ref: String,
     pub organization_ref: String,
+    /// QuantOS account bound to the external broker account in the registry.
+    pub quant_account_ref: String,
     pub account_ref: String,
     pub binding_ref: String,
     pub broker_ref: String,
@@ -671,6 +673,7 @@ pub fn evaluate_broker_admission(
     let permit = BrokerAdmissionPermit {
         request_ref: request.request_ref.clone(),
         organization_ref: request.organization_ref.clone(),
+        quant_account_ref: organization.entitlement_ref.clone().unwrap_or_default(),
         account_ref: request.account_ref.clone(),
         binding_ref: request.binding_ref.clone(),
         broker_ref: request.broker_ref.clone(),
@@ -807,6 +810,7 @@ mod tests {
             BrokerAdmissionDecision::Denied(_) => return,
         };
         assert_eq!(permit.request_ref, request.request_ref);
+        assert_eq!(permit.quant_account_ref, "entitlement-opaque");
         assert_eq!(permit.account_ref, request.account_ref);
         assert_eq!(permit.revisions.worker_assignment, 9);
     }
