@@ -86,11 +86,25 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
                 "core-first bootstrap migration set is incomplete".into(),
             ));
         }
-        let core_migrator = Migrator {
-            migrations: Cow::Owned(core),
+        // Run one ordered migrator rather than invoking SQLx twice against
+        // the same connection. SQLx snapshots the applied-version ledger at
+        // the start of each run; splitting bootstrap into two runs can leave
+        // the second run with a stale view and attempt duplicate inserts.
+        let ordered = core
+            .into_iter()
+            .chain(
+                migrator
+                    .iter()
+                    .filter(|migration| !core_versions.contains(&migration.version))
+                    .cloned(),
+            )
+            .collect::<Vec<_>>();
+        let ordered_migrator = Migrator {
+            migrations: Cow::Owned(ordered),
+            locking: false,
             ..Migrator::DEFAULT
         };
-        core_migrator.run(&mut *connection).await?;
+        ordered_migrator.run(&mut *connection).await?;
     } else {
         let applied_versions = applied.keys().copied().collect::<Vec<_>>();
         let core_history = core_versions.to_vec();
@@ -153,7 +167,25 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
         }
     }
 
-    migrator.run(&mut *connection).await?;
+    if !applied.is_empty() {
+        let ordered = migrator
+            .iter()
+            .filter(|migration| core_versions.contains(&migration.version))
+            .cloned()
+            .chain(
+                migrator
+                    .iter()
+                    .filter(|migration| !core_versions.contains(&migration.version))
+                    .cloned(),
+            )
+            .collect::<Vec<_>>();
+        let ordered_migrator = Migrator {
+            migrations: Cow::Owned(ordered),
+            locking: false,
+            ..Migrator::DEFAULT
+        };
+        ordered_migrator.run(&mut *connection).await?;
+    }
     tracing::info!("database migrations applied");
     Ok(())
 }
