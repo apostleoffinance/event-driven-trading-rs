@@ -162,8 +162,22 @@ mod i1_tests {
     use identity_token::AccessClaims;
     use serde_json::Value;
     use std::collections::BTreeMap;
+    use tokio::sync::OnceCell;
+
+    // The guarded CI lane provisions one restricted PostgreSQL database for
+    // the whole test process; SQLx therefore supplies each test a pool to the
+    // same database rather than creating a database per test. Run the shared
+    // schema migrations exactly once, while keeping test data unique per test.
+    static TEST_DATABASE_MIGRATIONS: OnceCell<()> = OnceCell::const_new();
+
     async fn migrate_test_database(pool: &PgPool) {
-        persistence::migrate(pool).await.unwrap();
+        TEST_DATABASE_MIGRATIONS
+            .get_or_init(|| async {
+                persistence::migrate(pool)
+                    .await
+                    .expect("identity integration test database migrations must succeed");
+            })
+            .await;
     }
 
     const PRIVATE: &[u8] = include_bytes!("../../journal-api/tests/fixtures/r2_test_private.pem");
