@@ -35,9 +35,15 @@ class FakeTerminal:
     def connected(self):
         return self.is_connected
 
+    def __init__(self):
+        self.is_connected = True
+        self.trade_mode = 0
+        self.currency = "USD"
+
     def account_info(self):
-        return SimpleNamespace(login=123456, server="Broker-Demo", currency="USD",
-                               balance=10000.0, equity=9990.5, margin=100.0, margin_free=9890.5)
+        return SimpleNamespace(login=123456, server="Broker-Demo", currency=self.currency,
+                               trade_mode=self.trade_mode, balance=10000.0, equity=9990.5,
+                               margin=100.0, margin_free=9890.5)
 
     def orders(self):
         return [SimpleNamespace(ticket=77, type=2, symbol="EURUSD.a", volume_current=0.1, state=1)]
@@ -117,6 +123,24 @@ class AdapterContractTests(unittest.TestCase):
             path = str(Path(directory) / "sequence.json")
             self.assertEqual(SequenceStore(path).next(), 0)
             self.assertEqual(SequenceStore(path).next(), 1)
+
+    def test_live_account_is_rejected_before_reconciliation_or_market_data(self):
+        terminal = FakeTerminal()
+        terminal.trade_mode = 2
+        with self.assertRaisesRegex(AdapterError, "not in DEMO trade mode"):
+            build_snapshot(config("unused"), terminal, FakeConstants, 12)
+        with self.assertRaisesRegex(AdapterError, "not in DEMO trade mode"):
+            build_market_data_snapshot(config("unused"), terminal, 12)
+
+    def test_expected_account_currency_is_enforced(self):
+        from dataclasses import replace
+
+        terminal = FakeTerminal()
+        cfg = replace(config("unused"), expected_currency="GBP")
+        with self.assertRaisesRegex(AdapterError, "currency does not match"):
+            build_snapshot(cfg, terminal, FakeConstants, 12)
+        with self.assertRaisesRegex(AdapterError, "currency does not match"):
+            build_market_data_snapshot(cfg, terminal, 12)
 
     def test_heartbeat_advertises_no_order_execution_capabilities(self):
         caps = build_heartbeat(config("unused"), 12)["payload"]["capabilities"]
