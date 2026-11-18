@@ -647,7 +647,7 @@ mod tests {
             "R502.Demo",
             &fingerprint,
         )
-        .unwrap();
+        .expect("valid admission guard configuration");
         assert_eq!(
             guard.request.operation,
             AdmissionOperation::ReadOnlyMarketData
