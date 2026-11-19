@@ -227,7 +227,10 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     assert_ne!(first_attempt.is_ok(), second_attempt.is_ok());
     let first_lease = first_attempt.or(second_attempt).unwrap();
     store.validate_mt5_worker_lease(&first_lease).await.unwrap();
-    store.renew_mt5_worker_lease(&first_lease, 30).await.unwrap();
+    store
+        .renew_mt5_worker_lease(&first_lease, 30)
+        .await
+        .unwrap();
 
     // Force expiry in the isolated test DB to exercise takeover without sleeping.
     sqlx::query(
@@ -249,7 +252,10 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
         .unwrap();
     assert!(successor.fencing_token > first_lease.fencing_token);
     assert!(store.validate_mt5_worker_lease(&first_lease).await.is_err());
-    assert!(store.renew_mt5_worker_lease(&first_lease, 30).await.is_err());
+    assert!(store
+        .renew_mt5_worker_lease(&first_lease, 30)
+        .await
+        .is_err());
     assert!(!store.release_mt5_worker_lease(&first_lease).await.unwrap());
     store.validate_mt5_worker_lease(&successor).await.unwrap();
     assert!(store.release_mt5_worker_lease(&successor).await.unwrap());
