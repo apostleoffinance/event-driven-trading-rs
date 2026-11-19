@@ -9,14 +9,14 @@
 pub mod broker_admission;
 pub mod broker_worker_lease;
 pub mod error;
-pub mod pool;
 pub mod mt5_terminal_slot_admission;
+pub mod pool;
 pub mod repos;
 
 pub use broker_admission::evaluate_persisted_broker_admission;
 pub use broker_worker_lease::Mt5WorkerLease;
-pub use mt5_terminal_slot_admission::validate_ready_mt5_terminal_slot;
 pub use error::{PersistenceError, PersistenceResult};
+pub use mt5_terminal_slot_admission::validate_ready_mt5_terminal_slot;
 pub use pool::{check_database_health, connect, migrate, validate_identity_runtime_role};
 pub use repos::{
     BrokerBindingTransition, BrokerBindingView, BrokerCatalogEntry, Mt5DurableOrderState,
