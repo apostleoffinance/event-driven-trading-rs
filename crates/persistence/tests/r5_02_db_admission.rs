@@ -227,10 +227,7 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     assert_ne!(first_attempt.is_ok(), second_attempt.is_ok());
     let first_lease = first_attempt.or(second_attempt).unwrap();
     store.validate_mt5_worker_lease(&first_lease).await.unwrap();
-    store
-        .renew_mt5_worker_lease(&first_lease, 5)
-        .await
-        .unwrap();
+    store.renew_mt5_worker_lease(&first_lease, 5).await.unwrap();
 
     // Wait for the bounded lease to expire in PostgreSQL's clock domain.
     tokio::time::sleep(std::time::Duration::from_secs(6)).await;
