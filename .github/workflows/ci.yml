@@ -164,3 +164,39 @@ jobs:
             }
             Write-Host "PASS: $path"
           }
+
+  windows-mt5-demo-release-bundle:
+    name: Build managed Windows DEMO deployment bundle
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Rust 1.99.1
+        uses: dtolnay/rust-toolchain@1.99.1
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Build Windows MT5 bridge daemon
+        shell: pwsh
+        run: cargo build --locked --release -p intent-bridge --bin mt5-bridge-daemon
+      - name: Build secret-free DEMO deployment bundle
+        shell: pwsh
+        run: >-
+          python adapters/mt5-python/scripts/package_windows_demo_bundle.py
+          --root .
+          --daemon target/release/mt5-bridge-daemon.exe
+          --output artifacts/edgenest-mt5-windows-demo.zip
+      - name: Upload deployment bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: edgenest-mt5-windows-demo-${{ github.sha }}
+          path: artifacts/edgenest-mt5-windows-demo.zip
+          if-no-files-found: error
+          retention-days: 14
