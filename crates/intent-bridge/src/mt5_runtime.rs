@@ -134,8 +134,7 @@ pub struct Mt5BridgeRuntime {
 
 impl Mt5BridgeRuntime {
     /// Unadmitted constructor for isolated tests and non-production harnesses only.
-    /// Production ingestion must use new_with_admission and a policy created with
-    /// Mt5SessionPolicy::new_with_identity.
+    /// This constructor deliberately has no registry admission or publisher lease.
     pub fn new(
         store: TradingStore,
         connection: AuthenticatedMt5Connection,
@@ -143,26 +142,6 @@ impl Mt5BridgeRuntime {
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
         Self::build(store, connection, session, None, None, watchdog_poll_interval)
-    }
-
-    /// Production constructor: every incoming frame is gated against the current
-    /// persisted broker binding, entitlement, evidence, verifier authority and
-    /// worker session before the frame is checkpointed or persisted.
-    pub fn new_with_admission(
-        store: TradingStore,
-        connection: AuthenticatedMt5Connection,
-        session: Mt5SessionGate,
-        admission: Mt5AdmissionGuard,
-        watchdog_poll_interval: StdDuration,
-    ) -> BridgeResult<Self> {
-        Self::build(
-            store,
-            connection,
-            session,
-            Some(admission),
-            None,
-            watchdog_poll_interval,
-        )
     }
 
     /// Production constructor requiring a live database lease for the exact
