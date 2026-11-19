@@ -26,6 +26,7 @@ def passing_record():
         "pre_stop_market_sequence": 100,
         "post_restart_market_sequence": 102,
         "post_restart_reconciliation_sequence": 102,
+        "post_restart_sequence_aligned": True,
         "post_restart_market_captured_at": "2026-10-27T10:01:15+00:00",
         "post_restart_reconciliation_captured_at": "2026-10-27T10:01:16+00:00",
         "sequence_advanced": True,
