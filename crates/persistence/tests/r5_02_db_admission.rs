@@ -213,7 +213,7 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
             "r502-binding",
             "r502-worker",
             &"a".repeat(64),
-            30,
+            5,
         ),
         store.acquire_mt5_worker_lease(
             "r502-quant-account",
@@ -221,24 +221,19 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
             "r502-binding",
             "r502-worker",
             &"b".repeat(64),
-            30,
+            5,
         ),
     );
     assert_ne!(first_attempt.is_ok(), second_attempt.is_ok());
     let first_lease = first_attempt.or(second_attempt).unwrap();
     store.validate_mt5_worker_lease(&first_lease).await.unwrap();
     store
-        .renew_mt5_worker_lease(&first_lease, 30)
+        .renew_mt5_worker_lease(&first_lease, 5)
         .await
         .unwrap();
 
-    // Force expiry in the isolated test DB to exercise takeover without sleeping.
-    sqlx::query(
-        "UPDATE broker_worker_leases SET acquired_at=NOW()-INTERVAL '1 minute', lease_until=NOW()-INTERVAL '1 second' WHERE quant_account_id='r502-quant-account' AND terminal_id='terminal-r502'",
-    )
-    .execute(&pool)
-    .await
-    .unwrap();
+    // Wait for the bounded lease to expire in PostgreSQL's clock domain.
+    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
     let successor = store
         .acquire_mt5_worker_lease(
             "r502-quant-account",
