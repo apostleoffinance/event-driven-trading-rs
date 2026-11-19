@@ -5,7 +5,7 @@ import unittest
 import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-MIGRATION = ROOT / "migrations" / "20261120000001_mt5_gateway_terminal_registry.sql"
+MIGRATION = ROOT / "migrations" / "20261119000002_mt5_gateway_terminal_registry.sql"
 CONFIG = ROOT / "config" / "mt5" / "tentrade.demo.example.toml"
 
 

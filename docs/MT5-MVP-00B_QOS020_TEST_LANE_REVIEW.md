@@ -1,4 +1,4 @@
-# QOS-020 test-lane review — 2026-11-20
+# QOS-020 test-lane review — 2026-11-19
 
 ## Current implementation reviewed
 
