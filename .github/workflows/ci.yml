@@ -185,7 +185,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Build Windows MT5 bridge daemon
         shell: pwsh
-        run: cargo build --locked --release -p intent-bridge --bin mt5-bridge-daemon
+        run: cargo build --release -p intent-bridge --bin mt5-bridge-daemon
       - name: Build secret-free DEMO deployment bundle
         shell: pwsh
         run: >-
