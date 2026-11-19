@@ -29,12 +29,20 @@ def _walk_for_secret_fields(value: Any, path: str = "$") -> list[str]:
     if isinstance(value, dict):
         for key, child in value.items():
             normalized = str(key).strip().lower()
-            if normalized in FORBIDDEN_KEYS or normalized.endswith("_private_key"):
+            sensitive_fragments = ("password", "secret", "private_key", "database_url", "connection_string", "access_token", "refresh_token", "broker_login", "raw_login")
+            if normalized in FORBIDDEN_KEYS or any(part in normalized for part in sensitive_fragments) or normalized.endswith("_token"):
                 errors.append(f"{path}.{key} is a prohibited secret-bearing field")
             errors.extend(_walk_for_secret_fields(child, f"{path}.{key}"))
     elif isinstance(value, list):
         for index, child in enumerate(value):
             errors.extend(_walk_for_secret_fields(child, f"{path}[{index}]"))
+    elif isinstance(value, str):
+        if "-----BEGIN " in value and "PRIVATE KEY-----" in value:
+            errors.append(f"{path} contains a PEM private-key marker")
+        if re.search(r"(?i)\\bpostgres(?:ql)?://\\S+", value):
+            errors.append(f"{path} contains a database connection URI")
+        if re.search(r"(?i)\\b(password|passwd|pwd|client_secret|access_token|refresh_token)\\s*[:=]\\s*\\S+", value):
+            errors.append(f"{path} appears to contain a credential assignment")
     return errors
 
 
