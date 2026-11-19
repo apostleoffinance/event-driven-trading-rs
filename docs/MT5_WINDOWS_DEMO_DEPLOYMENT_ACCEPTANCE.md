@@ -68,7 +68,7 @@ These must be approved and recorded before host provisioning; do not invent prov
 
 ### 4. Run the read-only host preflight
 
-Run in the approved operations context. Supply the values approved in the host manifest; do not copy secrets into command-line arguments.
+Run in a protected PowerShell session populated with the same non-secret configuration values used by the worker/daemon, or adapt the check to the approved service configuration mechanism. The current script checks the invoking process environment; it does not inspect service-wrapper-specific environment stores. Supply the values approved in the host manifest; do not copy secrets into command-line arguments.
 
     .\adapters\mt5-python\scripts\mt5-windows-deployment-preflight.ps1 `
       -WorkerServiceName 'QuantOS-MT5-Worker' `
