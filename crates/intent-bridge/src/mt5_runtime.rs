@@ -14,7 +14,7 @@ use domain::broker_registry::{
     normalize_mt5_server_id, AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
 };
 use persistence::{
-    evaluate_persisted_broker_admission, Mt5DurableOrderState, Mt5WorkerLease, TradingStore,
+    evaluate_persisted_broker_admission, validate_ready_mt5_terminal_slot, Mt5DurableOrderState, Mt5WorkerLease, TradingStore,
 };
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -52,6 +52,7 @@ pub struct Mt5AdmissionGuard {
     quant_account_ref: String,
     observed_server_name: String,
     worker_ref: String,
+    terminal_slot_ref: String,
 }
 
 impl Mt5AdmissionGuard {
@@ -65,6 +66,7 @@ impl Mt5AdmissionGuard {
         broker_server_ref: &str,
         observed_server_name: &str,
         worker_ref: &str,
+        terminal_slot_ref: &str,
     ) -> BridgeResult<Self> {
         let values = [
             organization_ref,
@@ -75,6 +77,7 @@ impl Mt5AdmissionGuard {
             broker_server_ref,
             observed_server_name,
             worker_ref,
+            terminal_slot_ref,
         ];
         if values
             .iter()
@@ -108,6 +111,7 @@ impl Mt5AdmissionGuard {
                 })?
                 .canonical,
             worker_ref: worker_ref.to_ascii_lowercase(),
+            terminal_slot_ref: terminal_slot_ref.to_owned(),
         })
     }
 
@@ -323,6 +327,30 @@ impl Mt5BridgeRuntime {
         let Some(guard) = self.admission.as_ref() else {
             return Ok(());
         };
+        let terminal_id = self.connection.lock().await.principal().terminal_id.clone();
+        let slot_ready = validate_ready_mt5_terminal_slot(
+            self.store.pool(),
+            &guard.terminal_slot_ref,
+            &guard.request.organization_ref,
+            &guard.quant_account_ref,
+            &guard.request.binding_ref,
+            &guard.request.account_ref,
+            &guard.request.broker_ref,
+            &guard.request.server_ref,
+            &terminal_id,
+            &guard.worker_ref,
+        )
+        .await
+        .map_err(|_| {
+            BridgeError::Invalid(
+                "MT5 terminal-slot registry is unavailable; refusing frame ingestion".into(),
+            )
+        })?;
+        if !slot_ready {
+            return Err(BridgeError::Invalid(
+                "MT5 terminal slot, managed gateway, worker assignment, or READY session does not match; refusing frame ingestion".into(),
+            ));
+        }
         let decision = evaluate_persisted_broker_admission(
             self.store.pool(),
             &guard.request,
@@ -705,6 +733,7 @@ mod tests {
             "broker-server-1",
             "R502.Demo",
             &fingerprint,
+            "slot-1",
         )
         .expect("valid admission guard configuration");
         assert_eq!(
@@ -727,7 +756,8 @@ mod tests {
             "broker-1",
             "server-1",
             "R502.Demo",
-            "worker-1"
+            "worker-1",
+            "slot-1"
         )
         .is_err());
         assert!(Mt5AdmissionGuard::new(
@@ -738,7 +768,8 @@ mod tests {
             "broker-1",
             "server-1",
             "R502.Demo",
-            &"a".repeat(64)
+            &"a".repeat(64),
+            "slot-1"
         )
         .is_err());
     }
