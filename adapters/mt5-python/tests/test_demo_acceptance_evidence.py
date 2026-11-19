@@ -111,6 +111,19 @@ class DemoAcceptanceEvidenceTests(unittest.TestCase):
         record["artifacts"]["private_key"] = "never-allow-this"
         self.assertTrue(any("prohibited secret-bearing field" in e for e in MODULE.validate(record)))
 
+    def test_rejects_secret_paths_and_embedded_credentials(self):
+        record = passing_record()
+        record["artifacts"]["password_file_path"] = "C:/protected/password.dpapi"
+        record["notes"] = "postgresql://user:password@example.invalid/db"
+        errors = MODULE.validate(record)
+        self.assertTrue(any("prohibited secret-bearing field" in error for error in errors))
+        self.assertTrue(any("database connection URI" in error for error in errors))
+
+    def test_rejects_pem_private_key_content(self):
+        record = passing_record()
+        record["notes"] = "-----BEGIN PRIVATE KEY-----\nredacted\n-----END PRIVATE KEY-----"
+        self.assertTrue(any("PEM private-key marker" in error for error in MODULE.validate(record)))
+
     def test_rejects_invalid_source_commit_sha_length(self):
         record = passing_record()
         record["source_commit_sha"] = "a" * 64
