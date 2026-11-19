@@ -96,7 +96,7 @@ if ($RequireRunningServices -and $null -ne $terminal) {
     Add-Check "single_terminal_instance" ($instances.Count -eq 1) ("Matching terminal process count: " + $instances.Count)
     if ($instances.Count -eq 1) {
         $owner = Invoke-CimMethod -InputObject $instances[0] -MethodName GetOwner
-        $terminalOwner = if ($owner.ReturnValue -eq 0) { [string]$owner.Domain + "\" + [string]$owner.User } else { "" }
+        $terminalOwner = if ($owner.ReturnValue -eq 0) { [string]$owner.Domain + [char]92 + [string]$owner.User } else { "" }
         Add-Check "terminal_process_identity" ($terminalOwner -eq $ExpectedTerminalIdentity) "Terminal process owner is compared with the approved identity; no credentials are displayed."
     }
 }
@@ -115,7 +115,8 @@ foreach ($name in $requiredEnvironment) {
     Add-Check ("environment:" + $name) $present $(if ($present) { "Present; value intentionally not displayed." } else { "Missing or whitespace-padded; value intentionally not displayed." })
 }
 $loginValue = [Environment]::GetEnvironmentVariable("MT5_LOGIN")
-Add-Check "numeric_demo_login_configured" ($loginValue -match '^[0-9]+
+Add-Check "numeric_demo_login_configured" ($loginValue -match "^[0-9]+$") "Expected numeric broker login is configured; value is not displayed."
+$plainPassword = [Environment]::GetEnvironmentVariable("MT5_PASSWORD")
 Add-Check "plaintext_password_absent" ([string]::IsNullOrEmpty($plainPassword)) "MT5_PASSWORD must not be set; use the CurrentUser DPAPI file."
 
 $dpapiPath = [Environment]::GetEnvironmentVariable("MT5_PASSWORD_DPAPI_FILE")
@@ -168,6 +169,7 @@ Write-Host ("Redacted evidence: {0}" -f $full)
 if ($blockers.Count -gt 0) { exit 1 }
 exit 0
 ) "Expected numeric broker login is configured; value is not displayed."
+$plainPassword = [Environment]::GetEnvironmentVariable("MT5_PASSWORD")
 $plainPassword = [Environment]::GetEnvironmentVariable("MT5_PASSWORD")
 Add-Check "plaintext_password_absent" ([string]::IsNullOrEmpty($plainPassword)) "MT5_PASSWORD must not be set; use the CurrentUser DPAPI file."
 
