@@ -6,7 +6,7 @@ use domain::broker_registry::{
     BrokerAdmissionRequest,
 };
 use domain::{EntitlementStatus, Organization, OrganizationId};
-use persistence::{evaluate_persisted_broker_admission, migrate, TradingStore};
+use persistence::{evaluate_persisted_broker_admission, migrate, validate_ready_mt5_terminal_slot, TradingStore};
 use sqlx::PgPool;
 
 async fn insert_user(pool: &PgPool, id: &str) {
@@ -477,6 +477,95 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     .execute(&pool)
     .await
     .unwrap();
+
+    sqlx::query(
+        "INSERT INTO broker_worker_sessions(id,assignment_id,worker_ref,status,revision,ready_until,started_at) VALUES('r502-slot-session','r502-slot-assignment','worker-r502','READY',1,NOW()+INTERVAL '1 minute',NOW())",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let slot_ready = validate_ready_mt5_terminal_slot(
+        &pool,
+        "r502-slot",
+        "r502-org",
+        "r502-quant-account",
+        "r502-binding",
+        "r502-external-account",
+        "r502-broker",
+        "r502-server",
+        "terminal-r502",
+        "worker-r502",
+    )
+    .await
+    .unwrap();
+    assert!(slot_ready);
+
+    let terminal_mismatch = validate_ready_mt5_terminal_slot(
+        &pool,
+        "r502-slot",
+        "r502-org",
+        "r502-quant-account",
+        "r502-binding",
+        "r502-external-account",
+        "r502-broker",
+        "r502-server",
+        "terminal-other",
+        "worker-r502",
+    )
+    .await
+    .unwrap();
+    assert!(!terminal_mismatch);
+
+    sqlx::query(
+        "UPDATE mt5_gateway_hosts SET status='DEGRADED' WHERE id='r502-gateway'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let degraded_host = validate_ready_mt5_terminal_slot(
+        &pool,
+        "r502-slot",
+        "r502-org",
+        "r502-quant-account",
+        "r502-binding",
+        "r502-external-account",
+        "r502-broker",
+        "r502-server",
+        "terminal-r502",
+        "worker-r502",
+    )
+    .await
+    .unwrap();
+    assert!(!degraded_host);
+    sqlx::query(
+        "UPDATE mt5_gateway_hosts SET status='READY' WHERE id='r502-gateway'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "UPDATE broker_worker_sessions SET ready_until=NOW()-INTERVAL '1 second' WHERE id='r502-slot-session'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let expired_session = validate_ready_mt5_terminal_slot(
+        &pool,
+        "r502-slot",
+        "r502-org",
+        "r502-quant-account",
+        "r502-binding",
+        "r502-external-account",
+        "r502-broker",
+        "r502-server",
+        "terminal-r502",
+        "worker-r502",
+    )
+    .await
+    .unwrap();
+    assert!(!expired_session);
 
     // A different organization cannot reuse this slot, even when the caller
     // supplies otherwise valid account/binding identifiers.
