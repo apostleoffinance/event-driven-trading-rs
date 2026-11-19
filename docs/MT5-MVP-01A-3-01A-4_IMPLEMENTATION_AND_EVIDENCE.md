@@ -32,7 +32,7 @@ The Windows worker restart verifier now requires all of the following before rep
 
 SQL account/terminal scope values are passed through psql variables for literal quoting; they are not interpolated into SQL text.
 
-The repository's Rust/adapter test suites cover protocol validation, mTLS trust/fingerprint rejection, identity mismatch, freshness degradation/recovery, heartbeat expiry, sequence behavior, and deny-all execution. Portable tests are not substitutes for Windows service, terminal, certificate, broker or database evidence.
+The repository's Rust/adapter test suites cover protocol validation, mTLS trust/fingerprint rejection, certificate allowlist cutover (new identity accepted, retired fingerprint rejected), identity mismatch, freshness degradation/recovery, heartbeat expiry, sequence behavior, DPAPI credential reload on worker restart, and deny-all execution. Portable tests are not substitutes for Windows service, terminal, certificate, broker or database evidence.
 
 ## Redacted acceptance evidence
 
