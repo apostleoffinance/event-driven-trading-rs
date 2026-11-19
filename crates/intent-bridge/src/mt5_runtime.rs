@@ -13,7 +13,7 @@ use chrono::{DateTime, Duration, Utc};
 use domain::broker_registry::{
     normalize_mt5_server_id, AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
 };
-use persistence::{evaluate_persisted_broker_admission, Mt5DurableOrderState, TradingStore};
+use persistence::{evaluate_persisted_broker_admission, Mt5DurableOrderState, Mt5WorkerLease, TradingStore};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -128,6 +128,7 @@ pub struct Mt5BridgeRuntime {
     connection: Arc<Mutex<AuthenticatedMt5Connection>>,
     session: Arc<Mutex<Mt5SessionGate>>,
     admission: Option<Mt5AdmissionGuard>,
+    lease: Option<Mt5WorkerLease>,
     watchdog: JoinHandle<()>,
 }
 
@@ -141,7 +142,7 @@ impl Mt5BridgeRuntime {
         session: Mt5SessionGate,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
-        Self::build(store, connection, session, None, watchdog_poll_interval)
+        Self::build(store, connection, session, None, None, watchdog_poll_interval)
     }
 
     /// Production constructor: every incoming frame is gated against the current
@@ -159,6 +160,44 @@ impl Mt5BridgeRuntime {
             connection,
             session,
             Some(admission),
+            None,
+            watchdog_poll_interval,
+        )
+    }
+
+    /// Production constructor requiring a live database lease for the exact
+    /// account/terminal/worker tuple. Lease acquisition is performed by the
+    /// daemon before this constructor; an invalid or stale lease fails closed.
+    pub async fn new_with_admission_and_lease(
+        store: TradingStore,
+        connection: AuthenticatedMt5Connection,
+        session: Mt5SessionGate,
+        admission: Mt5AdmissionGuard,
+        lease: Mt5WorkerLease,
+        watchdog_poll_interval: StdDuration,
+    ) -> BridgeResult<Self> {
+        let principal = connection.principal();
+        if lease.quant_account_id != admission.quant_account_ref
+            || lease.terminal_id != principal.terminal_id
+            || lease.worker_ref != admission.worker_ref
+        {
+            return Err(BridgeError::Invalid(
+                "MT5 publisher lease does not match authenticated account, terminal, and worker"
+                    .into(),
+            ));
+        }
+        store
+            .validate_mt5_worker_lease(&lease)
+            .await
+            .map_err(|_| BridgeError::Invalid(
+                "MT5 publisher lease is unavailable or stale; refusing runtime startup".into(),
+            ))?;
+        Self::build(
+            store,
+            connection,
+            session,
+            Some(admission),
+            Some(lease),
             watchdog_poll_interval,
         )
     }
@@ -168,6 +207,7 @@ impl Mt5BridgeRuntime {
         connection: AuthenticatedMt5Connection,
         session: Mt5SessionGate,
         admission: Option<Mt5AdmissionGuard>,
+        lease: Option<Mt5WorkerLease>,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
         if watchdog_poll_interval.is_zero() {
@@ -192,6 +232,7 @@ impl Mt5BridgeRuntime {
             connection,
             session,
             admission,
+            lease,
             watchdog,
         })
     }
@@ -281,6 +322,15 @@ impl Mt5BridgeRuntime {
     }
 
     async fn validate_persisted_admission(&self) -> BridgeResult<()> {
+        if let Some(lease) = self.lease.as_ref() {
+            self.store
+                .renew_mt5_worker_lease(lease, 30)
+                .await
+                .map_err(|_| BridgeError::Invalid(
+                    "MT5 publisher lease lost or database unavailable; refusing frame ingestion"
+                        .into(),
+                ))?;
+        }
         let Some(guard) = self.admission.as_ref() else {
             return Ok(());
         };
@@ -591,6 +641,21 @@ impl Mt5BridgeRuntime {
         Err(BridgeError::Invalid(
             "MT5 order dispatch is disabled: verified account environment and execution authorization are unavailable".into(),
         ))
+    }
+
+    /// Stop the watchdog and release the exact lease. If the process crashes,
+    /// the bounded database expiry remains the recovery path.
+    pub async fn shutdown(&self) -> BridgeResult<()> {
+        self.watchdog.abort();
+        if let Some(lease) = self.lease.as_ref() {
+            self.store
+                .release_mt5_worker_lease(lease)
+                .await
+                .map_err(|_| BridgeError::Invalid(
+                    "could not release MT5 publisher lease; it will expire automatically".into(),
+                ))?;
+        }
+        Ok(())
     }
 
     pub async fn session_state(&self) -> Mt5SessionState {
