@@ -26,6 +26,7 @@ def passing_record():
         "worker_restored": True,
         "worker_restore_error": None,
         "pre_stop_market_sequence": 100,
+        "post_start_baseline_market_sequence": 101,
         "post_restart_market_sequence": 102,
         "post_restart_reconciliation_sequence": 102,
         "post_restart_sequence_aligned": True,
@@ -45,9 +46,9 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
 
     def test_rejects_sequence_that_did_not_advance_even_if_flag_is_true(self):
         record = passing_record()
-        record["post_restart_market_sequence"] = 100
+        record["post_restart_market_sequence"] = 101
         self.assertIn(
-            "post_restart_market_sequence must exceed pre_stop_market_sequence",
+            "post_restart_market_sequence must exceed post_start_baseline_market_sequence",
             MODULE.validate(record),
         )
 
@@ -83,6 +84,15 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
             MODULE.validate(record),
         )
 
+
+    def test_rejects_sequence_not_advanced_after_service_restart(self):
+        record = passing_record()
+        record["post_restart_market_sequence"] = 101
+        record["post_restart_reconciliation_sequence"] = 101
+        self.assertIn(
+            "post_restart_market_sequence must exceed post_start_baseline_market_sequence",
+            MODULE.validate(record),
+        )
 
     def test_rejects_snapshot_captured_before_worker_is_running(self):
         record = passing_record()
