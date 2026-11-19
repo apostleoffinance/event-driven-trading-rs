@@ -35,7 +35,7 @@ python adapters/mt5-python/scripts/package_windows_demo_bundle.py `
   --output artifacts/edgenest-mt5-windows-demo.zip
 ```
 
-The packager rejects a dirty checkout, a non-Windows PE daemon, missing runtime files, and secret-bearing paths. It records SHA-256 hashes and emits `deployment_status=NOT_DEPLOYED`. A CI artifact is a reproducible deployment input, not a claim that a Windows host or broker connection exists.
+The packager rejects source changes other than a Windows-resolved Cargo.lock delta, a non-Windows PE daemon, missing runtime files, and secret-bearing paths. It ships that exact resolved lockfile and its SHA-256 alongside the source commit identity. It records SHA-256 hashes and emits `deployment_status=NOT_DEPLOYED`. A CI artifact is a reproducible deployment input, not a claim that a Windows host or broker connection exists.
 
 ## What this change adds
 
