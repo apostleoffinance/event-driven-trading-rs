@@ -64,6 +64,8 @@ struct TestPki {
     client_config: Arc<ClientConfig>,
     untrusted_client_config: Arc<ClientConfig>,
     client_fingerprint: String,
+    rotated_client_config: Arc<ClientConfig>,
+    rotated_client_fingerprint: String,
     untrusted_client_fingerprint: String,
 }
 
@@ -105,6 +107,15 @@ fn make_pki() -> Result<TestPki, Box<dyn Error>> {
     std::fs::write(&client_cert_path, client_cert.pem())?;
     std::fs::write(&client_key_path, client_key.serialize_pem())?;
 
+    let rotated_client_key = KeyPair::generate()?;
+    let mut rotated_client_params = CertificateParams::default();
+    rotated_client_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+    let rotated_client_cert = rotated_client_params.signed_by(
+        &rotated_client_key,
+        &trusted_ca,
+        &trusted_ca_key,
+    )?;
+
     let untrusted_ca_key = KeyPair::generate()?;
     let mut untrusted_ca_params = CertificateParams::default();
     untrusted_ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
@@ -135,6 +146,17 @@ fn make_pki() -> Result<TestPki, Box<dyn Error>> {
                 PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(client_key.serialize_der())),
             )?,
     );
+    let rotated_client_config = Arc::new(
+        ClientConfig::builder()
+            .with_root_certificates(roots.clone())
+            .with_client_auth_cert(
+                vec![CertificateDer::from(rotated_client_cert.der().to_vec())],
+                PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
+                    rotated_client_key.serialize_der(),
+                )),
+            )?,
+    );
+
     let untrusted_client_config = Arc::new(
         ClientConfig::builder()
             .with_root_certificates(roots)
@@ -154,6 +176,8 @@ fn make_pki() -> Result<TestPki, Box<dyn Error>> {
         client_config,
         untrusted_client_config,
         client_fingerprint: fingerprint(&client_cert),
+        rotated_client_config,
+        rotated_client_fingerprint: fingerprint(&rotated_client_cert),
         untrusted_client_fingerprint: fingerprint(&untrusted_client_cert),
     })
 }
@@ -424,6 +448,39 @@ async fn trusted_certificate_with_wrong_fingerprint_is_rejected() -> Result<(), 
     let server_result = server_task.await?;
     assert!(client_result.is_ok());
     assert!(server_result.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn certificate_rotation_accepts_new_identity_and_rejects_retired_fingerprint(
+) -> Result<(), Box<dyn Error>> {
+    let pki = make_pki()?;
+
+    // The new certificate succeeds after its fingerprint is registered.
+    let rotated_config = server_config(&pki, pki.rotated_client_fingerprint.clone())?;
+    let (server, _client, _) =
+        establish(rotated_config, pki.rotated_client_config.clone()).await?;
+    assert_eq!(
+        server.principal().certificate_sha256,
+        pki.rotated_client_fingerprint
+    );
+
+    // Once the allowlist is cut over, the still-CA-trusted old certificate is
+    // rejected because its exact leaf fingerprint is no longer assigned.
+    let retired_config = server_config(&pki, pki.rotated_client_fingerprint.clone())?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server_task = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await?;
+        retired_config.authenticate(stream).await
+    });
+    let stream = TcpStream::connect(address).await?;
+    let connector = TlsConnector::from(pki.client_config.clone());
+    let name = ServerName::try_from("localhost")?;
+    let client_result = connector.connect(name, stream).await;
+    let server_result = server_task.await?;
+    assert!(client_result.is_ok(), "old cert remains CA-trusted during controlled overlap");
+    assert!(server_result.is_err(), "retired fingerprint must not authenticate");
     Ok(())
 }
 
