@@ -544,7 +544,7 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
         .unwrap();
 
     sqlx::query(
-        "UPDATE broker_worker_sessions SET ready_until=NOW()-INTERVAL '1 second' WHERE id='r502-slot-session'",
+        "INSERT INTO broker_worker_sessions(id,assignment_id,worker_ref,status,revision,ready_until,started_at) VALUES('r502-slot-session-expired','r502-slot-assignment','worker-r502','READY',1,NOW()-INTERVAL '1 second',NOW()+INTERVAL '1 second')",
     )
     .execute(&pool)
     .await
