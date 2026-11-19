@@ -234,7 +234,7 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
 
     // Force expiry in the isolated test DB to exercise takeover without sleeping.
     sqlx::query(
-        "UPDATE broker_worker_leases SET lease_until=NOW()-INTERVAL '1 second' WHERE quant_account_id='r502-quant-account' AND terminal_id='terminal-r502'",
+        "UPDATE broker_worker_leases SET acquired_at=NOW()-INTERVAL '1 minute', lease_until=NOW()-INTERVAL '1 second' WHERE quant_account_id='r502-quant-account' AND terminal_id='terminal-r502'",
     )
     .execute(&pool)
     .await
