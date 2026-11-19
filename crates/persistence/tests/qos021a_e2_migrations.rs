@@ -147,10 +147,12 @@ async fn complete_journal_first_history_receives_forward_corrections(pool: PgPoo
         .filter(|migration| migration.version >= 20261111000001)
         .map(|migration| migration.version)
         .collect::<Vec<_>>();
-    assert_eq!(
-        expected_forward_versions.len(),
-        10,
-        "the journal-first fixture should receive every current forward migration",
+    // Forward migrations are intentionally append-only. Derive the expected
+    // count from the migration inventory instead of freezing a count here;
+    // adding a valid migration must not make this historical-upgrade test stale.
+    assert!(
+        expected_forward_versions.len() >= 10,
+        "the journal-first fixture should include the current forward migration set",
     );
 
     migrate(&pool).await.unwrap();

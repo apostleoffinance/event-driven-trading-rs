@@ -397,3 +397,136 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
             .is_err()
     );
 }
+#[sqlx::test]
+async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(pool: PgPool) {
+    migrate(&pool).await.unwrap();
+    seed_tenant_and_account(&pool).await;
+    seed_pending_binding(&pool).await;
+
+    sqlx::query(
+        "UPDATE external_broker_accounts SET status='ACTIVE',verification_status='PENDING_APPROVAL',revision=revision+1,updated_at=NOW() WHERE id='r502-external-account'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let lookup_hmac = [0x5a_u8; 32];
+    let attestation_digest = [0x11_u8; 32];
+    sqlx::query(
+        "INSERT INTO broker_account_evidence(id,external_broker_account_id,provider_type,evidence_type,observed_broker_id,observed_broker_server_id,observed_identifier_key_version,observed_identifier_normalization_version,observed_identifier_hmac,attestation_key_id,attestation_digest,observed_at,evidence_status,source_principal,expires_at) VALUES('r502-slot-evidence','r502-external-account','MT5_PYTHON','ACCOUNT_IDENTITY','r502-broker','r502-server','test-key-v1',1,$1,'test-attestation-key',$2,NOW(),'AUTHENTICATED','test-worker',NOW()+INTERVAL '15 minutes')",
+    )
+    .bind(lookup_hmac.as_slice())
+    .bind(attestation_digest.as_slice())
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO broker_platform_authority_grants(id,user_id,permission,status,revision,valid_from,valid_until,granted_by,reason) VALUES('r502-slot-verifier-grant','r502-verifier','BROKER_ACCOUNT_VERIFY','ACTIVE',1,NOW()-INTERVAL '1 minute',NOW()+INTERVAL '1 hour','r502-owner','controlled integration test grant')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO broker_account_verifications(id,external_broker_account_id,evidence_id,decision,revision,previous_revision,approval_actor_id,approval_authority,approval_reference,reason,authority_grant_id,authority_grant_revision) VALUES('r502-slot-verification','r502-external-account','r502-slot-evidence','VERIFIED',2,1,'r502-verifier','PLATFORM_VERIFIER','R5-02-SLOT-TEST','controlled integration test approval','r502-slot-verifier-grant',1)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE trading_account_broker_bindings SET status='VERIFIED',revision=revision+1,updated_at=NOW() WHERE id='r502-binding'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO mt5_gateway_hosts(id,provider,region,host_ref,status,terminal_capacity) VALUES('r502-gateway','contabo','us-central','opaque-host-r502','READY',1)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // A terminal slot is account-scoped and cannot be created for a pending or
+    // mismatched broker binding. The verified fixture above is the only valid scope.
+    sqlx::query(
+        "INSERT INTO mt5_terminal_slots(id,gateway_host_id,organization_id,quant_account_id,binding_id,external_broker_account_id,broker_id,broker_server_id,terminal_id,terminal_profile_ref,service_identity_ref,worker_ref,status) VALUES('r502-slot','r502-gateway','r502-org','r502-quant-account','r502-binding','r502-external-account','r502-broker','r502-server','terminal-r502','profile-r502','service-r502','worker-r502','READY')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let registered: i32 = sqlx::query_scalar(
+        "SELECT registered_terminal_slots FROM mt5_gateway_hosts WHERE id='r502-gateway'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(registered, 1);
+
+    // A second isolated slot cannot exceed the host's configured capacity.
+    let overflow_slot = sqlx::query(
+        "INSERT INTO mt5_terminal_slots(id,gateway_host_id,organization_id,quant_account_id,binding_id,external_broker_account_id,broker_id,broker_server_id,terminal_id,terminal_profile_ref,service_identity_ref,worker_ref,status) VALUES('r502-slot-overflow','r502-gateway','r502-org','r502-quant-account','r502-binding','r502-external-account','r502-broker','r502-server','terminal-r502-overflow','profile-r502-overflow','service-r502-overflow','worker-r502-overflow','READY')",
+    )
+    .execute(&pool)
+    .await;
+    assert!(overflow_slot.is_err());
+
+    sqlx::query(
+        "INSERT INTO broker_worker_assignments(id,worker_ref,organization_id,quant_account_id,binding_id,external_broker_account_id,broker_id,broker_server_id,terminal_slot_id,status,revision,valid_from,valid_until) VALUES('r502-slot-assignment','worker-r502','r502-org','r502-quant-account','r502-binding','r502-external-account','r502-broker','r502-server','r502-slot','ACTIVE',1,NOW()-INTERVAL '1 minute',NOW()+INTERVAL '1 hour')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // A different organization cannot reuse this slot, even when the caller
+    // supplies otherwise valid account/binding identifiers.
+    insert_user(&pool, "r502-other-owner").await;
+    TradingStore::new(pool.clone())
+        .create_organization(
+            &domain::Organization::new(
+                domain::OrganizationId::new("r502-other-org").unwrap(),
+                "Other tenant",
+                Utc::now(),
+            )
+            .unwrap(),
+            "r502-other-owner",
+        )
+        .await
+        .unwrap();
+
+    let cross_tenant = sqlx::query(
+        "INSERT INTO broker_worker_assignments(id,worker_ref,organization_id,quant_account_id,binding_id,external_broker_account_id,broker_id,broker_server_id,terminal_slot_id,status,revision,valid_from,valid_until) VALUES('r502-cross-tenant-assignment','worker-r502','r502-other-org','r502-quant-account','r502-binding','r502-external-account','r502-broker','r502-server','r502-slot','ACTIVE',1,NOW()-INTERVAL '1 minute',NOW()+INTERVAL '1 hour')",
+    )
+    .execute(&pool)
+    .await;
+    assert!(cross_tenant.is_err());
+
+    // A slot cannot be disabled while an active publisher assignment still
+    // references it. Revocation is explicit, revisioned, and releases capacity.
+    let premature_disable = sqlx::query(
+        "UPDATE mt5_terminal_slots SET status='DISABLED',revision=revision+1 WHERE id='r502-slot'",
+    )
+    .execute(&pool)
+    .await;
+    assert!(premature_disable.is_err());
+
+    sqlx::query(
+        "UPDATE broker_worker_assignments SET status='REVOKED',revision=revision+1 WHERE id='r502-slot-assignment'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE mt5_terminal_slots SET status='DISABLED',revision=revision+1 WHERE id='r502-slot'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let released: i32 = sqlx::query_scalar(
+        "SELECT registered_terminal_slots FROM mt5_gateway_hosts WHERE id='r502-gateway'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(released, 0);
+}
