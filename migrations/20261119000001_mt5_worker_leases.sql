@@ -2,8 +2,6 @@
 -- Fencing tokens are monotonic across expiry/reacquisition. The lease token is
 -- stored only as SHA-256; callers must keep the raw token process-local.
 
-CREATE SEQUENCE broker_worker_lease_fencing_token_seq AS BIGINT START WITH 1;
-
 CREATE TABLE broker_worker_leases (
     quant_account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
     terminal_id TEXT NOT NULL CHECK (length(trim(terminal_id)) BETWEEN 1 AND 128),
