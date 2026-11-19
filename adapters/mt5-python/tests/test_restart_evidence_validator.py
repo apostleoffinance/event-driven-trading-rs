@@ -23,6 +23,8 @@ def passing_record():
         "worker_stopped_at_utc": "2026-10-27T10:01:00+00:00",
         "worker_restarted_at_utc": "2026-10-27T10:01:10+00:00",
         "daemon_remained_running": True,
+        "worker_restored": True,
+        "worker_restore_error": None,
         "pre_stop_market_sequence": 100,
         "post_restart_market_sequence": 102,
         "post_restart_reconciliation_sequence": 102,
@@ -81,6 +83,24 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
             MODULE.validate(record),
         )
 
+
+    def test_rejects_snapshot_captured_before_worker_is_running(self):
+        record = passing_record()
+        record["post_restart_market_captured_at"] = "2026-10-27T10:01:09+00:00"
+        self.assertIn(
+            "post_restart_market_captured_at must be at or after worker_restarted_at_utc",
+            MODULE.validate(record),
+        )
+
+    def test_rejects_worker_not_restored(self):
+        record = passing_record()
+        record["worker_restored"] = False
+        self.assertIn("worker_restored must be true", MODULE.validate(record))
+
+    def test_rejects_worker_restore_error(self):
+        record = passing_record()
+        record["worker_restore_error"] = "SCM failure"
+        self.assertIn("worker_restore_error must be absent or empty", MODULE.validate(record))
 
     def test_rejects_market_and_reconciliation_sequence_mismatch(self):
         record = passing_record()
