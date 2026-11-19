@@ -678,9 +678,14 @@ def load_terminal_runtime(config: Config) -> tuple[Terminal, Any]:
 
 
 def main() -> None:
+    from mt5_adapter.windows_instance import account_terminal_mutex
+
     config = Config.from_env()
-    terminal, constants = load_terminal_runtime(config)
-    run_worker(config, terminal, constants)
+    # The host-wide Windows mutex complements (does not replace) the DB lease.
+    # Keep the lock for the full provider/worker lifetime, including reconnects.
+    with account_terminal_mutex(config.account_id, config.terminal_id):
+        terminal, constants = load_terminal_runtime(config)
+        run_worker(config, terminal, constants)
 
 
 if __name__ == "__main__":
