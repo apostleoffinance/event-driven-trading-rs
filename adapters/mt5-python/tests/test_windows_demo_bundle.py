@@ -55,7 +55,7 @@ class WindowsDemoBundleTests(unittest.TestCase):
             self.assertIn("manifest/release-manifest.json", names)
             manifest = json.loads(archive.read("manifest/release-manifest.json"))
             self.assertEqual(manifest["source_commit_sha"], result["manifest"]["source_commit_sha"])
-            self.assertFalse(any("password" in name.lower() or "private" in name.lower() for name in names))
+            self.assertFalse(any(name.lower().endswith((".pem", ".key", ".p12", ".pfx")) or name.lower().split("/")[-1] in {".env", ".env.local", "id_rsa", "id_ed25519"} for name in names))
             self.assertNotIn("MT5_PASSWORD", archive.read("manifest/release-manifest.json").decode())
 
     def test_rejects_non_windows_executable(self):
