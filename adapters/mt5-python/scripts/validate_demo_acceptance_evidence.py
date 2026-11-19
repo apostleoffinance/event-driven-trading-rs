@@ -111,7 +111,7 @@ def validate(record: Any) -> list[str]:
                 "binding_ref", "binding_revision", "broker_ref", "broker_server_ref",
                 "terminal_id", "observed_server"):
         _required_text(identity, key, errors, "identity.")
-    _sha256(identity, "observed_login_sha256", errors, "identity.")
+    _sha256(identity, "observed_login_hmac_sha256", errors, "identity.")
 
     host = record.get("host")
     if not isinstance(host, dict):
