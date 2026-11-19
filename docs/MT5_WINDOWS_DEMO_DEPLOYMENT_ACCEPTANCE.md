@@ -13,6 +13,30 @@
 - No live account, no customer credential intake, no multi-account multiplexing, no automatic failover, no history/bars, and no submit/modify/cancel/close operations.
 - The official Windows provider is the deployment target. The macOS/EA path is not a substitute for Windows acceptance.
 
+## CI-built Windows deployment bundle
+
+The workflow now builds the Rust `mt5-bridge-daemon.exe` on a native Windows runner and packages it with the complete Python adapter source, read-only Windows smoke/restart/evidence scripts, broker metadata template, and acceptance documentation:
+
+- Packager: `adapters/mt5-python/scripts/package_windows_demo_bundle.py`
+- CI job: `Build managed Windows DEMO deployment bundle`
+- Artifact name: `edgenest-mt5-windows-demo-<commit-sha>`
+- Retention: 14 days
+- Bundle manifest: `manifest/release-manifest.json`
+
+The manifest pins the source commit and daemon hash, identifies the bundle as broker DEMO → Quant OS PAPER, fixes `execution_enabled=false`, and lists all external release gates. The bundle contains no broker password, private key, certificate, database URL, MetaTrader terminal binary, or MetaTrader5 Python wheel. The MetaTrader5 package version must be independently approved and pinned during host deployment; it is deliberately not guessed or downloaded into this artifact.
+
+Build locally from a clean checkout after compiling the daemon for Windows:
+
+```powershell
+cargo build --locked --release -p intent-bridge --bin mt5-bridge-daemon
+python adapters/mt5-python/scripts/package_windows_demo_bundle.py `
+  --root . `
+  --daemon target/release/mt5-bridge-daemon.exe `
+  --output artifacts/edgenest-mt5-windows-demo.zip
+```
+
+The packager rejects source changes other than a Windows-resolved Cargo.lock delta, a non-Windows PE daemon, missing runtime files, and secret-bearing paths. It ships that exact resolved lockfile and its SHA-256 alongside the source commit identity. It records SHA-256 hashes and emits `deployment_status=NOT_DEPLOYED`. A CI artifact is a reproducible deployment input, not a claim that a Windows host or broker connection exists.
+
 ## What this change adds
 
 The script at adapters/mt5-python/scripts/mt5-windows-deployment-preflight.ps1 is a read-only host preflight. It checks the approved Windows build, 64-bit architecture, pinned terminal/daemon/Python artifacts, official MetaTrader5 package version, service installation and configured service identities, optional running-state/single-terminal checks, required configuration presence, DPAPI secret-file presence and certificate/key file presence. It never prints environment values, reads broker credentials or private-key contents, starts/stops services, connects to MT5, or connects to PostgreSQL.
