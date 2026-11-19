@@ -6,7 +6,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "migrations" / "20261120000001_mt5_gateway_terminal_registry.sql"
-CONFIG = ROOT / "config" / "mt5" / "tent rade.demo.example.toml"
+CONFIG = ROOT / "config" / "mt5" / "tentrade.demo.example.toml"
 
 
 class Mt5RegistryContractTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class Mt5RegistryContractTests(unittest.TestCase):
         self.assertIn("ADD COLUMN terminal_slot_id TEXT", self.sql)
 
     def test_tentrade_template_is_disabled_and_has_no_guessed_server(self):
-        self.assertEqual(self.config["broker"]["id"], "tent rade")
+        self.assertEqual(self.config["broker"]["id"], "tentrade")
         self.assertFalse(self.config["broker"]["enabled"])
         self.assertEqual(self.config["server"]["canonical_identifier"], "")
         self.assertEqual(self.config["server"]["environment"], "DEMO")

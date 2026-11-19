@@ -58,6 +58,19 @@ jobs:
           --run-id "${{ steps.qos020.outputs.run_id }}"
           --verify-sqlx-cleanup
 
+  mt5-registry-contracts:
+    name: MT5 gateway and broker registry contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Run registry contract tests
+        run: python -m unittest discover -s scripts/mt5-registry -p 'test_*.py' -v
+
   mt5-python-adapter:
     name: MT5 Python adapter contract tests
     runs-on: ubuntu-latest
