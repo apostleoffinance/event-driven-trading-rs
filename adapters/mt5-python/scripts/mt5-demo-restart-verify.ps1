@@ -119,6 +119,7 @@ try {
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $stopTime = [DateTimeOffset]::Parse($record.worker_stopped_at_utc)
+    $restartTime = [DateTimeOffset]::Parse($record.worker_restarted_at_utc)
     $latest = $null
     do {
         $latest = Get-LatestSnapshot
@@ -127,7 +128,7 @@ try {
             $reconAt = [DateTimeOffset]::Parse([string]$latest.reconciliation_captured_at)
             $advanced = [long]$latest.market_sequence -gt [long]$record.pre_stop_market_sequence
             $sequenceAligned = [bool]$latest.sequence_aligned
-            $freshAfterRestart = $marketAt -ge $stopTime -and $reconAt -ge $stopTime
+            $freshAfterRestart = $marketAt -ge $restartTime -and $reconAt -ge $restartTime
             if ($advanced -and $sequenceAligned -and $freshAfterRestart) { break }
         }
         Start-Sleep -Seconds $PollSeconds
@@ -142,10 +143,10 @@ try {
     $record.post_restart_market_captured_at = $marketAt.ToString("o")
     $record.post_restart_reconciliation_captured_at = $reconAt.ToString("o")
     $record.sequence_advanced = ([long]$latest.market_sequence -gt [long]$record.pre_stop_market_sequence)
-    $record.post_restart_reconciliation_fresh = ($marketAt -ge $stopTime -and $reconAt -ge $stopTime)
+    $record.post_restart_reconciliation_fresh = ($marketAt -ge $restartTime -and $reconAt -ge $restartTime)
     if (-not $record.post_restart_sequence_aligned) { throw "Market-data and reconciliation snapshots do not share the same sequence after worker restart." }
     if (-not $record.sequence_advanced) { throw "Market-data sequence did not advance across worker restart." }
-    if (-not $record.post_restart_reconciliation_fresh) { throw "Fresh reconciliation did not persist after worker restart." }
+    if (-not $record.post_restart_reconciliation_fresh) { throw "Fresh reconciliation did not persist after SCM confirmed worker restart." }
     $daemon.Refresh()
     if ($daemon.Status -ne "Running") { throw "Daemon is not running after worker recovery." }
 
