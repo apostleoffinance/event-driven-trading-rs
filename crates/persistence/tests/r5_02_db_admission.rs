@@ -465,6 +465,14 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     .unwrap();
     assert_eq!(registered, 1);
 
+    // A second isolated slot cannot exceed the host's configured capacity.
+    let overflow_slot = sqlx::query(
+        "INSERT INTO mt5_terminal_slots(id,gateway_host_id,organization_id,quant_account_id,binding_id,external_broker_account_id,broker_id,broker_server_id,terminal_id,terminal_profile_ref,service_identity_ref,worker_ref,status) VALUES('r502-slot-overflow','r502-gateway','r502-org','r502-quant-account','r502-binding','r502-external-account','r502-broker','r502-server','terminal-r502-overflow','profile-r502-overflow','service-r502-overflow','worker-r502-overflow','READY')",
+    )
+    .execute(&pool)
+    .await;
+    assert!(overflow_slot.is_err());
+
     sqlx::query(
         "INSERT INTO broker_worker_assignments(id,worker_ref,organization_id,quant_account_id,binding_id,external_broker_account_id,broker_id,broker_server_id,terminal_slot_id,status,revision,valid_from,valid_until) VALUES('r502-slot-assignment','worker-r502','r502-org','r502-quant-account','r502-binding','r502-external-account','r502-broker','r502-server','r502-slot','ACTIVE',1,NOW()-INTERVAL '1 minute',NOW()+INTERVAL '1 hour')",
     )
