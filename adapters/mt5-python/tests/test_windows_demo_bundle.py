@@ -65,6 +65,15 @@ class WindowsDemoBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not a Windows PE"):
             MODULE.build_bundle(self.root, self.daemon, self.output)
 
+    def test_allows_only_windows_resolved_cargo_lockfile_delta(self):
+        lockfile = self.root / "Cargo.lock"
+        lockfile.write_text("# windows target dependency resolution\\n", encoding="utf-8")
+        result = MODULE.build_bundle(self.root, self.daemon, self.output)
+        with zipfile.ZipFile(self.output) as archive:
+            bundled = archive.read("manifest/windows-resolved-Cargo.lock")
+        self.assertEqual(bundled, lockfile.read_bytes())
+        self.assertEqual(result["manifest"]["resolved_cargo_lock_sha256"], MODULE.sha256(lockfile))
+
     def test_rejects_dirty_source_checkout(self):
         (self.root / "uncommitted.txt").write_text("change", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "must be clean"):
