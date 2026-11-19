@@ -19,6 +19,7 @@ account-engine = { path = "../account-engine" }
 chrono = { workspace = true }
 clap = { version = "4", features = ["derive", "env"] }
 domain = { path = "../domain" }
+getrandom = "0.3"
 events = { path = "../events" }
 persistence = { path = "../persistence" }
 rust_decimal = { workspace = true }

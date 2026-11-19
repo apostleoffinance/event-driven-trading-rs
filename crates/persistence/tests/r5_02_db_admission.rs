@@ -203,6 +203,57 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
                 && permit.revisions.worker_assignment == 1
     ));
 
+    // Concurrent daemons contend for one account/terminal slot. Exactly one
+    // process token may acquire it, even when both present the same worker identity.
+    let store = TradingStore::new(pool.clone());
+    let first_process_token = "a".repeat(64);
+    let second_process_token = "b".repeat(64);
+    let (first_attempt, second_attempt) = tokio::join!(
+        store.acquire_mt5_worker_lease(
+            "r502-quant-account",
+            "terminal-r502",
+            "r502-binding",
+            "r502-worker",
+            &first_process_token,
+            5,
+        ),
+        store.acquire_mt5_worker_lease(
+            "r502-quant-account",
+            "terminal-r502",
+            "r502-binding",
+            "r502-worker",
+            &second_process_token,
+            5,
+        ),
+    );
+    assert_ne!(first_attempt.is_ok(), second_attempt.is_ok());
+    let first_lease = first_attempt.or(second_attempt).unwrap();
+    store.validate_mt5_worker_lease(&first_lease).await.unwrap();
+    store.renew_mt5_worker_lease(&first_lease, 5).await.unwrap();
+
+    // Wait for the bounded lease to expire in PostgreSQL's clock domain.
+    tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+    let successor = store
+        .acquire_mt5_worker_lease(
+            "r502-quant-account",
+            "terminal-r502",
+            "r502-binding",
+            "r502-worker",
+            &"c".repeat(64),
+            30,
+        )
+        .await
+        .unwrap();
+    assert!(successor.fencing_token > first_lease.fencing_token);
+    assert!(store.validate_mt5_worker_lease(&first_lease).await.is_err());
+    assert!(store
+        .renew_mt5_worker_lease(&first_lease, 30)
+        .await
+        .is_err());
+    assert!(!store.release_mt5_worker_lease(&first_lease).await.unwrap());
+    store.validate_mt5_worker_lease(&successor).await.unwrap();
+    assert!(store.release_mt5_worker_lease(&successor).await.unwrap());
+
     // Evidence is append-only: revocation is represented by a new immutable
     // verification decision, never by mutating the evidence row.
     sqlx::query(

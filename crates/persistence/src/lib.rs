@@ -7,11 +7,13 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 pub mod broker_admission;
+pub mod broker_worker_lease;
 pub mod error;
 pub mod pool;
 pub mod repos;
 
 pub use broker_admission::evaluate_persisted_broker_admission;
+pub use broker_worker_lease::Mt5WorkerLease;
 pub use error::{PersistenceError, PersistenceResult};
 pub use pool::{check_database_health, connect, migrate, validate_identity_runtime_role};
 pub use repos::{

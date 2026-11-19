@@ -179,16 +179,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
                 let session = Mt5SessionGate::after_transport_authentication(policy);
-                let runtime = match Mt5BridgeRuntime::new_with_admission(
+                // Every accepted connection receives fresh process-local entropy.
+                // A configured/static token would let a stale process impersonate a successor.
+                let mut token_bytes = [0_u8; 32];
+                if let Err(error) = getrandom::fill(&mut token_bytes) {
+                    warn!(error = %error, "could not generate MT5 publisher lease token");
+                    continue;
+                }
+                let process_token = token_bytes
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>();
+                let lease = match store
+                    .acquire_mt5_worker_lease(
+                        &account_id,
+                        &authenticated_principal.terminal_id,
+                        &binding_id,
+                        &authenticated_principal.certificate_sha256,
+                        &process_token,
+                        30,
+                    )
+                    .await
+                {
+                    Ok(lease) => lease,
+                    Err(error) => {
+                        warn!(error = %error, "MT5 publisher lease unavailable; refusing second publisher");
+                        continue;
+                    }
+                };
+                let runtime = match Mt5BridgeRuntime::new_with_admission_and_lease(
                     store.clone(),
                     connection,
                     session,
                     admission.clone(),
+                    lease.clone(),
                     StdDuration::from_secs(2),
-                ) {
+                )
+                .await
+                {
                     Ok(runtime) => runtime,
                     Err(error) => {
-                        warn!(error = %error, "could not initialize MT5 runtime");
+                        let _ = store.release_mt5_worker_lease(&lease).await;
+                        warn!(error = %error, "could not initialize leased MT5 runtime");
                         continue;
                     }
                 };
@@ -203,6 +235,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         signal = tokio::signal::ctrl_c() => {
                             signal?;
                             info!("shutdown requested while MT5 worker was connected");
+                            runtime.shutdown().await?;
                             return Ok(());
                         }
                         result = runtime.reconcile_from_next_frame(
@@ -223,6 +256,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
+                }
+                if let Err(error) = runtime.shutdown().await {
+                    warn!(error = %error, "MT5 runtime shutdown could not release lease cleanly");
                 }
                 drop(runtime);
                 info!("MT5 connection closed; waiting for a new authenticated connection");
