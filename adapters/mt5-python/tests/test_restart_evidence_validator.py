@@ -52,11 +52,11 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
             MODULE.validate(record),
         )
 
-    def test_rejects_reconciliation_timestamp_before_worker_stop(self):
+    def test_rejects_reconciliation_timestamp_before_worker_restart(self):
         record = passing_record()
         record["post_restart_reconciliation_captured_at"] = "2026-10-27T10:00:59+00:00"
         self.assertIn(
-            "post_restart_reconciliation_captured_at must be at or after worker_stopped_at_utc",
+            "post_restart_reconciliation_captured_at must be at or after worker_restarted_at_utc",
             MODULE.validate(record),
         )
 
