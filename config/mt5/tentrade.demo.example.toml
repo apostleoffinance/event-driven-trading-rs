@@ -1,0 +1,36 @@
+# EdgeNest MT5 broker/server catalogue template.
+# This is configuration metadata only: no credentials, passwords, tokens or keys.
+# Keep disabled until the exact server identity is copied from the TenTrade DEMO
+# terminal/account portal and independently verified. Do not guess the server.
+
+[broker]
+id = "tent rade"
+canonical_name = "tent rade"
+display_name = "TenTrade"
+provider_type = "MT5_PYTHON"
+connector_family = "MT5"
+enabled = false
+
+[server]
+id = ""
+canonical_identifier = ""
+display_name = "TenTrade DEMO server (unverified)"
+environment = "DEMO"
+status = "UNVERIFIED"
+normalization_version = 1
+
+[enrollment]
+mode = "OPERATOR_ASSISTED"
+credential_intake_enabled = false
+customer_self_service_enabled = false
+read_only = true
+order_submission_enabled = false
+order_modification_enabled = false
+order_cancellation_enabled = false
+position_close_enabled = false
+
+[terminal_slot]
+initial_slot_id = "tent rade-demo-slot-01"
+terminal_profile_ref = "SET_BY_MANAGED_HOST_PROVISIONER"
+service_identity_ref = "SET_BY_MANAGED_HOST_PROVISIONER"
+worker_identity_ref = "SET_BY_MANAGED_HOST_PROVISIONER"
