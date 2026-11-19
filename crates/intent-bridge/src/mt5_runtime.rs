@@ -13,7 +13,9 @@ use chrono::{DateTime, Duration, Utc};
 use domain::broker_registry::{
     normalize_mt5_server_id, AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
 };
-use persistence::{evaluate_persisted_broker_admission, Mt5DurableOrderState, Mt5WorkerLease, TradingStore};
+use persistence::{
+    evaluate_persisted_broker_admission, Mt5DurableOrderState, Mt5WorkerLease, TradingStore,
+};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -141,7 +143,14 @@ impl Mt5BridgeRuntime {
         session: Mt5SessionGate,
         watchdog_poll_interval: StdDuration,
     ) -> BridgeResult<Self> {
-        Self::build(store, connection, session, None, None, watchdog_poll_interval)
+        Self::build(
+            store,
+            connection,
+            session,
+            None,
+            None,
+            watchdog_poll_interval,
+        )
     }
 
     /// Production constructor requiring a live database lease for the exact
@@ -165,12 +174,11 @@ impl Mt5BridgeRuntime {
                     .into(),
             ));
         }
-        store
-            .validate_mt5_worker_lease(&lease)
-            .await
-            .map_err(|_| BridgeError::Invalid(
+        store.validate_mt5_worker_lease(&lease).await.map_err(|_| {
+            BridgeError::Invalid(
                 "MT5 publisher lease is unavailable or stale; refusing runtime startup".into(),
-            ))?;
+            )
+        })?;
         Self::build(
             store,
             connection,
@@ -305,10 +313,12 @@ impl Mt5BridgeRuntime {
             self.store
                 .renew_mt5_worker_lease(lease, 30)
                 .await
-                .map_err(|_| BridgeError::Invalid(
-                    "MT5 publisher lease lost or database unavailable; refusing frame ingestion"
-                        .into(),
-                ))?;
+                .map_err(|_| {
+                    BridgeError::Invalid(
+                        "MT5 publisher lease lost or database unavailable; refusing frame ingestion"
+                            .into(),
+                    )
+                })?;
         }
         let Some(guard) = self.admission.as_ref() else {
             return Ok(());
@@ -630,9 +640,12 @@ impl Mt5BridgeRuntime {
             self.store
                 .release_mt5_worker_lease(lease)
                 .await
-                .map_err(|_| BridgeError::Invalid(
-                    "could not release MT5 publisher lease; it will expire automatically".into(),
-                ))?;
+                .map_err(|_| {
+                    BridgeError::Invalid(
+                        "could not release MT5 publisher lease; it will expire automatically"
+                            .into(),
+                    )
+                })?;
         }
         Ok(())
     }
