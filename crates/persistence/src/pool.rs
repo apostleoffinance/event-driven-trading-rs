@@ -243,7 +243,7 @@ async fn validate_recognized_schema(
         // E2-complete databases are expected to be missing R2 objects; validate
         // those objects only after the R2 migration is present in SQLx history.
         let applied_r2: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version=20261112000001 AND success)",
+            "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version=20261112000002 AND success)",
         )
         .fetch_one(&mut *connection)
         .await?;

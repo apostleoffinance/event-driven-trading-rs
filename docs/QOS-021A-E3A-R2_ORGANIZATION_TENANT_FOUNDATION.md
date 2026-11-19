@@ -48,7 +48,7 @@ Organization routes are under `/api/v1/organizations`: authenticated list/create
 
 ## Migration and upgrade behavior
 
-Added migration: `20261112000001_organization_tenant_foundation.sql`. Historical migrations were not edited. It is additive: creates organizations, organization lifecycle events, memberships, membership events, account entitlements, entitlement events and indexes; adds the account revision column/trigger; adds validation and history/last-owner triggers. Foreign keys use RESTRICT; no cascade deletes or legacy backfills occur.
+Added migration: `20261112000002_organization_tenant_foundation.sql`. Historical migrations were not edited. It is additive: creates organizations, organization lifecycle events, memberships, membership events, account entitlements, entitlement events and indexes; adds the account revision column/trigger; adds validation and history/last-owner triggers. Foreign keys use RESTRICT; no cascade deletes or legacy backfills occur.
 
 The migration runner recognizes the complete supported E2 history as the pre-R2 upgrade point, validates E2 schema before proceeding, verifies checksums, then applies the forward migration. Fresh install continues through the repository's normal migration path. A migration test was added to preserve old dashboard rows and account/environment provenance and assert that the R2 structures remain empty after upgrade. Fresh-install and upgrade SQL behavior have not yet been executed because QOS-020 identity validation failed; see test evidence below.
 

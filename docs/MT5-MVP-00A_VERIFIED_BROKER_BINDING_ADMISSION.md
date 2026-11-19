@@ -5,7 +5,7 @@
 
 ## Context and existing boundary
 
-The schema in `migrations/20261113000001_broker_account_registry.sql` separates `brokers`, `broker_servers`, `external_broker_accounts`, HMAC identifier tokens, `trading_account_broker_bindings`, evidence, verification decisions and binding events. `migrations/20261112000001_organization_tenant_foundation.sql` provides organizations, memberships, account entitlements and Quant account environment verification. The external login is stored as keyed HMAC tokens rather than plaintext.
+The schema in `migrations/20261113000001_broker_account_registry.sql` separates `brokers`, `broker_servers`, `external_broker_accounts`, HMAC identifier tokens, `trading_account_broker_bindings`, evidence, verification decisions and binding events. `migrations/20261112000002_organization_tenant_foundation.sql` provides organizations, memberships, account entitlements and Quant account environment verification. The external login is stored as keyed HMAC tokens rather than plaintext.
 
 `crates/journal-api/src/broker_registry.rs::register` currently lets an authorized organization owner register a pending binding. `crates/persistence/src/repos/broker_registry.rs::register_pending_binding` checks active organization/owner and active entitlement and writes pending records transactionally. The API lifecycle transition accepts only SUSPENDED or REVOKED; its source comment says there is no platform authority to set VERIFIED. The schema can record verification evidence and decisions, but an approval workflow is not implemented. `crates/intent-bridge/src/bin/mt5-bridge-daemon.rs::main` currently builds a single principal from environment configuration; it does not query the registry. Its mTLS fingerprint is not broker ownership proof.
 
