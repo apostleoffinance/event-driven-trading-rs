@@ -1,5 +1,10 @@
 name: Quant OS CI
 
+# Keep only the newest validation run for a given branch/PR ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:

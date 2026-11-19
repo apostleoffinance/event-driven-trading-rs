@@ -20,6 +20,9 @@ class RestartVerificationContractTests(unittest.TestCase):
                 self.assertIn(required, source)
         self.assertNotIn("Stop-Service -Name $DaemonServiceName", source)
         self.assertNotIn("Restart-Service -Name $DaemonServiceName", source)
+        self.assertIn("account_id = :'account_id' AND terminal_id = :'terminal_id'", source)
+        self.assertNotIn("account_id = '$accountId'", source)
+        self.assertNotIn("terminal_id = '$terminalId'", source)
         stopped_wait = source.index("$worker.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped")
         stop_timestamp = source.index('$record.worker_stopped_at_utc = [DateTimeOffset]::UtcNow.ToString("o")')
         self.assertLess(stopped_wait, stop_timestamp, "record stop time only after Windows confirms stopped state")
@@ -27,10 +30,10 @@ class RestartVerificationContractTests(unittest.TestCase):
     def test_verifies_sequence_continuity_and_fresh_reconciliation(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         for required in (
-            "pre_stop_market_sequence", "post_restart_market_sequence",
-            "post_restart_reconciliation_sequence",
+            "pre_stop_market_sequence", "post_start_baseline_market_sequence", "post_restart_market_sequence",
+            "post_restart_reconciliation_sequence", "post_restart_sequence_aligned",
             "market sequence", "sequence_advanced",
-            "post_restart_reconciliation_fresh", "PASS_RESTART_RECOVERY",
+            "post_restart_reconciliation_fresh", "post_restart_sequence_aligned", "PASS_RESTART_RECOVERY",
             "mt5-demo-smoke.ps1",
         ):
             with self.subTest(required=required):
@@ -39,6 +42,9 @@ class RestartVerificationContractTests(unittest.TestCase):
     def test_evidence_is_written_even_on_failure_and_no_order_calls(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("finally", source)
+        self.assertIn("market.sequence = reconciliation.reconciled_sequence", source)
+        self.assertIn("No new market/reconciliation pair arrived after SCM confirmed worker restart", source)
+        self.assertIn("Baseline market and reconciliation snapshots do not share the same sequence", source)
         self.assertIn("Write-Evidence $record", source)
         for forbidden in ("mt5.order_send(", "mt5.order_delete(", "order_modify("):
             with self.subTest(forbidden=forbidden):

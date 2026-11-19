@@ -23,9 +23,13 @@ def passing_record():
         "worker_stopped_at_utc": "2026-10-27T10:01:00+00:00",
         "worker_restarted_at_utc": "2026-10-27T10:01:10+00:00",
         "daemon_remained_running": True,
+        "worker_restored": True,
+        "worker_restore_error": None,
         "pre_stop_market_sequence": 100,
+        "post_start_baseline_market_sequence": 101,
         "post_restart_market_sequence": 102,
         "post_restart_reconciliation_sequence": 102,
+        "post_restart_sequence_aligned": True,
         "post_restart_market_captured_at": "2026-10-27T10:01:15+00:00",
         "post_restart_reconciliation_captured_at": "2026-10-27T10:01:16+00:00",
         "sequence_advanced": True,
@@ -42,17 +46,17 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
 
     def test_rejects_sequence_that_did_not_advance_even_if_flag_is_true(self):
         record = passing_record()
-        record["post_restart_market_sequence"] = 100
+        record["post_restart_market_sequence"] = 101
         self.assertIn(
-            "post_restart_market_sequence must exceed pre_stop_market_sequence",
+            "post_restart_market_sequence must exceed post_start_baseline_market_sequence",
             MODULE.validate(record),
         )
 
-    def test_rejects_reconciliation_timestamp_before_worker_stop(self):
+    def test_rejects_reconciliation_timestamp_before_worker_restart(self):
         record = passing_record()
         record["post_restart_reconciliation_captured_at"] = "2026-10-27T10:00:59+00:00"
         self.assertIn(
-            "post_restart_reconciliation_captured_at must be at or after worker_stopped_at_utc",
+            "post_restart_reconciliation_captured_at must be at or after worker_restarted_at_utc",
             MODULE.validate(record),
         )
 
@@ -77,6 +81,50 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
         record["failure"] = "worker never recovered"
         self.assertIn(
             "failure field must be absent or empty for a passing record",
+            MODULE.validate(record),
+        )
+
+
+    def test_rejects_sequence_not_advanced_after_service_restart(self):
+        record = passing_record()
+        record["post_restart_market_sequence"] = 101
+        record["post_restart_reconciliation_sequence"] = 101
+        self.assertIn(
+            "post_restart_market_sequence must exceed post_start_baseline_market_sequence",
+            MODULE.validate(record),
+        )
+
+    def test_rejects_snapshot_captured_before_worker_is_running(self):
+        record = passing_record()
+        record["post_restart_market_captured_at"] = "2026-10-27T10:01:09+00:00"
+        self.assertIn(
+            "post_restart_market_captured_at must be at or after worker_restarted_at_utc",
+            MODULE.validate(record),
+        )
+
+    def test_rejects_worker_not_restored(self):
+        record = passing_record()
+        record["worker_restored"] = False
+        self.assertIn("worker_restored must be true", MODULE.validate(record))
+
+    def test_rejects_worker_restore_error(self):
+        record = passing_record()
+        record["worker_restore_error"] = "SCM failure"
+        self.assertIn("worker_restore_error must be absent or empty", MODULE.validate(record))
+
+    def test_rejects_market_and_reconciliation_sequence_mismatch(self):
+        record = passing_record()
+        record["post_restart_reconciliation_sequence"] = 101
+        self.assertIn(
+            "post-restart market and reconciliation sequences must match",
+            MODULE.validate(record),
+        )
+
+    def test_rejects_unaligned_sequence_flag(self):
+        record = passing_record()
+        record["post_restart_sequence_aligned"] = False
+        self.assertIn(
+            "post_restart_sequence_aligned must be true",
             MODULE.validate(record),
         )
 

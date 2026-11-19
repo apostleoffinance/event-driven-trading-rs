@@ -166,6 +166,32 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("sequence.json", cfg.sequence_file)
         self.assertTrue(cfg.require_demo)
 
+    def test_restarted_worker_loads_rotated_dpapi_secret(self):
+        environment = {
+            "MT5_LOGIN": "123456",
+            "MT5_ACCOUNT_ID": "quant-account-1",
+            "MT5_TERMINAL_ID": "terminal-1",
+            "MT5_EXPECTED_ACCOUNT_CURRENCY": "USD",
+            "MT5_BRIDGE_HOST": "127.0.0.1",
+            "MT5_SYMBOLS": "EURUSD",
+            "MT5_PASSWORD_DPAPI_FILE": "protected.dpapi",
+            "MT5_TERMINAL_PATH": "C:/terminal64.exe",
+            "MT5_SERVER": "Broker-Demo",
+            "MT5_BRIDGE_CA_FILE": "ca.pem",
+            "MT5_BRIDGE_CLIENT_CERT": "client.pem",
+            "MT5_BRIDGE_CLIENT_KEY": "client.key",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with patch(
+                "mt5_adapter.worker.read_windows_dpapi_secret",
+                side_effect=["old-rotated-secret", "new-rotated-secret"],
+            ) as read_secret:
+                before_restart = Config.from_env()
+                after_restart = Config.from_env()
+        self.assertEqual(before_restart.password, "old-rotated-secret")
+        self.assertEqual(after_restart.password, "new-rotated-secret")
+        self.assertEqual(read_secret.call_count, 2)
+
     def test_dpapi_secret_loader_refuses_non_windows_hosts(self):
         if sys.platform != "win32":
             with self.assertRaisesRegex(AdapterError, "only be decrypted on Windows"):

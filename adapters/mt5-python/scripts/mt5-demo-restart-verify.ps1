@@ -34,13 +34,14 @@ WITH market AS (
 ), reconciliation AS (
   SELECT reconciled_sequence, captured_at
   FROM public.mt5_bridge_reconciliation_snapshots
-  WHERE account_id = '$accountId' AND terminal_id = '$terminalId'
+  WHERE account_id = :'account_id' AND terminal_id = :'terminal_id'
   ORDER BY created_at DESC LIMIT 1
 )
 SELECT json_build_object(
   'market_sequence', market.sequence,
   'market_captured_at', market.captured_at,
   'reconciliation_sequence', reconciliation.reconciled_sequence,
+  'sequence_aligned', (market.sequence = reconciliation.reconciled_sequence),
   'reconciliation_captured_at', reconciliation.captured_at
 )::text
 FROM market CROSS JOIN reconciliation;
@@ -77,8 +78,10 @@ $record = [ordered]@{
     worker_restarted_at_utc = $null
     daemon_remained_running = $false
     pre_stop_market_sequence = $null
+    post_start_baseline_market_sequence = $null
     post_restart_market_sequence = $null
     post_restart_reconciliation_sequence = $null
+    post_restart_sequence_aligned = $false
     post_restart_market_captured_at = $null
     post_restart_reconciliation_captured_at = $null
     sequence_advanced = $false
@@ -95,6 +98,7 @@ try {
     $record.first_smoke = "PASS"
     $before = Get-LatestSnapshot
     if ($null -eq $before) { throw "No persisted market-data/reconciliation pair found before worker restart." }
+    if (-not [bool]$before.sequence_aligned) { throw "Baseline market and reconciliation snapshots do not share the same sequence." }
     $record.pre_stop_market_sequence = [long]$before.market_sequence
     Write-Host ("Baseline market sequence: {0}; captured at {1}" -f $before.market_sequence, $before.market_captured_at)
 
@@ -107,14 +111,26 @@ try {
     $record.daemon_remained_running = $true
     Write-Host ("Worker stopped; daemon remains Running at {0}" -f [DateTimeOffset]::UtcNow.ToString("o"))
 
-    $record.worker_restarted_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     Start-Service -Name $WorkerServiceName -ErrorAction Stop
     $worker = Get-Service -Name $WorkerServiceName
     $worker.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(30))
+    # Record restart only after SCM confirms the service is Running.
+    $record.worker_restarted_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     Write-Host ("Worker service started at {0}; waiting for new market data and reconciliation." -f $record.worker_restarted_at_utc)
 
+    $restartTime = [DateTimeOffset]::Parse($record.worker_restarted_at_utc)
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
-    $stopTime = [DateTimeOffset]::Parse($record.worker_stopped_at_utc)
+    $restartBaseline = $null
+    do {
+        $restartBaseline = Get-LatestSnapshot
+        if ($null -ne $restartBaseline -and [bool]$restartBaseline.sequence_aligned) { break }
+        Start-Sleep -Seconds $PollSeconds
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    if ($null -eq $restartBaseline -or -not [bool]$restartBaseline.sequence_aligned) {
+        throw "No sequence-aligned snapshot pair was available after SCM confirmed worker restart."
+    }
+    $record.post_start_baseline_market_sequence = [long]$restartBaseline.market_sequence
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $latest = $null
     do {
         $latest = Get-LatestSnapshot
@@ -122,8 +138,10 @@ try {
             $marketAt = [DateTimeOffset]::Parse([string]$latest.market_captured_at)
             $reconAt = [DateTimeOffset]::Parse([string]$latest.reconciliation_captured_at)
             $advanced = [long]$latest.market_sequence -gt [long]$record.pre_stop_market_sequence
-            $freshAfterRestart = $marketAt -ge $stopTime -and $reconAt -ge $stopTime
-            if ($advanced -and $freshAfterRestart) { break }
+            $advancedAfterStart = [long]$latest.market_sequence -gt [long]$record.post_start_baseline_market_sequence
+            $sequenceAligned = [bool]$latest.sequence_aligned
+            $freshAfterRestart = $marketAt -ge $restartTime -and $reconAt -ge $restartTime
+            if ($advanced -and $advancedAfterStart -and $sequenceAligned -and $freshAfterRestart) { break }
         }
         Start-Sleep -Seconds $PollSeconds
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
@@ -133,16 +151,19 @@ try {
     $reconAt = [DateTimeOffset]::Parse([string]$latest.reconciliation_captured_at)
     $record.post_restart_market_sequence = [long]$latest.market_sequence
     $record.post_restart_reconciliation_sequence = [long]$latest.reconciliation_sequence
+    $record.post_restart_sequence_aligned = [bool]$latest.sequence_aligned
     $record.post_restart_market_captured_at = $marketAt.ToString("o")
     $record.post_restart_reconciliation_captured_at = $reconAt.ToString("o")
     $record.sequence_advanced = ([long]$latest.market_sequence -gt [long]$record.pre_stop_market_sequence)
-    $record.post_restart_reconciliation_fresh = ($marketAt -ge $stopTime -and $reconAt -ge $stopTime)
+    $record.post_restart_reconciliation_fresh = ($marketAt -ge $restartTime -and $reconAt -ge $restartTime)
+    if (-not $record.post_restart_sequence_aligned) { throw "Market-data and reconciliation snapshots do not share the same sequence after worker restart." }
     if (-not $record.sequence_advanced) { throw "Market-data sequence did not advance across worker restart." }
-    if (-not $record.post_restart_reconciliation_fresh) { throw "Fresh reconciliation did not persist after worker restart." }
+    if ([long]$latest.market_sequence -le [long]$record.post_start_baseline_market_sequence) { throw "No new market/reconciliation pair arrived after SCM confirmed worker restart." }
+    if (-not $record.post_restart_reconciliation_fresh) { throw "Fresh reconciliation did not persist after SCM confirmed worker restart." }
     $daemon.Refresh()
     if ($daemon.Status -ne "Running") { throw "Daemon is not running after worker recovery." }
 
-    Write-Host ("PASS: market sequence {0} -> {1}; reconciliation sequence {2}; snapshots captured after worker stop." -f $record.pre_stop_market_sequence, $record.post_restart_market_sequence, $record.post_restart_reconciliation_sequence)
+    Write-Host ("PASS: market sequence {0} -> {1}; reconciliation sequence {2}; snapshots captured after confirmed worker restart." -f $record.pre_stop_market_sequence, $record.post_restart_market_sequence, $record.post_restart_reconciliation_sequence)
     Invoke-Smoke "SECOND"
     $record.second_smoke = "PASS"
     $record.result = "PASS_RESTART_RECOVERY"
