@@ -43,7 +43,7 @@ def passing_record():
             "broker_server_ref": "server-ref",
             "terminal_id": "terminal-01",
             "observed_server": "Broker-Demo",
-            "observed_login_sha256": "5" * 64,
+            "observed_login_hmac_sha256": "5" * 64,
         },
         "host": {
             "windows_edition": "Windows Server",
@@ -110,6 +110,14 @@ class DemoAcceptanceEvidenceTests(unittest.TestCase):
         record = passing_record()
         record["artifacts"]["private_key"] = "never-allow-this"
         self.assertTrue(any("prohibited secret-bearing field" in e for e in MODULE.validate(record)))
+
+    def test_rejects_invalid_source_commit_sha_length(self):
+        record = passing_record()
+        record["source_commit_sha"] = "a" * 64
+        self.assertIn(
+            "source_commit_sha must be a lowercase 40-character Git commit SHA",
+            MODULE.validate(record),
+        )
 
     def test_rejects_dirty_source_tree(self):
         record = passing_record()
