@@ -33,6 +33,9 @@ class Mt5RegistryContractTests(unittest.TestCase):
         self.assertIn("BEFORE INSERT ON broker_worker_assignments", self.sql)
         self.assertIn("slot.status <> 'READY'", self.sql)
         self.assertIn("slot.worker_ref <> NEW.worker_ref", self.sql)
+        self.assertIn("slot.organization_id <> NEW.organization_id", self.sql)
+        self.assertIn("slot.external_broker_account_id <> NEW.external_broker_account_id", self.sql)
+        self.assertIn("binding.status='VERIFIED'", self.sql)
         self.assertIn("slot.broker_server_id <> NEW.broker_server_id", self.sql)
 
     def test_existing_assignments_are_not_silently_backfilled(self):

@@ -18,9 +18,17 @@ CREATE TABLE mt5_gateway_hosts (
 
 CREATE INDEX mt5_gateway_hosts_status_region_idx ON mt5_gateway_hosts(status,region);
 
+ALTER TABLE trading_account_broker_bindings
+    ADD CONSTRAINT trading_account_broker_binding_scope_unique
+    UNIQUE (id,organization_id,quant_account_id,external_broker_account_id);
+
 CREATE TABLE mt5_terminal_slots (
     id TEXT PRIMARY KEY CHECK (id ~ '^[a-z0-9][a-z0-9._-]{0,127}$'),
     gateway_host_id TEXT NOT NULL REFERENCES mt5_gateway_hosts(id) ON DELETE RESTRICT,
+    organization_id TEXT NOT NULL,
+    quant_account_id TEXT NOT NULL,
+    binding_id TEXT NOT NULL,
+    external_broker_account_id TEXT NOT NULL,
     broker_id TEXT NOT NULL,
     broker_server_id TEXT NOT NULL,
     terminal_id TEXT NOT NULL CHECK (length(trim(terminal_id)) BETWEEN 1 AND 128),
@@ -33,6 +41,8 @@ CREATE TABLE mt5_terminal_slots (
     revision BIGINT NOT NULL DEFAULT 1 CHECK (revision > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (binding_id,organization_id,quant_account_id,external_broker_account_id)
+        REFERENCES trading_account_broker_bindings(id,organization_id,quant_account_id,external_broker_account_id) ON DELETE RESTRICT,
     FOREIGN KEY (broker_server_id,broker_id)
         REFERENCES broker_servers(id,broker_id) ON DELETE RESTRICT,
     UNIQUE (gateway_host_id,terminal_id)
@@ -70,6 +80,10 @@ BEGIN
 
     IF NOT FOUND OR slot.status <> 'READY'
        OR slot.worker_ref <> NEW.worker_ref
+       OR slot.organization_id <> NEW.organization_id
+       OR slot.quant_account_id <> NEW.quant_account_id
+       OR slot.binding_id <> NEW.binding_id
+       OR slot.external_broker_account_id <> NEW.external_broker_account_id
        OR slot.broker_id <> NEW.broker_id
        OR slot.broker_server_id <> NEW.broker_server_id THEN
         RAISE EXCEPTION 'worker assignment does not match a READY isolated MT5 terminal slot';
@@ -101,15 +115,33 @@ CREATE FUNCTION enforce_mt5_terminal_slot_capacity() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'UPDATE' AND
-       ROW(NEW.gateway_host_id,NEW.terminal_id,NEW.terminal_profile_ref,
+       ROW(NEW.gateway_host_id,NEW.organization_id,NEW.quant_account_id,NEW.binding_id,
+           NEW.external_broker_account_id,NEW.terminal_id,NEW.terminal_profile_ref,
            NEW.service_identity_ref,NEW.worker_ref,NEW.broker_id,NEW.broker_server_id)
        IS DISTINCT FROM
-       ROW(OLD.gateway_host_id,OLD.terminal_id,OLD.terminal_profile_ref,
+       ROW(OLD.gateway_host_id,OLD.organization_id,OLD.quant_account_id,OLD.binding_id,
+           OLD.external_broker_account_id,OLD.terminal_id,OLD.terminal_profile_ref,
            OLD.service_identity_ref,OLD.worker_ref,OLD.broker_id,OLD.broker_server_id) THEN
         RAISE EXCEPTION 'MT5 terminal slot identity is immutable';
     END IF;
 
     IF TG_OP = 'INSERT' THEN
+        IF NOT EXISTS (
+            SELECT 1
+              FROM trading_account_broker_bindings binding
+              JOIN external_broker_accounts external_account
+                ON external_account.id=binding.external_broker_account_id
+             WHERE binding.id=NEW.binding_id
+               AND binding.organization_id=NEW.organization_id
+               AND binding.quant_account_id=NEW.quant_account_id
+               AND binding.external_broker_account_id=NEW.external_broker_account_id
+               AND binding.status='VERIFIED'
+               AND external_account.verification_status='VERIFIED'
+               AND external_account.broker_id=NEW.broker_id
+               AND external_account.broker_server_id=NEW.broker_server_id
+        ) THEN
+            RAISE EXCEPTION 'MT5 terminal slot requires an exactly matching verified broker binding';
+        END IF;
         IF NEW.status <> 'DISABLED' THEN
             UPDATE mt5_gateway_hosts
                SET registered_terminal_slots=registered_terminal_slots+1,
@@ -139,6 +171,9 @@ BEGIN
             RAISE EXCEPTION 'MT5 gateway is unavailable or terminal capacity has been reached';
         END IF;
     ELSIF OLD.status <> 'DISABLED' AND NEW.status = 'DISABLED' THEN
+        IF EXISTS (SELECT 1 FROM broker_worker_assignments WHERE terminal_slot_id=OLD.id AND status='ACTIVE') THEN
+            RAISE EXCEPTION 'active worker assignment must be revoked before disabling its terminal slot';
+        END IF;
         UPDATE mt5_gateway_hosts
            SET registered_terminal_slots=registered_terminal_slots-1,
                updated_at=NOW()

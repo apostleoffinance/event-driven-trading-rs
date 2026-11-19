@@ -4,23 +4,23 @@
 
 ## Purpose
 
-Represent EdgeNest-owned gateway hosts and isolated MT5 terminal slots as durable records. A host has an explicit terminal capacity. Each slot has a unique terminal ID, protected profile reference, OS service-identity reference and mTLS worker principal. A worker assignment can be linked to a slot only when its worker, broker and server match a READY slot.
+Represent EdgeNest-owned gateway hosts and isolated MT5 terminal slots as durable records. A host has an explicit terminal capacity. Each slot has a unique terminal ID, protected profile reference, OS service-identity reference and mTLS worker principal. A slot is created only for an exact VERIFIED binding. A worker assignment can be linked to it only when its organization, Quant account, binding, external account, worker, broker and server all match a READY slot.
 
 Customers remain outside the infrastructure lifecycle: EdgeNest provisions, monitors, patches and replaces gateway hosts. This registry is an internal control-plane concern.
 
 ## Data model
 
 - `mt5_gateway_hosts`: opaque host reference, provider/region metadata, lifecycle state and bounded capacity.
-- `mt5_terminal_slots`: gateway association, broker/server association, unique terminal/profile/service/worker identities, lifecycle state and isolation schema version.
+- `mt5_terminal_slots`: gateway association, exact organization/Quant account/verified broker-binding scope, broker/server association, unique terminal/profile/service/worker identities, lifecycle state and isolation schema version.
 - `broker_worker_assignments.terminal_slot_id`: optional compatibility link. Existing assignments are not backfilled. New linked assignments are checked at insert time against a READY slot.
 
-The database prevents duplicate terminal IDs on a host, duplicate profile/service/worker identities, active assignments sharing a slot, over-capacity host registration, identity mutation and deletion of registry history.
+The database prevents duplicate terminal IDs on a host, duplicate profile/service/worker identities, active assignments sharing a slot, cross-account slot reuse, unverified binding enrollment, over-capacity host registration, identity mutation and deletion of registry history.
 
 ## Isolation rules
 
 1. One external broker account per terminal slot.
 2. A slot never shares its MT5 profile/data directory, OS service identity, worker principal, client certificate, sequence/checkpoint state or broker secret with another slot.
-3. Worker identity is unique across slots. A worker assignment must match the slot's worker, broker and server.
+3. Worker identity is unique across slots. A worker assignment must match the slot's organization, Quant account, binding, external broker account, worker, broker and server.
 4. Host capacity defaults to one. Increasing it is an explicit operator decision after CPU/RAM/disk/network and broker-connection measurements. The schema maximum is a guardrail, not a performance promise.
 5. Host replacement or slot reassignment requires a new reviewed registry revision and fresh fencing/lease acceptance. Do not repoint an active slot silently.
 6. Gateway/slot registry status is not itself an admission permit. Runtime ingestion must be upgraded to read and enforce slot status/identity before registry-backed slots are used in production.
