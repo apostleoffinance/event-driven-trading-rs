@@ -57,7 +57,7 @@ def validate(record: Any) -> list[str]:
     if record.get("worker_restore_error") not in (None, ""):
         errors.append("worker_restore_error must be absent or empty")
 
-    sequence_fields = ("pre_stop_market_sequence", "post_restart_market_sequence",
+    sequence_fields = ("pre_stop_market_sequence", "post_start_baseline_market_sequence", "post_restart_market_sequence",
                        "post_restart_reconciliation_sequence")
     sequences: dict[str, int] = {}
     for field in sequence_fields:
@@ -70,6 +70,10 @@ def validate(record: Any) -> list[str]:
             "post_restart_market_sequence" in sequences and
             sequences["post_restart_market_sequence"] <= sequences["pre_stop_market_sequence"]):
         errors.append("post_restart_market_sequence must exceed pre_stop_market_sequence")
+    if ("post_start_baseline_market_sequence" in sequences and
+            "post_restart_market_sequence" in sequences and
+            sequences["post_restart_market_sequence"] <= sequences["post_start_baseline_market_sequence"]):
+        errors.append("post_restart_market_sequence must exceed post_start_baseline_market_sequence")
     if ("post_restart_market_sequence" in sequences and
             "post_restart_reconciliation_sequence" in sequences and
             sequences["post_restart_market_sequence"] != sequences["post_restart_reconciliation_sequence"]):
