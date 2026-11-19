@@ -79,7 +79,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or $fingerprintOutput -notmatch '^[0-9a-f]{64}$') {
         throw "Could not calculate the public worker certificate fingerprint."
     }
-    $pythonOutput = & $PythonPath -c 'import json, platform, sys, MetaTrader5; print(json.dumps({"python_version":platform.python_version(),"python_architecture":platform.architecture()[0],"metatrader5_package_version":getattr(MetaTrader5,"__version__","unknown")}))'
+    $pythonOutput = & $PythonPath -c 'import importlib.metadata, json, platform; print(json.dumps({"python_version":platform.python_version(),"python_architecture":platform.architecture()[0],"metatrader5_package_version":importlib.metadata.version("MetaTrader5")}))'
     if ($LASTEXITCODE -ne 0) {
         throw "Could not inspect the official MetaTrader5 Python package."
     }
