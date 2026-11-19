@@ -150,6 +150,7 @@ def validate(record: Any) -> list[str]:
         if item.get("result") != "PASS":
             errors.append(f"{prefix}result must be PASS")
         _required_text(item, "evidence_ref", errors, prefix)
+        _sha256(item, "evidence_sha256", errors, prefix)
         _utc_timestamp(item.get("observed_at_utc"), prefix + "observed_at_utc", errors)
 
     missing = sorted(REQUIRED_TEST_IDS - seen)
