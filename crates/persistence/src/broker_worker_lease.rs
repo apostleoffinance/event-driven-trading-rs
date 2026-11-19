@@ -74,8 +74,7 @@ fn validate_scope(
         .iter()
         .any(|value| value.trim().is_empty() || value.trim() != *value)
         || token.len() < 32
-        || lease_seconds < MIN_LEASE_SECONDS
-        || lease_seconds > MAX_LEASE_SECONDS
+        || !(MIN_LEASE_SECONDS..=MAX_LEASE_SECONDS).contains(&lease_seconds)
     {
         return Err(PersistenceError::Other(
             "invalid MT5 worker lease scope, token, or duration".into(),
