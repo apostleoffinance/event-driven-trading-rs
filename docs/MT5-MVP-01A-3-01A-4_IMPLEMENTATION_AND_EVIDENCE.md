@@ -42,7 +42,7 @@ The Windows acceptance plan defines the 21 required checks. After the target hos
 - Broker environment `DEMO`, Quant environment `PAPER`, and `execution_enabled: false`.
 - Immutable source commit and SHA-256 hashes for worker, daemon, terminal and worker public certificate.
 - Worker/daemon versions, terminal build, Python architecture/version, official MetaTrader5 package version and config revision.
-- Registry references and binding revision; store only SHA-256 of the observed broker login, never the raw login.
+- Registry references and binding revision; store only a keyed HMAC-SHA-256 reference for the observed broker login, never the raw login or the HMAC key.
 - Windows edition/build, architecture, service identity SID and clean source-tree status.
 - Exactly one PASS evidence entry for each acceptance test ID 1–21, with UTC observation timestamp and a restricted evidence reference.
 
