@@ -52,6 +52,10 @@ def validate(record: Any) -> list[str]:
         errors.append("post_restart_reconciliation_fresh must be true")
     if record.get("post_restart_sequence_aligned") is not True:
         errors.append("post_restart_sequence_aligned must be true")
+    if record.get("worker_restored") is not True:
+        errors.append("worker_restored must be true")
+    if record.get("worker_restore_error") not in (None, ""):
+        errors.append("worker_restore_error must be absent or empty")
 
     sequence_fields = ("pre_stop_market_sequence", "post_restart_market_sequence",
                        "post_restart_reconciliation_sequence")
@@ -84,9 +88,9 @@ def validate(record: Any) -> list[str]:
         if timestamps["worker_restarted_at_utc"] < timestamps["worker_stopped_at_utc"]:
             errors.append("worker_restarted_at_utc precedes worker_stopped_at_utc")
     for field in ("post_restart_market_captured_at", "post_restart_reconciliation_captured_at"):
-        if field in timestamps and "worker_stopped_at_utc" in timestamps:
-            if timestamps[field] < timestamps["worker_stopped_at_utc"]:
-                errors.append(f"{field} must be at or after worker_stopped_at_utc")
+        if field in timestamps and "worker_restarted_at_utc" in timestamps:
+            if timestamps[field] < timestamps["worker_restarted_at_utc"]:
+                errors.append(f"{field} must be at or after worker_restarted_at_utc")
     if "finished_at_utc" in timestamps and "started_at_utc" in timestamps:
         if timestamps["finished_at_utc"] < timestamps["started_at_utc"]:
             errors.append("finished_at_utc precedes started_at_utc")
