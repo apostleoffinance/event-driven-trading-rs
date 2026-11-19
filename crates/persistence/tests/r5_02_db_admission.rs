@@ -397,7 +397,6 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
             .is_err()
     );
 }
-
 #[sqlx::test]
 async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(pool: PgPool) {
     migrate(&pool).await.unwrap();
