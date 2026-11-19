@@ -110,11 +110,8 @@ fn make_pki() -> Result<TestPki, Box<dyn Error>> {
     let rotated_client_key = KeyPair::generate()?;
     let mut rotated_client_params = CertificateParams::default();
     rotated_client_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
-    let rotated_client_cert = rotated_client_params.signed_by(
-        &rotated_client_key,
-        &trusted_ca,
-        &trusted_ca_key,
-    )?;
+    let rotated_client_cert =
+        rotated_client_params.signed_by(&rotated_client_key, &trusted_ca, &trusted_ca_key)?;
 
     let untrusted_ca_key = KeyPair::generate()?;
     let mut untrusted_ca_params = CertificateParams::default();
@@ -151,9 +148,7 @@ fn make_pki() -> Result<TestPki, Box<dyn Error>> {
             .with_root_certificates(roots.clone())
             .with_client_auth_cert(
                 vec![CertificateDer::from(rotated_client_cert.der().to_vec())],
-                PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
-                    rotated_client_key.serialize_der(),
-                )),
+                PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(rotated_client_key.serialize_der())),
             )?,
     );
 
@@ -458,8 +453,7 @@ async fn certificate_rotation_accepts_new_identity_and_rejects_retired_fingerpri
 
     // The new certificate succeeds after its fingerprint is registered.
     let rotated_config = server_config(&pki, pki.rotated_client_fingerprint.clone())?;
-    let (server, _client, _) =
-        establish(rotated_config, pki.rotated_client_config.clone()).await?;
+    let (server, _client, _) = establish(rotated_config, pki.rotated_client_config.clone()).await?;
     assert_eq!(
         server.principal().certificate_sha256,
         pki.rotated_client_fingerprint
@@ -479,8 +473,14 @@ async fn certificate_rotation_accepts_new_identity_and_rejects_retired_fingerpri
     let name = ServerName::try_from("localhost")?;
     let client_result = connector.connect(name, stream).await;
     let server_result = server_task.await?;
-    assert!(client_result.is_ok(), "old cert remains CA-trusted during controlled overlap");
-    assert!(server_result.is_err(), "retired fingerprint must not authenticate");
+    assert!(
+        client_result.is_ok(),
+        "old cert remains CA-trusted during controlled overlap"
+    );
+    assert!(
+        server_result.is_err(),
+        "retired fingerprint must not authenticate"
+    );
     Ok(())
 }
 
