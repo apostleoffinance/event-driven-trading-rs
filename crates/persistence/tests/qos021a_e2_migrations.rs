@@ -149,7 +149,7 @@ async fn complete_journal_first_history_receives_forward_corrections(pool: PgPoo
         .collect::<Vec<_>>();
     assert_eq!(
         expected_forward_versions.len(),
-        8,
+        9,
         "the journal-first fixture should receive every current forward migration",
     );
 
