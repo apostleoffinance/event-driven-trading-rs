@@ -23,7 +23,7 @@ The database prevents duplicate terminal IDs on a host, duplicate profile/servic
 3. Worker identity is unique across slots. A worker assignment must match the slot's organization, Quant account, binding, external broker account, worker, broker and server.
 4. Host capacity defaults to one. Increasing it is an explicit operator decision after CPU/RAM/disk/network and broker-connection measurements. The schema maximum is a guardrail, not a performance promise.
 5. Host replacement or slot reassignment requires a new reviewed registry revision and fresh fencing/lease acceptance. Do not repoint an active slot silently.
-6. Gateway/slot registry status is not itself an admission permit. Runtime ingestion must be upgraded to read and enforce slot status/identity before registry-backed slots are used in production.
+6. Gateway/slot registry status is not itself an admission permit. The MT5 bridge runtime now additionally requires the configured slot and managed gateway to be READY, and checks the exact active assignment and unexpired READY worker session before every telemetry frame. Broker admission and terminal-slot admission are independent checks; both must pass.
 
 ## Broker/server configuration contract
 
@@ -39,13 +39,13 @@ Supported catalogue entries must have:
 
 ## Security and compatibility boundary
 
-This migration adds nullable slot linkage so current single-slot acceptance fixtures and existing assignments remain compatible. It does not backfill records or change the current daemon's admission behavior. The trigger validates slot-backed assignment creation, but existing unlinked assignments continue to work during the transition. Do not activate a second terminal until the daemon admission query, supervisor, lease fencing and recovery path all enforce the slot registry.
+This migration adds nullable slot linkage so current single-slot acceptance fixtures and existing assignments remain compatible. It does not backfill records or change legacy unlinked assignments; the runtime admission path separately rejects any stream whose configured slot is missing, not READY, or does not match the active assignment/session. The trigger validates slot-backed assignment creation. The first 01A deployment must use a linked READY slot; legacy unlinked assignments are not accepted by this managed-slot runtime path.
 
 No credential intake, secret manager integration, Windows provisioning, RDP, live account support or order execution is introduced.
 
 ## Required follow-up before using a second slot
 
-- Update the authenticated worker principal/admission query to require an ACTIVE assignment and READY slot with matching gateway, terminal, broker/server and worker identities.
+- Complete guarded PostgreSQL integration tests for the runtime slot-admission query against the exact disposable QOS-020 lane; the new runtime query is covered by source-contract CI tests but still needs database integration coverage.
 - Bind the daemon's configured terminal ID to the registry slot; reject client/heartbeat substitution.
 - Ensure the worker lease key and persistence scope cannot collide across tenants or slots.
 - Add PostgreSQL integration tests for capacity races, duplicate identities, cross-broker mismatch, stale/revoked slot, and concurrent assignment attempts.
