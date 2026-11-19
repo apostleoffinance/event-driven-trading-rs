@@ -163,7 +163,7 @@ try {
     $daemon.Refresh()
     if ($daemon.Status -ne "Running") { throw "Daemon is not running after worker recovery." }
 
-    Write-Host ("PASS: market sequence {0} -> {1}; reconciliation sequence {2}; snapshots captured after worker stop." -f $record.pre_stop_market_sequence, $record.post_restart_market_sequence, $record.post_restart_reconciliation_sequence)
+    Write-Host ("PASS: market sequence {0} -> {1}; reconciliation sequence {2}; snapshots captured after confirmed worker restart." -f $record.pre_stop_market_sequence, $record.post_restart_market_sequence, $record.post_restart_reconciliation_sequence)
     Invoke-Smoke "SECOND"
     $record.second_smoke = "PASS"
     $record.result = "PASS_RESTART_RECOVERY"
