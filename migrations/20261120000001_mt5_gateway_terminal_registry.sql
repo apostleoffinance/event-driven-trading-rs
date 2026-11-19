@@ -10,6 +10,7 @@ CREATE TABLE mt5_gateway_hosts (
     status TEXT NOT NULL DEFAULT 'PLANNED'
         CHECK (status IN ('PLANNED','PROVISIONING','READY','DEGRADED','DRAINING','DISABLED')),
     terminal_capacity INTEGER NOT NULL DEFAULT 1 CHECK (terminal_capacity BETWEEN 1 AND 128),
+    registered_terminal_slots INTEGER NOT NULL DEFAULT 0 CHECK (registered_terminal_slots >= 0 AND registered_terminal_slots <= terminal_capacity),
     revision BIGINT NOT NULL DEFAULT 1 CHECK (revision > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -84,20 +85,9 @@ CREATE TRIGGER broker_worker_assignment_terminal_slot_guard
 
 CREATE FUNCTION enforce_mt5_gateway_terminal_capacity() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE
-    used_slots INTEGER;
 BEGIN
-    IF TG_OP = 'UPDATE' AND NEW.terminal_capacity < OLD.terminal_capacity THEN
-        SELECT COUNT(*) INTO used_slots
-          FROM mt5_terminal_slots
-         WHERE gateway_host_id = OLD.id AND status <> 'DISABLED';
-        IF NEW.terminal_capacity < used_slots THEN
-            RAISE EXCEPTION 'gateway terminal capacity cannot be lower than its registered active slots';
-        END IF;
-    END IF;
-
-    IF TG_OP = 'INSERT' THEN
-        RETURN NEW;
+    IF NEW.terminal_capacity < OLD.registered_terminal_slots THEN
+        RAISE EXCEPTION 'gateway terminal capacity cannot be lower than its registered slots';
     END IF;
     RETURN NEW;
 END;
@@ -109,9 +99,6 @@ CREATE TRIGGER mt5_gateway_capacity_guard
 
 CREATE FUNCTION enforce_mt5_terminal_slot_capacity() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE
-    host mt5_gateway_hosts%ROWTYPE;
-    used_slots INTEGER;
 BEGIN
     IF TG_OP = 'UPDATE' AND
        ROW(NEW.gateway_host_id,NEW.terminal_id,NEW.terminal_profile_ref,
@@ -122,25 +109,46 @@ BEGIN
         RAISE EXCEPTION 'MT5 terminal slot identity is immutable';
     END IF;
 
-    IF TG_OP = 'INSERT' AND NEW.status <> 'DISABLED' THEN
-        SELECT * INTO host FROM mt5_gateway_hosts WHERE id=NEW.gateway_host_id FOR UPDATE;
-        IF NOT FOUND OR host.status IN ('DRAINING','DISABLED') THEN
-            RAISE EXCEPTION 'MT5 terminal slot requires an available managed gateway host';
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.status <> 'DISABLED' THEN
+            UPDATE mt5_gateway_hosts
+               SET registered_terminal_slots=registered_terminal_slots+1,
+                   updated_at=NOW()
+             WHERE id=NEW.gateway_host_id
+               AND status NOT IN ('DRAINING','DISABLED')
+               AND registered_terminal_slots < terminal_capacity;
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'MT5 gateway is unavailable or terminal capacity has been reached';
+            END IF;
         END IF;
-        SELECT COUNT(*) INTO used_slots
-          FROM mt5_terminal_slots
-         WHERE gateway_host_id=NEW.gateway_host_id AND status <> 'DISABLED';
-        IF used_slots >= host.terminal_capacity THEN
-            RAISE EXCEPTION 'MT5 gateway terminal capacity has been reached';
+        RETURN NEW;
+    END IF;
+
+    IF NEW.revision <> OLD.revision + 1 THEN
+        RAISE EXCEPTION 'MT5 terminal slot status changes require the next revision';
+    END IF;
+
+    IF OLD.status = 'DISABLED' AND NEW.status <> 'DISABLED' THEN
+        UPDATE mt5_gateway_hosts
+           SET registered_terminal_slots=registered_terminal_slots+1,
+               updated_at=NOW()
+         WHERE id=NEW.gateway_host_id
+           AND status NOT IN ('DRAINING','DISABLED')
+           AND registered_terminal_slots < terminal_capacity;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'MT5 gateway is unavailable or terminal capacity has been reached';
+        END IF;
+    ELSIF OLD.status <> 'DISABLED' AND NEW.status = 'DISABLED' THEN
+        UPDATE mt5_gateway_hosts
+           SET registered_terminal_slots=registered_terminal_slots-1,
+               updated_at=NOW()
+         WHERE id=NEW.gateway_host_id AND registered_terminal_slots > 0;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'MT5 gateway terminal slot counter is inconsistent';
         END IF;
     END IF;
 
-    IF TG_OP = 'UPDATE' THEN
-        IF NEW.revision <> OLD.revision + 1 THEN
-            RAISE EXCEPTION 'MT5 terminal slot status changes require the next revision';
-        END IF;
-        NEW.updated_at := NOW();
-    END IF;
+    NEW.updated_at := NOW();
     RETURN NEW;
 END;
 $$;

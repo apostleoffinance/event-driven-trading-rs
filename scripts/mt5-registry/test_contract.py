@@ -26,7 +26,8 @@ class Mt5RegistryContractTests(unittest.TestCase):
 
     def test_capacity_is_bounded_and_enforced(self):
         self.assertIn("terminal_capacity INTEGER NOT NULL DEFAULT 1 CHECK (terminal_capacity BETWEEN 1 AND 128)", self.sql)
-        self.assertIn("gateway terminal capacity has been reached", self.sql)
+        self.assertIn("registered_terminal_slots=registered_terminal_slots+1", self.sql)
+        self.assertIn("registered_terminal_slots < terminal_capacity", self.sql)
 
     def test_assignment_must_match_ready_slot(self):
         self.assertIn("BEFORE INSERT ON broker_worker_assignments", self.sql)
