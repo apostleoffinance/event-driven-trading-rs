@@ -3,6 +3,7 @@
 mod accounts;
 mod audit;
 mod broker_registry;
+mod broker_worker_lease;
 mod fills;
 mod identity_sessions;
 mod instruments;
@@ -354,6 +355,52 @@ impl TradingStore {
             reason,
         )
         .await
+    }
+
+    /// Acquire the unique durable publisher lease for one account/terminal pair.
+    pub async fn acquire_mt5_worker_lease(
+        &self,
+        quant_account_id: &str,
+        terminal_id: &str,
+        binding_id: &str,
+        worker_ref: &str,
+        process_token: &str,
+        lease_seconds: i64,
+    ) -> PersistenceResult<crate::Mt5WorkerLease> {
+        broker_worker_lease::acquire(
+            &self.pool,
+            quant_account_id,
+            terminal_id,
+            binding_id,
+            worker_ref,
+            process_token,
+            lease_seconds,
+        )
+        .await
+    }
+
+    /// Renew the exact live lease; expiry or takeover permanently fences this process.
+    pub async fn renew_mt5_worker_lease(
+        &self,
+        lease: &crate::Mt5WorkerLease,
+        lease_seconds: i64,
+    ) -> PersistenceResult<chrono::DateTime<chrono::Utc>> {
+        broker_worker_lease::renew(&self.pool, lease, lease_seconds).await
+    }
+
+    pub async fn validate_mt5_worker_lease(
+        &self,
+        lease: &crate::Mt5WorkerLease,
+    ) -> PersistenceResult<()> {
+        broker_worker_lease::validate(&self.pool, lease).await
+    }
+
+    /// Compare-and-set release; stale owners cannot release a successor's lease.
+    pub async fn release_mt5_worker_lease(
+        &self,
+        lease: &crate::Mt5WorkerLease,
+    ) -> PersistenceResult<bool> {
+        broker_worker_lease::release(&self.pool, lease).await
     }
 
     /// Atomically reserve a durable MT5 client-order ID before transport send.
