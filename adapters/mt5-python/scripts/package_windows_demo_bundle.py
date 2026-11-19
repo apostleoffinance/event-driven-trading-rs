@@ -21,8 +21,6 @@ INCLUDE_FILES = (
     "adapters/mt5-python/pyproject.toml",
     "adapters/mt5-python/README.md",
     "adapters/mt5-python/mt5_adapter/__init__.py",
-    "adapters/mt5-python/mt5_adapter/worker.py",
-    "adapters/mt5-python/mt5_adapter/windows_instance.py",
     "adapters/mt5-python/scripts/mt5-windows-deployment-preflight.ps1",
     "adapters/mt5-python/scripts/mt5-demo-smoke.ps1",
     "adapters/mt5-python/scripts/mt5-demo-restart-verify.ps1",
@@ -137,6 +135,10 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
         destination = staging / item
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(root / item, destination)
+    for source in adapter_files:
+        destination = staging / source.relative_to(root)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
     (staging / "manifest/release-manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
