@@ -6,7 +6,9 @@ use domain::broker_registry::{
     BrokerAdmissionRequest,
 };
 use domain::{EntitlementStatus, Organization, OrganizationId};
-use persistence::{evaluate_persisted_broker_admission, migrate, validate_ready_mt5_terminal_slot, TradingStore};
+use persistence::{
+    evaluate_persisted_broker_admission, migrate, validate_ready_mt5_terminal_slot, TradingStore,
+};
 use sqlx::PgPool;
 
 async fn insert_user(pool: &PgPool, id: &str) {
