@@ -39,9 +39,9 @@ def _walk_for_secret_fields(value: Any, path: str = "$") -> list[str]:
     elif isinstance(value, str):
         if "-----BEGIN " in value and "PRIVATE KEY-----" in value:
             errors.append(f"{path} contains a PEM private-key marker")
-        if re.search(r"(?i)\\bpostgres(?:ql)?://\\S+", value):
+        if re.search(r"(?i)\bpostgres(?:ql)?://\S+", value):
             errors.append(f"{path} contains a database connection URI")
-        if re.search(r"(?i)\\b(password|passwd|pwd|client_secret|access_token|refresh_token)\\s*[:=]\\s*\\S+", value):
+        if re.search(r"(?i)\b(password|passwd|pwd|client_secret|access_token|refresh_token)\s*[:=]\s*\S+", value):
             errors.append(f"{path} appears to contain a credential assignment")
     return errors
 
