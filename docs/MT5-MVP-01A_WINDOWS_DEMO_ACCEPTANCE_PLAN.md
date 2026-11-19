@@ -23,6 +23,7 @@ The daemon requires these registry references in its protected service configura
 - `MT5_EXTERNAL_ACCOUNT_ID`: opaque external broker-account registry ID.
 - `MT5_BINDING_ID`: verified QuantOS-to-broker binding ID.
 - `MT5_BROKER_ID` and `MT5_BROKER_SERVER_ID`: canonical registry IDs, not display labels.
+- `MT5_TERMINAL_SLOT_ID`: exact EdgeNest-managed terminal slot whose status and host must both be `READY`.
 
 The worker's mTLS leaf-certificate SHA-256 fingerprint is the immutable `worker_ref`. Provision the same lowercase fingerprint as a non-human service principal ID in `identity_users`, give that service principal an active membership in the owning organization, and use the same value in `broker_worker_assignments.worker_ref`. The assignment must be unique and in scope for the organization, QuantOS account, binding, external account, broker and server. Its session must be READY and unexpired. The service principal is the authenticated actor for the read-only admission check because the certificate authenticates that identity.
 

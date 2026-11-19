@@ -64,6 +64,12 @@ The daemon reads these environment variables:
 | MT5_TERMINAL_ID | Expected terminal identity; must match the worker |
 | MT5_SERVER | Exact broker server string; must match the worker |
 | MT5_ACCOUNT_ID | Exact Rust account ID sent in worker frames |
+| MT5_ORGANIZATION_ID | Owning organization registry ID |
+| MT5_EXTERNAL_ACCOUNT_ID | Opaque external broker-account registry ID; never the numeric login |
+| MT5_BINDING_ID | Exact verified QuantOS-to-broker binding ID |
+| MT5_BROKER_ID | Canonical broker registry ID |
+| MT5_BROKER_SERVER_ID | Canonical broker-server registry ID (not the display/server string) |
+| MT5_TERMINAL_SLOT_ID | Exact READY EdgeNest-managed terminal-slot registry ID; required for frame ingestion |
 | MT5_BRIDGE_ALLOW_REMOTE_BIND | Defaults false; set true only for an intentionally protected non-loopback listener |
 
 Example PowerShell environment setup (use real values; never commit secrets):
@@ -81,7 +87,7 @@ Example PowerShell environment setup (use real values; never commit secrets):
 
 Configure the Python worker to connect to 127.0.0.1:9443 and use a server certificate valid for that name (or configure a matching MT5_BRIDGE_SERVER_NAME). The daemon rejects non-loopback binds unless MT5_BRIDGE_ALLOW_REMOTE_BIND=true is explicit. If remote binding is needed, also apply host firewall rules and private-network controls; mTLS is not a substitute for network restriction.
 
-The Rust principal allow-lists the configured leaf-certificate fingerprint, terminal ID, broker server, and one account ID. The daemon accepts one active worker at a time, persists fresh account/order/position snapshots, and discards failed streams so the worker must reconnect and reconcile. Certificate issuance, private-key storage, and rotation must be managed outside this package.
+The Rust principal allow-lists the configured leaf-certificate fingerprint, terminal ID, broker server, and one account ID. The daemon accepts one active worker at a time and revalidates broker admission plus the exact READY terminal slot, READY managed gateway, active assignment and unexpired READY worker session before every frame. A missing, disabled, degraded or mismatched slot fails closed. It persists fresh account/order/position snapshots and discards failed streams so the worker must reconnect and reconcile. Certificate issuance, private-key storage, and rotation must be managed outside this package.
 
 ## Contract and safety boundary
 
