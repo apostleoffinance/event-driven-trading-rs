@@ -102,6 +102,7 @@ $acceptanceTests = @(
             result = "NOT_RUN"
             observed_at_utc = $null
             evidence_ref = ""
+            evidence_sha256 = ""
         }
     }
 )
