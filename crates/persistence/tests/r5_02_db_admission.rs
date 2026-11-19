@@ -520,9 +520,9 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     assert!(!terminal_mismatch);
 
     sqlx::query("UPDATE mt5_gateway_hosts SET status='DEGRADED' WHERE id='r502-gateway'")
-    .execute(&pool)
-    .await
-    .unwrap();
+        .execute(&pool)
+        .await
+        .unwrap();
     let degraded_host = validate_ready_mt5_terminal_slot(
         &pool,
         "r502-slot",
@@ -539,9 +539,9 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     .unwrap();
     assert!(!degraded_host);
     sqlx::query("UPDATE mt5_gateway_hosts SET status='READY' WHERE id='r502-gateway'")
-    .execute(&pool)
-    .await
-    .unwrap();
+        .execute(&pool)
+        .await
+        .unwrap();
 
     sqlx::query(
         "UPDATE broker_worker_sessions SET ready_until=NOW()-INTERVAL '1 second' WHERE id='r502-slot-session'",
