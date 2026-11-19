@@ -50,6 +50,12 @@ def _sha256(mapping: dict[str, Any], key: str, errors: list[str], prefix: str = 
         errors.append(f"{prefix}{key} must be a lowercase 64-character SHA-256 digest")
 
 
+def _commit_sha(mapping: dict[str, Any], key: str, errors: list[str]) -> None:
+    value = mapping.get(key)
+    if not isinstance(value, str) or not COMMIT_RE.fullmatch(value):
+        errors.append(f"{key} must be a lowercase 40-character Git commit SHA")
+
+
 def _utc_timestamp(value: Any, field: str, errors: list[str]) -> None:
     if not isinstance(value, str) or not value.strip():
         errors.append(f"{field} must be an ISO-8601 UTC timestamp")
@@ -82,7 +88,7 @@ def validate(record: Any) -> list[str]:
     if record.get("execution_enabled") is not False:
         errors.append("execution_enabled must be false")
 
-    _sha256(record, "source_commit_sha", errors)
+    _commit_sha(record, "source_commit_sha", errors)
     _required_text(record, "captured_at_utc", errors)
     if "captured_at_utc" in record:
         _utc_timestamp(record.get("captured_at_utc"), "captured_at_utc", errors)
