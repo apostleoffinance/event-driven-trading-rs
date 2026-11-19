@@ -48,9 +48,15 @@ The Windows acceptance plan defines the 21 required checks. After the target hos
 
 Do not include passwords, private keys, connection strings, tokens, raw broker login, environment dumps or unredacted exceptions. The validator rejects common secret-bearing field names.
 
+Capture the host/artifact manifest on the approved Windows host under the intended worker service identity. Supply the public worker certificate (never the private key), exact terminal and daemon artifact paths, pinned versions, registry references, and the keyed login HMAC. The collector hashes the Python worker package, daemon binary, terminal executable and public worker certificate; it does not dump environment variables or read broker credentials. It creates all 21 acceptance entries as \`NOT_RUN\`; an operator must attach restricted evidence and mark each test PASS only after observing it.
+
+\`\`\`powershell
+.\adapters\mt5-python\scripts\capture-demo-acceptance-manifest.ps1 -TerminalPath "C:\Program Files\MetaTrader 5\terminal64.exe" -DaemonArtifactPath "C:\QuantOS\bin\mt5-bridge-daemon.exe" -WorkerCertificatePath "C:\QuantOS\certs\worker-cert.pem" -PythonPath "C:\QuantOS\venv\Scripts\python.exe" -WorkerVersion "<pinned-worker-version>" -DaemonVersion "<pinned-daemon-version>" -ConfigurationRevision "<config-revision>" -OrganizationRef "<org-ref>" -QuantAccountRef "<quant-account-ref>" -ExternalAccountRef "<external-account-ref>" -BindingRef "<binding-ref>" -BindingRevision "<binding-revision>" -BrokerRef "<broker-ref>" -BrokerServerRef "<broker-server-ref>" -TerminalId "<terminal-id>" -ObservedServer "<exact-demo-server>" -ObservedLoginHmacSha256 "<64-character-keyed-hmac>"
+\`\`\`
+
 Run the structural validator:
 
-```powershell
+\`\`\`powershell
 python adapters/mt5-python/scripts/validate_demo_acceptance_evidence.py .\mt5-demo-acceptance-evidence.json
 python adapters/mt5-python/scripts/validate_restart_evidence.py .\mt5-restart-evidence.json
 ```
