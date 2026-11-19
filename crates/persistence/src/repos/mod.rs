@@ -3,7 +3,6 @@
 mod accounts;
 mod audit;
 mod broker_registry;
-mod broker_worker_lease;
 mod fills;
 mod identity_sessions;
 mod instruments;
@@ -367,7 +366,7 @@ impl TradingStore {
         process_token: &str,
         lease_seconds: i64,
     ) -> PersistenceResult<crate::Mt5WorkerLease> {
-        broker_worker_lease::acquire(
+        crate::broker_worker_lease::acquire(
             &self.pool,
             quant_account_id,
             terminal_id,
@@ -385,14 +384,14 @@ impl TradingStore {
         lease: &crate::Mt5WorkerLease,
         lease_seconds: i64,
     ) -> PersistenceResult<chrono::DateTime<chrono::Utc>> {
-        broker_worker_lease::renew(&self.pool, lease, lease_seconds).await
+        crate::broker_worker_lease::renew(&self.pool, lease, lease_seconds).await
     }
 
     pub async fn validate_mt5_worker_lease(
         &self,
         lease: &crate::Mt5WorkerLease,
     ) -> PersistenceResult<()> {
-        broker_worker_lease::validate(&self.pool, lease).await
+        crate::broker_worker_lease::validate(&self.pool, lease).await
     }
 
     /// Compare-and-set release; stale owners cannot release a successor's lease.
@@ -400,7 +399,7 @@ impl TradingStore {
         &self,
         lease: &crate::Mt5WorkerLease,
     ) -> PersistenceResult<bool> {
-        broker_worker_lease::release(&self.pool, lease).await
+        crate::broker_worker_lease::release(&self.pool, lease).await
     }
 
     /// Atomically reserve a durable MT5 client-order ID before transport send.
