@@ -30,7 +30,7 @@ class RestartVerificationContractTests(unittest.TestCase):
     def test_verifies_sequence_continuity_and_fresh_reconciliation(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         for required in (
-            "pre_stop_market_sequence", "post_restart_market_sequence",
+            "pre_stop_market_sequence", "post_start_baseline_market_sequence", "post_restart_market_sequence",
             "post_restart_reconciliation_sequence", "post_restart_sequence_aligned",
             "market sequence", "sequence_advanced",
             "post_restart_reconciliation_fresh", "post_restart_sequence_aligned", "PASS_RESTART_RECOVERY",
@@ -43,6 +43,7 @@ class RestartVerificationContractTests(unittest.TestCase):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("finally", source)
         self.assertIn("market.sequence = reconciliation.reconciled_sequence", source)
+        self.assertIn("No new market/reconciliation pair arrived after SCM confirmed worker restart", source)
         self.assertIn("Baseline market and reconciliation snapshots do not share the same sequence", source)
         self.assertIn("Write-Evidence $record", source)
         for forbidden in ("mt5.order_send(", "mt5.order_delete(", "order_modify("):
