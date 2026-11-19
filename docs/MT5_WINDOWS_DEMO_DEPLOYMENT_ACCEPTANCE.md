@@ -75,6 +75,7 @@ Run in a protected PowerShell session populated with the same non-secret configu
       -DaemonServiceName 'QuantOS-MT5-Bridge' `
       -ExpectedWorkerIdentity 'DOMAIN\QuantOS-MT5-Worker' `
       -ExpectedDaemonIdentity 'DOMAIN\QuantOS-MT5-Bridge' `
+      -ExpectedTerminalIdentity 'DOMAIN\QuantOS-MT5-Worker' `
       -TerminalPath 'C:\Program Files\MetaTrader 5\terminal64.exe' `
       -DaemonArtifactPath 'C:\QuantOS\bin\mt5-bridge-daemon.exe' `
       -PythonPath 'C:\QuantOS\venv\Scripts\python.exe' `
