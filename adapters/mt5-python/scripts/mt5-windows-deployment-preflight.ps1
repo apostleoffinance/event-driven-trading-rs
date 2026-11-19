@@ -101,6 +101,15 @@ if ($RequireRunningServices -and $null -ne $terminal) {
     }
 }
 
+$currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+Add-Check "preflight_runs_as_worker_identity" ($currentIdentity -eq $ExpectedWorkerIdentity) "The invoking identity must match the worker identity so CurrentUser DPAPI scope is meaningful."
+$configuredTerminalPath = [Environment]::GetEnvironmentVariable("MT5_TERMINAL_PATH")
+$terminalPathMatches = $false
+if (-not [string]::IsNullOrWhiteSpace($configuredTerminalPath) -and $null -ne $terminal) {
+    $terminalPathMatches = [IO.Path]::GetFullPath($configuredTerminalPath) -ieq [IO.Path]::GetFullPath($terminal.FullName)
+}
+Add-Check "terminal_path_matches_worker_config" $terminalPathMatches "The configured worker terminal path must match the pinned terminal executable."
+
 $requiredEnvironment = @(
     "DATABASE_URL", "MT5_TERMINAL_PATH", "MT5_LOGIN", "MT5_SERVER", "MT5_SYMBOLS",
     "MT5_TERMINAL_ID", "MT5_ACCOUNT_ID", "MT5_EXPECTED_ACCOUNT_CURRENCY", "MT5_BRIDGE_HOST",
