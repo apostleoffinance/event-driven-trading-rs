@@ -21,6 +21,7 @@ class WindowsDemoBundleTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name) / "repo"
         self.root.mkdir()
+        (self.root / "Cargo.lock").write_text("# pinned fixture lockfile\\n", encoding="utf-8")
         for item in MODULE.INCLUDE_FILES:
             target = self.root / item
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -53,6 +54,7 @@ class WindowsDemoBundleTests(unittest.TestCase):
             self.assertIn("bin/mt5-bridge-daemon.exe", names)
             self.assertIn("adapters/mt5-python/mt5_adapter/config.py", names)
             self.assertIn("manifest/release-manifest.json", names)
+            self.assertIn("manifest/windows-resolved-Cargo.lock", names)
             manifest = json.loads(archive.read("manifest/release-manifest.json"))
             self.assertEqual(manifest["source_commit_sha"], result["manifest"]["source_commit_sha"])
             self.assertFalse(any(name.lower().endswith((".pem", ".key", ".p12", ".pfx")) or name.lower().split("/")[-1] in {".env", ".env.local", "id_rsa", "id_ed25519"} for name in names))
