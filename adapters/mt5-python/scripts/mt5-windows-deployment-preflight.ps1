@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory = $true)][string]$DaemonServiceName,
     [Parameter(Mandatory = $true)][string]$ExpectedWorkerIdentity,
     [Parameter(Mandatory = $true)][string]$ExpectedDaemonIdentity,
+    [Parameter(Mandatory = $true)][string]$ExpectedTerminalIdentity,
     [Parameter(Mandatory = $true)][string]$TerminalPath,
     [Parameter(Mandatory = $true)][string]$DaemonArtifactPath,
     [Parameter(Mandatory = $true)][string]$PythonPath,
@@ -93,19 +94,80 @@ if ($RequireRunningServices -and $null -ne $terminal) {
         $_.ExecutablePath -and ([IO.Path]::GetFullPath([string]$_.ExecutablePath) -ieq $expectedPath)
     })
     Add-Check "single_terminal_instance" ($instances.Count -eq 1) ("Matching terminal process count: " + $instances.Count)
+    if ($instances.Count -eq 1) {
+        $owner = Invoke-CimMethod -InputObject $instances[0] -MethodName GetOwner
+        $terminalOwner = if ($owner.ReturnValue -eq 0) { [string]$owner.Domain + "\" + [string]$owner.User } else { "" }
+        Add-Check "terminal_process_identity" ($terminalOwner -eq $ExpectedTerminalIdentity) "Terminal process owner is compared with the approved identity; no credentials are displayed."
+    }
 }
 
 $requiredEnvironment = @(
-    "DATABASE_URL", "MT5_TERMINAL_PATH", "MT5_LOGIN", "MT5_SERVER",
-    "MT5_TERMINAL_ID", "MT5_ACCOUNT_ID", "MT5_EXPECTED_ACCOUNT_CURRENCY",
-    "MT5_BRIDGE_CLIENT_CERT", "MT5_BRIDGE_CLIENT_KEY", "MT5_BRIDGE_SERVER_CERT",
-    "MT5_BRIDGE_SERVER_KEY", "MT5_BRIDGE_PRINCIPAL_SHA256", "MT5_PASSWORD_DPAPI_FILE"
+    "DATABASE_URL", "MT5_TERMINAL_PATH", "MT5_LOGIN", "MT5_SERVER", "MT5_SYMBOLS",
+    "MT5_TERMINAL_ID", "MT5_ACCOUNT_ID", "MT5_EXPECTED_ACCOUNT_CURRENCY", "MT5_BRIDGE_HOST",
+    "MT5_BRIDGE_CA_FILE", "MT5_BRIDGE_CLIENT_CERT", "MT5_BRIDGE_CLIENT_KEY", "MT5_BRIDGE_PORT",
+    "MT5_BRIDGE_SERVER_CERT", "MT5_BRIDGE_SERVER_KEY", "MT5_BRIDGE_CLIENT_CA", "MT5_BRIDGE_BIND",
+    "MT5_BRIDGE_PRINCIPAL_SHA256", "MT5_ORGANIZATION_ID", "MT5_EXTERNAL_ACCOUNT_ID",
+    "MT5_BINDING_ID", "MT5_BROKER_ID", "MT5_BROKER_SERVER_ID", "MT5_PASSWORD_DPAPI_FILE"
 )
 foreach ($name in $requiredEnvironment) {
     $value = [Environment]::GetEnvironmentVariable($name)
     $present = -not [string]::IsNullOrWhiteSpace($value) -and $value.Trim() -eq $value
     Add-Check ("environment:" + $name) $present $(if ($present) { "Present; value intentionally not displayed." } else { "Missing or whitespace-padded; value intentionally not displayed." })
 }
+$loginValue = [Environment]::GetEnvironmentVariable("MT5_LOGIN")
+Add-Check "numeric_demo_login_configured" ($loginValue -match '^[0-9]+
+Add-Check "plaintext_password_absent" ([string]::IsNullOrEmpty($plainPassword)) "MT5_PASSWORD must not be set; use the CurrentUser DPAPI file."
+
+$dpapiPath = [Environment]::GetEnvironmentVariable("MT5_PASSWORD_DPAPI_FILE")
+if (-not [string]::IsNullOrWhiteSpace($dpapiPath)) {
+    Add-Check "dpapi_secret_file_exists" (Test-Path -LiteralPath $dpapiPath -PathType Leaf) "DPAPI secret-file presence only; content is never read."
+}
+foreach ($name in @("MT5_BRIDGE_CLIENT_CERT", "MT5_BRIDGE_CLIENT_KEY", "MT5_BRIDGE_SERVER_CERT", "MT5_BRIDGE_SERVER_KEY")) {
+    $path = [Environment]::GetEnvironmentVariable($name)
+    if (-not [string]::IsNullOrWhiteSpace($path)) {
+        Add-Check ("file:" + $name) (Test-Path -LiteralPath $path -PathType Leaf) "Configured file presence only; key/certificate contents are not read."
+    }
+}
+$pin = [Environment]::GetEnvironmentVariable("MT5_BRIDGE_PRINCIPAL_SHA256")
+Add-Check "worker_certificate_pin_format" ($pin -match '^[0-9a-fA-F]{64}$') "Expected 64-character SHA-256 fingerprint; value not displayed."
+
+$record = [ordered]@{
+    schema_version = 1
+    check_type = "read_only_windows_deployment_preflight"
+    captured_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
+    host = [ordered]@{
+        windows_caption = [string]$os.Caption
+        windows_build = [string]$os.BuildNumber
+        architecture = [string]$os.OSArchitecture
+    }
+    artifacts = [ordered]@{
+        terminal_path = if ($null -ne $terminal) { $terminal.FullName } else { $null }
+        terminal_sha256 = $terminalHash
+        daemon_sha256 = $daemonHash
+        python_path = if ($null -ne $python) { $python.FullName } else { $null }
+    }
+    require_running_services = [bool]$RequireRunningServices
+    checks = @($checks)
+    result = if ($blockers.Count -eq 0) { "PASS_PREFLIGHT_ONLY" } else { "BLOCKED" }
+    blocker_count = $blockers.Count
+    blockers = @($blockers)
+    limitations = @(
+        "Does not connect to MT5 or PostgreSQL.",
+        "Does not authenticate broker ownership or verify DEMO status.",
+        "Does not validate certificate chains, revocation, private-key ACLs, or secret-manager custody.",
+        "Does not execute the 21 acceptance tests or authorize release.",
+        "A PASS_PREFLIGHT_ONLY result is not an end-to-end acceptance pass."
+    )
+}
+$full = [IO.Path]::GetFullPath($EvidencePath)
+$parent = Split-Path -Parent $full
+if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+$record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $full -Encoding utf8
+Write-Host ("Preflight result: {0}; checks: {1}; blockers: {2}" -f $record.result, $checks.Count, $blockers.Count)
+Write-Host ("Redacted evidence: {0}" -f $full)
+if ($blockers.Count -gt 0) { exit 1 }
+exit 0
+) "Expected numeric broker login is configured; value is not displayed."
 $plainPassword = [Environment]::GetEnvironmentVariable("MT5_PASSWORD")
 Add-Check "plaintext_password_absent" ([string]::IsNullOrEmpty($plainPassword)) "MT5_PASSWORD must not be set; use the CurrentUser DPAPI file."
 
