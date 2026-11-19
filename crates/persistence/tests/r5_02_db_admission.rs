@@ -206,13 +206,15 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
     // Concurrent daemons contend for one account/terminal slot. Exactly one
     // process token may acquire it, even when both present the same worker identity.
     let store = TradingStore::new(pool.clone());
+    let first_process_token = "a".repeat(64);
+    let second_process_token = "b".repeat(64);
     let (first_attempt, second_attempt) = tokio::join!(
         store.acquire_mt5_worker_lease(
             "r502-quant-account",
             "terminal-r502",
             "r502-binding",
             "r502-worker",
-            &"a".repeat(64),
+            &first_process_token,
             5,
         ),
         store.acquire_mt5_worker_lease(
@@ -220,7 +222,7 @@ async fn verified_persisted_snapshot_admits_only_while_authority_and_session_are
             "terminal-r502",
             "r502-binding",
             "r502-worker",
-            &"b".repeat(64),
+            &second_process_token,
             5,
         ),
     );
