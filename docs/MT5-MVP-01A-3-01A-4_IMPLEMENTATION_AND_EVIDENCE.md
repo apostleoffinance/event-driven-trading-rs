@@ -44,7 +44,7 @@ The Windows acceptance plan defines the 21 required checks. After the target hos
 - Worker/daemon versions, terminal build, Python architecture/version, official MetaTrader5 package version and config revision.
 - Registry references and binding revision; store only a keyed HMAC-SHA-256 reference for the observed broker login, never the raw login or the HMAC key.
 - Windows edition/build, architecture, service identity SID and clean source-tree status.
-- Exactly one PASS evidence entry for each acceptance test ID 1–21, with UTC observation timestamp and a restricted evidence reference.
+- Exactly one PASS evidence entry for each acceptance test ID 1–21, with UTC observation timestamp, restricted evidence reference and SHA-256 digest of the referenced evidence artifact.
 
 Do not include passwords, private keys, connection strings, tokens, raw broker login, environment dumps or unredacted exceptions. The validator rejects common secret-bearing field names.
 
