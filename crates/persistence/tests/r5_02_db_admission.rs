@@ -495,11 +495,32 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     .await;
     assert!(cross_tenant.is_err());
 
-    // Capacity is an enforced counter, not a documented estimate.
-    let lowered_capacity = sqlx::query(
-        "UPDATE mt5_gateway_hosts SET terminal_capacity=0 WHERE id='r502-gateway'",
+    // A slot cannot be disabled while an active publisher assignment still
+    // references it. Revocation is explicit, revisioned, and releases capacity.
+    let premature_disable = sqlx::query(
+        "UPDATE mt5_terminal_slots SET status='DISABLED',revision=revision+1 WHERE id='r502-slot'",
     )
     .execute(&pool)
     .await;
-    assert!(lowered_capacity.is_err());
+    assert!(premature_disable.is_err());
+
+    sqlx::query(
+        "UPDATE broker_worker_assignments SET status='REVOKED',revision=revision+1 WHERE id='r502-slot-assignment'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE mt5_terminal_slots SET status='DISABLED',revision=revision+1 WHERE id='r502-slot'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let released: i32 = sqlx::query_scalar(
+        "SELECT registered_terminal_slots FROM mt5_gateway_hosts WHERE id='r502-gateway'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(released, 0);
 }
