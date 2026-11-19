@@ -81,6 +81,23 @@ class RestartEvidenceValidatorTests(unittest.TestCase):
             MODULE.validate(record),
         )
 
+
+    def test_rejects_market_and_reconciliation_sequence_mismatch(self):
+        record = passing_record()
+        record["post_restart_reconciliation_sequence"] = 101
+        self.assertIn(
+            "post-restart market and reconciliation sequences must match",
+            MODULE.validate(record),
+        )
+
+    def test_rejects_unaligned_sequence_flag(self):
+        record = passing_record()
+        record["post_restart_sequence_aligned"] = False
+        self.assertIn(
+            "post_restart_sequence_aligned must be true",
+            MODULE.validate(record),
+        )
+
     def test_cli_fails_closed_for_malformed_json(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "evidence.json"
