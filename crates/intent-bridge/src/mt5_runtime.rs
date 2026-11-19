@@ -14,7 +14,8 @@ use domain::broker_registry::{
     normalize_mt5_server_id, AdmissionOperation, BrokerAdmissionDecision, BrokerAdmissionRequest,
 };
 use persistence::{
-    evaluate_persisted_broker_admission, validate_ready_mt5_terminal_slot, Mt5DurableOrderState, Mt5WorkerLease, TradingStore,
+    evaluate_persisted_broker_admission, validate_ready_mt5_terminal_slot, Mt5DurableOrderState,
+    Mt5WorkerLease, TradingStore,
 };
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -744,6 +745,7 @@ mod tests {
         assert_eq!(guard.quant_account_ref, "quant-account-1");
         assert_eq!(guard.observed_server_name, "r502.demo");
         assert_eq!(guard.worker_ref, fingerprint);
+        assert_eq!(guard.terminal_slot_ref, "slot-1");
     }
 
     #[test]
