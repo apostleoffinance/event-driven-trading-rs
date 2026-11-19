@@ -565,6 +565,30 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     .unwrap();
     assert!(!not_ready_session);
 
+    // The previous session is closed, so a new READY session can be inserted.
+    // Its already-expired deadline must not restore publisher eligibility.
+    sqlx::query(
+        "INSERT INTO broker_worker_sessions(id,assignment_id,worker_ref,status,revision,ready_until,started_at) VALUES('r502-slot-session-expired','r502-slot-assignment','worker-r502','READY',1,NOW()-INTERVAL '1 second',NOW()-INTERVAL '2 minutes')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let expired_session = validate_ready_mt5_terminal_slot(
+        &pool,
+        "r502-slot",
+        "r502-org",
+        "r502-quant-account",
+        "r502-binding",
+        "r502-external-account",
+        "r502-broker",
+        "r502-server",
+        "terminal-r502",
+        "worker-r502",
+    )
+    .await
+    .unwrap();
+    assert!(!expired_session);
+
     // A different organization cannot reuse this slot, even when the caller
     // supplies otherwise valid account/binding identifiers.
     insert_user(&pool, "r502-other-owner").await;
