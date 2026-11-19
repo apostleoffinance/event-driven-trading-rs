@@ -25,8 +25,8 @@ The Windows worker restart verifier now requires all of the following before rep
 2. The baseline market and reconciliation snapshots have the same sequence.
 3. Windows Service Control Manager confirms the worker is stopped before the stop timestamp is recorded.
 4. The worker restart timestamp is recorded only after SCM confirms Running.
-5. Post-restart market and reconciliation snapshots are both captured after the stop event.
-6. The market sequence advances beyond baseline and exactly matches the reconciliation sequence.
+5. After SCM confirms Running, the verifier records a second baseline sequence; a later market/reconciliation pair must advance beyond that baseline.
+6. Both post-restart snapshots are captured after the confirmed restart, share the exact same sequence, and advance beyond the pre-stop and post-start baselines.
 7. The worker passes the smoke check again.
 8. The worker is restored to Running in the `finally` path, and restoration failure is recorded.
 
