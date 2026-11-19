@@ -37,7 +37,7 @@ impl std::fmt::Debug for Mt5WorkerLease {
 }
 
 impl Mt5WorkerLease {
-    pub fn new(
+    fn new(
         quant_account_id: String,
         terminal_id: String,
         assignment_id: String,
