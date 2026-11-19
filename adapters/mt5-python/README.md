@@ -11,6 +11,14 @@ This package supports a Windows-hosted MetaTrader 5 terminal through the officia
 - Vercel is for the Next.js frontend, not the MT5 process. A standard Linux Render service cannot host the Windows terminal or macOS terminal UI.
 - Never put broker passwords or client private keys in frontend variables, browser storage, logs, or source control.
 
+## Managed Windows DEMO release bundle
+
+The CI workflow builds `mt5-bridge-daemon.exe` on a Windows runner and publishes a short-lived, secret-free deployment artifact named `edgenest-mt5-windows-demo-<commit-sha>`. Download it from the successful GitHub Actions run associated with the approved commit. Verify the ZIP SHA-256 against the workflow output/release record and inspect `manifest/release-manifest.json` before deployment.
+
+The bundle includes the Rust daemon, complete Python adapter source, Windows preflight/smoke/restart/evidence tools, the disabled TenTrade DEMO metadata template, and the acceptance runbooks. It does not include MT5 terminal software, broker credentials, private keys, certificates, database credentials, or the MetaTrader5 Python wheel. The host operator must install the approved terminal and explicitly pin/verify the official Python package version.
+
+Bundle creation does not deploy or start anything. Host/provider, interactive terminal supervisor, secret manager, CA, exact broker server/account, verified registry binding, and isolated database gates must be approved first. Use `docs/MT5_WINDOWS_DEMO_DEPLOYMENT_ACCEPTANCE.md` for the complete deployment sequence. Never turn a CI artifact or preflight PASS into real-host acceptance evidence.
+
 ## Install the Python worker (Windows default provider)
 
 PowerShell on the Windows VPS, with MT5 installed and logged into the intended demo account:
