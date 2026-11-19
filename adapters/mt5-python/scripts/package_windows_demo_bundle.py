@@ -69,7 +69,7 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
     # Windows may need to add target-specific packages to Cargo.lock. Permit
     # only that generated lockfile delta and ship the exact resolved lockfile.
     if any(path != "Cargo.lock" for path in changed):
-        raise ValueError("source checkout must be clean except for a Windows-resolved Cargo.lock")
+        raise ValueError("source checkout must be clean except for a Windows-resolved Cargo.lock; changed=" + repr(changed))
     lockfile = root / "Cargo.lock"
     if not lockfile.is_file():
         raise ValueError("Cargo.lock is required to pin the Windows daemon dependency graph")
