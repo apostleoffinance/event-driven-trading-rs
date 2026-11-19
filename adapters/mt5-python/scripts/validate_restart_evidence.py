@@ -50,6 +50,8 @@ def validate(record: Any) -> list[str]:
         errors.append("sequence_advanced must be true")
     if record.get("post_restart_reconciliation_fresh") is not True:
         errors.append("post_restart_reconciliation_fresh must be true")
+    if record.get("post_restart_sequence_aligned") is not True:
+        errors.append("post_restart_sequence_aligned must be true")
 
     sequence_fields = ("pre_stop_market_sequence", "post_restart_market_sequence",
                        "post_restart_reconciliation_sequence")
@@ -64,6 +66,10 @@ def validate(record: Any) -> list[str]:
             "post_restart_market_sequence" in sequences and
             sequences["post_restart_market_sequence"] <= sequences["pre_stop_market_sequence"]):
         errors.append("post_restart_market_sequence must exceed pre_stop_market_sequence")
+    if ("post_restart_market_sequence" in sequences and
+            "post_restart_reconciliation_sequence" in sequences and
+            sequences["post_restart_market_sequence"] != sequences["post_restart_reconciliation_sequence"]):
+        errors.append("post-restart market and reconciliation sequences must match")
 
     timestamps: dict[str, datetime] = {}
     for field in ("started_at_utc", "worker_stopped_at_utc", "worker_restarted_at_utc",
