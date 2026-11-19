@@ -64,12 +64,15 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
     with daemon.open("rb") as stream:
         if stream.read(2) != b"MZ":
             raise ValueError("daemon artifact is not a Windows PE executable")
-    status = git_value(root, "status", "--porcelain")
-    changed = [line[3:].replace("\\", "/") for line in status.splitlines() if line]
+    changed = set(git_value(root, "diff", "--name-only").splitlines())
+    changed.update(git_value(root, "ls-files", "--others", "--exclude-standard").splitlines())
     # Windows may need to add target-specific packages to Cargo.lock. Permit
     # only that generated lockfile delta and ship the exact resolved lockfile.
-    if any(path != "Cargo.lock" for path in changed):
-        raise ValueError("source checkout must be clean except for a Windows-resolved Cargo.lock; changed=" + repr(changed))
+    if changed - {"Cargo.lock"}:
+        raise ValueError(
+            "source checkout must be clean except for a Windows-resolved Cargo.lock; "
+            + "changed=" + repr(sorted(changed))
+        )
     lockfile = root / "Cargo.lock"
     if not lockfile.is_file():
         raise ValueError("Cargo.lock is required to pin the Windows daemon dependency graph")
