@@ -212,13 +212,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     connection,
                     session,
                     admission.clone(),
-                    lease,
+                    lease.clone(),
                     StdDuration::from_secs(2),
                 )
                 .await
                 {
                     Ok(runtime) => runtime,
                     Err(error) => {
+                        let _ = store.release_mt5_worker_lease(&lease).await;
                         warn!(error = %error, "could not initialize leased MT5 runtime");
                         continue;
                     }
