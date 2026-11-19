@@ -123,3 +123,31 @@ jobs:
           python-version: "3.12"
       - name: Run macOS portable checks
         run: bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --skip-rust
+
+  windows-mt5-powershell-parse:
+    name: Windows MT5 PowerShell syntax
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Parse deployment and evidence scripts
+        shell: pwsh
+        run: |
+          $paths = @(
+            "adapters/mt5-python/scripts/mt5-windows-deployment-preflight.ps1",
+            "adapters/mt5-python/scripts/capture-demo-acceptance-manifest.ps1"
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path).Path,
+              [ref]$tokens,
+              [ref]$parseErrors
+            ) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $parseErrors | ForEach-Object { Write-Error $_.Message }
+              throw "PowerShell parser failed for $path"
+            }
+            Write-Host "PASS: $path"
+          }
