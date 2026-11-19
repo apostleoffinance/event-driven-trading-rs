@@ -65,8 +65,14 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
         if stream.read(2) != b"MZ":
             raise ValueError("daemon artifact is not a Windows PE executable")
     status = git_value(root, "status", "--porcelain")
-    if status:
-        raise ValueError("source checkout must be clean before packaging")
+    changed = [line[3:].replace("\\", "/") for line in status.splitlines() if line]
+    # Windows may need to add target-specific packages to Cargo.lock. Permit
+    # only that generated lockfile delta and ship the exact resolved lockfile.
+    if any(path != "Cargo.lock" for path in changed):
+        raise ValueError("source checkout must be clean except for a Windows-resolved Cargo.lock")
+    lockfile = root / "Cargo.lock"
+    if not lockfile.is_file():
+        raise ValueError("Cargo.lock is required to pin the Windows daemon dependency graph")
     commit = git_value(root, "rev-parse", "HEAD")
     if len(commit) != 40 or any(c not in "0123456789abcdef" for c in commit):
         raise ValueError("source commit is not a lowercase 40-character SHA")
@@ -93,6 +99,7 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
         "manifest_schema_version": 1,
         "milestone": "MT5-MVP-01A",
         "source_commit_sha": commit,
+        "resolved_cargo_lock_sha256": sha256(lockfile),
         "broker_environment": "DEMO",
         "quant_environment": "PAPER",
         "execution_enabled": False,
@@ -118,6 +125,7 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
         ],
         "limitations": [
             "Bundle creation is not host provisioning or deployment.",
+            "The exact resolved Cargo.lock is shipped separately and hashed in this manifest.",
             "No broker credentials, private keys, certificates or database URLs are included.",
             "No MetaTrader terminal or MetaTrader5 Python wheel is included.",
             "No live connection, data persistence or restart acceptance is asserted.",
@@ -130,6 +138,7 @@ def build_bundle(root: Path, daemon: Path, output: Path) -> dict:
         shutil.rmtree(staging)
     (staging / "bin").mkdir(parents=True)
     (staging / "manifest").mkdir()
+    shutil.copy2(lockfile, staging / "manifest/windows-resolved-Cargo.lock")
     shutil.copy2(daemon, staging / "bin/mt5-bridge-daemon.exe")
     for item in INCLUDE_FILES:
         destination = staging / item
