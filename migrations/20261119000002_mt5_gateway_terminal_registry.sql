@@ -48,6 +48,9 @@ CREATE TABLE mt5_terminal_slots (
     UNIQUE (gateway_host_id,terminal_id)
 );
 
+CREATE UNIQUE INDEX mt5_terminal_slots_one_slot_per_binding_uq
+    ON mt5_terminal_slots(binding_id);
+
 CREATE INDEX mt5_terminal_slots_gateway_status_idx
     ON mt5_terminal_slots(gateway_host_id,status);
 CREATE INDEX mt5_terminal_slots_broker_server_idx

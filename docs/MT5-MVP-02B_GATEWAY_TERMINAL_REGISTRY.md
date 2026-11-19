@@ -14,7 +14,7 @@ Customers remain outside the infrastructure lifecycle: EdgeNest provisions, moni
 - `mt5_terminal_slots`: gateway association, exact organization/Quant account/verified broker-binding scope, broker/server association, unique terminal/profile/service/worker identities, lifecycle state and isolation schema version.
 - `broker_worker_assignments.terminal_slot_id`: optional compatibility link. Existing assignments are not backfilled. New linked assignments are checked at insert time against a READY slot.
 
-The database prevents duplicate terminal IDs on a host, duplicate profile/service/worker identities, active assignments sharing a slot, cross-account slot reuse, unverified binding enrollment, over-capacity host registration, identity mutation and deletion of registry history.
+The database prevents duplicate terminal IDs on a host, duplicate profile/service/worker identities, one slot per verified binding, active assignments sharing a slot, cross-account slot reuse, unverified binding enrollment, over-capacity host registration, identity mutation and deletion of registry history.
 
 ## Isolation rules
 
