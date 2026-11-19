@@ -58,6 +58,7 @@ def passing_record():
                 "result": "PASS",
                 "observed_at_utc": "2026-11-19T08:00:00Z",
                 "evidence_ref": f"evidence://test-{test_id}",
+                "evidence_sha256": "6" * 64,
             }
             for test_id in range(1, 22)
         ],
@@ -72,6 +73,14 @@ class DemoAcceptanceEvidenceTests(unittest.TestCase):
         record = passing_record()
         record["acceptance_tests"].pop()
         self.assertTrue(any("missing required test IDs: 21" in e for e in MODULE.validate(record)))
+
+    def test_rejects_evidence_without_integrity_hash(self):
+        record = passing_record()
+        del record["acceptance_tests"][0]["evidence_sha256"]
+        self.assertTrue(any(
+            "evidence_sha256 must be a lowercase 64-character SHA-256 digest" in error
+            for error in MODULE.validate(record)
+        ))
 
     def test_rejects_duplicate_test_id(self):
         record = passing_record()
