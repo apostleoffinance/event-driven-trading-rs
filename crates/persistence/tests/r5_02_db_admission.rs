@@ -544,12 +544,12 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
         .unwrap();
 
     sqlx::query(
-        "INSERT INTO broker_worker_sessions(id,assignment_id,worker_ref,status,revision,ready_until,started_at) VALUES('r502-slot-session-expired','r502-slot-assignment','worker-r502','READY',1,NOW()-INTERVAL '1 second',NOW()+INTERVAL '1 second')",
+        "UPDATE broker_worker_sessions SET status='NOT_READY',revision=revision+1 WHERE id='r502-slot-session'",
     )
     .execute(&pool)
     .await
     .unwrap();
-    let expired_session = validate_ready_mt5_terminal_slot(
+    let not_ready_session = validate_ready_mt5_terminal_slot(
         &pool,
         "r502-slot",
         "r502-org",
@@ -563,7 +563,7 @@ async fn mt5_terminal_slot_requires_verified_exact_binding_and_isolated_worker(p
     )
     .await
     .unwrap();
-    assert!(!expired_session);
+    assert!(!not_ready_session);
 
     // A different organization cannot reuse this slot, even when the caller
     // supplies otherwise valid account/binding identifiers.
