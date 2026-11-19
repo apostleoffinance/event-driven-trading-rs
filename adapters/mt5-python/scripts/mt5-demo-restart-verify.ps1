@@ -78,6 +78,7 @@ $record = [ordered]@{
     worker_restarted_at_utc = $null
     daemon_remained_running = $false
     pre_stop_market_sequence = $null
+    post_start_baseline_market_sequence = $null
     post_restart_market_sequence = $null
     post_restart_reconciliation_sequence = $null
     post_restart_sequence_aligned = $false
@@ -117,9 +118,13 @@ try {
     $record.worker_restarted_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     Write-Host ("Worker service started at {0}; waiting for new market data and reconciliation." -f $record.worker_restarted_at_utc)
 
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
-    $stopTime = [DateTimeOffset]::Parse($record.worker_stopped_at_utc)
     $restartTime = [DateTimeOffset]::Parse($record.worker_restarted_at_utc)
+    $restartBaseline = Get-LatestSnapshot
+    if ($null -eq $restartBaseline -or -not [bool]$restartBaseline.sequence_aligned) {
+        throw "No sequence-aligned snapshot pair was available after SCM confirmed worker restart."
+    }
+    $record.post_start_baseline_market_sequence = [long]$restartBaseline.market_sequence
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
     $latest = $null
     do {
         $latest = Get-LatestSnapshot
@@ -127,9 +132,10 @@ try {
             $marketAt = [DateTimeOffset]::Parse([string]$latest.market_captured_at)
             $reconAt = [DateTimeOffset]::Parse([string]$latest.reconciliation_captured_at)
             $advanced = [long]$latest.market_sequence -gt [long]$record.pre_stop_market_sequence
+            $advancedAfterStart = [long]$latest.market_sequence -gt [long]$record.post_start_baseline_market_sequence
             $sequenceAligned = [bool]$latest.sequence_aligned
             $freshAfterRestart = $marketAt -ge $restartTime -and $reconAt -ge $restartTime
-            if ($advanced -and $sequenceAligned -and $freshAfterRestart) { break }
+            if ($advanced -and $advancedAfterStart -and $sequenceAligned -and $freshAfterRestart) { break }
         }
         Start-Sleep -Seconds $PollSeconds
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
@@ -146,6 +152,7 @@ try {
     $record.post_restart_reconciliation_fresh = ($marketAt -ge $restartTime -and $reconAt -ge $restartTime)
     if (-not $record.post_restart_sequence_aligned) { throw "Market-data and reconciliation snapshots do not share the same sequence after worker restart." }
     if (-not $record.sequence_advanced) { throw "Market-data sequence did not advance across worker restart." }
+    if ([long]$latest.market_sequence -le [long]$record.post_start_baseline_market_sequence) { throw "No new market/reconciliation pair arrived after SCM confirmed worker restart." }
     if (-not $record.post_restart_reconciliation_fresh) { throw "Fresh reconciliation did not persist after SCM confirmed worker restart." }
     $daemon.Refresh()
     if ($daemon.Status -ne "Running") { throw "Daemon is not running after worker recovery." }
