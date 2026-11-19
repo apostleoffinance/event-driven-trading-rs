@@ -119,7 +119,13 @@ try {
     Write-Host ("Worker service started at {0}; waiting for new market data and reconciliation." -f $record.worker_restarted_at_utc)
 
     $restartTime = [DateTimeOffset]::Parse($record.worker_restarted_at_utc)
-    $restartBaseline = Get-LatestSnapshot
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $restartBaseline = $null
+    do {
+        $restartBaseline = Get-LatestSnapshot
+        if ($null -ne $restartBaseline -and [bool]$restartBaseline.sequence_aligned) { break }
+        Start-Sleep -Seconds $PollSeconds
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
     if ($null -eq $restartBaseline -or -not [bool]$restartBaseline.sequence_aligned) {
         throw "No sequence-aligned snapshot pair was available after SCM confirmed worker restart."
     }
