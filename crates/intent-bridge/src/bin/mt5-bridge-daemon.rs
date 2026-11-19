@@ -78,6 +78,10 @@ struct Args {
     #[arg(long, env = "MT5_BROKER_SERVER_ID")]
     broker_server_id: String,
 
+    /// Immutable registry ID for the assigned EdgeNest-managed terminal slot.
+    #[arg(long, env = "MT5_TERMINAL_SLOT_ID")]
+    terminal_slot_id: String,
+
     /// Permit binding to a non-loopback address. Requires explicit true.
     #[arg(long, env = "MT5_BRIDGE_ALLOW_REMOTE_BIND", default_value = "false")]
     allow_remote_bind: bool,
@@ -115,6 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let binding_id = required_identity(&args.binding_id, "MT5_BINDING_ID")?;
     let broker_id = required_identity(&args.broker_id, "MT5_BROKER_ID")?;
     let broker_server_id = required_identity(&args.broker_server_id, "MT5_BROKER_SERVER_ID")?;
+    let terminal_slot_id = required_identity(&args.terminal_slot_id, "MT5_TERMINAL_SLOT_ID")?;
     let principal_sha256 =
         required_identity(&args.principal_sha256, "MT5_BRIDGE_PRINCIPAL_SHA256")?
             .to_ascii_lowercase();
@@ -127,6 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &broker_server_id,
         &server,
         &principal_sha256,
+        &terminal_slot_id,
     )?;
     let principal = Mt5TransportPrincipal {
         certificate_sha256: principal_sha256,
