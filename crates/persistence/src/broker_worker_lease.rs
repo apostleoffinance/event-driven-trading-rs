@@ -122,14 +122,14 @@ pub async fn acquire(
             (quant_account_id, terminal_id, assignment_id, worker_ref,
              lease_token_hash, fencing_token, lease_until, acquired_at, renewed_at, released_at)
         SELECT $2, $4, assignment.id, $3, $5,
-               nextval('broker_worker_lease_fencing_token_seq'),
+               1,
                NOW() + make_interval(secs => $6), NOW(), NOW(), NULL
           FROM assignment
         ON CONFLICT (quant_account_id, terminal_id) DO UPDATE SET
             assignment_id = EXCLUDED.assignment_id,
             worker_ref = EXCLUDED.worker_ref,
             lease_token_hash = EXCLUDED.lease_token_hash,
-            fencing_token = nextval('broker_worker_lease_fencing_token_seq'),
+            fencing_token = broker_worker_leases.fencing_token + 1,
             lease_until = EXCLUDED.lease_until,
             acquired_at = NOW(),
             renewed_at = NOW(),
