@@ -939,3 +939,16 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Rule that failed:** No trading-safety rule failed. No deployment approval was inferred.
 - **Rule update made in RULES.md:** None.
 - **Acceptance status:** **IN PROGRESS.** Exact release commit, confirmed active data directory/chart-loaded EA, and clarified MetaEditor process exit remain blockers. Wait for explicit approval before switching the active terminal to v2.
+
+
+## REV-077 — Quant OS premium dark frontend redesign
+
+- **Date:** 2026-11-21
+- **Context:** User reviewed and explicitly approved the standalone premium dark Quant OS frontend mockup, then requested the new design be integrated across the frontend and deployed to Cloudflare.
+- **Finding:** The previous frontend design rule required a white-predominant UI and navy/orange/teal palette. That rule conflicts with the user's approved dark terminal design. The redesign changes only the frontend visual direction; financial safety, data-truth, API, authentication, and execution constraints remain unchanged.
+- **Approved visual direction:** Near-black layered surfaces; subtle cool-blue ambient treatment; Inter interface typography; DM Mono technical labels and numeric data; restrained borders and elevation; green for confirmed positive/healthy outcomes; red for losses, errors, rejected states, and drawdown. Keep the light theme available as an explicit preference, but default to dark.
+- **Implementation boundary:** Restyle existing Next.js routes and shared components without replacing API-backed state, adding fabricated financial data, changing order/risk workflows, or enabling execution. Keep PAPER/SHADOW/LIVE labels explicit. Green/red must derive from actual domain status/value semantics.
+- **Rule update made in RULES.md:** Replaced the white-dominant frontend visual requirement with the user-approved dark design system. All other financial safety, security, and frontend-truth rules remain in force.
+- **Acceptance criteria:** Shared shell and navigation restyled; global tokens and typography applied; all existing route surfaces inherit the design; tables, forms, badges, metrics, charts, alerts, loading/empty/error states remain readable; responsive layouts and reduced-motion preferences preserved; lint/typecheck/production Cloudflare build and Worker preview pass; deployment occurs only through the configured Cloudflare Workers pipeline.
+- **Verification status:** IN PROGRESS. A feature branch has been created. No Cloudflare deployment is claimed until a successful Workers build/deploy and live URL check are available.
+- **Remaining risk:** Need run frontend checks and the repository's OpenNext Cloudflare preview; Cloudflare deployment requires the configured Cloudflare Workers Builds integration or authenticated Cloudflare credentials. Do not bypass branch protection or claim deployment without evidence.
