@@ -82,7 +82,9 @@ try {
     // Market Data chart smoke test: the Lightweight Charts canvas must initialize
     // at every agreed viewport, independently of whether a provider returns candles.
     const marketConsoleErrors = [];
-    page.on("console", message => {\n      if (message.type() === "error" && !message.text().includes("503 (Service Unavailable)")) marketConsoleErrors.push(message.text());\n    });
+    page.on("console", message => {
+      if (message.type() === "error" && !message.text().includes("503 (Service Unavailable)")) marketConsoleErrors.push(message.text());
+    });
     // The local Worker preview is not an allowed production API origin. Stub
     // non-market widgets here; production API health/auth/CORS are checked directly
     // above using the deployed frontend origin. This keeps preview console output
@@ -325,7 +327,8 @@ try {
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
     assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
     assert.deepEqual(pageErrors, [], `Browser runtime errors on Market Data at ${viewport.name}: ${pageErrors.join("; ")}`);
-    assert.deepEqual(marketConsoleErrors, [], `Unexpected Market Data browser console errors at ${viewport.name}: ${marketConsoleErrors.join(" | ")}`);\n    console.log(`PASS ${viewport.name}: Market Data canvas, eight timeframe controls, no overflow; expected M15 503 fixture verified; unexpected console errors: none.`);
+    assert.deepEqual(marketConsoleErrors, [], `Unexpected Market Data browser console errors at ${viewport.name}: ${marketConsoleErrors.join(" | ")}`);
+    console.log(`PASS ${viewport.name}: Market Data canvas, eight timeframe controls, no overflow; expected M15 503 fixture verified; unexpected console errors: none.`);
     // Return to Analytics before exercising its sign-in navigation below.
     await page.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
