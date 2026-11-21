@@ -122,25 +122,27 @@ export default function AccountsPage() {
     [],
   );
 
+  const featuredAccount = selected ?? data[0];
+
   return (
     <div className="accounts-workspace">
       <PageHeader
         title="Accounts"
         description="Manage your trading accounts and track balances, equity and risk."
       />
-      {data.length > 0 ? (
-        <section className="accounts-featured-grid" aria-label="Featured trading account">
-          <GradientAccountCard eyebrow={data[0].environment + " ACCOUNT"} title={data[0].name}>
-            <div className="account-featured-meta">{data[0].type} · {data[0].venueName} · {data[0].status}</div>
+      {featuredAccount ? (
+        <section className="accounts-featured-grid" aria-label="Account snapshot">
+          <GradientAccountCard eyebrow={featuredAccount.environment + " ACCOUNT"} title={featuredAccount.name}>
+            <div className="account-featured-meta">{featuredAccount.type} · {featuredAccount.venueName} · {featuredAccount.status}</div>
             <div className="account-featured-equity-label">Account equity</div>
-            <div className="account-featured-equity">{formatMoney(data[0].equity)}</div>
-            <div className="account-featured-footer"><span>Account balance <strong>{formatMoney(data[0].balance)}</strong></span><span>Available capital <strong>{formatMoney(data[0].availableCapital)}</strong></span></div>
+            <div className="account-featured-equity">{formatMoney(featuredAccount.equity)}</div>
+            <div className="account-featured-footer"><span>Account balance <strong>{formatMoney(featuredAccount.balance)}</strong></span><span>Available capital <strong>{formatMoney(featuredAccount.availableCapital)}</strong></span></div>
           </GradientAccountCard>
           <div className="account-featured-metrics">
-            <MetricCard label="DAILY P&L" value={formatSignedMoney(data[0].dailyPnl)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
-            <MetricCard label="UNREALIZED P&L" value={formatSignedMoney(data[0].unrealizedPnl)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
-            <MetricCard label="DRAWDOWN" value={formatPct(data[0].drawdownPct)} sub="Reported account drawdown" />
-            <MetricCard label="OPEN POSITIONS" value={String(data[0].openPositionCount)} sub="Current account positions" />
+            <MetricCard label="DAILY P&L" value={formatSignedMoney(featuredAccount.dailyPnl)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
+            <MetricCard label="UNREALIZED P&L" value={formatSignedMoney(featuredAccount.unrealizedPnl)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
+            <MetricCard label="DRAWDOWN" value={formatPct(featuredAccount.drawdownPct)} sub="Reported account drawdown" />
+            <MetricCard label="OPEN POSITIONS" value={String(featuredAccount.openPositionCount)} sub="Current account positions" />
           </div>
         </section>
       ) : null}
