@@ -479,3 +479,8 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Inspected authoritative `RULES.md`, frontend deployment runbook, OpenNext/Wrangler configuration, Cloudflare frontend workflow, app shell, sidebar, topbar, theme provider, dashboard workspace, and global styles.
 - Updated the frontend design rule to the approved dark system while preserving financial safety, source-of-truth, explicit mode, and accessibility requirements.
 - Implementation and validation are in progress. No production deployment or live runtime behavior is claimed at this stage.
+
+
+## 2026-11-21 — Visual acceptance correction
+- Playwright screenshot review revealed that the existing OS-preference bootstrap selected light mode for a fresh browser. Corrected the root bootstrap so dark is the true first-visit default while retaining an explicit saved light preference.
+- Re-running frontend lint/typecheck/build, OpenNext Worker preview, and six-viewport browser acceptance on the corrected branch. No production deployment has been made yet.
