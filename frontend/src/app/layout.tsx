@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/AppShell";
 import "@/styles/globals.css";
+import "@/styles/design-tokens.css";
 
 export const metadata: Metadata = {
   title: "Quant OS",
