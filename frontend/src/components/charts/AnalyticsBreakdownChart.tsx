@@ -57,7 +57,7 @@ export function AnalyticsBreakdownChart({
       backgroundColor: "transparent",
       animation: ranked.length < 100,
       textStyle: {
-        fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif',
+        fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif',
         fontSize: 12,
       },
       grid: { left: 18, right: 30, top: 18, bottom: 28, containLabel: true },

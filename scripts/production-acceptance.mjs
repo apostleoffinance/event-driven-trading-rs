@@ -28,26 +28,32 @@ async function expectHttp(url, expected, options = {}) {
   return response;
 }
 
-console.log("Checking production API health and readiness...");
-const health = await expectHttp(`${apiUrl}/healthz`, 200);
-assert.match(await health.text(), /ok/i);
-const ready = await expectHttp(`${apiUrl}/readyz`, 200);
-assert.match(await ready.text(), /ready/i);
+// Keep PR visual acceptance independent from production API availability.
+// The main-branch release run still performs all live API/auth/CORS checks.
+if (process.env.VERIFY_PRODUCTION_API !== "false") {
+  console.log("Checking production API health and readiness...");
+  const health = await expectHttp(`${apiUrl}/healthz`, 200);
+  assert.match(await health.text(), /ok/i);
+  const ready = await expectHttp(`${apiUrl}/readyz`, 200);
+  assert.match(await ready.text(), /ready/i);
 
-console.log("Checking saved-view API authentication boundary...");
-const unauthorizedResponse = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, 401);
-assert.equal((await unauthorizedResponse.json())?.error?.code, "unauthorized");
+  console.log("Checking saved-view API authentication boundary...");
+  const unauthorizedResponse = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, 401);
+  assert.equal((await unauthorizedResponse.json())?.error?.code, "unauthorized");
 
-console.log("Checking browser CORS preflight...");
-const preflight = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, 200, {
-  method: "OPTIONS",
-  headers: {
-    Origin: authFrontendUrl,
-    "Access-Control-Request-Method": "GET",
-    "Access-Control-Request-Headers": "authorization",
-  },
-});
-assert.equal(preflight.headers.get("access-control-allow-origin"), authFrontendUrl);
+  console.log("Checking browser CORS preflight...");
+  const preflight = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, 200, {
+    method: "OPTIONS",
+    headers: {
+      Origin: authFrontendUrl,
+      "Access-Control-Request-Method": "GET",
+      "Access-Control-Request-Headers": "authorization",
+    },
+  });
+  assert.equal(preflight.headers.get("access-control-allow-origin"), authFrontendUrl);
+} else {
+  console.log("PR preview: skipping live production API health/auth/CORS gates; UI routes and browser interactions remain under test.");
+}
 
 await mkdir(artifactDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
