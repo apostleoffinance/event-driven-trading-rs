@@ -137,7 +137,7 @@ export function DashboardWorkspace({
     </header>
 
     {customizing ? <section className="panel dashboard-customizer">
-      <div><h2>Personalize your dashboard</h2><p className="muted">Choose the widgets you want to see and save this arrangement as a reusable layout on this device.</p></div>
+      <div><h2>Personalize your dashboard</h2><p className="muted">Choose which widgets appear on your dashboard.</p></div>
       <div className="dashboard-widget-toggles">{WIDGETS.map(w=><label key={w.key}><input type="checkbox" checked={isVisible(w.key)} onChange={()=>toggleWidget(w.key)}/>{w.label}</label>)}</div>
       <div className="dashboard-layout-actions"><input aria-label="Layout name" placeholder="Name this layout" value={layoutName} onChange={e=>setLayoutName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveLayout();}}/><button className="btn primary" type="button" onClick={saveLayout}>Save layout</button><select aria-label="Saved layouts" value={selectedLayout} onChange={e=>loadLayout(e.target.value)}><option value="">Load saved layout…</option>{layouts.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select><button className="btn" type="button" disabled={!selectedLayout} onClick={deleteLayout}>Delete</button></div>
       {layoutMessage?<p className="dashboard-inline-message" role="status">{layoutMessage}</p>:null}
