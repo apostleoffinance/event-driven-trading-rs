@@ -540,7 +540,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn render_secret_symlink_to_file_inside_mount_is_allowed() {
-        use std::{fs, os::unix::fs::{symlink, PermissionsExt}};
+        use std::{
+            fs,
+            os::unix::fs::{symlink, PermissionsExt},
+        };
 
         let root = std::env::temp_dir().join(format!(
             "edgenest-render-secret-{}-{}",
