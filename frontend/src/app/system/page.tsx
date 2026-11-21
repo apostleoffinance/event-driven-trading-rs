@@ -17,7 +17,7 @@ export default function SystemPage() {
     <div className="system-workspace">
       <PageHeader
         title="Connections & status"
-        description="Check the availability of your trading services and connected venues."
+        description="Monitor service and venue connections."
       />
       <div
         className="grid"
