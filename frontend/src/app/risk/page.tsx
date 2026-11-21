@@ -96,7 +96,7 @@ export default function RiskPage() {
   }
 
   return <main className="risk-center-page">
-    <PageHeader title="Risk Center" description="A consolidated view of execution controls, account-level risk policies, portfolio exposure and recent risk decisions." />
+    <PageHeader title="Risk Center" description="Monitor risk controls, exposure and recent decisions." />
     <div className="risk-center-toolbar">
       <div className="risk-center-live"><span className={!overview || overview.killSwitch ? "is-danger" : "is-live"} />{!overview ? "RISK DATA UNAVAILABLE" : overview.killSwitch ? "KILL SWITCH ACTIVE" : "RISK DATA LIVE"}<small>Auto-refresh · 15 seconds</small></div>
       <div className="risk-center-toolbar-actions"><Link className="btn" href="/risk/policies">Manage account policies ↗</Link><Link className="btn" href="/accounts">View accounts</Link></div>
