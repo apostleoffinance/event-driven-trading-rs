@@ -22,7 +22,7 @@ export default function MarketDataPage() {
 
   return (
     <div className="market-data-page">
-      <PageHeader title="Market Data" description="Explore market instruments, provider feeds and historical price action." />
+      <PageHeader title="Market Data" description="Explore instruments, data feeds and price history." />
       <MarketAnalysisChartBoundary>
         <MarketAnalysisChart />
       </MarketAnalysisChartBoundary>
