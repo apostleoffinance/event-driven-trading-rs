@@ -13,7 +13,9 @@ function css(name: string, fallback: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-function displayGroupLabel(value: string) {\n  const labels: Record<string, string> = { london: "London", london_ny_overlap: "London–New York overlap", new_york: "New York", unassigned: "Unassigned", unspecified: "Unspecified" };\n  return labels[value] ?? value.replaceAll("_", " ").replace(/\\b\\w/g, letter => letter.toUpperCase());\n}\n\nfunction formatMoney(value: number, currency: string) {
+function displayGroupLabel(value: string) {
+  const labels: Record<string, string> = { london: "London", london_ny_overlap: "London–New York overlap", new_york: "New York", unassigned: "Unassigned", unspecified: "Unspecified" };
+  return labels[value] ?? value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());\n}\n\nfunction formatMoney(value: number, currency: string) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency,
