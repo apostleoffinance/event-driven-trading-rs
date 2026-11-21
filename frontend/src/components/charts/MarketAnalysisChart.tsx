@@ -126,7 +126,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       chart = createChart(node, {
         width: Math.max(node.clientWidth, 320),
         height: 500,
-        layout: { background: { color: cssColor("--bg-1", "#111216") }, textColor, fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
+        layout: { background: { color: cssColor("--bg-1", "#121418") }, textColor, fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
         rightPriceScale: { borderColor: axisColor, scaleMargins: { top: 0.08, bottom: 0.2 } },
         timeScale: { borderColor: axisColor, timeVisible: true, secondsVisible: false, rightOffset: 5, barSpacing: 8 },
