@@ -524,3 +524,55 @@
 @media (max-width: 520px) {
   .trade-evidence-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Typography and density alignment with the approved dashboard mockup. */
+.analytics-page .page-header h1,
+.analytics-page .analytics-page-header h1 {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: -.045em;
+}
+.analytics-page .page-header p { font-family: var(--font-sans); font-weight: 400; }
+.analytics-page .panel-title,
+.analytics-page .analytics-filter-title,
+.analytics-page .analytics-chart-heading h2,
+.analytics-page .analytics-insights-heading h2,
+.analytics-page .analytics-section-heading h2 {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -.015em;
+}
+.analytics-page .panel-title { font-size: 10px; }
+.analytics-page .analytics-filter-title { font-size: 15px; }
+.analytics-page .metric-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: .055em;
+  text-transform: none;
+}
+.analytics-page .metric-value,
+.analytics-page .analytics-kpi-card .metric-value,
+.analytics-page .analytics-secondary-metric .metric-value,
+.analytics-page .analytics-risk-grid .metric-value {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -.035em;
+  line-height: 1.22;
+}
+.analytics-page .analytics-kpi-card .metric-value { font-size: clamp(20px, 1.65vw, 27px); }
+.analytics-page .analytics-secondary-metric .metric-value { font-size: 18px; }
+.analytics-page .analytics-chart-heading h2,
+.analytics-page .analytics-insights-heading h2 { font-size: 15px; font-weight: 500; }
+.analytics-page .analytics-ranked-chart-heading h3 { font-weight: 500; }
+.analytics-page .analytics-tab,
+.analytics-page .analytics-filter-field > span { font-family: var(--font-sans); font-weight: 400; }
+.analytics-page .analytics-filter-field select,
+.analytics-page .analytics-filter-field input { font-family: var(--font-sans); font-weight: 400; }
+.analytics-page .analytics-page-header { margin-bottom: 18px; }
+.analytics-page .panel { box-shadow: none; }
+.analytics-page .analytics-secondary-metric { background: var(--bg-2); }
+@media (max-width: 760px) {
+  .analytics-page .page-header h1 { font-size: 24px; }
+}
