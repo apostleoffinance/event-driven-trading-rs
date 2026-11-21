@@ -1004,3 +1004,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Replace the stale DESIGN.md guidance with the current approved dark palette, the selective EdgeNest blue gradient, restrained amber use, Inter/DM Mono typography, reusable primitives, and phased acceptance gates.
 - **Scope:** Design documentation and presentation-only frontend foundations. No trading, financial, API, risk, account or execution behavior changed.
 - **Verification:** Source inspection confirmed existing Inter/DM Mono fonts, dark/light theme support, CSS semantic variables, and existing Metric/StatusBadge/DataTable/PageHeader components. Build and visual checks remain pending on this branch.
+
+
+## REV-083 — EdgeNest Phase 2/3 visual treatment and financial-state preservation
+- **Date:** 2026-11-21
+- **Context:** User approved Phase 2 (Accounts/Portfolio) and Phase 3 (Strategies/Positions/Orders/Risk/Market Data) after merging PR #160.
+- **Finding:** These surfaces contain financial values, operational states, and distinct broker/Journal data sources. A purely decorative redesign could incorrectly imply live connectivity, combine ledger values, or visually conflate P&L and risk state.
+- **Decision:** Keep the change presentation-only. Use the existing account repository response for the featured account; keep broker-reported portfolio equity and Journal fallback explicitly labeled; keep multi-currency caveats; preserve current order lifecycle and risk disclosures; use gradients only for account/equity identity surfaces.
+- **Artifacts:** Accounts, Portfolio, Strategies, Positions, Orders pages and scoped global workspace styles. Risk Center, Risk Policies and Market Data receive scoped style refinements only.
+- **Verification:** Source diffs are limited to JSX presentation wrappers/components and CSS, plus tracking documentation. CI and responsive screenshot review are pending; no production deployment claimed.
+- **Remaining risk:** Screenshot and browser checks must confirm layout, light-theme contrast and responsive behavior before merge.
