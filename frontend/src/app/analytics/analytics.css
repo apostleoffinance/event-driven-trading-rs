@@ -576,3 +576,21 @@
 @media (max-width: 760px) {
   .analytics-page .page-header h1 { font-size: 24px; }
 }
+
+
+/* Keep Analytics KPI content directly on its card surface; avoid a card-inside-card treatment. */
+.analytics-page .analytics-kpi-card > .metric {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.analytics-page .analytics-kpi-card > .metric .metric-label { color: var(--text-muted); }
+.analytics-page .analytics-kpi-card > .metric .metric-value {
+  font-size: clamp(22px, 1.8vw, 28px);
+  font-weight: 500;
+}

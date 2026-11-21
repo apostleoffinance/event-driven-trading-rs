@@ -974,3 +974,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Align global font variables with the imported Inter/DM Mono assets; use Inter for interface copy, headings, and metric values; reserve DM Mono for compact technical labels, identifiers, timestamps, and tabular figures. Reduce unnecessary weight, tighten shared shell proportions, and remove excess card elevation. Add matching Analytics Lab overrides so route-specific styles cannot reintroduce the heavier hierarchy.
 - **Scope:** Visual-only CSS. No domain values, calculations, API integration, authentication, risk decisions, order lifecycle, or execution behavior changed.
 - **Verification status:** Implemented on a feature branch. Lint, typecheck, production build, responsive browser review, and deployment are pending PR validation.
+
+
+## REV-080 — Analytics KPI card surface simplification
+
+- **Date:** 2026-11-21
+- **Context:** Post-merge six-viewport screenshot review of PR #157's production acceptance artifact.
+- **Finding:** The authenticated Analytics Lab trade-replay screenshot showed a visible nested metric surface inside each outer KPI card. The repeated inset border/background made the metrics feel heavier and less direct than the approved dashboard mockup.
+- **Correction:** Remove the inner .metric border, background, padding, radius and shadow only within .analytics-kpi-card; keep the outer card as the sole surface and increase the primary value slightly for a clearer hierarchy.
+- **Verification evidence:** PR #157 merged as ba8a715bf1ab19c0a93700cb7b45c9901491312e. Cloudflare build and deployment succeeded; production acceptance completed successfully across six viewport sizes. Existing screenshot artifact contains six-viewport signed-out Analytics Lab, login and Market Data captures; six-viewport Account Risk Policies captures; and a desktop authenticated Analytics trade-replay fixture. It does not yet contain authenticated dashboard and Journal page screenshots.
+- **Scope:** Analytics CSS only. No data, API, risk, account, or execution behavior changed.
