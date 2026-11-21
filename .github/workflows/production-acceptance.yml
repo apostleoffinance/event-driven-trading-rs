@@ -28,10 +28,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -42,7 +42,7 @@ jobs:
 
       - name: Install Playwright browser tooling
         run: |
-          npm install --prefix frontend --no-save --package-lock=false playwright@1.56.1
+          npm install --prefix frontend --no-save --package-lock=false playwright@1.65.1
           npx --prefix frontend playwright install --with-deps chromium
 
       - name: Build and launch PR Cloudflare Worker preview
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload production acceptance screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: edgenest-production-acceptance
           path: artifacts/production-acceptance/
