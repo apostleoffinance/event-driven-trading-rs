@@ -215,3 +215,11 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 - **Safety:** Presentation-only. Preserve event stream connection status and detail drawer; reconciliation's alert-only behavior and mismatch visibility; actual system health/status values; calculator inputs, conversion freshness/stale-rate acknowledgement, risk policy assessment and planning-only boundary; Journal CRUD, imports/exports, evidence attachments, replay, account filters and all validation/warning flows.
 - **Acceptance:** Frontend lint, TypeScript, production build, OpenNext build; desktop/tablet/mobile screenshot checks; dark/light theme, overflow, keyboard/focus and browser console checks.
 - **Release:** Reviewable PR only. No production deployment. Phase 6 remains separate.
+
+
+## QOS-031 — EdgeNest CI warnings and acceptance signal quality
+- **Status:** IMPLEMENTED IN BRANCH — pending CI and acceptance verification.
+- **Scope:** Refresh GitHub Actions Node runtimes; update Playwright used by production acceptance; remove expected local-preview CORS noise from browser checks using deterministic health/event fixtures; fail the acceptance run on unexpected Market Data browser console errors.
+- **Safety:** Do not change production API CORS policy, service health behavior, event stream behavior, authentication, market data contracts, financial calculations, risk controls or execution behavior. Do not alter the production deployment workflow.
+- **Acceptance:** Quant OS CI, Cloudflare frontend build, production API health/readiness/auth/CORS, six viewport UI checks, and authenticated account/risk/analytics fixtures.
+- **Release:** Reviewable PR only; merge may run the existing build and deployment triggers only if the changed workflow paths match their configured filters. No manual deployment initiated.
