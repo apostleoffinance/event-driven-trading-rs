@@ -963,4 +963,4 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Changed the root theme bootstrap to default to dark unless the user has explicitly saved the light theme. Existing theme toggle and saved preference remain supported.
 - **Safety:** No API, financial data, account, risk, or execution logic changed.
 - **Regression coverage:** Re-run the six-viewport PR Worker visual acceptance and inspect screenshots to confirm first-visit dark mode.
-- **Verification status:** IN PROGRESS pending updated CI and screenshot artifact.
+- **Verification status:** PASS. Fresh-browser dark default verified in the six-viewport screenshot artifact; lint/typecheck/production build, Cloudflare Worker build/runtime preview, full Quant OS CI, and six-viewport Playwright acceptance passed. PR #154 merged to main. Production Cloudflare deployment succeeded and the production `/` and `/login` routes returned HTTP 200. Deployment run: https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/44920751775.
