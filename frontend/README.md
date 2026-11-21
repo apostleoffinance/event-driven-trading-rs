@@ -2,7 +2,9 @@
 
 Operational control plane for the Rust quantitative trading infrastructure.
 
-**Mode:** PAPER · API-backed dashboard and Journal  
+**Mode:** PAPER · API-backed dashboard and Journal
+
+**Design:** Premium dark trading-terminal UI by default, with an accessible light-theme preference. See [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for tokens, typography, state colours, motion, responsive rules, and safety invariants.  
 The dashboard is read-only for execution. Journal records are owner-scoped; Paper account creation is supported.
 
 ## Setup
