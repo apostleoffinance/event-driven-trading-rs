@@ -66,13 +66,12 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
     ];
 
     if applied.is_empty() {
-        // Do not treat every table in the active schema as an EdgeNest schema.
-        // Shared PostgreSQL databases may legitimately contain unrelated
-        // application tables. Only EdgeNest-owned table names should block a
-        // fresh install; report the exact target and collisions so operators
-        // can distinguish a wrong MIGRATOR_DATABASE_URL from an untracked
-        // EdgeNest schema.
-        let (database_name, schema_name, existing_edgenest_tables): (String, String, Vec<String>) =
+        // A migration target with any pre-existing table but no recognized
+        // SQLx history is not assumed to be fresh. Keep this fail-closed even
+        // for unknown table names: the target may be misconfigured or contain
+        // application data that must never be overwritten by bootstrap.
+        // Include the database, schema, and table names to make diagnosis safe.
+        let (database_name, schema_name, existing_tables): (String, String, Vec<String>) =
             sqlx::query_as(
                 r#"
             SELECT
@@ -84,45 +83,15 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
                 )
             FROM pg_tables
             WHERE schemaname = current_schema()
-              AND tablename = ANY(ARRAY[
-                  'venues',
-                  'instruments',
-                  'accounts',
-                  'account_states',
-                  'account_snapshots',
-                  'strategies',
-                  'strategy_versions',
-                  'risk_profiles',
-                  'strategy_deployments',
-                  'trade_intents',
-                  'risk_decisions',
-                  'orders',
-                  'fills',
-                  'positions',
-                  'performance_snapshots',
-                  'audit_events',
-                  'execution_events',
-                  'journal_accounts',
-                  'identity_users',
-                  'identity_sessions',
-                  'identity_refresh_tokens',
-                  'identity_access_tokens',
-                  'identity_session_events',
-                  'brokers',
-                  'broker_servers',
-                  'external_broker_accounts',
-                  'trading_account_broker_bindings',
-                  'mt5_gateway_hosts',
-                  'mt5_terminal_slots'
-              ])
+              AND tablename <> '_sqlx_migrations'
             "#,
             )
             .fetch_one(&mut *connection)
             .await?;
-        if !existing_edgenest_tables.is_empty() {
+        if !existing_tables.is_empty() {
             return Err(crate::error::PersistenceError::Other(format!(
-                "refusing fresh-install migration bootstrap: database '{database_name}', schema '{schema_name}' contains EdgeNest table(s) without recognized SQLx history: {}. Verify MIGRATOR_DATABASE_URL and inspect the existing schema; do not delete tables or fabricate migration history.",
-                existing_edgenest_tables.join(", ")
+                "refusing fresh-install migration bootstrap: database '{database_name}', schema '{schema_name}' contains table(s) without recognized SQLx history: {}. Verify MIGRATOR_DATABASE_URL and inspect the existing schema; do not delete tables or fabricate migration history.",
+                existing_tables.join(", ")
             )));
         }
         let core = migrator
