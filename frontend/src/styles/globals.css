@@ -2211,7 +2211,14 @@ body {
   z-index: 50;
 }
 .brand { align-items: center; gap: 10px; min-width: 185px; }
-.brand-name { font-size: 12px; font-weight: 700; letter-spacing: .13em; }
+.brand-name { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .13em; }
+.brand-name::before {
+  content: "Q"; display: inline-grid; width: 27px; height: 27px; place-items: center;
+  border: 1px solid rgba(143,178,205,.28); border-radius: 8px;
+  background: linear-gradient(140deg,#7794aa,#1c4360 65%,#0d1821);
+  box-shadow: 0 0 24px rgba(81,131,170,.14);
+  color: #f4f6f8; font: 600 13px var(--font-sans); letter-spacing: -.04em;
+}
 .env-pill {
   padding: 3px 7px;
   border-radius: 4px;
