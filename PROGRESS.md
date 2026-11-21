@@ -483,4 +483,18 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 
 ## 2026-11-21 — Visual acceptance correction
 - Playwright screenshot review revealed that the existing OS-preference bootstrap selected light mode for a fresh browser. Corrected the root bootstrap so dark is the true first-visit default while retaining an explicit saved light preference.
-- Re-running frontend lint/typecheck/build, OpenNext Worker preview, and six-viewport browser acceptance on the corrected branch. No production deployment has been made yet.
+- Re-running frontend lint/typecheck/build, OpenNext Worker preview, and six-viewport browser acceptance on the corrected branch. Production deployment subsequently completed successfully on 2026-11-21; see the final release record below.
+
+
+## 2026-11-21 — Quant OS redesign production release COMPLETE
+- Merged PR #154 into main as commit `c4992f7d598a6c5639c390ccbbbc27fe96a7950d`.
+- Cloudflare deployment workflow #44920751775 completed successfully.
+- Production Worker: https://edgenest-frontend.edgenest.workers.dev/
+- Production route checks: `/` HTTP 200 and `/login` HTTP 200.
+- OpenNext Cloudflare Worker build and local runtime smoke test passed.
+- Frontend lint, TypeScript typecheck, and production build passed.
+- Quant OS CI passed, including Rust workspace checks, MT5 gateway/adapter contracts, migration tests, and deployment-bundle checks.
+- Six-viewport Playwright acceptance passed on the release candidate, including desktop, laptop, tablet, and mobile checks for Analytics, Market Data, Login, and Risk Policy; authenticated Journal trade replay fixture also passed.
+- Fresh-browser screenshot verified the dark theme is the default. Explicitly saved light theme remains supported.
+- Green/red state semantics are wired to positive/negative outcomes, including candlesticks, drawdown, performance breakdowns, and status badges.
+- QOS-026 marked DONE.
