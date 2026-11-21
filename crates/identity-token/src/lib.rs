@@ -260,10 +260,9 @@ fn private_key_file_is_restricted(path: &Path) -> bool {
 }
 
 fn private_key_file_is_restricted_in(path: &Path, secret_dir: &Path) -> bool {
-    // Render-managed Secret Files live under /etc/secrets. Some secret mounts
-    // expose entries as symlinks, so inspect the target while ensuring it
-    // remains inside the trusted mount. Never extend this exception to
-    // symlinks or broadly-permissioned files elsewhere on the filesystem.
+    // Trust only entries lexically located under the configured secret mount.
+    // Render may expose a secret entry as a symlink, but its resolved target
+    // must also remain inside that mount. All symlinks elsewhere are rejected.
     let is_secret_path = path.starts_with(secret_dir)
         && path
             .components()
@@ -277,20 +276,24 @@ fn private_key_file_is_restricted_in(path: &Path, secret_dir: &Path) -> bool {
         if !is_secret_path {
             return false;
         }
+
         let (Ok(secret_root), Ok(resolved_path)) =
             (fs::canonicalize(secret_dir), fs::canonicalize(path))
         else {
             return false;
         };
-        if !resolved_path.starts_with(secret_root) {
+
+        if !resolved_path.starts_with(&secret_root) {
             return false;
         }
+
         return fs::metadata(path).is_ok_and(|metadata| metadata.is_file());
     }
 
     if !entry_metadata.file_type().is_file() {
         return false;
     }
+
     if is_secret_path {
         return true;
     }
