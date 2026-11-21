@@ -49,8 +49,8 @@ async fn main() {
         issuer,
         audience,
     )
-    .unwrap_or_else(|_| {
-        eprintln!("invalid EdgeNest JWT key-ring configuration");
+    .unwrap_or_else(|error| {
+        eprintln!("invalid EdgeNest JWT key-ring configuration: {error}");
         std::process::exit(2);
     });
     let access_ttl_seconds = env::var("EDGENEST_ACCESS_TOKEN_TTL_SECONDS")
