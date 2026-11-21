@@ -271,8 +271,8 @@ async fn main() {
     let audience = env_required("EDGENEST_JWT_AUDIENCE");
     let verification_keys = env_required("EDGENEST_JWT_VERIFICATION_KEY_FILES");
     let auth =
-        auth::JwtConfig::from_files(&verification_keys, issuer, audience).unwrap_or_else(|_| {
-            eprintln!("invalid JWT verification key-ring configuration");
+        auth::JwtConfig::from_files(&verification_keys, issuer, audience).unwrap_or_else(|error| {
+            eprintln!("invalid JWT verification key-ring configuration: {error}");
             std::process::exit(2);
         });
     let bind: SocketAddr = env::var("JOURNAL_API_BIND")
