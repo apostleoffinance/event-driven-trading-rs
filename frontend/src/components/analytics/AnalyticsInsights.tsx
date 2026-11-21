@@ -87,7 +87,7 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
   return <section className="panel analytics-insights" aria-labelledby="analytics-insights-title">
     <div className="analytics-insights-heading">
       <div><span className="analytics-eyebrow">RESEARCH PROMPTS</span><h2 id="analytics-insights-title">What stands out in this sample</h2>
-        <p className="muted">Descriptive comparisons, ranked by net P&amp;L. Groups with fewer than three trades are excluded; sample labels describe count, not statistical confidence.</p>
+        <p className="muted">Ranks net P&amp;L · Groups need at least 3 trades.</p>
       </div>
       <span className="badge info">Sample-aware</span>
     </div>
