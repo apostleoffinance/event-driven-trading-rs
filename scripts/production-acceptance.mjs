@@ -92,7 +92,7 @@ try {
     await page.route("**/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
-    await page.route("**/api/v1/trading/events?*", route => route.fulfill({
+    await page.route("**/api/v1/trading/events*", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify([]),
     }));
 
