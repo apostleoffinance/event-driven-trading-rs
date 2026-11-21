@@ -7,6 +7,17 @@ import styles from "./BehaviourDashboard.module.css";
 type BehaviourTrade = NonNullable<JournalAnalytics["trade_metrics"]>[number];
 type Props = { data: JournalIntelligence; trades: BehaviourTrade[]; onSelectGroup: (dimension: "Session" | "Setup" | "Weekday (UTC)" | "Month (UTC)", key: string) => void };
 
+function displayGroupLabel(value: string) {
+  const labels: Record<string, string> = {
+    london: "London",
+    london_ny_overlap: "London–New York overlap",
+    new_york: "New York",
+    unassigned: "Unassigned",
+    unspecified: "Unspecified",
+  };
+  return labels[value] ?? value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
 function formatPercent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
 }
@@ -122,7 +133,7 @@ export function BehaviourDashboard({ data, trades, onSelectGroup }: Props) {
         <strong className={styles.confidenceValue}>{data.win_rate_percent == null ? "—" : `${Number(data.win_rate_percent).toFixed(1)}%`}</strong>
         <span className={styles.confidenceDetail}>{confidence ? `${confidence.lower_percent.toFixed(1)}% – ${confidence.upper_percent.toFixed(1)}%` : "Confidence interval unavailable"}</span>
       </div>
-      <p>Statistical context, not a prediction. The interval communicates uncertainty in the observed win rate; it is not a probability that the true rate lies inside these bounds.</p>
+      <details><summary>About this estimate</summary><p>The interval describes uncertainty in the observed win rate. It is not a probability that the true rate lies inside these bounds, and it is not a prediction.</p></details>
     </div>
     {monthlyTrend.size ? <div className={styles.outcomePanel}>
       <h3 className={styles.sectionTitle}>Behaviour trends by month</h3>
@@ -132,7 +143,7 @@ export function BehaviourDashboard({ data, trades, onSelectGroup }: Props) {
     {segmentRows.length ? <div className={styles.outcomePanel}>
       <h3 className={styles.sectionTitle}>Behaviour by session, setup and weekday</h3>
       <p className={styles.sectionDescription}>Compare process quality with realized outcomes across the same trade population. Percentages use only trades with recorded values; these are descriptive associations, not causal conclusions.</p>
-      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Dimension</th><th>Group</th><th>Trades</th><th>Net P&amp;L</th><th>Avg R</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{segmentRows.map(row=><tr key={row.dimension+"::"+row.label}><td>{row.dimension}</td><td><button type="button" className="btn" onClick={()=>onSelectGroup(row.dimension as "Session" | "Setup" | "Weekday (UTC)",row.label)}>{row.label}</button></td><td>{row.trades}</td><td className={row.netPnl>=0?"num pos":"num neg"}>{row.netPnl.toFixed(2)}</td><td>{row.rCount?(row.realizedR/row.rCount).toFixed(2)+"R":"—"}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"% ("+row.rulesKnown+")":"—"}</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"% ("+row.validKnown+")":"—"}</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
+      <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Dimension</th><th>Group</th><th>Trades</th><th>Net P&amp;L</th><th>Avg R</th><th>Rule adherence</th><th>Valid setups</th><th>Emotional</th><th>Avg discipline</th></tr></thead><tbody>{segmentRows.map(row=><tr key={row.dimension+"::"+row.label}><td>{row.dimension}</td><td><button type="button" className="btn" onClick={()=>onSelectGroup(row.dimension as "Session" | "Setup" | "Weekday (UTC)",row.label)}>{displayGroupLabel(row.label)}</button></td><td>{row.trades}</td><td className={row.netPnl>=0?"num pos":"num neg"}>{row.netPnl.toFixed(2)}</td><td>{row.rCount?(row.realizedR/row.rCount).toFixed(2)+"R":"—"}</td><td>{row.rulesKnown?(row.rules/row.rulesKnown*100).toFixed(1)+"% ("+row.rulesKnown+")":"—"}</td><td>{row.validKnown?(row.valid/row.validKnown*100).toFixed(1)+"% ("+row.validKnown+")":"—"}</td><td>{row.emotional}</td><td>{row.disciplineKnown?(row.discipline/row.disciplineKnown).toFixed(1)+"/100":"—"}</td></tr>)}</tbody></table></div>
     </div> : null}
     <div className={styles.confidencePanel}>
       <div>

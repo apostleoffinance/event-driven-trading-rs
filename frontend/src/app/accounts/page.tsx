@@ -128,7 +128,7 @@ export default function AccountsPage() {
     <div className="accounts-workspace">
       <PageHeader
         title="Accounts"
-        description="Manage your trading accounts and track balances, equity and risk."
+        description="Manage accounts, balances and equity."
       />
       {featuredAccount ? (
         <section className="accounts-featured-grid" aria-label="Account snapshot">

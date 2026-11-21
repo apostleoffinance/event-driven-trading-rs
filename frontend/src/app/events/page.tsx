@@ -44,7 +44,7 @@ export default function EventsPage() {
     <div className="events-workspace">
       <PageHeader
         title="Recent activity"
-        description="Review updates to your orders, positions and trading accounts."
+        description="Recent order, position and account updates."
         actions={
           <span className={`badge ${connected ? "ok" : "warn"}`}>
             {connected ? "Live updates" : "Updates paused"}

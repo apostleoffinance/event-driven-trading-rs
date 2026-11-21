@@ -13,6 +13,17 @@ function css(name: string, fallback: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
+function displayGroupLabel(value: string) {
+  const labels: Record<string, string> = {
+    london: "London",
+    london_ny_overlap: "London–New York overlap",
+    new_york: "New York",
+    unassigned: "Unassigned",
+    unspecified: "Unspecified",
+  };
+  return labels[value] ?? value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
 function formatMoney(value: number, currency: string) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -68,7 +79,7 @@ export function AnalyticsBreakdownChart({
           const group = ranked[items[0]?.dataIndex ?? -1];
           if (!group) return "";
           return [
-            group.key,
+            displayGroupLabel(group.key),
             "Net P&L: " + formatMoney(Number(group.net_pnl), currency),
             "Trades: " + group.trades,
             "Win rate: " + (Number.isFinite(Number(group.win_rate_percent)) ? Number(group.win_rate_percent).toFixed(1) + "%" : "Not available"),
@@ -86,7 +97,7 @@ export function AnalyticsBreakdownChart({
       yAxis: {
         type: "category",
         inverse: true,
-        data: ranked.map((group) => group.key),
+        data: ranked.map((group) => displayGroupLabel(group.key)),
         axisLabel: { color: dim, width: 132, overflow: "truncate" },
         axisLine: { lineStyle: { color: axis } },
         axisTick: { show: false },

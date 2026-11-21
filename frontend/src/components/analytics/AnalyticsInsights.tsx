@@ -87,18 +87,18 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
   return <section className="panel analytics-insights" aria-labelledby="analytics-insights-title">
     <div className="analytics-insights-heading">
       <div><span className="analytics-eyebrow">RESEARCH PROMPTS</span><h2 id="analytics-insights-title">What stands out in this sample</h2>
-        <p className="muted">Descriptive comparisons, ranked by net P&amp;L. Groups with fewer than three trades are excluded; sample labels describe count, not statistical confidence.</p>
+        <p className="muted">Ranks net P&amp;L · Groups need at least 3 trades.</p>
       </div>
       <span className="badge info">Sample-aware</span>
     </div>
     <div className="analytics-insights-grid">
       <section className="analytics-insight-column" aria-label="Top performing groups">
         <h3>Strongest observed groups</h3>
-        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough qualifying trades to identify a strongest group.</p>}
+        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough trades to rank groups.</p>}
       </section>
       <section className="analytics-insight-column" aria-label="Groups worth investigating">
         <h3>Groups worth investigating</h3>
-        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No negative group with at least three trades in this sample.</p>}
+        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No qualifying negative groups.</p>}
       </section>
     </div>
     <p className="analytics-insight-legend"><span><i className="positive" /> Positive net P&amp;L</span><span><i className="negative" /> Negative net P&amp;L</span><span>Win-rate bars are scaled from 0–100%</span></p>
