@@ -7,7 +7,18 @@ import styles from "./BehaviourDashboard.module.css";
 type BehaviourTrade = NonNullable<JournalAnalytics["trade_metrics"]>[number];
 type Props = { data: JournalIntelligence; trades: BehaviourTrade[]; onSelectGroup: (dimension: "Session" | "Setup" | "Weekday (UTC)" | "Month (UTC)", key: string) => void };
 
-function displayGroupLabel(value: string) {\n  const labels: Record<string, string> = { london: "London", london_ny_overlap: "London–New York overlap", new_york: "New York", unassigned: "Unassigned", unspecified: "Unspecified" };\n  return labels[value] ?? value.replaceAll("_", " ").replace(/\\b\\w/g, letter => letter.toUpperCase());\n}\n\nfunction formatPercent(value: number | null) {
+function displayGroupLabel(value: string) {
+  const labels: Record<string, string> = {
+    london: "London",
+    london_ny_overlap: "London–New York overlap",
+    new_york: "New York",
+    unassigned: "Unassigned",
+    unspecified: "Unspecified",
+  };
+  return labels[value] ?? value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function formatPercent(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
 }
 
