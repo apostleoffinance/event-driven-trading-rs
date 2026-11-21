@@ -95,7 +95,7 @@ export default function PositionsPage() {
     <div className="positions-workspace">
       <PageHeader
         title="Positions"
-        description="Open positions after venue fills. Risk sizing already applied upstream."
+        description="Monitor open positions and exposure."
         actions={
           <select
             className="btn"
