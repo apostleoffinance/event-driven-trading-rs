@@ -261,9 +261,9 @@ fn private_key_file_is_restricted(path: &Path) -> bool {
     // Trust only regular files directly inside that mount; retain strict
     // owner-only permissions for every other filesystem location.
     let is_render_secret = path.starts_with("/etc/secrets")
-        && path.components().all(|component| {
-            !matches!(component, std::path::Component::ParentDir)
-        });
+        && path
+            .components()
+            .all(|component| !matches!(component, std::path::Component::ParentDir));
 
     let Ok(metadata) = fs::symlink_metadata(path) else {
         return false;
