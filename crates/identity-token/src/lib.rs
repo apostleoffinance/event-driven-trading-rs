@@ -255,18 +255,36 @@ fn read_key_files(spec: &str, private: bool) -> Result<BTreeMap<String, Vec<u8>>
     Ok(keys)
 }
 
-#[cfg(unix)]
 fn private_key_file_is_restricted(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    fs::metadata(path)
-        .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o077 == 0)
-        .unwrap_or(false)
-}
+    // Render mounts dashboard-managed Secret Files under /etc/secrets. Their
+    // permissions are controlled by the platform and may be broader than 0600.
+    // Trust only regular files directly inside that mount; retain strict
+    // owner-only permissions for every other filesystem location.
+    let is_render_secret = path.starts_with("/etc/secrets")
+        && path.components().all(|component| {
+            !matches!(component, std::path::Component::ParentDir)
+        });
 
-#[cfg(not(unix))]
-fn private_key_file_is_restricted(_path: &Path) -> bool {
-    // ACL enforcement is platform-specific; deployment policy must supply protected files.
-    true
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        return false;
+    };
+    if !metadata.file_type().is_file() {
+        return false;
+    }
+    if is_render_secret {
+        return true;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o077 == 0
+    }
+    #[cfg(not(unix))]
+    {
+        // ACL enforcement is platform-specific; deployment policy must supply protected files.
+        true
+    }
 }
 
 #[cfg(test)]
