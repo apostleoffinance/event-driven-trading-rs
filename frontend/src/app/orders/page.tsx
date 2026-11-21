@@ -75,7 +75,7 @@ export default function OrdersPage() {
     <div className="orders-workspace">
       <PageHeader
         title="Orders"
-        description="OMS surface. Lifecycle is always TradeIntent → Risk → OMS → Venue → Fill — never Strategy → Order. Unknown means ambiguous venue outcome — reconcile, do not assume Failed."
+        description="Track order status from intent to venue fill."
       />
       <div className="panel orders-lifecycle-panel" style={{ marginBottom: 12 }}>
         <div className="panel-title">EXECUTION CHAIN (SELECTED OR DEFAULT)</div>
