@@ -17,7 +17,7 @@ export default function ReconciliationPage() {
     return <div className="error">Failed to load reconciliation.</div>;
 
   return (
-    <>
+    <div className="reconciliation-workspace">
       <PageHeader
         title="Reconciliation"
         description="Alert-only compare of internal vs venue state. Mismatches never silently overwrite books."
@@ -75,6 +75,6 @@ export default function ReconciliationPage() {
           </div>
         ))
       )}
-    </>
+    </div>
   );
 }
