@@ -66,15 +66,67 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
     ];
 
     if applied.is_empty() {
-        let app_table_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM pg_tables WHERE schemaname=current_schema() AND tablename <> '_sqlx_migrations'",
+        // Do not treat every table in the active schema as an EdgeNest schema.
+        // Shared PostgreSQL databases may legitimately contain unrelated
+        // application tables. Only EdgeNest-owned table names should block a
+        // fresh install; report the exact target and collisions so operators
+        // can distinguish a wrong MIGRATOR_DATABASE_URL from an untracked
+        // EdgeNest schema.
+        let (database_name, schema_name, existing_edgenest_tables): (
+            String,
+            String,
+            Vec<String>,
+        ) = sqlx::query_as(
+            r#"
+            SELECT
+                current_database(),
+                current_schema(),
+                COALESCE(
+                    array_agg(tablename ORDER BY tablename),
+                    ARRAY[]::text[]
+                )
+            FROM pg_tables
+            WHERE schemaname = current_schema()
+              AND tablename = ANY(ARRAY[
+                  'venues',
+                  'instruments',
+                  'accounts',
+                  'account_states',
+                  'account_snapshots',
+                  'strategies',
+                  'strategy_versions',
+                  'risk_profiles',
+                  'strategy_deployments',
+                  'trade_intents',
+                  'risk_decisions',
+                  'orders',
+                  'fills',
+                  'positions',
+                  'performance_snapshots',
+                  'audit_events',
+                  'execution_events',
+                  'journal_accounts',
+                  'identity_users',
+                  'identity_sessions',
+                  'identity_refresh_tokens',
+                  'identity_access_tokens',
+                  'identity_session_events',
+                  'brokers',
+                  'broker_servers',
+                  'external_broker_accounts',
+                  'trading_account_broker_bindings',
+                  'mt5_gateway_hosts',
+                  'mt5_terminal_slots'
+              ])
+            "#,
         )
         .fetch_one(&mut *connection)
         .await?;
-        if app_table_count != 0 {
-            return Err(crate::error::PersistenceError::Other(
-                "refusing fresh-install migration bootstrap: application schema exists without recognized SQLx history".into(),
-            ));
+        if !existing_edgenest_tables.is_empty() {
+            return Err(crate::error::PersistenceError::Other(format!(
+                "refusing fresh-install migration bootstrap: database '{database_name}', schema '{schema_name}' contains EdgeNest table(s) without recognized SQLx history: {}. Verify MIGRATOR_DATABASE_URL and inspect the existing schema; do not delete tables or fabricate migration history.",
+                existing_edgenest_tables.join(", ")
+            )));
         }
         let core = migrator
             .iter()
