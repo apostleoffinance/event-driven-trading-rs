@@ -79,8 +79,8 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
         ) = sqlx::query_as(
             r#"
             SELECT
-                current_database(),
-                current_schema(),
+                current_database()::text,
+                current_schema()::text,
                 COALESCE(
                     array_agg(tablename ORDER BY tablename),
                     ARRAY[]::text[]
