@@ -2,13 +2,9 @@ use persistence::migrate;
 use sqlx::PgPool;
 
 #[sqlx::test]
-async fn fresh_install_ignores_unrelated_tables_in_the_active_schema(
+async fn fresh_install_bootstraps_an_empty_schema(
     pool: PgPool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    sqlx::query("CREATE TABLE unrelated_app_metadata (id BIGINT PRIMARY KEY, value TEXT NOT NULL)")
-        .execute(&pool)
-        .await?;
-
     migrate(&pool).await?;
 
     let history_exists: bool =
@@ -26,20 +22,22 @@ async fn fresh_install_ignores_unrelated_tables_in_the_active_schema(
 }
 
 #[sqlx::test]
-async fn existing_edgenest_tables_without_history_are_still_rejected(
+async fn existing_tables_without_history_are_rejected_with_target_diagnostics(
     pool: PgPool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    sqlx::query("CREATE TABLE accounts (id TEXT PRIMARY KEY)")
+    sqlx::query("CREATE TABLE unrelated_app_metadata (id BIGINT PRIMARY KEY, value TEXT NOT NULL)")
         .execute(&pool)
         .await?;
 
     let error = migrate(&pool)
         .await
-        .expect_err("an untracked EdgeNest schema must never be silently adopted");
+        .expect_err("any untracked application table must block fresh bootstrap");
     let message = error.to_string();
 
     assert!(message.contains("without recognized SQLx history"));
-    assert!(message.contains("accounts"));
+    assert!(message.contains("unrelated_app_metadata"));
+    assert!(message.contains("database"));
+    assert!(message.contains("schema"));
 
     let history_exists: bool =
         sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NOT NULL")
