@@ -2502,3 +2502,92 @@ h1, h2, h3, h4 { font-family: var(--font-sans); font-weight: 500; }
   .page-header h1 { font-size: 24px; }
   .metric-value { font-size: 21px; }
 }
+
+
+/* QOS-028 — Phase 2/3 EdgeNest account, portfolio and trading workspaces. */
+.accounts-workspace,.portfolio-workspace,.positions-workspace,.orders-workspace { min-width: 0; }
+.accounts-featured-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, .95fr) minmax(320px, 1.35fr);
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.accounts-featured-grid .gradient-account-card { min-height: 218px; }
+.account-featured-meta { color: rgba(242,244,247,.7); font-size: 11px; }
+.account-featured-equity-label { margin-top: 20px; color: rgba(242,244,247,.72); font-size: 11px; }
+.account-featured-equity,.portfolio-equity-value {
+  margin-top: 3px; color: #f2f4f7; font-family: var(--font-mono);
+  font-size: clamp(27px,3vw,38px); font-weight: 400; letter-spacing: -.045em;
+  line-height: 1.15; font-variant-numeric: tabular-nums;
+}
+.account-featured-footer {
+  display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 18px;
+  padding-top: 12px; border-top: 1px solid rgba(242,244,247,.18);
+}
+.account-featured-footer span { display: grid; gap: 3px; color: rgba(242,244,247,.68); font-size: 10px; }
+.account-featured-footer strong { color: #f2f4f7; font: 12px var(--font-mono); }
+.account-featured-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.accounts-table-panel,.accounts-journal-panel,.portfolio-journal-panel,.positions-table-panel,.orders-table-panel { min-width: 0; }
+.accounts-table-panel .table-wrap,.accounts-journal-panel,.portfolio-journal-panel,.positions-table-panel .table-wrap,.orders-table-panel .table-wrap { overflow-x: auto; }
+.portfolio-workspace > .grid-kpi { grid-template-columns: minmax(260px,1.2fr) repeat(3,minmax(0,1fr)); align-items: stretch; }
+.portfolio-workspace > .grid-kpi > .gradient-account-card { min-height: 112px; }
+.portfolio-equity-caption { margin-top: 7px; color: rgba(242,244,247,.7); font-size: 10px; }
+.portfolio-analysis-grid > .panel { min-width: 0; }
+.strategy-workspace { align-items: start; }
+.strategy-list-card {
+  width: 100%; cursor: pointer; border-color: var(--border);
+  background: var(--bg-1); transition: border-color .16s ease,background .16s ease;
+}
+.strategy-list-card:hover { border-color: var(--border-strong); background: var(--bg-2); }
+.strategy-list-card.primary {
+  border-color: color-mix(in srgb,var(--accent) 58%,var(--border));
+  background: linear-gradient(110deg,rgba(49,85,112,.17),var(--bg-1) 70%);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.strategy-detail-panel { min-width: 0; }
+.strategy-detail-panel > h2 { font-weight: 500; }
+.strategy-detail-panel .tabs { display: flex; flex-wrap: wrap; gap: 5px; margin: 14px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.strategy-detail-panel .tab { border: 1px solid transparent; border-radius: 5px; padding: 7px 10px; background: transparent; color: var(--text-muted); font-size: 11px; }
+.strategy-detail-panel .tab.active { color: var(--text); background: var(--accent-soft); border-color: color-mix(in srgb,var(--accent) 35%,transparent); }
+.positions-table-panel,.orders-table-panel { border-color: var(--border); }
+.orders-lifecycle-panel { background: linear-gradient(120deg,rgba(49,85,112,.09),var(--bg-1) 65%); }
+.risk-center-page .risk-center-panel,.risk-center-page .risk-center-metric {
+  border-color: var(--border); box-shadow: none;
+}
+.risk-center-page .risk-center-metric {
+  background: linear-gradient(145deg,var(--bg-2),var(--bg-1) 72%);
+  border-radius: 8px;
+}
+.risk-center-page .risk-center-panel-heading h2 { font-weight: 500; letter-spacing: -.02em; }
+.risk-center-page .risk-policy-row { border-color: var(--border); }
+.risk-center-page .risk-policy-avatar { background: var(--accent-soft); color: var(--text); border: 1px solid color-mix(in srgb,var(--accent) 28%,transparent); }
+.risk-policy-page .risk-account-card {
+  background: linear-gradient(115deg,#6f869e 0%,#315570 30%,#084360 58%,#06111c 100%);
+  border-color: rgba(111,134,158,.32); color: #f2f4f7;
+}
+.risk-policy-page .risk-account-card h2,.risk-policy-page .risk-account-card p,
+.risk-policy-page .risk-account-card .risk-eyebrow { color: #f2f4f7; }
+.risk-policy-page .risk-account-card .risk-account-facts { border-top-color: rgba(242,244,247,.2); }
+.risk-policy-page .risk-account-card .risk-account-facts > * { color: rgba(242,244,247,.78); }
+.risk-policy-page .risk-account-card .risk-account-facts strong { color: #fff; }
+.market-data-page .market-provider-registry,.market-data-page .market-provider-card {
+  border-color: var(--border); border-radius: 8px; box-shadow: none;
+}
+.market-data-page .market-provider-card { background: var(--bg-1); }
+.market-data-page .market-subsection-heading h2 { font-weight: 500; }
+@media (max-width: 980px) {
+  .accounts-featured-grid { grid-template-columns: 1fr; }
+  .portfolio-workspace > .grid-kpi { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 760px) {
+  .account-featured-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .portfolio-workspace > .grid-kpi { grid-template-columns: 1fr 1fr; }
+  .portfolio-workspace > .grid-kpi > .gradient-account-card { grid-column: 1 / -1; }
+  .strategy-workspace { grid-template-columns: 1fr !important; }
+  .strategy-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .strategy-list-card { min-width: 0; }
+}
+@media (max-width: 480px) {
+  .account-featured-metrics,.strategy-list { grid-template-columns: 1fr; }
+  .account-featured-footer { gap: 10px 16px; }
+}
