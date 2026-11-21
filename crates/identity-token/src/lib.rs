@@ -256,29 +256,49 @@ fn read_key_files(spec: &str, private: bool) -> Result<BTreeMap<String, Vec<u8>>
 }
 
 fn private_key_file_is_restricted(path: &Path) -> bool {
-    // Render mounts dashboard-managed Secret Files under /etc/secrets. Their
-    // permissions are controlled by the platform and may be broader than 0600.
-    // Trust only regular files directly inside that mount; retain strict
-    // owner-only permissions for every other filesystem location.
-    let is_render_secret = path.starts_with("/etc/secrets")
+    private_key_file_is_restricted_in(path, Path::new("/etc/secrets"))
+}
+
+fn private_key_file_is_restricted_in(path: &Path, secret_dir: &Path) -> bool {
+    // Render-managed Secret Files live under /etc/secrets. Some secret mounts
+    // expose entries as symlinks, so inspect the target while ensuring it
+    // remains inside the trusted mount. Never extend this exception to
+    // symlinks or broadly-permissioned files elsewhere on the filesystem.
+    let is_secret_path = path.starts_with(secret_dir)
         && path
             .components()
             .all(|component| !matches!(component, std::path::Component::ParentDir));
 
-    let Ok(metadata) = fs::symlink_metadata(path) else {
+    let Ok(entry_metadata) = fs::symlink_metadata(path) else {
         return false;
     };
-    if !metadata.file_type().is_file() {
+
+    if entry_metadata.file_type().is_symlink() {
+        if !is_secret_path {
+            return false;
+        }
+        let (Ok(secret_root), Ok(resolved_path)) =
+            (fs::canonicalize(secret_dir), fs::canonicalize(path))
+        else {
+            return false;
+        };
+        if !resolved_path.starts_with(secret_root) {
+            return false;
+        }
+        return fs::metadata(path).is_ok_and(|metadata| metadata.is_file());
+    }
+
+    if !entry_metadata.file_type().is_file() {
         return false;
     }
-    if is_render_secret {
+    if is_secret_path {
         return true;
     }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        metadata.permissions().mode() & 0o077 == 0
+        entry_metadata.permissions().mode() & 0o077 == 0
     }
     #[cfg(not(unix))]
     {
@@ -515,6 +535,76 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
         assert!(read_key_files(&format!("key-1={}", path.display()), true).is_err());
         fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn render_secret_symlink_to_file_inside_mount_is_allowed() {
+        use std::{fs, os::unix::fs::{symlink, PermissionsExt}};
+
+        let root = std::env::temp_dir().join(format!(
+            "edgenest-render-secret-{}-{}",
+            std::process::id(),
+            uuid_for_test()
+        ));
+        let secret_dir = root.join("secrets");
+        fs::create_dir_all(&secret_dir).unwrap();
+
+        let target = secret_dir.join("private-key-target.pem");
+        let link = secret_dir.join("private-key.pem");
+        fs::write(&target, PRIVATE).unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o644)).unwrap();
+        symlink(&target, &link).unwrap();
+
+        assert!(private_key_file_is_restricted_in(&link, &secret_dir));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn render_secret_symlink_cannot_escape_secret_mount() {
+        use std::{fs, os::unix::fs::symlink};
+
+        let root = std::env::temp_dir().join(format!(
+            "edgenest-render-secret-escape-{}-{}",
+            std::process::id(),
+            uuid_for_test()
+        ));
+        let secret_dir = root.join("secrets");
+        fs::create_dir_all(&secret_dir).unwrap();
+
+        let outside_target = root.join("outside-private-key.pem");
+        let link = secret_dir.join("private-key.pem");
+        fs::write(&outside_target, PRIVATE).unwrap();
+        symlink(&outside_target, &link).unwrap();
+
+        assert!(!private_key_file_is_restricted_in(&link, &secret_dir));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_private_key_outside_secret_mount_is_rejected() {
+        use std::{fs, os::unix::fs::symlink};
+
+        let root = std::env::temp_dir().join(format!(
+            "edgenest-private-key-link-{}-{}",
+            std::process::id(),
+            uuid_for_test()
+        ));
+        fs::create_dir_all(&root).unwrap();
+
+        let target = root.join("private-key-target.pem");
+        let link = root.join("private-key.pem");
+        fs::write(&target, PRIVATE).unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+        symlink(&target, &link).unwrap();
+
+        assert!(!private_key_file_is_restricted_in(&link, &root));
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
