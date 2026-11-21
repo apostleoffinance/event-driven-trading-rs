@@ -128,7 +128,7 @@ export function DashboardWorkspace({
 
   return <div className="dashboard-workspace">
     <header className="dashboard-heading">
-      <div><div className="dashboard-eyebrow">COMMAND CENTER</div><h1>Your trading dashboard</h1><p>Performance, risk and account activity — in one view.</p></div>
+      <div><div className="dashboard-eyebrow">COMMAND CENTER</div><h1>Your trading dashboard</h1><p>Performance, risk and account activity.</p></div>
       <div className="dashboard-toolbar">
         <label className="dashboard-filter"><span>Account</span><select value={selectedAccount} onChange={e=>{setSelectedAccount(e.target.value);setSelectedLayout("");}}><option value="all">All Journal accounts</option>{journalAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
         <label className="dashboard-filter"><span>Period</span><select value={period} onChange={e=>{setPeriod(e.target.value as Period);setSelectedLayout("");}}><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="ytd">Year to date</option><option value="all">All time</option></select></label>
