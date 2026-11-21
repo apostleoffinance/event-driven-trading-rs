@@ -374,10 +374,12 @@ try {
         body: document.body.scrollWidth,
         font: getComputedStyle(document.querySelector("h1") || document.body).fontFamily,
         headingWeight: getComputedStyle(document.querySelector("h1") || document.body).fontWeight,
+        interLoaded: document.fonts.check("400 12px Inter"),
       }));
       assert.ok(dimensions.document <= dimensions.viewport + 1 && dimensions.body <= dimensions.viewport + 1,
         `Authenticated horizontal overflow at ${label}: ${JSON.stringify(dimensions)}`);
       assert.match(dimensions.font, /Inter/i, `Expected Inter interface typography at ${label}; got ${dimensions.font}`);
+      assert.equal(dimensions.interLoaded, true, `Inter font face did not load at ${label}`);
       return dimensions;
     };
     for (const viewport of viewports) {
