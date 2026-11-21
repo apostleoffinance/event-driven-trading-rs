@@ -984,3 +984,14 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Correction:** Remove the inner .metric border, background, padding, radius and shadow only within .analytics-kpi-card; keep the outer card as the sole surface and increase the primary value slightly for a clearer hierarchy.
 - **Verification evidence:** PR #157 merged as ba8a715bf1ab19c0a93700cb7b45c9901491312e. Cloudflare build and deployment succeeded; production acceptance completed successfully across six viewport sizes. Existing screenshot artifact contains six-viewport signed-out Analytics Lab, login and Market Data captures; six-viewport Account Risk Policies captures; and a desktop authenticated Analytics trade-replay fixture. It does not yet contain authenticated dashboard and Journal page screenshots.
 - **Scope:** Analytics CSS only. No data, API, risk, account, or execution behavior changed.
+
+
+## REV-081 — Authenticated Command Centre and Journal six-viewport coverage
+
+- **Date:** 2026-11-21
+- **Context:** Follow-up to PR #157/#158; the existing production acceptance suite covered signed-out responsive routes at six viewports and authenticated Analytics at desktop, but lacked authenticated Command Centre and Journal visual evidence.
+- **Implementation:** Extend the Playwright acceptance script to authenticate once, then capture the Command Centre (`/`) and Trading Journal (`/journal`) at 1440×900, 1280×800, 1024×768, 768×1024, 390×844 and 360×800. Assert route responses, authenticated page structure, Inter font-family selection and font-face availability, document/body horizontal overflow, and absence of browser page errors.
+- **Privacy:** Blur account-specific and financial values in CI screenshots while preserving card geometry, typography, layout and responsive behavior. The test performs read-only navigation and does not create, edit, import, or delete trading records.
+- **Artifacts:** `*-authenticated-dashboard.png` and `*-authenticated-journal.png` for each viewport, uploaded with the existing `edgenest-production-acceptance` artifact.
+- **Verification status:** Added on a feature branch; CI execution and screenshot inspection pending. Authenticated visual captures use the deployed frontend and production acceptance account; the post-merge main-branch run is the authoritative capture of the newly deployed build.
+- **Scope:** Playwright acceptance script and review documentation only. No frontend runtime, API, account, financial, risk, or execution behavior changed.
