@@ -1030,3 +1030,17 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Finding:** The remaining pages include operational connection state, alert-only reconciliation, a planning-only position calculator with live FX freshness and optional stale-rate acknowledgement, and authenticated Journal workflows with imports, replay and private evidence.
 - **Decision:** Presentation-only scoped styling and wrappers. Preserve explicit source statuses and warning text; do not add connection claims, reconciliation controls, execute actions, alter calculator formulas/inputs or Journal mutations.
 - **Verification:** Inspected relevant route/component sources and existing design tokens. Changes are limited to presentation wrappers and CSS. CI and screenshot acceptance pending.
+
+
+## REV-UI-001 — Dashboard heading weight mismatch found in six-viewport acceptance
+- **Date:** 2026-11-21
+- **Context:** Final visual review after PR #166 merge; GitHub Actions run 44949897457, commit `4d4684622f177e888b2730e5bc3c953bfe426783`.
+- **Finding/correction:** The authenticated Command Centre reported computed `headingWeight: 650` at all six viewports, while the Journal heading reported `400`. The dashboard page and panel headings therefore appeared heavier than the approved Inter 400–500 hierarchy.
+- **Impact:** Visual inconsistency across primary workspaces and a departure from the approved lighter typographic direction.
+- **Evidence:** Six-viewport acceptance screenshots `desktop-1440x900-authenticated-dashboard.png`, `desktop-1280x800-authenticated-dashboard.png`, `laptop-1024x768-authenticated-dashboard.png`, `tablet-768x1024-authenticated-dashboard.png`, `mobile-390x844-authenticated-dashboard.png`, `mobile-360x800-authenticated-dashboard.png`; acceptance log explicitly records dashboard headingWeight 650 and Journal headingWeight 400.
+- **Rule that failed:** `DESIGN.md` typography hierarchy requires page headings 400–500 and section/card headings 500.
+- **Rule update made in RULES.md:** None required; existing rule is sufficient.
+- **Code/docs/tests changed:** `frontend/src/styles/globals.css` dashboard title and dashboard panel heading weights changed from 650 to 500 only.
+- **Regression/real-use check added:** Run the six-viewport production acceptance workflow and verify dashboard computed heading weight is 500 and there is no horizontal overflow.
+- **Verification result:** Source correction committed on `fix/edgenest-dashboard-heading-weight`; PR and post-fix acceptance are pending.
+- **Remaining risk:** Production API calls from the local Cloudflare preview emitted CORS/503 console messages for `/healthz` and `/api/v1/trading/events` in the screenshot run, although the workflow's API health/readiness and production acceptance checks passed. These preview-origin console messages need separate origin-aware triage; no API/CORS behavior was changed in this visual fix.
