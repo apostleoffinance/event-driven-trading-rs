@@ -590,7 +590,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn symlinked_private_key_outside_secret_mount_is_rejected() {
-        use std::{fs, os::unix::fs::symlink};
+        use std::{
+            fs,
+            os::unix::fs::{symlink, PermissionsExt},
+        };
 
         let root = std::env::temp_dir().join(format!(
             "edgenest-private-key-link-{}-{}",
