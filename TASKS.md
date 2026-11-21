@@ -206,3 +206,12 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 - **Safety:** CSS-only. Preserve Journal API/query behavior, account/date/symbol/setup filters, saved views, all metric definitions and currencies, UTC grouping, chart data, trade investigation, replay, attachments and explicit missing-data states.
 - **Acceptance:** Frontend lint, TypeScript, production build and OpenNext build; six viewport screenshots covering Overview, Performance, Edge Explorer, Execution, Behaviour, Risk and Calendar; verify dark/light themes, no horizontal page overflow, keyboard/focus behavior and browser console.
 - **Release:** Reviewable PR only; no production deployment. Phase 5 remains gated on user approval.
+
+
+## QOS-030 — EdgeNest remaining-page consistency (Phase 5)
+- **Status:** IMPLEMENTED IN BRANCH — pending CI and screenshot acceptance.
+- **Scope:** Events, Reconciliation, Connections & Status, Trade Calculator, and Trading Journal.
+- **Design:** Apply the approved Inter/DM Mono hierarchy, calm neutral surfaces, restrained blue selection states, clear data tables, compact form controls and responsive layouts.
+- **Safety:** Presentation-only. Preserve event stream connection status and detail drawer; reconciliation's alert-only behavior and mismatch visibility; actual system health/status values; calculator inputs, conversion freshness/stale-rate acknowledgement, risk policy assessment and planning-only boundary; Journal CRUD, imports/exports, evidence attachments, replay, account filters and all validation/warning flows.
+- **Acceptance:** Frontend lint, TypeScript, production build, OpenNext build; desktop/tablet/mobile screenshot checks; dark/light theme, overflow, keyboard/focus and browser console checks.
+- **Release:** Reviewable PR only. No production deployment. Phase 6 remains separate.
