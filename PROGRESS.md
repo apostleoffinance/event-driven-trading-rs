@@ -498,3 +498,14 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Fresh-browser screenshot verified the dark theme is the default. Explicitly saved light theme remains supported.
 - Green/red state semantics are wired to positive/negative outcomes, including candlesticks, drawdown, performance breakdowns, and status badges.
 - QOS-026 marked DONE.
+
+
+## 2026-11-21 — QOS-027 EdgeNest frontend visual upgrade kickoff
+- User authorized Phase 0 and Phase 1 only, with selective blue gradients on important surfaces and reviewable PRs. Later phases require user approval.
+- Inspected authoritative RULES.md, current DESIGN.md, global theme CSS, root layout, existing data-display components, app shell, frontend package scripts and current merged PR state.
+- Confirmed the existing app already uses Inter and DM Mono and supports dark/light themes. Found DESIGN.md still described a stale white-dominant palette inconsistent with RULES.md and the merged QOS-026 premium dark redesign.
+- Created branch `feat/edgenest-visual-system-phase-0-1`.
+- Added an EdgeNest token layer preserving existing semantic CSS variable names, with near-black surfaces, steel/ocean blue identity, restrained amber, confirmed positive/negative semantics, and an opt-in account gradient.
+- Added reusable presentation-only `SurfaceCard`, `MetricCard`, and `GradientAccountCard` primitives. The gradient component is opt-in; no page has been migrated to it yet.
+- Updated design specification and review/task tracking. Validation is pending; no tests/build/deployment have been claimed.
+- **Safety boundary:** no API, backend, data, money calculation, account, risk, order, or execution logic changed. Phase 2+ remain pending user approval.

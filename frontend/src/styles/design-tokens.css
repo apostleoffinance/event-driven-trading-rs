@@ -1,0 +1,215 @@
+/*
+ * EdgeNest visual foundation — Phase 0/1.
+ * Keep the existing Quant OS semantic variable contract so this layer is
+ * presentation-only and existing pages inherit the palette without rewiring.
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Neutral trading-terminal surfaces */
+  --bg-0: #090a0d;
+  --bg-1: #121418;
+  --bg-2: #181c22;
+  --bg-3: #202630;
+  --border: #252b34;
+  --border-strong: #35404d;
+
+  /* Typography */
+  --text: #f2f4f7;
+  --text-muted: #a1a8b3;
+  --text-dim: #737d8a;
+
+  /* Restrained EdgeNest blue identity */
+  --accent: #6f869e;
+  --accent-soft: rgba(49, 85, 112, 0.22);
+  --edgenest-blue-deep: #06111c;
+  --edgenest-blue-midnight: #081f32;
+  --edgenest-blue-ocean: #084360;
+  --edgenest-blue-steel: #315570;
+  --edgenest-blue-muted: #6f869e;
+  --edgenest-amber: #98590c;
+
+  /* Confirmed financial and operational semantics */
+  --positive: #18a66a;
+  --positive-soft: rgba(24, 166, 106, 0.14);
+  --negative: #e16e75;
+  --negative-soft: rgba(225, 110, 117, 0.14);
+  --warning: #d6a24b;
+  --warning-soft: rgba(214, 162, 75, 0.14);
+  --paper: #d6a24b;
+
+  /* Shell and chart surfaces */
+  --topbar-bg: rgba(9, 10, 13, 0.94);
+  --shell-glow: transparent;
+  --chart-muted: #a1a8b3;
+  --chart-dim: #737d8a;
+  --chart-grid: #252b34;
+  --chart-axis: #35404d;
+  --chart-line: #6f869e;
+  --chart-dd: #e16e75;
+
+  /* Signature gradient: reserved for account and portfolio highlights. */
+  --edgenest-gradient-account: linear-gradient(
+    115deg,
+    #6f869e 0%,
+    #315570 30%,
+    #084360 58%,
+    #06111c 100%
+  );
+  --edgenest-gradient-highlight: linear-gradient(
+    135deg,
+    rgba(111, 134, 158, 0.16),
+    rgba(8, 67, 96, 0.08) 52%,
+    transparent 100%
+  );
+  --edgenest-shadow-card: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Preserve the optional light theme with matching semantic surfaces. */
+  --bg-0: #f4f6f9;
+  --bg-1: #ffffff;
+  --bg-2: #eef2f7;
+  --bg-3: #e4eaf2;
+  --border: #d5dde8;
+  --border-strong: #b8c3d3;
+  --text: #12161d;
+  --text-muted: #3d4a5c;
+  --text-dim: #5a687a;
+  --accent: #315570;
+  --accent-soft: rgba(49, 85, 112, 0.1);
+  --positive: #1a7f4b;
+  --positive-soft: rgba(26, 127, 75, 0.12);
+  --negative: #c6283a;
+  --negative-soft: rgba(198, 40, 58, 0.1);
+  --warning: #9a6b00;
+  --warning-soft: rgba(154, 107, 0, 0.12);
+  --paper: #9a6b00;
+  --topbar-bg: rgba(255, 255, 255, 0.94);
+  --shell-glow: rgba(49, 85, 112, 0.04);
+  --chart-muted: #3d4a5c;
+  --chart-dim: #5a687a;
+  --chart-grid: #e4eaf2;
+  --chart-axis: #d5dde8;
+  --chart-line: #315570;
+  --chart-dd: #c6283a;
+  --edgenest-shadow-card: 0 8px 24px rgba(16, 24, 40, 0.08);
+}
+
+/* Shared primitives. Gradient is intentionally opt-in, never a page background. */
+.surface-card {
+  min-width: 0;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.surface-card--raised {
+  background: var(--bg-2);
+  border-color: var(--border);
+}
+
+.gradient-account-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  padding: 20px;
+  color: #f2f4f7;
+  background: var(--edgenest-gradient-account);
+  border: 1px solid rgba(111, 134, 158, 0.32);
+  border-radius: 10px;
+  box-shadow: var(--edgenest-shadow-card);
+}
+
+.gradient-account-card::before {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  width: 34%;
+  height: 3px;
+  content: "";
+  background: linear-gradient(90deg, transparent, #98590c);
+  opacity: 0.9;
+}
+
+.gradient-account-card__eyebrow {
+  margin: 0 0 6px;
+  color: rgba(242, 244, 247, 0.72);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gradient-account-card__title {
+  margin: 0;
+  color: #f2f4f7;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.gradient-account-card__content {
+  position: relative;
+  z-index: 1;
+  margin-top: 18px;
+}
+
+.metric-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.metric-card__label {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.045em;
+  line-height: 1.4;
+}
+
+.metric-card__value {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: clamp(18px, 1.5vw, 24px);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.metric-card__value[data-tone="positive"] { color: var(--positive); }
+.metric-card__value[data-tone="negative"] { color: var(--negative); }
+.metric-card__sub {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .surface-card,
+  .metric-card,
+  .gradient-account-card {
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+}
+
+@media (max-width: 640px) {
+  .gradient-account-card { padding: 16px; }
+  .metric-card { padding: 12px; }
+}

@@ -995,3 +995,12 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Artifacts:** `*-authenticated-dashboard.png` and `*-authenticated-journal.png` for each viewport, uploaded with the existing `edgenest-production-acceptance` artifact.
 - **Verification status:** Added on a feature branch; CI execution and screenshot inspection pending. Authenticated visual captures use the deployed frontend and production acceptance account; the post-merge main-branch run is the authoritative capture of the newly deployed build.
 - **Scope:** Playwright acceptance script and review documentation only. No frontend runtime, API, account, financial, risk, or execution behavior changed.
+
+
+## REV-082 — Reconcile EdgeNest visual specification with approved dark system
+- **Date:** 2026-11-21
+- **Context:** Phase 0/1 kickoff for the user-approved selective navy/blue gradient visual upgrade.
+- **Finding:** DESIGN.md still described an older white-dominant navy/orange palette, while RULES.md and the merged QOS-026 redesign establish the current near-black premium trading-terminal default. This conflict could lead later phases to implement inconsistent styling.
+- **Correction:** Replace the stale DESIGN.md guidance with the current approved dark palette, the selective EdgeNest blue gradient, restrained amber use, Inter/DM Mono typography, reusable primitives, and phased acceptance gates.
+- **Scope:** Design documentation and presentation-only frontend foundations. No trading, financial, API, risk, account or execution behavior changed.
+- **Verification:** Source inspection confirmed existing Inter/DM Mono fonts, dark/light theme support, CSS semantic variables, and existing Metric/StatusBadge/DataTable/PageHeader components. Build and visual checks remain pending on this branch.

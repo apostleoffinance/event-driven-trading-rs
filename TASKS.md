@@ -180,3 +180,11 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 
 ## Frontend redesign — QOS-026
 - **QOS-026 [DONE]** Integrate the user-approved Quant OS premium dark design system across the existing Next.js frontend. Scope: shared shell/navigation, global tokens, typography, cards, tables, forms, metrics, charts, status states, responsive layout, reduced-motion support, and design documentation. Preserve all backend/API behavior and financial safety rules. Acceptance passed: lint, typecheck, production build, OpenNext Cloudflare Worker build and local runtime smoke test, six-viewport Playwright acceptance, PR review/merge, and successful production Cloudflare deployment with `/` and `/login` returning HTTP 200.
+
+
+## QOS-027 — EdgeNest frontend visual upgrade
+- **Status:** Phase 0/1 implementation in progress on `feat/edgenest-visual-system-phase-0-1`.
+- **Phase 0:** Audit current design sources, reconcile DESIGN.md with the approved QOS-026 dark system, document the navy/steel-blue palette, selective gradient rules, typography, safety constraints and phase gates.
+- **Phase 1:** Add semantic visual tokens and reusable `SurfaceCard`, `MetricCard`, and `GradientAccountCard` primitives. Preserve existing semantic CSS variable names and light-theme preference.
+- **Acceptance before approval:** Frontend lint, TypeScript typecheck, production build, OpenNext Cloudflare build, six-viewport screenshot review of representative existing pages, and explicit confirmation that no backend/API/financial/risk/execution behavior changed.
+- **Out of scope for Phase 0/1:** Account/portfolio page redesign, trading workspace redesign, Analytics Lab visualization changes and remaining page-level refinements; these require subsequent phase approval.
