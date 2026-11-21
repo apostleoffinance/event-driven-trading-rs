@@ -509,3 +509,14 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added reusable presentation-only `SurfaceCard`, `MetricCard`, and `GradientAccountCard` primitives. The gradient component is opt-in; no page has been migrated to it yet.
 - Updated design specification and review/task tracking. Validation is pending; no tests/build/deployment have been claimed.
 - **Safety boundary:** no API, backend, data, money calculation, account, risk, order, or execution logic changed. Phase 2+ remain pending user approval.
+
+
+## 2026-11-21 — QOS-028 EdgeNest Phase 2/3 implementation
+- User approved continuation with Phase 2 (Accounts and Portfolio) and Phase 3 (Strategies, Positions, Orders, Risk and Market Data).
+- Verified PR #160 is merged to main as `19d653f2d09beec0145c4e4bbdc2f305c1729364`.
+- Created branch `feat/edgenest-accounts-portfolio-trading-phase-2-3` from main.
+- Accounts: added a source-backed featured account panel using the existing first returned account, with explicitly labeled equity, balance, available capital, daily P&L, unrealized P&L, drawdown and open-position count; existing account table, Journal linking, create-paper-account flow and details remain.
+- Portfolio: promoted the existing total-equity value to a selective gradient summary; preserved broker vs Journal fallback distinctions, currency caveats, and analytical-only behavior.
+- Trading workspaces: refined strategy selection/detail surfaces, Positions and Orders table surfaces, OMS lifecycle panel, Risk Center and Account Risk Policies styling, and Market Data provider surfaces.
+- Added scoped responsive styles for the affected workspaces. No new financial calculations or API requests were added.
+- Validation, screenshot review and browser runtime checks are pending CI/preview. No production deployment has been made. Phase 4 is not started.

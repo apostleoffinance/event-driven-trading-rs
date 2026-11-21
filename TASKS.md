@@ -183,8 +183,17 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 
 
 ## QOS-027 — EdgeNest frontend visual upgrade
-- **Status:** Phase 0/1 implementation in progress on `feat/edgenest-visual-system-phase-0-1`.
+- **Status:** Phase 0/1 merged in PR #160 (merge commit `19d653f2d09beec0145c4e4bbdc2f305c1729364`); CI and six-viewport validation for the added Phase 2/3 page treatments are tracked separately in QOS-028.
 - **Phase 0:** Audit current design sources, reconcile DESIGN.md with the approved QOS-026 dark system, document the navy/steel-blue palette, selective gradient rules, typography, safety constraints and phase gates.
 - **Phase 1:** Add semantic visual tokens and reusable `SurfaceCard`, `MetricCard`, and `GradientAccountCard` primitives. Preserve existing semantic CSS variable names and light-theme preference.
 - **Acceptance before approval:** Frontend lint, TypeScript typecheck, production build, OpenNext Cloudflare build, six-viewport screenshot review of representative existing pages, and explicit confirmation that no backend/API/financial/risk/execution behavior changed.
 - **Out of scope for Phase 0/1:** Account/portfolio page redesign, trading workspace redesign, Analytics Lab visualization changes and remaining page-level refinements; these require subsequent phase approval.
+
+
+## QOS-028 — EdgeNest account, portfolio and trading workspace visual upgrade
+- **Status:** IN PROGRESS — Phase 2/3 implementation on `feat/edgenest-accounts-portfolio-trading-phase-2-3`.
+- **Phase 2 scope:** Accounts and Portfolio. Add a selective gradient account/equity highlight, source-backed account summary metrics, more legible account hierarchy, and consistent portfolio surfaces. Keep Journal-ledger and broker-reported values distinct; preserve multi-currency and unavailable-data explanations.
+- **Phase 3 scope:** Strategies, Positions, Orders & execution, Risk Center, Account Risk Policies, and Market Data provider surfaces. Refine selection states, tables, lifecycle panels, risk metrics and provider cards using the approved dark/blue design language.
+- **Safety:** UI-only. No API contracts, backend behavior, money calculations, account identity, risk authorization, order lifecycle, reconciliation, or execution behavior may change. Do not add order controls or imply live state from decoration.
+- **Acceptance:** Frontend lint, typecheck, production build, OpenNext Cloudflare build; verify changed screens at desktop/tablet/mobile widths; inspect screenshots and browser console; confirm dark/light theme and data/degraded states.
+- **Release:** Reviewable PR only. No production deployment in this phase. Phase 4 Analytics Lab remains gated on explicit user approval after this PR review.

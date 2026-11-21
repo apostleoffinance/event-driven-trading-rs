@@ -72,16 +72,16 @@ export default function OrdersPage() {
     return <div className="error">{(error as Error).message ?? "Failed to load"}</div>;
 
   return (
-    <>
+    <div className="orders-workspace">
       <PageHeader
         title="Orders"
         description="OMS surface. Lifecycle is always TradeIntent → Risk → OMS → Venue → Fill — never Strategy → Order. Unknown means ambiguous venue outcome — reconcile, do not assume Failed."
       />
-      <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel orders-lifecycle-panel" style={{ marginBottom: 12 }}>
         <div className="panel-title">EXECUTION CHAIN (SELECTED OR DEFAULT)</div>
         <OrderLifecycleChain status={selected?.status ?? "Submitted"} />
       </div>
-      <div className="panel">
+      <div className="panel orders-table-panel">
         <DataTable
           data={data}
           columns={columns}
@@ -145,6 +145,6 @@ export default function OrdersPage() {
           </aside>
         </>
       ) : null}
-    </>
+    </div>
   );
 }

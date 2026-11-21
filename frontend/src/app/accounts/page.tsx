@@ -6,6 +6,8 @@ import { apiRequest } from "@/lib/api/client";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
+import { GradientAccountCard } from "@/components/data-display/GradientAccountCard";
+import { MetricCard } from "@/components/data-display/MetricCard";
 import {
   healthTone,
   riskToneClass,
@@ -120,13 +122,31 @@ export default function AccountsPage() {
     [],
   );
 
+  const featuredAccount = selected ?? data[0];
+
   return (
-    <>
+    <div className="accounts-workspace">
       <PageHeader
         title="Accounts"
         description="Manage your trading accounts and track balances, equity and risk."
       />
-      <div className="panel">
+      {featuredAccount ? (
+        <section className="accounts-featured-grid" aria-label="Account snapshot">
+          <GradientAccountCard eyebrow={featuredAccount.environment + " ACCOUNT"} title={featuredAccount.name}>
+            <div className="account-featured-meta">{featuredAccount.type} · {featuredAccount.venueName} · {featuredAccount.status}</div>
+            <div className="account-featured-equity-label">Account equity</div>
+            <div className="account-featured-equity">{formatMoney(featuredAccount.equity)}</div>
+            <div className="account-featured-footer"><span>Account balance <strong>{formatMoney(featuredAccount.balance)}</strong></span><span>Available capital <strong>{formatMoney(featuredAccount.availableCapital)}</strong></span></div>
+          </GradientAccountCard>
+          <div className="account-featured-metrics">
+            <MetricCard label="DAILY P&L" value={formatSignedMoney(featuredAccount.dailyPnl)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
+            <MetricCard label="UNREALIZED P&L" value={formatSignedMoney(featuredAccount.unrealizedPnl)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
+            <MetricCard label="DRAWDOWN" value={formatPct(featuredAccount.drawdownPct)} sub="Reported account drawdown" />
+            <MetricCard label="OPEN POSITIONS" value={String(featuredAccount.openPositionCount)} sub="Current account positions" />
+          </div>
+        </section>
+      ) : null}
+      <div className="panel accounts-table-panel">
         {isLoading ? <div className="loading">Loading trading accounts…</div> : isError ? (
           <div className="error" role="alert">{(error as Error).message ?? "Failed to load trading accounts."}</div>
         ) : (
@@ -138,7 +158,7 @@ export default function AccountsPage() {
           />
         )}
       </div>
-      <div className="panel" style={{ marginTop: 14 }}>
+      <div className="panel accounts-journal-panel" style={{ marginTop: 14 }}>
         <div className="panel-title">JOURNAL ACCOUNTS</div>
         <p className="metric-sub">Journal accounts appear here independently. Link one to a trading account you already own to associate its Journal ledger; this does not grant trading or broker permissions.</p>
         {journalLoading ? <div className="loading">Loading Journal accounts…</div> : journalAccounts.length === 0 ? <p className="metric-sub">No Journal accounts found.</p> : (
@@ -242,6 +262,6 @@ export default function AccountsPage() {
           </aside>
         </>
       ) : null}
-    </>
+    </div>
   );
 }

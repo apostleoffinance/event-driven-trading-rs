@@ -92,7 +92,7 @@ export default function PositionsPage() {
     return <div className="error">{(error as Error).message ?? "Failed to load"}</div>;
 
   return (
-    <>
+    <div className="positions-workspace">
       <PageHeader
         title="Positions"
         description="Open positions after venue fills. Risk sizing already applied upstream."
@@ -109,7 +109,7 @@ export default function PositionsPage() {
           </select>
         }
       />
-      <div className="panel">
+      <div className="panel positions-table-panel">
         <DataTable
           data={filtered}
           columns={columns}
@@ -149,6 +149,6 @@ export default function PositionsPage() {
           </aside>
         </>
       ) : null}
-    </>
+    </div>
   );
 }
