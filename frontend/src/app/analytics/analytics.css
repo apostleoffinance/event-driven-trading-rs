@@ -594,3 +594,378 @@
   font-size: clamp(22px, 1.8vw, 28px);
   font-weight: 500;
 }
+
+
+/* QOS-029 — Phase 4: Analytics Lab visual system alignment.
+   Presentation-only: existing query state, filters, metrics and chart data remain authoritative. */
+.analytics-page {
+  --analytics-panel: var(--bg-1);
+  --analytics-panel-raised: var(--bg-2);
+  --analytics-line: var(--border);
+  max-width: 1680px;
+  padding-bottom: 28px;
+}
+.analytics-page .analytics-page-header {
+  gap: 20px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+.analytics-page .analytics-page-header h1 {
+  margin: 5px 0 4px;
+  font-size: clamp(25px, 2.25vw, 32px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -.05em;
+}
+.analytics-page .analytics-page-header p {
+  max-width: 680px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.analytics-page .analytics-page-header .analytics-eyebrow,
+.analytics-page .analytics-eyebrow {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: .1em;
+}
+.analytics-page .analytics-page-header > div:last-child {
+  gap: 7px !important;
+}
+.analytics-page .analytics-page-header > div:last-child .btn,
+.analytics-page .analytics-page-header > div:last-child .badge {
+  min-height: 32px;
+  font-size: 10px;
+}
+.analytics-page .panel {
+  min-width: 0;
+  border: 1px solid var(--analytics-line);
+  border-radius: 8px;
+  background: var(--analytics-panel);
+  padding: 16px 18px;
+}
+.analytics-page .analytics-filter-panel {
+  top: calc(var(--topbar-h) + 7px);
+  margin-bottom: 12px;
+  padding: 13px 16px;
+  background: color-mix(in srgb, var(--analytics-panel) 96%, var(--accent) 4%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.analytics-page .analytics-filter-header {
+  display: flex;
+  gap: 12px 20px;
+  margin-bottom: 0;
+}
+.analytics-page .analytics-filter-title {
+  margin: 3px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.analytics-page .analytics-filter-header p {
+  margin: 0;
+  font-size: 10px;
+}
+.analytics-page .analytics-filter-count {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px 8px;
+  background: var(--bg-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.analytics-page .analytics-filter-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.analytics-page .analytics-filter-field { min-width: 0; gap: 5px; }
+.analytics-page .analytics-filter-field > span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.analytics-page .analytics-filter-field select,
+.analytics-page .analytics-filter-field input {
+  min-width: 0;
+  min-height: 36px;
+  border-radius: 5px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+.analytics-page .analytics-active-filters {
+  gap: 6px;
+  margin-top: 9px;
+}
+.analytics-page .analytics-active-filters button {
+  border-radius: 4px;
+  padding: 4px 7px;
+  font-size: 10px;
+}
+.analytics-page .analytics-tabs {
+  position: sticky;
+  top: calc(var(--topbar-h) + 100px);
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  gap: 3px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  margin: 0 0 12px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-1);
+  box-shadow: none;
+}
+.analytics-page .analytics-tab {
+  flex: 0 0 auto;
+  min-height: 31px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+.analytics-page .analytics-tab:hover {
+  color: var(--text);
+  background: var(--bg-2);
+}
+.analytics-page .analytics-tab.active {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.analytics-page .analytics-summary { margin: 12px 0; }
+.analytics-page .analytics-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.analytics-page .analytics-section-heading h2 {
+  margin: 3px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -.025em;
+}
+.analytics-page .analytics-section-heading p { margin: 3px 0 0; font-size: 10px; }
+.analytics-page .analytics-summary .grid-kpi {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 9px;
+}
+.analytics-page .analytics-kpi-card {
+  position: relative;
+  min-height: 94px;
+  justify-content: flex-start;
+  padding: 13px 14px;
+  overflow: hidden;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--bg-2) 72%, var(--bg-1)), var(--bg-1) 76%);
+}
+.analytics-page .analytics-kpi-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--accent) 62%, transparent);
+  content: "";
+}
+.analytics-page .analytics-kpi-card .metric { gap: 10px; }
+.analytics-page .analytics-kpi-card .metric-label {
+  color: var(--text-muted);
+  font-size: 9px;
+  letter-spacing: .035em;
+}
+.analytics-page .analytics-kpi-card .metric-value {
+  font-family: var(--font-mono);
+  font-size: clamp(17px, 1.35vw, 22px);
+  font-weight: 400;
+  letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.analytics-page .analytics-chart-heading,
+.analytics-page .analytics-insights-heading { margin-bottom: 12px; }
+.analytics-page .analytics-chart-heading h2,
+.analytics-page .analytics-insights-heading h2 {
+  font-size: 13px;
+  font-weight: 500;
+}
+.analytics-page .analytics-chart-heading p,
+.analytics-page .analytics-insights-heading p {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.analytics-page .grid-dash { gap: 10px; }
+.analytics-page .analytics-secondary-metrics {
+  padding: 15px 16px;
+  background: var(--bg-1);
+}
+.analytics-page .analytics-secondary-metrics .analytics-filter-title {
+  margin: 4px 0 12px;
+  font-size: 14px;
+}
+.analytics-page .analytics-secondary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.analytics-page .analytics-secondary-metric {
+  min-width: 0;
+  min-height: 76px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.analytics-page .analytics-secondary-metric .metric-value {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.analytics-page .analytics-insights {
+  margin: 12px 0;
+  padding: 16px;
+  background: var(--bg-1);
+}
+.analytics-page .analytics-insights-grid { gap: 10px; }
+.analytics-page .analytics-insight-column {
+  padding: 13px;
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.analytics-page .analytics-insight-column h3 { font-weight: 500; }
+.analytics-page .analytics-insight-item-head > strong,
+.analytics-page .analytics-insight-meta,
+.analytics-page .analytics-insight-rank {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.analytics-page .analytics-insight-select {
+  font-size: 13px;
+  font-weight: 500;
+}
+.analytics-page .analytics-breakdown-wide,
+.analytics-page .analytics-hourly-panel { min-width: 0; }
+.analytics-page .data-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.analytics-page .data-table { min-width: 620px; }
+.analytics-page .data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-2);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: .06em;
+}
+.analytics-page .data-table td {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.analytics-page .data-table td.num,
+.analytics-page .trade-detail-price,
+.analytics-page .trade-metric-card strong {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.analytics-page .data-table tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
+.analytics-page .analytics-risk-grid > .panel,
+.analytics-page .risk-distribution-grid > .panel {
+  background: var(--bg-1);
+}
+.analytics-page .analytics-risk-grid .metric-value {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.analytics-page .calendar-analytics {
+  border-radius: 8px;
+  padding: 16px;
+}
+.analytics-page .calendar-analytics-head h2 {
+  font-size: 19px;
+  font-weight: 400;
+}
+.analytics-page .calendar-month-stats > .panel {
+  background: var(--bg-2);
+}
+.analytics-page .calendar-day {
+  border-radius: 5px;
+}
+.analytics-page .calendar-day strong {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.analytics-page .trade-investigation {
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 9px;
+  background: var(--bg-1);
+}
+.analytics-page .trade-metric-card {
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.analytics-page .trade-investigation-section-heading h3 {
+  font-size: 13px;
+  font-weight: 500;
+}
+.analytics-page .trade-investigation-footer code { font-family: var(--font-mono); }
+.analytics-page .analytics-page .error,
+.analytics-page .panel.error {
+  border-color: color-mix(in srgb, var(--negative) 45%, var(--border));
+}
+.analytics-page .analytics-page-header .badge.ok {
+  color: var(--positive);
+  border-color: color-mix(in srgb, var(--positive) 35%, var(--border));
+  background: color-mix(in srgb, var(--positive) 8%, transparent);
+}
+.analytics-page .analytics-page-header .btn { font-weight: 400; }
+@media (max-width: 1200px) {
+  .analytics-page .analytics-summary .grid-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .analytics-page .analytics-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .analytics-page .analytics-filter-panel { position: static; }
+  .analytics-page .analytics-tabs { position: static; }
+  .analytics-page .analytics-summary .grid-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .analytics-page .analytics-secondary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .analytics-page .analytics-page-header { align-items: flex-start; flex-direction: column; }
+  .analytics-page .analytics-filter-header { align-items: flex-start; flex-direction: column; }
+  .analytics-page .analytics-filter-actions { justify-content: flex-start; width: 100%; }
+  .analytics-page .analytics-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-page .analytics-summary .grid-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-page .analytics-secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .analytics-page .analytics-kpi-card { min-height: 84px; padding: 11px; }
+  .analytics-page .analytics-kpi-card .metric-value { font-size: 18px; }
+  .analytics-page .analytics-tabs { justify-content: flex-start; }
+  .analytics-page .panel { padding: 13px; }
+}
+@media (max-width: 380px) {
+  .analytics-page .analytics-filter-grid { grid-template-columns: 1fr; }
+  .analytics-page .analytics-summary .grid-kpi { grid-template-columns: 1fr 1fr; }
+  .analytics-page .analytics-secondary-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .analytics-page .analytics-tab { transition: none; }
+}
