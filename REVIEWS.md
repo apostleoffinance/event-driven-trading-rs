@@ -964,3 +964,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Safety:** No API, financial data, account, risk, or execution logic changed.
 - **Regression coverage:** Re-run the six-viewport PR Worker visual acceptance and inspect screenshots to confirm first-visit dark mode.
 - **Verification status:** PASS. Fresh-browser dark default verified in the six-viewport screenshot artifact; lint/typecheck/production build, Cloudflare Worker build/runtime preview, full Quant OS CI, and six-viewport Playwright acceptance passed. PR #154 merged to main. Production Cloudflare deployment succeeded and the production `/` and `/login` routes returned HTTP 200. Deployment run: https://github.com/apostleoffinance/event-driven-trading-rs/actions/runs/44920751775.
+
+
+## REV-079 — Production typography and visual hierarchy correction
+
+- **Date:** 2026-11-21
+- **Context:** User compared the live EdgeNest frontend with the approved dashboard mockup and requested the mockup's simpler, lighter visual language be replicated across the product.
+- **Finding:** The global stylesheet imported Inter and DM Mono but declared IBM Plex font-family variables, so the intended fonts were not actually used by the global interface. Analytics Lab also overrode shared typography with heavy 650–700 weights and monospaced metric values.
+- **Correction:** Align global font variables with the imported Inter/DM Mono assets; use Inter for interface copy, headings, and metric values; reserve DM Mono for compact technical labels, identifiers, timestamps, and tabular figures. Reduce unnecessary weight, tighten shared shell proportions, and remove excess card elevation. Add matching Analytics Lab overrides so route-specific styles cannot reintroduce the heavier hierarchy.
+- **Scope:** Visual-only CSS. No domain values, calculations, API integration, authentication, risk decisions, order lifecycle, or execution behavior changed.
+- **Verification status:** Implemented on a feature branch. Lint, typecheck, production build, responsive browser review, and deployment are pending PR validation.
