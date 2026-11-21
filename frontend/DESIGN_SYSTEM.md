@@ -30,7 +30,7 @@ A premium quantitative trading operations terminal: restrained, information-dens
 - Metadata: 9–10px DM Mono labels, used sparingly.
 
 ## Surfaces and layout
-- Shared application shell with 68px topbar and 238px expanded sidebar.
+- Shared application shell with a 54px topbar and 200px expanded sidebar on desktop; collapse the sidebar to 68px when requested.
 - Main content max-width is governed by each existing page layout; use 28–32px desktop padding and compact mobile gutters.
 - Cards use 10px radius, low-contrast border, subtle dark gradient, and restrained shadow.
 - Keep dense operational tables horizontally scrollable on narrow screens.
