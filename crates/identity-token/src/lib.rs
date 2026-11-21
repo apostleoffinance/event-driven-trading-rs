@@ -603,15 +603,18 @@ mod tests {
             std::process::id(),
             uuid_for_test()
         ));
-        fs::create_dir_all(&root).unwrap();
+        let secret_dir = root.join("secrets");
+        let outside_dir = root.join("outside");
+        fs::create_dir_all(&secret_dir).unwrap();
+        fs::create_dir_all(&outside_dir).unwrap();
 
-        let target = root.join("private-key-target.pem");
-        let link = root.join("private-key.pem");
+        let target = outside_dir.join("private-key-target.pem");
+        let link = outside_dir.join("private-key.pem");
         fs::write(&target, PRIVATE).unwrap();
         fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
         symlink(&target, &link).unwrap();
 
-        assert!(!private_key_file_is_restricted_in(&link, &root));
+        assert!(!private_key_file_is_restricted_in(&link, &secret_dir));
 
         fs::remove_dir_all(root).unwrap();
     }
