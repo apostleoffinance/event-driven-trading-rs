@@ -176,3 +176,7 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 - Deployment decision remains **NO-GO** until the local collector output and authenticated read-only database/credential-isolation evidence are reviewed. No local Mac, Docker, PostgreSQL, LaunchAgent, MT5 terminal, EA, certificate, or volume state was accessed or changed by this GitHub-only implementation.
 - Acceptance requires exact source/artifact identity, v1/v2 isolation, healthy intended v2 database/volume, verified EA runtime identity, preserved local changes, signed inventory digest, and explicit approval before any separate deployment action.
 - Venue execution remains disabled.
+
+
+## Frontend redesign — QOS-026
+- **QOS-026 [IN PROGRESS]** Integrate the user-approved Quant OS premium dark design system across the existing Next.js frontend. Scope: shared shell/navigation, global tokens, typography, cards, tables, forms, metrics, charts, status states, responsive layout, reduced-motion support, and design documentation. Preserve all backend/API behavior and financial safety rules. Acceptance requires lint, typecheck, production build, Cloudflare Worker preview, route verification, reviewable PR, and successful Cloudflare deployment evidence.
