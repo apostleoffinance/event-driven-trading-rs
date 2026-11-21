@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feat/cloudflare-workers-frontend
+      - feat/quantos-premium-dark-redesign
     paths:
       - "frontend/**"
       - ".github/workflows/cloudflare-frontend.yml"
