@@ -1014,3 +1014,11 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Artifacts:** Accounts, Portfolio, Strategies, Positions, Orders pages and scoped global workspace styles. Risk Center, Risk Policies and Market Data receive scoped style refinements only.
 - **Verification:** Source diffs are limited to JSX presentation wrappers/components and CSS, plus tracking documentation. CI and responsive screenshot review are pending; no production deployment claimed.
 - **Remaining risk:** Screenshot and browser checks must confirm layout, light-theme contrast and responsive behavior before merge.
+
+
+## REV-084 — Analytics Lab visual refinement guardrails
+- **Date:** 2026-11-21
+- **Context:** User approved Phase 4 after PR #161 merge.
+- **Finding:** Analytics Lab includes financial metrics, multiple currency/account filters, UTC groupings, sample-aware comparisons, missing-data handling, historical replay and private trade attachments. Visual work must not alter their semantics.
+- **Decision:** Keep Phase 4 strictly scoped to Analytics Lab CSS. Apply the approved restrained EdgeNest visual language: lighter Inter interface typography, DM Mono financial values, compact controls and tabs, calm neutral surfaces, subtle blue accents, responsive comparison cards/tables. Do not add gradient to dense chart or analytical surfaces.
+- **Verification:** Inspected source of page, API usage and all major analytics component styles. Only analytics.css is modified in application code. CI and screenshot/browser acceptance remain pending.

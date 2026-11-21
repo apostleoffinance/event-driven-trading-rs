@@ -197,3 +197,12 @@ All EdgeNest products must reuse the same connectivity, account registry, tenant
 - **Safety:** UI-only. No API contracts, backend behavior, money calculations, account identity, risk authorization, order lifecycle, reconciliation, or execution behavior may change. Do not add order controls or imply live state from decoration.
 - **Acceptance:** Frontend lint, typecheck, production build, OpenNext Cloudflare build; verify changed screens at desktop/tablet/mobile widths; inspect screenshots and browser console; confirm dark/light theme and data/degraded states.
 - **Release:** Reviewable PR only. No production deployment in this phase. Phase 4 Analytics Lab remains gated on explicit user approval after this PR review.
+
+
+## QOS-029 — EdgeNest Analytics Lab visual upgrade (Phase 4)
+- **Status:** IMPLEMENTED IN BRANCH — pending CI, screenshot acceptance and review in PR.
+- **Scope:** Align Analytics Lab header, shared filters, workspace tabs, performance snapshot, deeper metrics, insight comparisons, chart panels, tables, execution/risk views, calendar and trade-investigation surfaces with the approved EdgeNest dark/steel-blue design system.
+- **Design:** Inter 400–500 for interface hierarchy; DM Mono for financial values, timestamps and technical labels; restrained blue selection accents; neutral dark panels; no broad gradient use.
+- **Safety:** CSS-only. Preserve Journal API/query behavior, account/date/symbol/setup filters, saved views, all metric definitions and currencies, UTC grouping, chart data, trade investigation, replay, attachments and explicit missing-data states.
+- **Acceptance:** Frontend lint, TypeScript, production build and OpenNext build; six viewport screenshots covering Overview, Performance, Edge Explorer, Execution, Behaviour, Risk and Calendar; verify dark/light themes, no horizontal page overflow, keyboard/focus behavior and browser console.
+- **Release:** Reviewable PR only; no production deployment. Phase 5 remains gated on user approval.
