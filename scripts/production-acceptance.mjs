@@ -349,6 +349,72 @@ try {
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
+
+    // Authenticated Command Centre + Journal visual coverage. Capture the real
+    // signed-in routes at all six agreed viewports without creating or changing
+    // any trading records. Sensitive account/trade figures are blurred in the
+    // CI screenshots; layout, typography, spacing and responsive behavior remain
+    // visible for visual review.
+    const authenticatedPageErrors = [];
+    page.on("pageerror", error => authenticatedPageErrors.push(error.message));
+    const redactPrivateValues = async () => page.addStyleTag({ content: `
+      .topbar-right, .sidebar-footer, .dashboard-kpi strong,
+      .dashboard-account-grid, .dashboard-execution-account-list,
+      .dashboard-performance svg, .dashboard-performance canvas,
+      .dashboard-risk-facts, .journal-page .metric-value,
+      .journal-page .data-table tbody, .journal-trade-detail,
+      .journal-page header.page-header p {
+        filter: blur(5px) !important;
+      }
+    ` });
+    const assertResponsiveViewport = async (label) => {
+      const dimensions = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+        body: document.body.scrollWidth,
+        font: getComputedStyle(document.querySelector("h1") || document.body).fontFamily,
+        headingWeight: getComputedStyle(document.querySelector("h1") || document.body).fontWeight,
+      }));
+      assert.ok(dimensions.document <= dimensions.viewport + 1 && dimensions.body <= dimensions.viewport + 1,
+        `Authenticated horizontal overflow at ${label}: ${JSON.stringify(dimensions)}`);
+      assert.match(dimensions.font, /Inter/i, `Expected Inter interface typography at ${label}; got ${dimensions.font}`);
+      return dimensions;
+    };
+    for (const viewport of viewports) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const dashboardResponse = await page.goto(`${authFrontendUrl}/`, { waitUntil: "networkidle", timeout: 45_000 });
+      assert.equal(dashboardResponse?.status(), 200, `Authenticated Command Centre route failed at ${viewport.name}`);
+      await page.locator(".dashboard-workspace").waitFor({ state: "visible", timeout: 20_000 });
+      await page.getByRole("heading", { name: "Your trading dashboard" }).waitFor();
+      await page.locator(".dashboard-kpis").waitFor({ state: "visible" });
+      await page.evaluate(() => document.fonts.ready);
+      await redactPrivateValues();
+      const dashboardDimensions = await assertResponsiveViewport(`${viewport.name} Command Centre`);
+      await page.screenshot({ path: `${artifactDir}/${viewport.name}-authenticated-dashboard.png`, fullPage: true });
+      console.log(`PASS ${viewport.name}: authenticated Command Centre; ${JSON.stringify(dashboardDimensions)}`);
+
+      const journalResponse = await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "networkidle", timeout: 45_000 });
+      assert.equal(journalResponse?.status(), 200, `Authenticated Journal route failed at ${viewport.name}`);
+      await page.locator(".journal-page").waitFor({ state: "visible", timeout: 20_000 });
+      await page.getByRole("heading", { name: "Trading Journal" }).waitFor();
+      await page.locator(".journal-page .grid-kpi").waitFor({ state: "visible" });
+      await page.evaluate(() => document.fonts.ready);
+      await redactPrivateValues();
+      const journalDimensions = await assertResponsiveViewport(`${viewport.name} Journal`);
+      const journalStructure = await page.evaluate(() => ({
+        accountTable: document.querySelectorAll(".journal-page .data-table-wrap table").length,
+        tradeTable: [...document.querySelectorAll(".journal-page .data-table")].some(table =>
+          [...table.querySelectorAll("th")].some(th => /symbol|instrument/i.test(th.textContent || ""))),
+        importControls: [...document.querySelectorAll(".journal-page button")].some(button => /Import trades/i.test(button.textContent || "")),
+      }));
+      assert.ok(journalStructure.accountTable >= 1, `Journal account table did not render at ${viewport.name}`);
+      assert.ok(journalStructure.importControls, `Journal import controls did not render at ${viewport.name}`);
+      await page.screenshot({ path: `${artifactDir}/${viewport.name}-authenticated-journal.png`, fullPage: true });
+      console.log(`PASS ${viewport.name}: authenticated Journal; ${JSON.stringify(journalDimensions)}; ${JSON.stringify(journalStructure)}`);
+    }
+    assert.deepEqual(authenticatedPageErrors, [], `Authenticated dashboard/Journal browser errors: ${authenticatedPageErrors.join("; ")}`);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "networkidle", timeout: 45_000 });
     // Start observing before navigation so the first analytics request cannot
     // complete before Playwright registers the response listener.
     const verifyLiveBrowserRuntime = process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true";
