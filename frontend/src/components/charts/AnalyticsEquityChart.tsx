@@ -26,7 +26,7 @@ export function AnalyticsEquityChart({ curve, currency = "USD" }: { curve: Journ
       backgroundColor: "transparent",
       aria: { enabled: true, decal: { show: true } },
       animation: curve.length < 250,
-      textStyle: { fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
+      textStyle: { fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
       grid: { left: 58, right: 24, top: 34, bottom: 42 },
       legend: { data: ["Cumulative Journal P&L"], top: 0, textStyle: { color: muted } },
       tooltip: {
