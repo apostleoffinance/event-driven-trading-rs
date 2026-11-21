@@ -471,3 +471,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added a standard-library, read-only runtime inventory collector and its runbook. It captures checkout/ref/dirty state, manifest and artifact hashes, LaunchAgent process working directories/executable paths, Docker project/service/config-file labels, container state/health/mounts/ports, expected external volume metadata, and selected listener ports. It excludes credentials and container environment variables and does not mutate services or databases.
 - Repository-side implementation is committed to the QOS-015C feature branch. The collector has not yet been run on the operator's Mac; no current local process, database, Docker, volume, MT5, or certificate state is claimed.
 - **Decision: NO-GO for deployment; GO for read-only inventory collection only.** Host-side evidence, authenticated read-only database verification, secret/config isolation review, artifact rebuild/hash alignment, and signed inventory digest remain required. No cleanup, restart, migration, service replacement, EA reload, or order execution was performed.
+
+
+## 2026-11-21 — QOS-026 premium dark frontend redesign
+- User approved the standalone dark Quant OS redesign concept and requested integration across the complete frontend plus Cloudflare deployment.
+- Created isolated branch `feat/quantos-premium-dark-redesign` from `main`.
+- Inspected authoritative `RULES.md`, frontend deployment runbook, OpenNext/Wrangler configuration, Cloudflare frontend workflow, app shell, sidebar, topbar, theme provider, dashboard workspace, and global styles.
+- Updated the frontend design rule to the approved dark system while preserving financial safety, source-of-truth, explicit mode, and accessibility requirements.
+- Implementation and validation are in progress. No production deployment or live runtime behavior is claimed at this stage.
