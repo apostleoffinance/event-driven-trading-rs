@@ -62,7 +62,7 @@ Last updated: 2026-10-27. This is the authoritative rule set. Every code change,
 3. Clearly label mock/paper/live; never present mock as live.
 4. Show stale, disconnected, partial, unknown, and failed states explicitly.
 5. No fake balances/performance/status.
-6. White predominant; navy `#101A8A`, orange `#F58220`, restrained teal; no purple gradients.
+6. Approved Quant OS visual system (2026-11-21): premium dark trading-terminal default with near-black backgrounds (`#090A0D` / `#121418`), Inter sans-serif and DM Mono technical typography, cool blue accents, restrained borders/lighting, green `#18A66A` for confirmed positive/healthy states and red `#E16E75` for negative/loss/error/rejection states. Preserve an accessible light theme as an optional user preference. Do not use green/red decoratively or imply a state not confirmed by source data.
 7. Accessible contrast, keyboard focus, textual status, confirmation for dangerous actions.
 
 ## Testing/release
