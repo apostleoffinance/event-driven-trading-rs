@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+
 :root,
 [data-theme="dark"] {
   --bg-0: #0a0b0d;
@@ -2104,7 +2106,6 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
    This layer intentionally restyles existing application classes;
    domain logic, API contracts, and financial state remain untouched.
    ───────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
 
 :root,
 [data-theme="dark"] {
