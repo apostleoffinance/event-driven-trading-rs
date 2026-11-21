@@ -952,3 +952,15 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Acceptance criteria:** Shared shell and navigation restyled; global tokens and typography applied; all existing route surfaces inherit the design; tables, forms, badges, metrics, charts, alerts, loading/empty/error states remain readable; responsive layouts and reduced-motion preferences preserved; lint/typecheck/production Cloudflare build and Worker preview pass; deployment occurs only through the configured Cloudflare Workers pipeline.
 - **Verification status:** IN PROGRESS. A feature branch has been created. No Cloudflare deployment is claimed until a successful Workers build/deploy and live URL check are available.
 - **Remaining risk:** Need run frontend checks and the repository's OpenNext Cloudflare preview; Cloudflare deployment requires the configured Cloudflare Workers Builds integration or authenticated Cloudflare credentials. Do not bypass branch protection or claim deployment without evidence.
+
+
+## REV-078 — Default-theme visual acceptance correction
+
+- **Date:** 2026-11-21
+- **Context:** Reviewed Playwright screenshots produced by the six-viewport PR acceptance workflow after the dark redesign build passed.
+- **Finding:** The root layout's theme bootstrap selected the operating system's light preference when no saved Quant OS theme existed. The screenshot therefore rendered the light theme on a fresh browser even though the approved redesign and root HTML default were dark.
+- **Impact:** A first-time visitor could see the old light visual direction instead of the user-approved premium dark terminal.
+- **Correction:** Changed the root theme bootstrap to default to dark unless the user has explicitly saved the light theme. Existing theme toggle and saved preference remain supported.
+- **Safety:** No API, financial data, account, risk, or execution logic changed.
+- **Regression coverage:** Re-run the six-viewport PR Worker visual acceptance and inspect screenshots to confirm first-visit dark mode.
+- **Verification status:** IN PROGRESS pending updated CI and screenshot artifact.
