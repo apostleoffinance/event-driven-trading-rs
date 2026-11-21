@@ -20,7 +20,7 @@ export default function ReconciliationPage() {
     <div className="reconciliation-workspace">
       <PageHeader
         title="Reconciliation"
-        description="Alert-only compare of internal vs venue state. Mismatches never silently overwrite books."
+        description="Compare internal and venue records. Mismatches raise alerts only."
       />
       <div className="panel" style={{ marginBottom: 12 }}>
         <StatusBadge tone={data.status === "HEALTHY" ? "ok" : "warn"}>
