@@ -94,7 +94,7 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
     <div className="analytics-insights-grid">
       <section className="analytics-insight-column" aria-label="Top performing groups">
         <h3>Strongest observed groups</h3>
-        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough qualifying trades to identify a strongest group.</p>}
+        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough trades to rank groups.</p>}
       </section>
       <section className="analytics-insight-column" aria-label="Groups worth investigating">
         <h3>Groups worth investigating</h3>
