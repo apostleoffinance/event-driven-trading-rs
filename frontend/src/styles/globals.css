@@ -66,8 +66,8 @@
   --sidebar-w: 228px;
   --sidebar-collapsed: 68px;
   --topbar-h: 52px;
-  --font-sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 }
 
 *,
@@ -2443,4 +2443,62 @@ svg text { font-family: var(--font-mono); }
   .metric-value { font-size: 20px; }
   .page-header h1 { font-size: 24px; }
   .grid-kpi { gap: 8px; }
+}
+
+
+/* 2026-11-21 visual refinement — align production UI with the approved lightweight mockup. */
+:root {
+  --sidebar-w: 200px;
+  --topbar-h: 54px;
+  --radius: 8px;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+html, body, button, input, select, textarea {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+body { font-size: 13px; line-height: 1.55; }
+h1, h2, h3, h4 { font-family: var(--font-sans); font-weight: 500; }
+.page-header h1 { font-size: clamp(24px, 2vw, 30px); font-weight: 400; letter-spacing: -.045em; line-height: 1.16; }
+.page-header p { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.brand-name { font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: .12em; }
+.topbar { font-family: var(--font-sans); font-size: 11px; font-weight: 400; }
+.topbar-right { font-family: var(--font-mono); font-size: 9px; font-weight: 400; letter-spacing: .04em; }
+.nav-section { font: 9px/1.4 var(--font-mono); font-weight: 400; letter-spacing: .12em; }
+.nav-link { font-family: var(--font-sans); font-size: 11px; font-weight: 400; letter-spacing: 0; }
+.nav-link.active { font-weight: 500; }
+.panel-title { font: 10px/1.4 var(--font-sans); font-weight: 500; letter-spacing: 0; }
+.metric-label { font: 9px/1.45 var(--font-mono); font-weight: 400; letter-spacing: .055em; }
+.metric-value {
+  font-family: var(--font-sans);
+  font-size: clamp(20px, 1.65vw, 27px);
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -.035em;
+  font-variant-numeric: tabular-nums;
+}
+.metric-sub { font: 10px/1.5 var(--font-mono); font-weight: 400; }
+.btn, button.btn { font-family: var(--font-sans); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+.badge { font-family: var(--font-mono); font-size: 9px; font-weight: 400; letter-spacing: .035em; }
+.data-table th { font-family: var(--font-mono); font-size: 9px; font-weight: 400; letter-spacing: .07em; }
+.data-table td { font-family: var(--font-sans); font-size: 11px; font-weight: 400; }
+.data-table td.num, .data-table th.num, td.num, .numeric, .mono, code, time {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.event-row strong { font-family: var(--font-sans); font-size: 11px; font-weight: 500; }
+.panel, .metric { box-shadow: none; }
+.panel { padding: 16px 17px; }
+.metric { gap: 7px; padding: 15px 16px; }
+.grid, .grid-dash { gap: 12px; }
+.btn:hover, button.btn:hover { transform: none; }
+@media (max-width: 1200px) {
+  :root { --sidebar-w: 190px; }
+}
+@media (max-width: 760px) {
+  .page-header h1 { font-size: 24px; }
+  .metric-value { font-size: 21px; }
 }
