@@ -538,3 +538,11 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Added scoped wrappers and visual treatments for Events, Reconciliation and Connections & Status; added calculator workspace scope; refined shared remaining-page CSS and Journal summary/table/detail surfaces.
 - No API, event stream, reconciliation, health status, calculator math/FX conversion/risk-policy evaluation, Journal data, import/export, replay, attachment or CRUD behavior intentionally changed.
 - Validation and screenshot review pending. No production deployment made; Phase 6 not started.
+
+
+## 2026-11-21 — QOS-031 EdgeNest technical maintenance and acceptance polish
+- Inspected the successful post-PR #167 acceptance logs and identified the actual Node.js 20 GitHub Actions runtime warning and preview-origin CORS noise.
+- Confirmed the preview browser origin is localhost while production API CORS checks use the deployed EdgeNest origin; live API health/readiness, saved-view authentication boundary and deployed-origin preflight passed.
+- Updated the acceptance/build workflows to current Node 24-compatible GitHub Actions releases, moved frontend CI from Node 20 to Node 22, and upgraded the temporary Playwright install from 1.56.1 to 1.65.1.
+- Added preview-only deterministic health and event responses; kept production API checks live and unchanged. Unexpected Market Data console errors now fail acceptance; the deliberate M15 503 fixture remains a tested degraded-data case.
+- No backend/API/CORS/authentication, event stream, financial, risk or execution behavior changed. No production deployment workflow was modified. CI and acceptance are pending PR verification.
