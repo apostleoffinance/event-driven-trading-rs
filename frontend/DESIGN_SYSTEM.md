@@ -1,6 +1,6 @@
 # Quant OS — Premium Dark Design System
 
-**Status:** Approved visual direction; implementation in progress  
+**Status:** Approved visual direction; refinement in progress  
 **Approved:** 2026-11-21  
 **Reference:** User-approved Quant OS redesign mockup inspired by the supplied Backed frontend analysis.
 
@@ -23,10 +23,11 @@ A premium quantitative trading operations terminal: restrained, information-dens
 - Strong borders: `rgba(255,255,255,.14)`
 
 ## Typography
-- Interface: Inter, 400–700.
-- Technical labels, identifiers, timestamps, and numeric readouts: DM Mono, 400–500.
-- Headlines: lightweight, tight tracking, responsive 24–30px for page titles.
-- Metadata: 9–10px monospaced uppercase labels, used sparingly.
+- Interface, navigation, headings, body copy, and primary metric values: Inter, predominantly 400–500; reserve 600–700 for rare emphasis.
+- Technical labels, identifiers, timestamps, and dense tabular figures: DM Mono, 400–500.
+- Headlines: lightweight (400), tight tracking, responsive 24–30px for page titles.
+- Metric values: Inter 400–500 with tabular numerals; avoid using monospaced display typography for every KPI.
+- Metadata: 9–10px DM Mono labels, used sparingly.
 
 ## Surfaces and layout
 - Shared application shell with 68px topbar and 238px expanded sidebar.
