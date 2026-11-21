@@ -102,7 +102,7 @@ export default function TradeCalculator(){
  const needRiskPct=mode==="fixed_risk_sl"||mode==="entry_sl_to_size";
  const needRiskMoney=mode==="risk_to_levels";
  const needReward=mode==="risk_to_levels"||mode==="target_distance";
- return <div>
+ return <div className="calculator-workspace">
   <header className="page-header"><div><h1>Trade Calculator</h1><p>TraderOS-style position sizing with backend FX conversion and account risk policies.</p></div><div style={{display:"flex",gap:8,alignItems:"center"}}><Link className="btn" href="/risk/policies">Risk Policy</Link><span className="badge warn">Planning only · no execution</span></div></header>
   <div className="grid grid-dash calculator-layout">
    <section className="panel"><h2 className="panel-title">CALCULATION MODE</h2><div className="calculator-modes">{modes.map(m=><button type="button" key={m.id} className={mode===m.id?"calculator-mode active":"calculator-mode"} onClick={()=>setMode(m.id)}><strong>{m.name}</strong><small>{m.hint}</small></button>)}</div>

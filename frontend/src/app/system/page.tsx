@@ -14,7 +14,7 @@ export default function SystemPage() {
   }, []);
 
   return (
-    <>
+    <div className="system-workspace">
       <PageHeader
         title="Connections & status"
         description="Check the availability of your trading services and connected venues."
@@ -33,6 +33,6 @@ export default function SystemPage() {
           </article>
         ))}
       </div>
-    </>
+    </div>
   );
 }

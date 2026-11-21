@@ -529,3 +529,12 @@ PR #7 is merged, not open: GitHub PR metadata reports merged on 2026-10-27 with 
 - Implemented a scoped CSS-only refinement in frontend/src/app/analytics/analytics.css: lighter typography hierarchy, DM Mono financial numerals, compact filter controls, clearer horizontal workspace tabs, restrained metric cards, consistent insight/chart/table surfaces, calendar and trade-investigation styling, and responsive breakpoints.
 - No Analytics Lab JSX, API, query, state, filter, calculation, chart-data or trade-investigation behavior was changed.
 - Validation and six-viewport screenshot review pending. No production deployment made; Phase 5 not started.
+
+
+## 2026-11-21 — QOS-030 EdgeNest Phase 5 remaining pages
+- User approved Phase 5 after PR #162 merged (db6365abd196be06f42d800a7d8b0a1cf1888905).
+- Read RULES.md and DESIGN.md; confirmed Phase 5 is remaining-page consistency and responsive refinement, with Phase 6 reserved for six-viewport visual QA and production release.
+- Created branch `feat/edgenest-remaining-pages-phase-5`.
+- Added scoped wrappers and visual treatments for Events, Reconciliation and Connections & Status; added calculator workspace scope; refined shared remaining-page CSS and Journal summary/table/detail surfaces.
+- No API, event stream, reconciliation, health status, calculator math/FX conversion/risk-policy evaluation, Journal data, import/export, replay, attachment or CRUD behavior intentionally changed.
+- Validation and screenshot review pending. No production deployment made; Phase 6 not started.
