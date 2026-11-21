@@ -1044,3 +1044,13 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Regression/real-use check added:** Run the six-viewport production acceptance workflow and verify dashboard computed heading weight is 500 and there is no horizontal overflow.
 - **Verification result:** Source correction committed on `fix/edgenest-dashboard-heading-weight`; PR and post-fix acceptance are pending.
 - **Remaining risk:** Production API calls from the local Cloudflare preview emitted CORS/503 console messages for `/healthz` and `/api/v1/trading/events` in the screenshot run, although the workflow's API health/readiness and production acceptance checks passed. These preview-origin console messages need separate origin-aware triage; no API/CORS behavior was changed in this visual fix.
+
+
+## REV-TECH-002 — CI runtime warnings and preview-origin console noise
+- **Date:** 2026-11-21
+- **Context:** Post-merge production acceptance run 44951037442 on commit `e8bd9adf12e6e3218a2d8554bd55539995c8e50c`.
+- **Observed findings:** GitHub Actions warned that checkout@v4, setup-node@v4 and upload-artifact@v4 still target Node.js 20. The browser preview logged CORS denials for `/healthz` and `/api/v1/trading/events` because the ephemeral preview origin is `http://127.0.0.1:8787`, which is intentionally not the production API's allowed browser origin. The production API health/readiness, unauthorized boundary and deployed-origin CORS preflight passed. Acceptance setup also used Playwright 1.56.1 despite 1.65.1 being the current stable version at review time.
+- **Changes:** Updated acceptance/build workflows to checkout@v7, setup-node@v7 and upload-artifact@v7; updated Playwright to 1.65.1; changed frontend CI Node runtime from 20 to 22; added deterministic preview-only fixtures for health and trading-event widgets; made unexpected Market Data console errors fail acceptance while explicitly excluding the intentionally simulated M15 HTTP 503 response.
+- **Safety:** No production API CORS allowlist, authentication, service-health logic, event stream behavior, or trading data changed. Production API health/auth/CORS gates remain direct live checks. No production deployment workflow was modified.
+- **Validation:** CI and six-viewport acceptance pending on PR. Existing successful acceptance confirmed the Dashboard heading weight 500 at all six sizes.
+- **Remaining maintenance:** npm still reports the repository's ESLint 9.39.5 package as deprecated/unsupported; its compatible upgrade needs a separate Next.js/ESLint peer-compatibility check. Node's `punycode` deprecation may still originate in a transitive build dependency and will be triaged from the updated run rather than suppressed.
