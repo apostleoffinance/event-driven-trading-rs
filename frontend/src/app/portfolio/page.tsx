@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { EquityChart } from "@/components/charts/EquityChart";
 import { Metric } from "@/components/data-display/Metric";
+import { GradientAccountCard } from "@/components/data-display/GradientAccountCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatMoney, formatSignedMoney } from "@/lib/format";
 import { getRepositories } from "@/lib/repositories";
@@ -126,7 +127,7 @@ export default function PortfolioPage() {
   if (isLoading) return <div className="loading">Loading portfolio…</div>;
 
   return (
-    <>
+    <div className="portfolio-workspace">
       <PageHeader
         title="Portfolio"
         description="Account → Positions → Exposure → P&L. Analytical view only — no rebalancing."
@@ -139,7 +140,10 @@ export default function PortfolioPage() {
       ) : null}
       {brokerError && !useJournalFallback ? <div className="error" role="alert">Trading portfolio unavailable: {brokerError}</div> : null}
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
-        <Metric label="TOTAL EQUITY" value={useJournalFallback && currency ? formatMoney(totalEquity, currency) : formatMoney(totalEquity)} />
+        <GradientAccountCard eyebrow={useJournalFallback ? "JOURNAL LEDGER VIEW" : "PORTFOLIO OVERVIEW"} title="Total equity">
+          <div className="portfolio-equity-value">{useJournalFallback && currency ? formatMoney(totalEquity, currency) : formatMoney(totalEquity)}</div>
+          <div className="portfolio-equity-caption">{useJournalFallback ? "Journal-ledger equity · broker equity unavailable" : "Broker-reported portfolio equity"}</div>
+        </GradientAccountCard>
         <Metric label="REALIZED P&L" value={realizedPnl === null ? "Unknown" : useJournalFallback && currency ? formatSignedMoney(realizedPnl) + " " + currency : formatSignedMoney(realizedPnl)} signed />
         <Metric label="UNREALIZED P&L" value={useJournalFallback ? "Unavailable" : formatMoney(p.unrealizedPnl)} signed />
         <div className="metric panel">
@@ -148,7 +152,7 @@ export default function PortfolioPage() {
           <div className="metric-sub">{drawdown.toFixed(2)}% max drawdown</div>
         </div>
       </div>
-      <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel portfolio-journal-panel" style={{ marginBottom: 12 }}>
         <div className="panel-title">JOURNAL ACCOUNT PERFORMANCE</div>
         <p className="metric-sub">Journal account performance is shown separately from broker-reported equity, including linked accounts. Values use initial balance plus recorded closed-trade net P&L; deposits, withdrawals and unrealized P&L are excluded.</p>
         {journalLoading ? <div className="loading">Loading Journal accounts…</div> : journalError ? <div className="error" role="alert">{journalError}</div> : journalAccounts.length === 0 ? <p className="metric-sub">No Journal accounts found.</p> : (
@@ -168,7 +172,7 @@ export default function PortfolioPage() {
           </div>
         )}
       </div>
-      <div className="grid grid-dash" style={{ marginBottom: 12 }}>
+      <div className="grid grid-dash portfolio-analysis-grid" style={{ marginBottom: 12 }}>
         <div className="panel">
           <div className="panel-title">EQUITY CURVE</div>
           {equitySeries.length > 0 ? <EquityChart series={equitySeries} /> : <p className="metric-sub">No historical equity series is available yet.</p>}
@@ -189,6 +193,6 @@ export default function PortfolioPage() {
       {journalAccounts.length > 0 && singleCurrency && useJournalFallback ? (
         <p className="metric-sub">Journal portfolio: {formatMoney(journalInitial.toFixed(2), currency!)} starting balance · {formatSignedMoney(journalRealized.toFixed(2))} {currency} realized P&L · {closedTrades.length} closed trades included in the equity curve.</p>
       ) : null}
-    </>
+    </div>
   );
 }
