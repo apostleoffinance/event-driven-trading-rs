@@ -72,12 +72,9 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
         // fresh install; report the exact target and collisions so operators
         // can distinguish a wrong MIGRATOR_DATABASE_URL from an untracked
         // EdgeNest schema.
-        let (database_name, schema_name, existing_edgenest_tables): (
-            String,
-            String,
-            Vec<String>,
-        ) = sqlx::query_as(
-            r#"
+        let (database_name, schema_name, existing_edgenest_tables): (String, String, Vec<String>) =
+            sqlx::query_as(
+                r#"
             SELECT
                 current_database()::text,
                 current_schema()::text,
@@ -119,9 +116,9 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
                   'mt5_terminal_slots'
               ])
             "#,
-        )
-        .fetch_one(&mut *connection)
-        .await?;
+            )
+            .fetch_one(&mut *connection)
+            .await?;
         if !existing_edgenest_tables.is_empty() {
             return Err(crate::error::PersistenceError::Other(format!(
                 "refusing fresh-install migration bootstrap: database '{database_name}', schema '{schema_name}' contains EdgeNest table(s) without recognized SQLx history: {}. Verify MIGRATOR_DATABASE_URL and inspect the existing schema; do not delete tables or fabricate migration history.",
