@@ -5,11 +5,9 @@ use sqlx::PgPool;
 async fn fresh_install_ignores_unrelated_tables_in_the_active_schema(
     pool: PgPool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    sqlx::query(
-        "CREATE TABLE unrelated_app_metadata (id BIGINT PRIMARY KEY, value TEXT NOT NULL)",
-    )
-    .execute(&pool)
-    .await?;
+    sqlx::query("CREATE TABLE unrelated_app_metadata (id BIGINT PRIMARY KEY, value TEXT NOT NULL)")
+        .execute(&pool)
+        .await?;
 
     migrate(&pool).await?;
 
