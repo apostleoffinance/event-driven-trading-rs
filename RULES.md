@@ -1,5 +1,5 @@
 # Quant OS — Engineering Rules (Source of Truth)
-Last updated: 2026-10-27. This is the authoritative rule set. Every code change, document, design, test, release note, and AI-generated artifact must be checked against it. If another document conflicts, stop and reconcile.
+Last updated: 2026-11-21. This is the authoritative rule set. Every code change, document, design, test, release note, and AI-generated artifact must be checked against it. If another document conflicts, stop and reconcile.
 
 ## Workflow
 1. Read this file before every task.
@@ -64,6 +64,14 @@ Last updated: 2026-10-27. This is the authoritative rule set. Every code change,
 5. No fake balances/performance/status.
 6. Approved Quant OS visual system (2026-11-21): premium dark trading-terminal default with near-black backgrounds (`#090A0D` / `#121418`), Inter sans-serif and DM Mono technical typography, cool blue accents, restrained borders/lighting, green `#18A66A` for confirmed positive/healthy states and red `#E16E75` for negative/loss/error/rejection states. Preserve an accessible light theme as an optional user preference. Do not use green/red decoratively or imply a state not confirmed by source data.
 7. Accessible contrast, keyboard focus, textual status, confirmation for dangerous actions.
+8. **Concise interface language is the default across every route and shared component:** short labels, clear headings, contextual help only when needed, and detailed explanations available on demand.
+9. Prefer familiar user-facing terms. Never display raw internal enum values, snake_case keys, API field names, or implementation jargon when a clear display label can be mapped without changing canonical data.
+10. Avoid duplicate explanatory copy across page subtitles, cards, alerts, and tooltips. Use one concise sentence when it materially improves comprehension.
+11. Move methodology, definitions, statistical interpretation, and non-urgent caveats into accessible contextual help or expandable details. Keep critical warnings, stale/disconnected/unknown states, required acknowledgements, and material financial limitations visible.
+12. Show timezone context once per relevant section or chart group, not repeated in every row. Keep exact audit timestamps available where needed.
+13. Keep signed-in identity and private analytics context out of public pages. Public landing pages must not expose dashboard empty states, private account details, or authenticated API errors.
+14. Copy/display-only changes must preserve canonical values, grouping keys, timestamps, formulas, API contracts, calculations, financial meaning, and behavior.
+15. Contextual help must be keyboard-accessible and have accessible names; never make help hover-only.
 
 ## Testing/release
 1. Every behavior change has risk-appropriate tests.
