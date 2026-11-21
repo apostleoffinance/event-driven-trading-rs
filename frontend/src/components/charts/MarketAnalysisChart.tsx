@@ -126,7 +126,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       chart = createChart(node, {
         width: Math.max(node.clientWidth, 320),
         height: 500,
-        layout: { background: { color: cssColor("--bg-1", "#111216") }, textColor, fontFamily: '"IBM Plex Sans", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
+        layout: { background: { color: cssColor("--bg-1", "#111216") }, textColor, fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
         rightPriceScale: { borderColor: axisColor, scaleMargins: { top: 0.08, bottom: 0.2 } },
         timeScale: { borderColor: axisColor, timeVisible: true, secondsVisible: false, rightOffset: 5, barSpacing: 8 },
@@ -134,9 +134,11 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
         localization: { locale: "en-GB" },
       });
       chartRef.current = chart;
+      const positiveColor = cssColor("--positive", "#18a66a");
+      const negativeColor = cssColor("--negative", "#e16e75");
       candleRef.current = chart.addCandlestickSeries({
-        upColor: "#26a69a", downColor: "#ef5350", borderUpColor: "#26a69a", borderDownColor: "#ef5350",
-        wickUpColor: "#26a69a", wickDownColor: "#ef5350",
+        upColor: positiveColor, downColor: negativeColor, borderUpColor: positiveColor, borderDownColor: negativeColor,
+        wickUpColor: positiveColor, wickDownColor: negativeColor,
         priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
       });
       volumeRef.current = chart.addHistogramSeries({
