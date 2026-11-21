@@ -41,7 +41,7 @@ export default function EventsPage() {
   );
 
   return (
-    <>
+    <div className="events-workspace">
       <PageHeader
         title="Recent activity"
         description="Review updates to your orders, positions and trading accounts."
@@ -86,6 +86,6 @@ export default function EventsPage() {
           </aside>
         </>
       ) : null}
-    </>
+    </div>
   );
 }
