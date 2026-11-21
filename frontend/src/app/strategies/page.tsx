@@ -136,15 +136,15 @@ export default function StrategiesPage() {
         description="Python strategies emit TradeIntent only — they never submit orders. Execution stays in Rust."
       />
       <div
-        className="grid"
+        className="grid strategy-workspace"
         style={{ gridTemplateColumns: "minmax(280px,340px) 1fr", gap: 12 }}
       >
-        <div className="grid" style={{ gap: 8 }}>
+        <div className="grid strategy-list" style={{ gap: 8 }}>
           {data.map((s) => (
             <button
               key={s.id}
               type="button"
-              className={`panel${selected?.id === s.id ? " primary" : ""}`}
+              className={`panel strategy-list-card${selected?.id === s.id ? " primary" : ""}`}
               style={{
                 textAlign: "left",
                 borderColor:
@@ -179,7 +179,7 @@ export default function StrategiesPage() {
           ))}
         </div>
         {selected ? (
-          <div className="panel">
+          <div className="panel strategy-detail-panel">
             <div
               style={{
                 display: "flex",
