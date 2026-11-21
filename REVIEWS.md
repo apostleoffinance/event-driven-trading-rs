@@ -1022,3 +1022,11 @@ Date/context; finding and impact; evidence; failed/missing rule; rule update; ar
 - **Finding:** Analytics Lab includes financial metrics, multiple currency/account filters, UTC groupings, sample-aware comparisons, missing-data handling, historical replay and private trade attachments. Visual work must not alter their semantics.
 - **Decision:** Keep Phase 4 strictly scoped to Analytics Lab CSS. Apply the approved restrained EdgeNest visual language: lighter Inter interface typography, DM Mono financial values, compact controls and tabs, calm neutral surfaces, subtle blue accents, responsive comparison cards/tables. Do not add gradient to dense chart or analytical surfaces.
 - **Verification:** Inspected source of page, API usage and all major analytics component styles. Only analytics.css is modified in application code. CI and screenshot/browser acceptance remain pending.
+
+
+## REV-085 — Phase 5 remaining-page consistency guardrails
+- **Date:** 2026-11-21
+- **Context:** User approved Phase 5 after PR #162 merge.
+- **Finding:** The remaining pages include operational connection state, alert-only reconciliation, a planning-only position calculator with live FX freshness and optional stale-rate acknowledgement, and authenticated Journal workflows with imports, replay and private evidence.
+- **Decision:** Presentation-only scoped styling and wrappers. Preserve explicit source statuses and warning text; do not add connection claims, reconciliation controls, execute actions, alter calculator formulas/inputs or Journal mutations.
+- **Verification:** Inspected relevant route/component sources and existing design tokens. Changes are limited to presentation wrappers and CSS. CI and screenshot acceptance pending.
