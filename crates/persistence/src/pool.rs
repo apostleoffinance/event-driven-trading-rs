@@ -66,15 +66,33 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
     ];
 
     if applied.is_empty() {
-        let app_table_count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM pg_tables WHERE schemaname=current_schema() AND tablename <> '_sqlx_migrations'",
-        )
-        .fetch_one(&mut *connection)
-        .await?;
-        if app_table_count != 0 {
-            return Err(crate::error::PersistenceError::Other(
-                "refusing fresh-install migration bootstrap: application schema exists without recognized SQLx history".into(),
-            ));
+        // A migration target with any pre-existing table but no recognized
+        // SQLx history is not assumed to be fresh. Keep this fail-closed even
+        // for unknown table names: the target may be misconfigured or contain
+        // application data that must never be overwritten by bootstrap.
+        // Include the database, schema, and table names to make diagnosis safe.
+        let (database_name, schema_name, existing_tables): (String, String, Vec<String>) =
+            sqlx::query_as(
+                r#"
+            SELECT
+                current_database()::text,
+                current_schema()::text,
+                COALESCE(
+                    array_agg(tablename ORDER BY tablename),
+                    ARRAY[]::text[]
+                )
+            FROM pg_tables
+            WHERE schemaname = current_schema()
+              AND tablename <> '_sqlx_migrations'
+            "#,
+            )
+            .fetch_one(&mut *connection)
+            .await?;
+        if !existing_tables.is_empty() {
+            return Err(crate::error::PersistenceError::Other(format!(
+                "refusing fresh-install migration bootstrap: database '{database_name}', schema '{schema_name}' contains table(s) without recognized SQLx history: {}. Verify MIGRATOR_DATABASE_URL and inspect the existing schema; do not delete tables or fabricate migration history.",
+                existing_tables.join(", ")
+            )));
         }
         let core = migrator
             .iter()
