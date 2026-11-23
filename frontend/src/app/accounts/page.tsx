@@ -14,7 +14,7 @@ import {
   StatusBadge,
 } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatPct } from "@/lib/format";
+import { formatPct, formatSignedMoney } from "@/lib/format";
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import type { Account } from "@/types/domain";
@@ -141,7 +141,7 @@ export default function AccountsPage() {
             <div className="account-featured-footer"><span>Account balance <strong>{formatPerformanceValue(featuredAccount.balance,featuredAccount.currency,performanceMode)}</strong></span><span>Available capital <strong>{formatPerformanceValue(featuredAccount.availableCapital,featuredAccount.currency,performanceMode)}</strong></span></div>
           </GradientAccountCard>
           <div className="account-featured-metrics">
-            <MetricCard label="DAILY P&L" value={formatSignedMoney(featuredAccount.dailyPnl)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
+            <MetricCard label="DAILY P&L" value={formatPerformanceValue(featuredAccount.dailyPnl,featuredAccount.currency,performanceMode)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
             <MetricCard label="UNREALIZED P&L" value={formatSignedMoney(featuredAccount.unrealizedPnl)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
             <MetricCard label="DRAWDOWN" value={formatPct(featuredAccount.drawdownPct)} sub="Reported account drawdown" />
             <MetricCard label="OPEN POSITIONS" value={String(featuredAccount.openPositionCount)} sub="Current account positions" />
