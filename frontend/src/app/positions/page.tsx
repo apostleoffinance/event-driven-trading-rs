@@ -53,7 +53,7 @@ export default function PositionsPage() {
           <span
             className={`num ${Number(row.original.unrealizedPnl) >= 0 ? "pos" : "neg"}`}
           >
-            {formatPerformanceValue(row.original.unrealizedPnl)}
+            {formatPerformanceValue(row.original.unrealizedPnl,"USD",performanceMode)}
           </span>
         ),
       },
@@ -61,7 +61,7 @@ export default function PositionsPage() {
         accessorKey: "realizedPnl",
         header: "rP&L",
         cell: ({ row }) => (
-          <span className="num">{formatPerformanceValue(row.original.realizedPnl)}</span>
+          <span className="num">{formatPerformanceValue(row.original.realizedPnl,"USD",performanceMode)}</span>
         ),
       },
       {
