@@ -21,8 +21,8 @@ export function AnalyticsDrawdownChart({ curve, currency = "USD", baseline = 0 }
     const negative = readToken("--negative", theme === "light" ? "#c6283a" : "#f07176");
     const dates = curve.map(point => new Date(point.closed_at).toLocaleDateString());
     let peakPnl = 0;
-    const values = curve.map(point => { peakPnl=Math.max(peakPnl,Number(point.equity??0)); const drawdown=-Math.abs(Number(point.drawdown??0)); const peakAccountEquity=baseline+peakPnl; return mode==="percentage"&&peakAccountEquity>0?(drawdown/peakAccountEquity)*100:drawdown; });
-    const format = (value: number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? value.toFixed(2)+"%" : value.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2});
+    const values = curve.map(point => { peakPnl=Math.max(peakPnl,Number(point.equity??0)); const drawdown=-Math.abs(Number(point.drawdown??0)); const peakAccountEquity=baseline+peakPnl; return mode==="percentage"?(peakAccountEquity>0?(drawdown/peakAccountEquity)*100:null):drawdown; });
+    const format = (value: number | null) => value==null ? "—" : mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? value.toFixed(2)+"%" : value.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2});
     return {
       animation: curve.length < 250,
       grid: { left: 72, right: 20, top: 20, bottom: 42 },
