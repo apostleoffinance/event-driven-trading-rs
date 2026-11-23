@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { AppShell } from "@/components/layout/AppShell";
 import "@/styles/globals.css";
 import "@/styles/design-tokens.css";
+import "@/styles/brand-assets.css";
 
 export const metadata: Metadata = {
-  title: "Quant OS",
+  title: "EdgeNest | Trading Infrastructure",
   description:
-    "Operational control plane for quantitative trading infrastructure (PAPER)",
+    "A unified trading workspace for position sizing, journaling, performance analytics and risk oversight.",
 };
 
 export default function RootLayout({
