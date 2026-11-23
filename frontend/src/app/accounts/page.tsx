@@ -121,7 +121,7 @@ export default function AccountsPage() {
         ),
       },
     ],
-    [],
+    [performanceMode],
   );
 
   const featuredAccount = selected ?? data[0];
