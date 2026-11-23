@@ -8,9 +8,10 @@ import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplay
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
-export function AnalyticsDrawdownChart({ curve, currency = "USD" }: {
+export function AnalyticsDrawdownChart({ curve, currency = "USD", baseline = 0 }: {
   curve: JournalAnalytics["equity_curve"];
   currency?: string;
+  baseline?: number;
 }) {
   const { theme } = useTheme();
   const { mode } = usePerformanceDisplay();
@@ -19,8 +20,8 @@ export function AnalyticsDrawdownChart({ curve, currency = "USD" }: {
     const grid = readToken("--chart-grid", theme === "light" ? "#e4eaf2" : "#2a2d34");
     const negative = readToken("--negative", theme === "light" ? "#c6283a" : "#f07176");
     const dates = curve.map(point => new Date(point.closed_at).toLocaleDateString());
-    let peak = 0;
-    const values = curve.map(point => { peak=Math.max(peak,Number(point.equity??0)); const drawdown=-Math.abs(Number(point.drawdown??0)); return mode==="percentage"&&peak>0?(drawdown/peak)*100:drawdown; });
+    let peakPnl = 0;
+    const values = curve.map(point => { peakPnl=Math.max(peakPnl,Number(point.equity??0)); const drawdown=-Math.abs(Number(point.drawdown??0)); const peakAccountEquity=baseline+peakPnl; return mode==="percentage"&&peakAccountEquity>0?(drawdown/peakAccountEquity)*100:drawdown; });
     const format = (value: number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? value.toFixed(2)+"%" : value.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2});
     return {
       animation: curve.length < 250,
@@ -38,7 +39,7 @@ export function AnalyticsDrawdownChart({ curve, currency = "USD" }: {
         markLine: { silent: true, symbol: "none", lineStyle: { color: muted, type: "dashed" }, data: [{ yAxis: 0 }] }
       }]
     };
-  }, [curve, currency, theme, mode]);
+  }, [curve, currency, theme, mode, baseline]);
 
   return curve.length
     ? <ReactECharts option={option} style={{ height: 250, width: "100%" }} opts={{ renderer: "canvas" }} notMerge />
