@@ -8,6 +8,7 @@ import { PublicLandingPage } from "@/components/landing/PublicLandingPage";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { hasSession } from "@/lib/auth/session";
+import { EDGENEST_SYMBOL_SRC } from "@/lib/brand-assets";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -19,7 +20,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   useEffect(() => { setAuthenticated(hasSession()); setAuthResolved(true); }, [pathname]);
 
   if (pathname === "/" && authResolved && !authenticated) return <PublicLandingPage />;
-  if (pathname === "/" && !authResolved) return <div className="landing-boot" aria-label="Loading EdgeNest"><span className="landing-brand-mark">E</span></div>;
+  if (pathname === "/" && !authResolved) return <div className="landing-boot" aria-label="Loading EdgeNest"><img className="landing-boot-symbol" src={EDGENEST_SYMBOL_SRC} alt="" width={85} height={72} /></div>;
 
   return <div className={`app-shell${collapsed ? " collapsed" : ""}`}>
     <Topbar collapsed={collapsed} eventConnected={stream.connected} onToggleCollapse={() => setCollapsed(v => !v)} onToggleMobile={() => setMobileOpen(v => !v)} />
