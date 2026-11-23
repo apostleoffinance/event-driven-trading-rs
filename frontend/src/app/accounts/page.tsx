@@ -91,7 +91,7 @@ export default function AccountsPage() {
           <span
             className={`num ${Number(row.original.dailyPnl) >= 0 ? "pos" : "neg"}`}
           >
-            {formatPerformanceValue(row.original.dailyPnl, row.original.currency, performanceMode)}
+            {formatPerformanceValue(row.original.dailyPnl, "USD", performanceMode)}
           </span>
         ),
       },
@@ -137,12 +137,12 @@ export default function AccountsPage() {
           <GradientAccountCard eyebrow={featuredAccount.environment + " ACCOUNT"} title={featuredAccount.name}>
             <div className="account-featured-meta">{featuredAccount.type} · {featuredAccount.venueName} · {featuredAccount.status}</div>
             <div className="account-featured-equity-label">Account equity</div>
-            <div className="account-featured-equity">{formatPerformanceValue(featuredAccount.equity,featuredAccount.currency,performanceMode)}</div>
-            <div className="account-featured-footer"><span>Account balance <strong>{formatPerformanceValue(featuredAccount.balance,featuredAccount.currency,performanceMode)}</strong></span><span>Available capital <strong>{formatPerformanceValue(featuredAccount.availableCapital,featuredAccount.currency,performanceMode)}</strong></span></div>
+            <div className="account-featured-equity">{formatPerformanceValue(featuredAccount.equity,"USD",performanceMode)}</div>
+            <div className="account-featured-footer"><span>Account balance <strong>{formatPerformanceValue(featuredAccount.balance,"USD",performanceMode)}</strong></span><span>Available capital <strong>{formatPerformanceValue(featuredAccount.availableCapital,"USD",performanceMode)}</strong></span></div>
           </GradientAccountCard>
           <div className="account-featured-metrics">
-            <MetricCard label="DAILY P&L" value={formatPerformanceValue(featuredAccount.dailyPnl,featuredAccount.currency,performanceMode)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
-            <MetricCard label="UNREALIZED P&L" value={formatPerformanceValue(featuredAccount.unrealizedPnl, featuredAccount.currency, performanceMode)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
+            <MetricCard label="DAILY P&L" value={formatPerformanceValue(featuredAccount.dailyPnl,"USD",performanceMode)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
+            <MetricCard label="UNREALIZED P&L" value={formatPerformanceValue(featuredAccount.unrealizedPnl, "USD", performanceMode)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
             <MetricCard label="DRAWDOWN" value={formatPct(featuredAccount.drawdownPct)} sub="Reported account drawdown" />
             <MetricCard label="OPEN POSITIONS" value={String(featuredAccount.openPositionCount)} sub="Current account positions" />
           </div>
@@ -245,10 +245,10 @@ export default function AccountsPage() {
               Venue {selected.venueName} ({selected.venueId})
             </div>
             <div className="metric-sub num">
-              Equity {formatPerformanceValue(selected.equity,selected.currency,performanceMode)}
+              Equity {formatPerformanceValue(selected.equity,"USD",performanceMode)}
             </div>
             <div className="metric-sub num">
-              Available {formatPerformanceValue(selected.availableCapital,selected.currency,performanceMode)}
+              Available {formatPerformanceValue(selected.availableCapital,"USD",performanceMode)}
             </div>
             <div className="metric-sub">
               Open positions {selected.openPositionCount}
