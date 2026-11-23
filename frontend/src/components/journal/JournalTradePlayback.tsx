@@ -119,7 +119,6 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const replayEndIndex = replayEndFound >= 0 ? replayEndFound : Math.max(0,candles.length-1);
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
-  const tradeCandles = candles.filter(candle => { const timestamp = Number(candle.time) * 1000; return timestamp >= openedTimestampMs && timestamp <= closeTimestampMs; });
   const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => Number(candle.time) * 1000 >= openedTimestampMs && Number(candle.time) * 1000 <= closeTimestampMs);
   const entryPrice = Number(trade.entry_price);
   const favorablePrice = trade.direction === "long"
