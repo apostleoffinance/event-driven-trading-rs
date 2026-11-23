@@ -5,14 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { journalApi } from "@/lib/api/journal";
 import { hasSession } from "@/lib/auth/session";
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
-function money(value: string | null | undefined, currency: string) {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
-  try { return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
-  catch { return Number(value).toFixed(2) + " " + currency; }
-}
 
 export function JournalDashboardSummary() {
+  const { mode } = usePerformanceDisplay();
   const [authenticated, setAuthenticated] = useState(false);
   useEffect(() => setAuthenticated(hasSession()), []);
   const accounts = useQuery({
@@ -55,7 +52,7 @@ export function JournalDashboardSummary() {
           </div>
           {result?.isError ? <p className="muted">Analytics unavailable. Open Analytics Lab to retry.</p> : result?.isLoading || !stats ? <p className="muted">Loading closed-trade performance…</p> : stats.trade_count === 0 ? <p className="muted">No closed Journal trades recorded for this account yet. <Link href="/journal">Add or import trades</Link>.</p> : <div className="grid grid-kpi" style={{ marginTop: 8 }}>
             <div><span className="metric-label">Closed trades</span><strong className="metric-value">{stats.trade_count}</strong></div>
-            <div><span className="metric-label">Journal net P&amp;L</span><strong className="metric-value">{money(stats.net_profit, account.currency)}</strong></div>
+            <div><span className="metric-label">Journal net P&amp;L</span><strong className="metric-value">{formatPerformanceValue(stats.net_profit,account.currency,mode,{percentage:Number(account.initial_balance)>0?Number(stats.net_profit)/Number(account.initial_balance)*100:null})}</strong></div>
             <div><span className="metric-label">Win rate</span><strong className="metric-value">{stats.win_rate_percent == null ? "—" : Number(stats.win_rate_percent).toFixed(1)+"%"}</strong></div>
           </div>}
         </article>;
