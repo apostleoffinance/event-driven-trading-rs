@@ -1,0 +1,12 @@
+.brand { align-items: center; min-width: 0; gap: 10px; }
+.brand-logo { display: block; flex: 0 0 auto; width: 126px; height: auto; object-fit: contain; }
+[data-theme="light"] .brand-logo { box-sizing: content-box; padding: 4px 6px; border-radius: 5px; background: #06111C; }
+.landing-brand { gap: 0; letter-spacing: 0; }
+.landing-brand-logo { display: block; width: 158px; height: auto; object-fit: contain; }
+.landing-footer .landing-brand-logo { width: 136px; }
+.landing-boot { display: grid; place-items: center; min-height: 100vh; }
+.landing-boot-symbol { display: block; width: 44px; height: auto; object-fit: contain; }
+@media (max-width: 900px) {
+  .brand-logo { width: 112px; }
+  .landing-brand-logo { width: 142px; }
+}
