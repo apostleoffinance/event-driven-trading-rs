@@ -289,10 +289,40 @@ async fn validate_recovery_schema(connection: &mut PgConnection) -> PersistenceR
             )
             AND NOT EXISTS (
                 SELECT 1 FROM pg_constraint c
-                 JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=ANY(c.conkey)
                  WHERE c.conrelid='public.journal_accounts'::regclass
-                   AND c.contype='f' AND a.attname='linked_trading_account_id'
+                   AND c.contype='f'
+                   AND (c.conname='fk_journal_accounts_trading_account'
+                        OR c.conkey @> ARRAY[(
+                            SELECT attnum FROM pg_attribute
+                             WHERE attrelid='public.journal_accounts'::regclass
+                               AND attname='linked_trading_account_id'
+                        )]::smallint[])
+                   AND NOT (
+                        c.conkey = ARRAY[(
+                            SELECT attnum FROM pg_attribute
+                             WHERE attrelid='public.journal_accounts'::regclass
+                               AND attname='linked_trading_account_id'
+                        )]::smallint[]
+                        AND c.confrelid='public.accounts'::regclass
+                        AND c.confkey = ARRAY[(
+                            SELECT attnum FROM pg_attribute
+                             WHERE attrelid='public.accounts'::regclass
+                               AND attname='id'
+                        )]::smallint[]
+                        AND c.confupdtype='a' AND c.confdeltype='a'
+                        AND c.confmatchtype='s'
+                   )
             )
+            AND (
+                SELECT count(*) FROM pg_constraint c
+                 WHERE c.conrelid='public.journal_accounts'::regclass
+                   AND c.contype='f'
+                   AND c.conkey @> ARRAY[(
+                       SELECT attnum FROM pg_attribute
+                        WHERE attrelid='public.journal_accounts'::regclass
+                          AND attname='linked_trading_account_id'
+                   )]::smallint[]
+            ) <= 1
             AND NOT EXISTS (
                 SELECT 1 FROM pg_constraint
                  WHERE conrelid='public.orders'::regclass
