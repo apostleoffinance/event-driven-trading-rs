@@ -50,7 +50,7 @@ export function HourlyPerformanceHeatmap({ groups, currency = "USD", baseline = 
             hours[index] + " UTC",
             "Trades: " + group.trades,
             "Sample size: " + group.trades + " closed trades",
-            "Net performance: " + (mode==="currency" ? Number(value).toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}) : mode==="percentage"&&baseline>0 ? (Number(value)/baseline*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—"),
+            "Net performance: " + (mode==="currency" ? Number(value).toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}) : mode==="percentage"&&baseline>0 ? Number(value).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—"),
             "Win rate: " + Number(group.win_rate_percent).toFixed(1) + "%"
           ].join("<br/>");
         }
