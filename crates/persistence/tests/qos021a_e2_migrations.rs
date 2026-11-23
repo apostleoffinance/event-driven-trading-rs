@@ -524,6 +524,12 @@ async fn correct_preexisting_journal_fk_is_recognized(pool: PgPool) {
     sqlx::query("ALTER TABLE journal_accounts ADD CONSTRAINT legacy_correct_trading_account_fk FOREIGN KEY(linked_trading_account_id) REFERENCES accounts(id) ON UPDATE NO ACTION ON DELETE NO ACTION")
         .execute(&pool).await.unwrap();
     migrate(&pool).await.unwrap();
+
+    // A subsequent service startup must validate the completed E2 schema
+    // structurally, accepting an equivalent validated FK regardless of its
+    // historical constraint name.
+    migrate(&pool).await.unwrap();
+
     let validated: bool = sqlx::query_scalar(
         "SELECT convalidated FROM pg_constraint WHERE conname='legacy_correct_trading_account_fk'",
     )
