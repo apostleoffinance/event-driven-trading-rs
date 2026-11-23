@@ -68,7 +68,6 @@ export function AnalyticsBreakdownChart({
     const values = ranked.map((group) => Number(group.net_pnl));
     const chartValues = mode==="percentage" && baseline>0 ? values.map(value=>value/baseline*100) : values;
     const shownMoney = (value:number) => mode==="currency" ? formatMoney(value,currency) : mode==="percentage" && baseline>0 ? (value/baseline*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—";
-    const shownMoney = (value:number) => mode==="hidden"||mode==="r"||mode==="percentage" ? "••••" : formatMoney(value,currency);
     const height = Math.max(220, Math.min(520, ranked.length * 38 + 82));
 
     return {
@@ -117,7 +116,7 @@ export function AnalyticsBreakdownChart({
         : [],
       series: [
         {
-          name: "Net P&L",
+          name: mode==="percentage" ? "Net return" : "Net P&L",
           type: "bar",
           data: chartValues.map((value) => ({
             value,
