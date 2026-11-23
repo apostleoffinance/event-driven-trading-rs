@@ -264,6 +264,7 @@ table {
 }
 
 .main {
+  min-width: 0;
   overflow: auto;
   padding: 20px 22px 48px;
 }
