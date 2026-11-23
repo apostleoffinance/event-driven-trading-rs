@@ -14,7 +14,7 @@ import {
   StatusBadge,
 } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatPct, formatSignedMoney } from "@/lib/format";
+import { formatPct } from "@/lib/format";
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import type { Account } from "@/types/domain";
