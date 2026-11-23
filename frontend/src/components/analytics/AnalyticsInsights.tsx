@@ -104,7 +104,7 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, baselin
       </section>
       <section className="analytics-insight-column" aria-label="Groups worth investigating">
         <h3>Groups worth investigating</h3>
-        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No qualifying negative groups.</p>}
+        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} baseline={baseline} mode={mode} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No qualifying negative groups.</p>}
       </section>
     </div>
     <p className="analytics-insight-legend"><span><i className="positive" /> Positive net P&amp;L</span><span><i className="negative" /> Negative net P&amp;L</span><span>Win-rate bars are scaled from 0–100%</span></p>
