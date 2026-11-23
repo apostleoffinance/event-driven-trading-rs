@@ -347,7 +347,7 @@ try {
             tag: el.tagName,
             className: typeof el.className === "string" ? el.className : "",
             id: el.id,
-            text: (el.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 80),
+            text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80),
             left: Math.round(rect.left),
             right: Math.round(rect.right),
             width: Math.round(rect.width),
