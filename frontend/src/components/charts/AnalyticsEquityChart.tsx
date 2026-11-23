@@ -23,7 +23,7 @@ export function AnalyticsEquityChart({ curve, currency = "USD", baseline: suppli
     const axis = css("--chart-axis", "#2a3340");
     const line = css("--chart-line", "#4b93ff");
     const baseline = suppliedBaseline && suppliedBaseline > 0 ? suppliedBaseline : Number(curve[0]?.equity ?? 0);
-    const shown = (v: unknown) => { const n=Number(v??0); if(mode==="hidden"||mode==="r")return "••••"; if(mode==="percentage")return baseline>0?(((n-baseline)/baseline)*100).toFixed(2)+"%":"—"; return n.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}); };
+    const shown = (v: unknown) => { const n=Number(v??0); if(mode==="hidden"||mode==="r")return "••••"; if(mode==="percentage")return baseline>0?(n/baseline*100).toFixed(2)+"%":"—"; return n.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}); };
     const values = curve.map(point => Number(point.equity));
     const dates = curve.map(p => new Date(p.closed_at).toLocaleDateString("en-GB", { timeZone: "UTC" }));
     return {
@@ -46,7 +46,7 @@ export function AnalyticsEquityChart({ curve, currency = "USD", baseline: suppli
       yAxis: { type: "value", scale: true, axisLabel: { color: dim, formatter: (v:number) => mode==="percentage"||mode==="hidden"||mode==="r" ? (mode==="percentage"?Number(v).toFixed(1)+"%":"••••") : shown(v) }, splitLine: { lineStyle: { color: grid } }, axisLine: { lineStyle: { color: axis } } },
       dataZoom: curve.length > 35 ? [{ type: "inside" }, { type: "slider", height: 16, bottom: 8, borderColor: axis, textStyle: { color: dim } }] : [],
       series: [
-        { name: mode==="percentage" ? "Cumulative return" : "Cumulative Journal P&L", type: "line", data: mode==="percentage" ? values.map(value=>baseline>0?((value-baseline)/baseline)*100:0) : values, showSymbol: curve.length < 30, symbolSize: 5, lineStyle: { color: line, width: 2.5 }, areaStyle: { color: theme === "light" ? "rgba(31,111,235,0.08)" : "rgba(75,147,255,0.10)" }, markLine: { silent: true, symbol: "none", lineStyle: { color: dim, type: "dashed" }, data: [{ yAxis: 0 }] } }
+        { name: mode==="percentage" ? "Cumulative return" : "Cumulative Journal P&L", type: "line", data: mode==="percentage" ? values.map(value=>baseline>0?(value/baseline)*100:0) : values, showSymbol: curve.length < 30, symbolSize: 5, lineStyle: { color: line, width: 2.5 }, areaStyle: { color: theme === "light" ? "rgba(31,111,235,0.08)" : "rgba(75,147,255,0.10)" }, markLine: { silent: true, symbol: "none", lineStyle: { color: dim, type: "dashed" }, data: [{ yAxis: 0 }] } }
       ]
     };
   }, [curve, currency, theme, mode, suppliedBaseline]);
