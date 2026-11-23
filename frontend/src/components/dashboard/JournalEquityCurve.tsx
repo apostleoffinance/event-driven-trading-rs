@@ -9,7 +9,7 @@ import type { JournalAnalytics } from "@/lib/api/journal";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
-export function JournalEquityCurve({ analytics, currency }: { analytics: JournalAnalytics; currency: string }) {
+export function JournalEquityCurve({ analytics, currency, startingBalance = 0 }: { analytics: JournalAnalytics; currency: string; startingBalance?: number }) {
   const { theme } = useTheme();
   const { mode } = usePerformanceDisplay();
   const option = useMemo(() => {
@@ -20,7 +20,9 @@ export function JournalEquityCurve({ analytics, currency }: { analytics: Journal
     const muted = css("--chart-dim", "#5a687a");
     const grid = css("--chart-grid", "#e4eaf2");
     const points = [...analytics.equity_curve].sort((a,b)=>a.closed_at.localeCompare(b.closed_at));
-    const baseline = points.length ? moneyToNumber(points[0].equity)-moneyToNumber(points[0].net_pnl) : 0;
+    const baseline = startingBalance > 0 ? startingBalance : 0;
+    let peakPnl = 0;
+    const drawdownPercentages = points.map(point=>{peakPnl=Math.max(peakPnl,moneyToNumber(point.equity));return baseline+peakPnl>0?moneyToNumber(point.drawdown)/(baseline+peakPnl)*100:0;});
     const showValue = (value:number) => mode==="currency" ? formatMoney(value,currency) : mode==="percentage"&&baseline>0 ? ((value/baseline)*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—";
     return {
       backgroundColor: "transparent",
@@ -32,8 +34,8 @@ export function JournalEquityCurve({ analytics, currency }: { analytics: Journal
       xAxis: { type: "category", boundaryGap: false, data: points.map(p=>new Date(p.closed_at).toLocaleDateString()), axisLabel: { color: muted, hideOverlap: true }, axisLine: { lineStyle: { color: axis } } },
       yAxis: { type: "value", scale: true, axisLabel: { color: muted, formatter: (v:number)=>showValue(v) }, splitLine: { lineStyle: { color: grid } } },
       legend: { data: ["Cumulative realised P&L", "Drawdown from peak"], textStyle: { color: muted, fontSize: 11 }, top: 0 },
-      series: [{ name: "Cumulative realised P&L", type: "line", smooth: true, showSymbol: false, data: mode==="percentage" ? points.map(p=>baseline>0?moneyToNumber(p.equity)/baseline*100:0) : points.map(p=>moneyToNumber(p.equity)), lineStyle: { color: line, width: 2.5 }, areaStyle: { color: theme === "light" ? "rgba(31,111,235,0.09)" : "rgba(107,163,247,0.12)" } }, { name: "Drawdown from peak", type: "line", smooth: true, showSymbol: false, data: points.map(p=>moneyToNumber(p.drawdown)), lineStyle: { color: css("--chart-dd", "#c6283a"), width: 1.8 } }],
+      series: [{ name: "Cumulative realised P&L", type: "line", smooth: true, showSymbol: false, data: mode==="percentage" ? points.map(p=>baseline>0?moneyToNumber(p.equity)/baseline*100:0) : points.map(p=>moneyToNumber(p.equity)), lineStyle: { color: line, width: 2.5 }, areaStyle: { color: theme === "light" ? "rgba(31,111,235,0.09)" : "rgba(107,163,247,0.12)" } }, { name: "Drawdown from peak", type: "line", smooth: true, showSymbol: false, data: mode==="percentage" ? drawdownPercentages : points.map(p=>moneyToNumber(p.drawdown)), lineStyle: { color: css("--chart-dd", "#c6283a"), width: 1.8 } }],
     };
-  }, [analytics, currency, theme, mode]);
+  }, [analytics, currency, theme, mode, startingBalance]);
   return <ReactECharts option={option} style={{height:280,width:"100%"}} opts={{renderer:"canvas"}} notMerge />;
 }
