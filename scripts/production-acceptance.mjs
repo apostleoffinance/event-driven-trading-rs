@@ -323,7 +323,27 @@ try {
     await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).waitFor({ state: "attached", timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing layout did not persist at ${viewport.name}`);
 
-    const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
+    const marketDimensions = await page.evaluate(() => {
+      const elements = [...document.querySelectorAll("body *")].map(el => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return {
+          tag: el.tagName,
+          className: typeof el.className === "string" ? el.className : "",
+          id: el.id,
+          text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          scrollWidth: el.scrollWidth,
+          overflowX: style.overflowX,
+          position: style.position,
+        };
+      }).filter(el => el.right > window.innerWidth + 1 || el.left < -1 || el.scrollWidth > el.width + 2)
+        .sort((a, b) => b.right - a.right || b.scrollWidth - a.scrollWidth)
+        .slice(0, 30);
+      return { viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth, elements };
+    });
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
     assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
     assert.deepEqual(pageErrors, [], `Browser runtime errors on Market Data at ${viewport.name}: ${pageErrors.join("; ")}`);
