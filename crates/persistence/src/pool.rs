@@ -461,7 +461,31 @@ async fn validate_recognized_schema(
     }
     if e2_schema {
         let e2_schema_valid: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='accounts' AND column_name='environment_verification') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='accounts' AND column_name='environment_revision') AND to_regclass('public.execution_authorizations') IS NOT NULL AND to_regclass('public.execution_claims') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.journal_accounts'::regclass AND conname='fk_journal_accounts_trading_account' AND contype='f' AND convalidated)",
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='accounts' AND column_name='environment_verification') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='accounts' AND column_name='environment_revision') AND to_regclass('public.execution_authorizations') IS NOT NULL AND to_regclass('public.execution_claims') IS NOT NULL AND EXISTS (
+                SELECT 1
+                FROM pg_constraint c
+                WHERE c.conrelid = 'public.journal_accounts'::regclass
+                  AND c.contype = 'f'
+                  AND c.conkey = ARRAY[(
+                      SELECT attnum
+                      FROM pg_attribute
+                      WHERE attrelid = 'public.journal_accounts'::regclass
+                        AND attname = 'linked_trading_account_id'
+                        AND NOT attisdropped
+                  )]::smallint[]
+                  AND c.confrelid = 'public.accounts'::regclass
+                  AND c.confkey = ARRAY[(
+                      SELECT attnum
+                      FROM pg_attribute
+                      WHERE attrelid = 'public.accounts'::regclass
+                        AND attname = 'id'
+                        AND NOT attisdropped
+                  )]::smallint[]
+                  AND c.confupdtype = 'a'
+                  AND c.confdeltype = 'a'
+                  AND c.confmatchtype = 's'
+                  AND c.convalidated
+            )",
         )
         .fetch_one(&mut *connection)
         .await?;
