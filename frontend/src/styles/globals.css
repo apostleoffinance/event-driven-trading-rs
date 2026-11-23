@@ -1543,6 +1543,7 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
     grid-template-columns: minmax(0, 1fr);
   }
   .main {
+    box-sizing: border-box;
     width: 100%;
     min-width: 0;
     max-width: 100%;
@@ -1660,8 +1661,24 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .market-subsection-heading h2,.market-subsection-heading h3 { margin:0; font-size:13px; font-weight:650; }
 .market-subsection-heading p { margin:3px 0 0; color:var(--text-dim); font-size:10px; }
 .market-subsection-heading > span { color:var(--text-dim); font-size:10px; white-space:nowrap; }
-.market-table-scroll { width:100%; overflow:auto; border:1px solid var(--border); border-radius:6px; }
-.market-table-scroll table { min-width:680px; border-collapse:collapse; }
+.market-table-scroll {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.market-table-scroll table {
+  width: 680px;
+  min-width: 680px;
+  border-collapse: collapse;
+}
 .market-table-scroll th,.market-table-scroll td { padding:9px 11px; border-bottom:1px solid var(--border); text-align:right; white-space:nowrap; font-size:11px; font-variant-numeric:tabular-nums; }
 .market-table-scroll th:first-child,.market-table-scroll td:first-child { text-align:left; }
 .market-table-scroll th { position:sticky; top:0; background:var(--bg-2); color:var(--text-dim); font-size:9px; font-weight:750; letter-spacing:.08em; }
