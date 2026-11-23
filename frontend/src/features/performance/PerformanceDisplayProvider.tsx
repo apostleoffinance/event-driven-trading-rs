@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getSessionUser } from "@/lib/auth/session";
+import { usePathname } from "next/navigation";
 
 export type PerformanceDisplayMode = "currency" | "percentage" | "r" | "hidden";
 type PerformanceDisplayContextValue = {
@@ -16,6 +17,7 @@ export function PerformanceDisplayProvider({ children }: { children: React.React
   const [mode, setModeState] = useState<PerformanceDisplayMode>("currency");
   const [ready, setReady] = useState(false);
   const [scope, setScope] = useState("anonymous");
+  const pathname = usePathname();
 
   useEffect(() => {
     const userScope = encodeURIComponent(getSessionUser()?.email ?? "anonymous");
@@ -25,7 +27,7 @@ export function PerformanceDisplayProvider({ children }: { children: React.React
       if (saved === "currency" || saved === "percentage" || saved === "r" || saved === "hidden") setModeState(saved);
     } catch { /* Preferences remain usable for this session if storage is unavailable. */ }
     setReady(true);
-  }, []);
+  }, [pathname]);
 
   const setMode = useCallback((next: PerformanceDisplayMode) => {
     setModeState(next);
