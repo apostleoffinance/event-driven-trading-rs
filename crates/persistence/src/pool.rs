@@ -149,6 +149,7 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             ..Migrator::DEFAULT
         };
         ordered_migrator.run(&mut *connection).await?;
+        harden_edgenest_runtime_audit_privileges(connection).await?;
         tracing::info!("fresh database migrations applied");
         return Ok(());
     } else {
@@ -235,8 +236,44 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             ..Migrator::DEFAULT
         };
         ordered_migrator.run(&mut *connection).await?;
+        harden_edgenest_runtime_audit_privileges(connection).await?;
     }
     tracing::info!("database migrations applied");
+    Ok(())
+}
+
+/// Keep the dedicated Render runtime principal from mutating the append-only
+/// identity session audit stream. Other application tables retain their normal
+/// CRUD grants; this narrow restriction is required by runtime-role validation.
+async fn harden_edgenest_runtime_audit_privileges(
+    connection: &mut PgConnection,
+) -> PersistenceResult<()> {
+    let runtime_role_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='edgenest_runtime')",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    if !runtime_role_exists {
+        return Ok(());
+    }
+
+    let audit_table_exists: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.identity_session_events') IS NOT NULL",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    if audit_table_exists {
+        sqlx::query(
+            "REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.identity_session_events FROM edgenest_runtime",
+        )
+        .execute(&mut *connection)
+        .await?;
+        sqlx::query(
+            "REVOKE UPDATE ON SEQUENCE public.identity_session_events_id_seq FROM edgenest_runtime",
+        )
+        .execute(&mut *connection)
+        .await?;
+    }
     Ok(())
 }
 
