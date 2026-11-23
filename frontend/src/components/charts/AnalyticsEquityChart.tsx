@@ -23,7 +23,7 @@ export function AnalyticsEquityChart({ curve, currency = "USD", baseline: suppli
     const axis = css("--chart-axis", "#2a3340");
     const line = css("--chart-line", "#4b93ff");
     const baseline = suppliedBaseline && suppliedBaseline > 0 ? suppliedBaseline : Number(curve[0]?.equity ?? 0);
-    const shown = (v: unknown) => { const n=Number(v??0); if(mode==="hidden"||mode==="r")return "••••"; if(mode==="percentage")return baseline>0?(n/baseline*100).toFixed(2)+"%":"—"; return n.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}); };
+    const shown = (v: unknown) => { const n=Number(v??0); if(mode==="hidden"||mode==="r")return "••••"; if(mode==="percentage")return n.toFixed(2)+"%"; return n.toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}); };
     const values = curve.map(point => Number(point.equity));
     const dates = curve.map(p => new Date(p.closed_at).toLocaleDateString("en-GB", { timeZone: "UTC" }));
     return {
