@@ -48,6 +48,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const [currentIndex, setCurrentIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const [framing, setFraming] = useState<"full" | "follow">("full");
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -276,8 +277,11 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     series.setMarkers(markers);
     // Reserve the complete available trade scene on the time axis while only
     // revealing candles up to the replay cursor. Future candles remain blank.
-    chart.timeScale().setVisibleLogicalRange({ from: 0, to: Math.max(1, candles.length - 1) });
-  }, [candles, currentIndex, trade.direction, openedTimestampMs, closeTimestampMs]);
+    const visibleRange = framing === "full"
+      ? { from: 0, to: Math.max(1, candles.length - 1) }
+      : { from: Math.max(0, currentIndex - 90), to: Math.min(candles.length - 1, currentIndex + 45) };
+    chart.timeScale().setVisibleLogicalRange(visibleRange);
+  }, [candles, currentIndex, trade.direction, openedTimestampMs, closeTimestampMs, framing]);
 
   useEffect(() => {
     if (!playing) return;
@@ -320,6 +324,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
             <label>Provider <select value={selectedProvider} onChange={(event) => setProviderOverride(event.target.value)} disabled={providersQuery.isLoading}>
               {availableProviders.map((item) => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}
             </select></label>
+            <label>View <select value={framing} onChange={(event) => setFraming(event.target.value as "full" | "follow")}><option value="full">Full trade scene</option><option value="follow">Follow replay</option></select></label>
             <label>Speed <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
               <option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option><option value={8}>8×</option>
             </select></label>
@@ -352,7 +357,9 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
               <span><small>Replay MAE</small><strong className="neg">{maePips === null ? "—" : Math.abs(maePips).toFixed(1) + " pips"}</strong></span>
             </div>
             <div className="journal-playback-controls">
-              <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(0); }}>↺ Restart</button>
+              <button className="btn" type="button" onClick={() => chartContainerRef.current?.requestFullscreen?.()}>⛶ Fullscreen</button>
+              <button className="btn" type="button" onClick={() => { setFraming("full"); chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:Math.max(1,candles.length-1)}); }}>Fit full trade</button>
+              <button className="btn" type="button" onClick={() => { setPlaying(false); const index=candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,index)); }}>↺ Restart at entry</button>
               <button className="btn primary" type="button" disabled={candles.length < 2} onClick={() => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
               <button className="btn" type="button" disabled={currentIndex >= candles.length - 1} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(candles.length - 1, value + 1)); }}>Next candle →</button>
               <span className="muted">{Math.min(currentIndex + 1, candles.length)} / {candles.length} candles</span>
