@@ -119,14 +119,14 @@ table {
 
 .app-shell {
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-columns: minmax(0, var(--sidebar-w)) minmax(0, 1fr);
   grid-template-rows: var(--topbar-h) 1fr;
   min-height: 100vh;
   background: var(--bg-0);
 }
 
 .app-shell.collapsed {
-  grid-template-columns: var(--sidebar-collapsed) 1fr;
+  grid-template-columns: minmax(0, var(--sidebar-collapsed)) minmax(0, 1fr);
 }
 
 .topbar {
@@ -689,7 +689,7 @@ table {
 @media (max-width: 900px) {
   .app-shell,
   .app-shell.collapsed {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
     position: fixed;
