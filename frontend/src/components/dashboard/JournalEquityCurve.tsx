@@ -23,7 +23,7 @@ export function JournalEquityCurve({ analytics, currency, startingBalance = 0 }:
     const baseline = startingBalance > 0 ? startingBalance : 0;
     let peakPnl = 0;
     const drawdownPercentages = points.map(point=>{peakPnl=Math.max(peakPnl,moneyToNumber(point.equity));return baseline+peakPnl>0?moneyToNumber(point.drawdown)/(baseline+peakPnl)*100:0;});
-    const showValue = (value:number) => mode==="currency" ? formatMoney(value,currency) : mode==="percentage"&&baseline>0 ? ((value/baseline)*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—";
+    const showValue = (value:number) => mode==="currency" ? formatMoney(value,currency) : mode==="percentage" ? value.toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—";
     return {
       backgroundColor: "transparent",
       animationDuration: 350,
