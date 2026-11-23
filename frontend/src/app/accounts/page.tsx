@@ -137,8 +137,8 @@ export default function AccountsPage() {
           <GradientAccountCard eyebrow={featuredAccount.environment + " ACCOUNT"} title={featuredAccount.name}>
             <div className="account-featured-meta">{featuredAccount.type} · {featuredAccount.venueName} · {featuredAccount.status}</div>
             <div className="account-featured-equity-label">Account equity</div>
-            <div className="account-featured-equity">{formatPerformanceValue(featuredAccount.equity)}</div>
-            <div className="account-featured-footer"><span>Account balance <strong>{formatPerformanceValue(featuredAccount.balance)}</strong></span><span>Available capital <strong>{formatPerformanceValue(featuredAccount.availableCapital)}</strong></span></div>
+            <div className="account-featured-equity">{formatPerformanceValue(featuredAccount.equity,featuredAccount.currency,performanceMode)}</div>
+            <div className="account-featured-footer"><span>Account balance <strong>{formatPerformanceValue(featuredAccount.balance,featuredAccount.currency,performanceMode)}</strong></span><span>Available capital <strong>{formatPerformanceValue(featuredAccount.availableCapital,featuredAccount.currency,performanceMode)}</strong></span></div>
           </GradientAccountCard>
           <div className="account-featured-metrics">
             <MetricCard label="DAILY P&L" value={formatSignedMoney(featuredAccount.dailyPnl)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
@@ -172,7 +172,7 @@ export default function AccountsPage() {
                   <td><strong>{account.name}</strong><div className="metric-sub">{account.currency}</div></td>
                   <td>{account.account_type}</td>
                   <td>{account.broker || "—"}</td>
-                  <td className="num">{formatPerformanceValue(account.initial_balance, account.currency)}</td>
+                  <td className="num">{formatPerformanceValue(account.initial_balance,account.currency,performanceMode)}</td>
                   <td>
                     <select aria-label={`Trading account for ${account.name}`} className="input" style={{ minWidth: 190, padding: 7, border: "1px solid var(--border)", background: "var(--panel)", borderRadius: 6 }}
                       value={account.linked_trading_account_id || ""}
@@ -245,10 +245,10 @@ export default function AccountsPage() {
               Venue {selected.venueName} ({selected.venueId})
             </div>
             <div className="metric-sub num">
-              Equity {formatPerformanceValue(selected.equity)}
+              Equity {formatPerformanceValue(selected.equity,selected.currency,performanceMode)}
             </div>
             <div className="metric-sub num">
-              Available {formatPerformanceValue(selected.availableCapital)}
+              Available {formatPerformanceValue(selected.availableCapital,selected.currency,performanceMode)}
             </div>
             <div className="metric-sub">
               Open positions {selected.openPositionCount}
