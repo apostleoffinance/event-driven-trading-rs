@@ -124,7 +124,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       const gridColor = cssColor("--chart-grid", "#2a2d34");
       const axisColor = cssColor("--chart-axis", "#3a3e48");
       chart = createChart(node, {
-        width: Math.max(node.clientWidth, 320),
+        width: Math.max(node.clientWidth, 1),
         height: 500,
         layout: { background: { color: cssColor("--bg-1", "#121418") }, textColor, fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
