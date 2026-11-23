@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { riskDecisionTone, riskToneClass, StatusBadge } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatMoney, formatQuantity, formatSignedMoney } from "@/lib/format";
+import { formatQuantity } from "@/lib/format";
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import { journalApi, type JournalRiskPolicyEnvelope } from "@/lib/api/journal";
