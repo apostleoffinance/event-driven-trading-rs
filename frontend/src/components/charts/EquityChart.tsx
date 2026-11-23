@@ -31,7 +31,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
 
     const base = series.length ? moneyToNumber(series[0].equity) : 0;
     const equityValues = series.map(point => moneyToNumber(point.equity));
-    const displayEquity = (value:number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? (base>0?(((value-base)/base)*100).toFixed(2)+"%":"—") : formatMoney(value);
+    const displayEquity = (value:number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? Number(value).toFixed(2)+"%" : formatMoney(value);
     return {
       backgroundColor: "transparent",
       textStyle: {
