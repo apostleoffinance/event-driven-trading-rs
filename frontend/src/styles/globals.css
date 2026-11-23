@@ -2418,7 +2418,7 @@ svg text { font-family: var(--font-mono); }
   .main { padding: 22px 18px 48px; }
 }
 @media (max-width: 760px) {
-  .app-shell,.app-shell.collapsed { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h) auto 1fr; }
+  .app-shell,.app-shell.collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--topbar-h) auto minmax(0, 1fr); }
   .topbar { grid-column: 1; padding: 0 12px; gap: 8px; }
   .brand { min-width: 0; gap: 7px; }
   .brand-name { font-size: 10px; }
