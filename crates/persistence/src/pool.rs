@@ -7,6 +7,30 @@ use std::collections::BTreeMap;
 
 use crate::error::PersistenceResult;
 
+// Exact, inspected legacy ledger found in the original Render EdgeNest database.
+// This is deliberately not a general partial-history allowance: every applied
+// version and checksum must match before the forward-only pending migrations run.
+const KNOWN_RECOVERY_HISTORY: [i64; 14] = [
+    20260306000001,
+    20260906000001,
+    20261027000001,
+    20261027000002,
+    20261027000003,
+    20261027000004,
+    20261106000001,
+    20261106000002,
+    20261107000002,
+    202611070001,
+    202611070002,
+    20261109000001,
+    20261112000001,
+    202611120001,
+];
+
+fn is_known_recovery_history(versions: &[i64]) -> bool {
+    versions == KNOWN_RECOVERY_HISTORY
+}
+
 /// Connect to PostgreSQL using `DATABASE_URL`.
 pub async fn connect(database_url: &str) -> PersistenceResult<PgPool> {
     let pool = PgPoolOptions::new()
@@ -154,13 +178,15 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             .copied()
             .collect::<Vec<_>>();
         let current_complete = current.keys().copied().collect::<Vec<_>>();
+        let recovery_history = is_known_recovery_history(&applied_versions);
         let recognized = applied_versions == core_history
             || applied_versions == historical_complete
             || applied_versions == e2_complete
             || applied_versions == r2_complete
             || applied_versions == r3_complete
             || applied_versions == i1_complete
-            || applied_versions == current_complete;
+            || applied_versions == current_complete
+            || recovery_history;
         if !recognized {
             return Err(crate::error::PersistenceError::Other(format!(
                 "refusing migration on partial or unrecognized SQLx history: versions={applied_versions:?}"
@@ -173,7 +199,9 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
                 )));
             }
         }
-        if applied_versions == core_history {
+        if recovery_history {
+            validate_recovery_schema(connection).await?;
+        } else if applied_versions == core_history {
             validate_recognized_schema(connection, false, false, false, false, false).await?;
         } else {
             let has_e2 = applied_versions == e2_complete
@@ -207,6 +235,98 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
         ordered_migrator.run(&mut *connection).await?;
     }
     tracing::info!("database migrations applied");
+    Ok(())
+}
+
+/// Validate the one known, inspected Render EdgeNest ledger that was left
+/// between migration releases. This gate checks the exact predecessor schema
+/// and the data preconditions of the missing migrations before SQLx applies
+/// them. It does not mark migrations as applied or bypass checksum validation.
+async fn validate_recovery_schema(connection: &mut PgConnection) -> PersistenceResult<()> {
+    let safe: bool = sqlx::query_scalar(
+        r#"SELECT
+            to_regclass('public.accounts') IS NOT NULL
+            AND to_regclass('public.venues') IS NOT NULL
+            AND to_regclass('public.account_states') IS NOT NULL
+            AND to_regclass('public.orders') IS NOT NULL
+            AND to_regclass('public.risk_decisions') IS NOT NULL
+            AND to_regclass('public.trade_intents') IS NOT NULL
+            AND to_regclass('public.journal_accounts') IS NOT NULL
+            AND to_regclass('public.identity_users') IS NOT NULL
+            AND to_regclass('public.dashboard_account_access') IS NOT NULL
+            AND to_regclass('public.journal_analytics_saved_views') IS NOT NULL
+            AND EXISTS (
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='journal_accounts'
+                   AND column_name='linked_trading_account_id'
+                   AND data_type='text' AND is_nullable='YES'
+            )
+            AND EXISTS (
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='accounts'
+                   AND column_name='environment'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM accounts
+                 WHERE environment IS NOT NULL
+                   AND environment NOT IN ('PAPER','SHADOW','LIVE')
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM journal_accounts j
+                 LEFT JOIN accounts a ON a.id=j.linked_trading_account_id
+                 WHERE j.linked_trading_account_id IS NOT NULL AND a.id IS NULL
+            )
+            AND EXISTS (
+                SELECT 1 FROM pg_constraint c
+                 WHERE c.conrelid='public.dashboard_account_access'::regclass
+                   AND c.contype IN ('p','u')
+                   AND c.conkey = ARRAY[
+                       (SELECT attnum FROM pg_attribute WHERE attrelid='public.dashboard_account_access'::regclass AND attname='owner_id'),
+                       (SELECT attnum FROM pg_attribute WHERE attrelid='public.dashboard_account_access'::regclass AND attname='account_id')
+                   ]::smallint[]
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_constraint c
+                 JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=ANY(c.conkey)
+                 WHERE c.conrelid='public.journal_accounts'::regclass
+                   AND c.contype='f' AND a.attname='linked_trading_account_id'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                 WHERE conrelid='public.orders'::regclass
+                   AND conname='orders_id_account_client_identity'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                 WHERE conrelid='public.risk_decisions'::regclass
+                   AND conname='risk_decisions_id_account_identity'
+            )
+            AND to_regclass('public.execution_authorizations') IS NULL
+            AND to_regclass('public.execution_claims') IS NULL
+            AND to_regclass('public.organizations') IS NULL
+            AND to_regclass('public.organization_events') IS NULL
+            AND to_regclass('public.organization_memberships') IS NULL
+            AND to_regclass('public.organization_account_entitlements') IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='accounts'
+                   AND column_name IN ('environment_verification','environment_revision',
+                       'environment_verified_at','environment_verified_by',
+                       'environment_verification_reason','account_revision')
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_proc
+                 WHERE proname IN ('require_explicit_account_environment',
+                     'protect_account_environment_revision','increment_account_revision')
+            )"#,
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    if !safe {
+        return Err(crate::error::PersistenceError::Other(
+            "known recovery migration history does not match the inspected predecessor schema or migration data preconditions; no migrations were applied".into(),
+        ));
+    }
     Ok(())
 }
 
@@ -416,4 +536,28 @@ pub async fn validate_identity_runtime_role(pool: &PgPool) -> PersistenceResult<
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod migration_history_tests {
+    use super::{is_known_recovery_history, KNOWN_RECOVERY_HISTORY};
+
+    #[test]
+    fn accepts_only_the_exact_inspected_recovery_ledger() {
+        assert!(is_known_recovery_history(&KNOWN_RECOVERY_HISTORY));
+    }
+
+    #[test]
+    fn rejects_a_ledger_with_a_missing_version() {
+        let mut versions = KNOWN_RECOVERY_HISTORY.to_vec();
+        versions.remove(10);
+        assert!(!is_known_recovery_history(&versions));
+    }
+
+    #[test]
+    fn rejects_a_ledger_with_an_unrecognized_extra_version() {
+        let mut versions = KNOWN_RECOVERY_HISTORY.to_vec();
+        versions.push(20261121000001);
+        assert!(!is_known_recovery_history(&versions));
+    }
 }
