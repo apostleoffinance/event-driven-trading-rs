@@ -5,7 +5,7 @@ import { EquityChart } from "@/components/charts/EquityChart";
 import { Metric } from "@/components/data-display/Metric";
 import { GradientAccountCard } from "@/components/data-display/GradientAccountCard";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatMoney, formatSignedMoney } from "@/lib/format";
+
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import type { EquityPoint, PortfolioSnapshot } from "@/types/domain";
