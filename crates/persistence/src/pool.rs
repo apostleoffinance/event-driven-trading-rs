@@ -257,6 +257,18 @@ async fn harden_edgenest_runtime_audit_privileges(
         return Ok(());
     }
 
+    let migration_table_exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NOT NULL")
+            .fetch_one(&mut *connection)
+            .await?;
+    if migration_table_exists {
+        sqlx::query(
+            "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public._sqlx_migrations FROM edgenest_runtime",
+        )
+        .execute(&mut *connection)
+        .await?;
+    }
+
     let audit_table_exists: bool =
         sqlx::query_scalar("SELECT to_regclass('public.identity_session_events') IS NOT NULL")
             .fetch_one(&mut *connection)
