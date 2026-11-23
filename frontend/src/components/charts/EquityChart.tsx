@@ -31,7 +31,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
 
     const base = series.length ? moneyToNumber(series[0].equity) : 0;
     const equityValues = series.map(point => moneyToNumber(point.equity));
-    const displayEquity = (value:number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? Number(value).toFixed(2)+"%" : formatMoney(value);
+    const displayEquity = (value:number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? (base>0?Number(value).toFixed(2)+"%":"—") : formatMoney(value);
     return {
       backgroundColor: "transparent",
       textStyle: {
@@ -59,7 +59,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
         {
           type: "value",
           scale: true,
-          axisLabel: { color: dim, fontSize: 12, formatter: (value:number) => mode==="percentage" ? Number(value).toFixed(1)+"%" : mode==="hidden"||mode==="r" ? "••••" : formatMoney(value) },
+          axisLabel: { color: dim, fontSize: 12, formatter: (value:number) => mode==="percentage" ? (base>0?Number(value).toFixed(1)+"%":"—") : mode==="hidden"||mode==="r" ? "••••" : formatMoney(value) },
           splitLine: { lineStyle: { color: grid } },
         },
         {
@@ -74,7 +74,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
           type: "line",
           smooth: true,
           showSymbol: false,
-          data: mode==="percentage" ? equityValues.map(value=>base>0?((value-base)/base)*100:0) : equityValues,
+          data: mode==="percentage" ? equityValues.map(value=>base>0?((value-base)/base)*100:null) : equityValues,
           lineStyle: { color: line, width: 2 },
           areaStyle: {
             color:
