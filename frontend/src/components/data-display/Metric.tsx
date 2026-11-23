@@ -15,7 +15,7 @@ export function Metric({
   pct?: number;
 }) {
   const { mode } = usePerformanceDisplay();
-  const display = formatPerformanceValue(value,"USD",mode,{percentage:pct});
+  const display = formatPerformanceValue(value,"USD",mode);
   const cls =
     signed && Number(value) !== 0
       ? Number(value) > 0
