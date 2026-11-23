@@ -189,7 +189,7 @@ export default function PortfolioPage() {
           <div className="panel-title" style={{ marginTop: 16 }}>P&L BY STRATEGY / SETUP</div>
           {pnlByStrategy.length ? pnlByStrategy.map((row) => <div key={row.strategyId} className="metric-sub num">{row.strategyId}: {formatPerformanceValue(row.pnl,currency ?? "USD",performanceMode)}</div>) : <p className="metric-sub">No strategy/setup P&L data available.</p>}
           <div className="panel-title" style={{ marginTop: 16 }}>P&L BY INSTRUMENT</div>
-          {pnlByInstrument.length ? pnlByInstrument.map((row) => <div key={row.instrumentId} className="metric-sub num">{row.instrumentId}: {formatSignedMoney(row.pnl)}</div>) : <p className="metric-sub">No instrument P&L data available.</p>}
+          {pnlByInstrument.length ? pnlByInstrument.map((row) => <div key={row.instrumentId} className="metric-sub num">{row.instrumentId}: {formatPerformanceValue(row.pnl,currency ?? "USD",performanceMode)}</div>) : <p className="metric-sub">No instrument P&L data available.</p>}
         </div>
       </div>
       {journalAccounts.length > 0 && singleCurrency && useJournalFallback ? (
