@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { hasSession } from "@/lib/auth/session";
 import { EDGENEST_SYMBOL_SRC } from "@/lib/brand-assets";
+import { PerformanceDisplayProvider } from "@/features/performance/PerformanceDisplayProvider";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -29,5 +30,5 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   </div>;
 }
 export function AppShell({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider><QueryProvider><EventStreamProvider><ShellInner>{children}</ShellInner></EventStreamProvider></QueryProvider></ThemeProvider>;
+  return <ThemeProvider><QueryProvider><EventStreamProvider><PerformanceDisplayProvider><ShellInner>{children}</ShellInner></PerformanceDisplayProvider></EventStreamProvider></QueryProvider></ThemeProvider>;
 }
