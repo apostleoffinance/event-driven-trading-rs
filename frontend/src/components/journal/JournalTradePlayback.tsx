@@ -362,12 +362,12 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
               <button className="btn" type="button" onClick={() => chartContainerRef.current?.requestFullscreen?.()}>⛶ Fullscreen</button>
               <button className="btn" type="button" onClick={() => { setFraming("full"); chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:Math.max(1,candles.length-1)}); }}>Fit full trade</button>
               <button className="btn" type="button" onClick={() => { setPlaying(false); const index=candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,index)); }}>↺ Restart at entry</button>
-              <button className="btn primary" type="button" disabled={candles.length < 2} onClick={() => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
+              <button className="btn primary" type="button" disabled={candles.length < 2} onClick={() => { if (currentIndex >= replayEndIndex) { const entry = candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,entry)); } setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
               <button className="btn" type="button" disabled={currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, value + 1)); }}>Next candle →</button>
               <span className="muted">{Math.min(currentIndex + 1, replayEndIndex + 1)} / {replayEndIndex + 1} candles</span>
             </div>
             <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, replayEndIndex)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
-            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry/exit markers align to the first/last returned candles; candle provider timestamps may not match exact fills.</p>
+            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the nearest available candles at or after the recorded fills; provider timestamps may not match exact execution times.</p>
           </> : null}
         </div>
       ) : null}
