@@ -11,6 +11,11 @@ use crate::error::PersistenceResult;
 // This is deliberately not a general partial-history allowance: every applied
 // version and checksum must match before the forward-only pending migrations run.
 const KNOWN_RECOVERY_HISTORY: [i64; 14] = [
+    // The three 12-digit legacy versions sort before the 14-digit versions
+    // when SQLx stores them as integer migration IDs.
+    202611070001,
+    202611070002,
+    202611120001,
     20260306000001,
     20260906000001,
     20261027000001,
@@ -20,15 +25,12 @@ const KNOWN_RECOVERY_HISTORY: [i64; 14] = [
     20261106000001,
     20261106000002,
     20261107000002,
-    202611070001,
-    202611070002,
     20261109000001,
     20261112000001,
-    202611120001,
 ];
 
 fn is_known_recovery_history(versions: &[i64]) -> bool {
-    versions == KNOWN_RECOVERY_HISTORY
+    versions == KNOWN_RECOVERY_HISTORY.as_slice()
 }
 
 /// Connect to PostgreSQL using `DATABASE_URL`.
@@ -306,7 +308,11 @@ async fn validate_recovery_schema(connection: &mut PgConnection) -> PersistenceR
             AND to_regclass('public.organizations') IS NULL
             AND to_regclass('public.organization_events') IS NULL
             AND to_regclass('public.organization_memberships') IS NULL
+            AND to_regclass('public.organization_membership_events') IS NULL
             AND to_regclass('public.organization_account_entitlements') IS NULL
+            AND to_regclass('public.organization_account_entitlement_events') IS NULL
+            AND to_regclass('public.brokers') IS NULL
+            AND to_regclass('public.broker_servers') IS NULL
             AND NOT EXISTS (
                 SELECT 1 FROM information_schema.columns
                  WHERE table_schema='public' AND table_name='accounts'
@@ -317,7 +323,22 @@ async fn validate_recovery_schema(connection: &mut PgConnection) -> PersistenceR
             AND NOT EXISTS (
                 SELECT 1 FROM pg_proc
                  WHERE proname IN ('require_explicit_account_environment',
-                     'protect_account_environment_revision','increment_account_revision')
+                     'protect_account_environment_revision','increment_account_revision',
+                     'protect_last_organization_owner','prevent_tenant_history_change')
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_trigger
+                 WHERE tgname IN ('accounts_require_explicit_environment',
+                     'accounts_environment_revision_monotonic','accounts_revision_monotonic',
+                     'organization_memberships_last_owner','organization_events_no_update_delete')
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                 WHERE conname IN ('accounts_environment_valid',
+                     'accounts_environment_verification_valid',
+                     'accounts_environment_revision_valid',
+                     'accounts_environment_provenance_consistent',
+                     'accounts_environment_verifier_fk')
             )"#,
     )
     .fetch_one(&mut *connection)
