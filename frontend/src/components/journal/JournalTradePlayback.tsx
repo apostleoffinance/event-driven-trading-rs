@@ -172,7 +172,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
+  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.status, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
 
   const coverageToleranceMs = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
   const hasFullCandleCoverage = candles.length > 0
@@ -300,7 +300,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       });
     }, Math.max(80, 700 / speed));
     return () => window.clearInterval(timer);
-  }, [playing, candles.length, currentIndex, speed]);
+  }, [playing, candles.length, currentIndex, speed, replayEndIndex]);
 
   return (
     <section className="journal-playback" aria-label="Historical trade playback">
