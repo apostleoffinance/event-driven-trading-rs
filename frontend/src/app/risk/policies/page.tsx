@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { journalApi, type JournalRiskPolicy } from "@/lib/api/journal";
+import { formatMoney } from "@/lib/format";
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 type PolicyForm = Record<keyof JournalRiskPolicy, string>;
