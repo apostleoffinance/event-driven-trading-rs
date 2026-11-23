@@ -90,9 +90,12 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       const end = new Date(trade.closed_at || "").getTime();
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Invalid trade coverage interval.");
       const all: Candle[] = [];
-      let cursor = start;
-      for (let pageIndex = 0; cursor < end && pageIndex < 64; pageIndex += 1) {
-        const pageEnd = Math.min(end, cursor + durationMs[frame] * 900);
+      const context = durationMs[frame] * 12;
+      const requestStart = Math.max(0, start - context);
+      const requestEnd = end + context;
+      let cursor = requestStart;
+      for (let pageIndex = 0; cursor < requestEnd && pageIndex < 64; pageIndex += 1) {
+        const pageEnd = Math.min(requestEnd, cursor + durationMs[frame] * 900);
         const page = await marketDataApi.candles({
           instrument: instrument?.id ?? trade.symbol,
           timeframe: frame,
@@ -113,7 +116,8 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const candles = useMemo(() => normalizeCandles(candleQuery.data?.candles ?? []), [candleQuery.data?.candles]);
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
-  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1));
+  const tradeCandles = candles.filter(candle => { const timestamp = Number(candle.time) * 1000; return timestamp >= openedTimestampMs && timestamp <= closeTimestampMs; });
+  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => Number(candle.time) * 1000 >= openedTimestampMs && Number(candle.time) * 1000 <= closeTimestampMs);
   const entryPrice = Number(trade.entry_price);
   const favorablePrice = trade.direction === "long"
     ? replayPath.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
@@ -132,12 +136,14 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     const closed = new Date(trade.closed_at || "").getTime();
     const tolerance = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
     if (first > opened + tolerance || last < closed - tolerance) return;
+    const tradeWindow = candles.filter(candle => Number(candle.time) * 1000 >= opened && Number(candle.time) * 1000 <= closed);
+    if (tradeWindow.length === 0) return;
     const fullFavorable = trade.direction === "long"
-      ? candles.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
-      : candles.reduce((value, candle) => Math.min(value, candle.low), entryPrice);
+      ? tradeWindow.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
+      : tradeWindow.reduce((value, candle) => Math.min(value, candle.low), entryPrice);
     const fullAdverse = trade.direction === "long"
-      ? candles.reduce((value, candle) => Math.min(value, candle.low), entryPrice)
-      : candles.reduce((value, candle) => Math.max(value, candle.high), entryPrice);
+      ? tradeWindow.reduce((value, candle) => Math.min(value, candle.low), entryPrice)
+      : tradeWindow.reduce((value, candle) => Math.max(value, candle.high), entryPrice);
     const directionSign = trade.direction === "long" ? 1 : -1;
     const riskDistance = trade.stop_loss ? Math.abs(entryPrice - Number(trade.stop_loss)) : 0;
     const mfeR = riskDistance > 0 ? Math.max(0, ((fullFavorable - entryPrice) * directionSign) / riskDistance) : null;
@@ -184,6 +190,13 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   }, [trade.id, frame, selectedProvider]);
 
   useEffect(() => {
+    if (!candles.length) return;
+    const firstTradeCandle = candles.findIndex(candle => Number(candle.time) * 1000 >= openedTimestampMs);
+    setCurrentIndex(firstTradeCandle >= 0 ? firstTradeCandle : 0);
+    setPlaying(false);
+  }, [candles, openedTimestampMs]);
+
+  useEffect(() => {
     if (currentIndex >= candles.length) setCurrentIndex(Math.max(0, candles.length - 1));
   }, [currentIndex, candles.length]);
 
@@ -196,7 +209,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       || "#d1d4dc";
     const chart = createChart(node, {
       width: Math.max(node.clientWidth, 320),
-      height: 380,
+      height: 520,
       layout: { background: { color: "transparent" }, textColor: chartTextColor },
       grid: { vertLines: { color: "rgba(130,130,130,.12)" }, horzLines: { color: "rgba(130,130,130,.12)" } },
       rightPriceScale: { borderColor: "rgba(130,130,130,.25)" },
@@ -221,7 +234,8 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     seriesRef.current = series;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
-      if (width && width > 0) chart.applyOptions({ width });
+      const height = entries[0]?.contentRect.height;
+      if (width && width > 0 && height && height > 0) chart.applyOptions({ width, height });
     });
     observer.observe(node);
     return () => {
@@ -238,18 +252,21 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     if (!chart || !series || candles.length === 0) return;
     const visible = candles.slice(0, Math.max(1, currentIndex + 1));
     series.setData(visible);
+    const entryIndex = Math.max(0, candles.findIndex(candle => Number(candle.time) * 1000 >= openedTimestampMs));
+    const exitFound = candles.findIndex(candle => Number(candle.time) * 1000 >= closeTimestampMs);
+    const exitIndex = exitFound >= 0 ? exitFound : candles.length - 1;
     const markers = [
       {
-        time: candles[0].time,
+        time: candles[entryIndex].time,
         position: trade.direction === "long" ? "belowBar" as const : "aboveBar" as const,
         color: "#3b82f6",
         shape: trade.direction === "long" ? "arrowUp" as const : "arrowDown" as const,
         text: "Entry",
       },
     ];
-    if (currentIndex >= candles.length - 1) {
+    if (currentIndex >= exitIndex) {
       markers.push({
-        time: candles[candles.length - 1].time,
+        time: candles[exitIndex].time,
         position: trade.direction === "long" ? "aboveBar" as const : "belowBar" as const,
         color: "#f59e0b",
         shape: trade.direction === "long" ? "arrowDown" as const : "arrowUp" as const,
@@ -257,8 +274,10 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       });
     }
     series.setMarkers(markers);
-    if (currentIndex === 0) chart.timeScale().fitContent();
-  }, [candles, currentIndex, trade.direction]);
+    // Reserve the complete available trade scene on the time axis while only
+    // revealing candles up to the replay cursor. Future candles remain blank.
+    chart.timeScale().setVisibleLogicalRange({ from: 0, to: Math.max(1, candles.length - 1) });
+  }, [candles, currentIndex, trade.direction, openedTimestampMs, closeTimestampMs]);
 
   useEffect(() => {
     if (!playing) return;
