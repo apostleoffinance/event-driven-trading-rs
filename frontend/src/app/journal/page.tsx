@@ -4,7 +4,7 @@ import { useEffect,useState } from "react";
 import { useMutation,useQuery,useQueryClient } from "@tanstack/react-query";
 import { journalApi,JournalTrade,JournalPsychology } from "@/lib/api/journal";
 import { hasSession } from "@/lib/auth/session";
-import { formatMoney, formatPrice, formatQuantity } from "@/lib/format";
+import { formatPrice, formatQuantity } from "@/lib/format";
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { JournalTradePlayback } from "@/components/journal/JournalTradePlayback";
 
