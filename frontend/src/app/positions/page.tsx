@@ -86,7 +86,7 @@ export default function PositionsPage() {
         ),
       },
     ],
-    [],
+    [performanceMode],
   );
 
   if (isLoading) return <div className="loading">Loading positions…</div>;
