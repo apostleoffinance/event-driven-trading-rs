@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { useTheme } from "@/features/theme/ThemeProvider";
+import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
@@ -13,12 +14,14 @@ export type HourlyAnalyticsGroup = {
   win_rate_percent: string | number;
 };
 
-export function HourlyPerformanceHeatmap({ groups, currency = "USD", onSelect }: {
+export function HourlyPerformanceHeatmap({ groups, currency = "USD", baseline = 0, onSelect }: {
   groups: HourlyAnalyticsGroup[];
   currency?: string;
+  baseline?: number;
   onSelect?: (hour: string) => void;
 }) {
   const { theme } = useTheme();
+  const { mode } = usePerformanceDisplay();
   const option = useMemo(() => {
     const positive = getComputedStyleSafe("--positive", theme === "light" ? "#1a7f4b" : "#4fd4a1");
     const negative = getComputedStyleSafe("--negative", theme === "light" ? "#c6283a" : "#f07176");
@@ -30,7 +33,8 @@ export function HourlyPerformanceHeatmap({ groups, currency = "USD", onSelect }:
       const group = byHour.get(hour);
       return group ? Number(group.net_pnl) : null;
     });
-    const finite = values.filter((value): value is number => value != null && Number.isFinite(value));
+    const displayValues = values.map(value=>value==null?null:mode==="percentage"&&baseline>0?value/baseline*100:value);
+    const finite = displayValues.filter((value): value is number => value != null && Number.isFinite(value));
     const extent = Math.max(1, ...finite.map(Math.abs));
     return {
       animation: false,
@@ -46,7 +50,7 @@ export function HourlyPerformanceHeatmap({ groups, currency = "USD", onSelect }:
             hours[index] + " UTC",
             "Trades: " + group.trades,
             "Sample size: " + group.trades + " closed trades",
-            "Net P&L: " + Number(value).toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 2 }),
+            "Net performance: " + (mode==="currency" ? Number(value).toLocaleString(undefined,{style:"currency",currency,maximumFractionDigits:2}) : mode==="percentage"&&baseline>0 ? (Number(value)/baseline*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—"),
             "Win rate: " + Number(group.win_rate_percent).toFixed(1) + "%"
           ].join("<br/>");
         }
@@ -57,13 +61,13 @@ export function HourlyPerformanceHeatmap({ groups, currency = "USD", onSelect }:
       visualMap: { min: -extent, max: extent, calculable: false, orient: "horizontal", left: "center", bottom: 0, itemWidth: 12, itemHeight: 120, text: ["Profit", "Loss"], textStyle: { color: muted }, inRange: { color: [negative, "#eef2f7", positive] } },
       series: [{
         type: "heatmap",
-        data: hours.map((_, index) => [index, 0, values[index]]),
+        data: hours.map((_, index) => [index, 0, displayValues[index]]),
         label: { show: false },
         itemStyle: { borderColor: theme === "light" ? "#ffffff" : "#17181c", borderWidth: 2, borderRadius: 3 },
         emphasis: { itemStyle: { borderColor: muted, borderWidth: 2, shadowBlur: 6, shadowColor: "rgba(0,0,0,.15)" } }
       }]
     };
-  }, [groups, currency, theme]);
+  }, [groups, currency, theme, mode, baseline]);
 
   return groups.length
     ? <ReactECharts option={option} onEvents={{ click: (params: { dataIndex: number }) => onSelect?.(String(params.dataIndex).padStart(2, "0") + ":00") }} style={{ height: 190, width: "100%" }} opts={{ renderer: "canvas" }} notMerge />
