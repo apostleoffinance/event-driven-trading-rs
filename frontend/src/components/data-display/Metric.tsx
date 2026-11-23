@@ -1,4 +1,5 @@
-import { formatMoney, formatPct, formatSignedMoney } from "@/lib/format";
+import { formatPct } from "@/lib/format";
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 export function Metric({
   label,
@@ -13,7 +14,8 @@ export function Metric({
   signed?: boolean;
   pct?: number;
 }) {
-  const display = signed ? formatSignedMoney(value) : formatMoney(value);
+  const { mode } = usePerformanceDisplay();
+  const display = formatPerformanceValue(value,"USD",mode,{percentage:pct});
   const cls =
     signed && Number(value) !== 0
       ? Number(value) > 0
