@@ -257,11 +257,10 @@ async fn harden_edgenest_runtime_audit_privileges(
         return Ok(());
     }
 
-    let audit_table_exists: bool = sqlx::query_scalar(
-        "SELECT to_regclass('public.identity_session_events') IS NOT NULL",
-    )
-    .fetch_one(&mut *connection)
-    .await?;
+    let audit_table_exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.identity_session_events') IS NOT NULL")
+            .fetch_one(&mut *connection)
+            .await?;
     if audit_table_exists {
         sqlx::query(
             "REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.identity_session_events FROM edgenest_runtime",
