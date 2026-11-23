@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
+import { EDGENEST_LOGO_SRC } from "@/lib/brand-assets";
 import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
@@ -97,7 +98,7 @@ export function Topbar({
       <button type="button" className="icon-btn mobile-nav-btn" aria-label="Open navigation" onClick={onToggleMobile}><Menu size={18} /></button>
       <button type="button" className="icon-btn" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={onToggleCollapse}><PanelLeft size={16} /></button>
       <div className="brand">
-        <span className="brand-name">{frontendConfig.appName.toUpperCase()}</span>
+        <img className="brand-logo" src={EDGENEST_LOGO_SRC} alt="EdgeNest" width={315} height={72} />
         <span className={`env-pill${env === "LIVE" ? " live" : env === "SHADOW" ? " shadow" : ""}`} title="Execution environment — PAPER is simulated, never identical to live">{env}</span>
       </div>
       <div className="search" role="search"><Search size={14} aria-hidden /><span>Search accounts, strategies, instruments…</span><kbd>⌘</kbd><kbd>K</kbd></div>
