@@ -140,7 +140,7 @@ export function AnalyticsBreakdownChart({
       animationEasing: "cubicOut",
       __height: height,
     };
-  }, [currency, ranked, sortBy, theme, mode, baseline]);
+  }, [currency, ranked, theme, mode, baseline]);
 
   if (ranked.length === 0) {
     return <div className="analytics-chart-empty" role="status">No qualifying data for this breakdown.</div>;
