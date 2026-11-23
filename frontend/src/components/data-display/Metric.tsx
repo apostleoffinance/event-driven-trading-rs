@@ -15,7 +15,7 @@ export function Metric({
   pct?: number;
 }) {
   const { mode } = usePerformanceDisplay();
-  const display = formatPerformanceValue(value,"USD",mode);
+  const display = Number.isFinite(Number(value)) ? formatPerformanceValue(value,"USD",mode) : value;
   const cls =
     signed && Number(value) !== 0
       ? Number(value) > 0
