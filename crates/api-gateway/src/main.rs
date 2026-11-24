@@ -351,8 +351,6 @@ async fn main() {
     let _ = journal.kill().await;
     let _ = market.kill().await;
 }
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
