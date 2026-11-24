@@ -994,7 +994,10 @@ try {
       await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "ready", { timeout: 15_000 });
       assert.equal(await playback.getAttribute("data-replay-cursor-index"), "0", "Changing provider and restoring valid coverage must reset replay to entry.");
       assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Restoring a provider must not reveal exit before replay.");
-      assert.ok(excursionSaveCount > savesBeforeRejectedProviders, "Valid provider coverage should persist excursions after recovery.");
+      assert.equal(await playButton.isDisabled(), false, "Valid provider coverage must re-enable playback after recovery.");
+      assert.equal(await nextButton.isDisabled(), false, "Valid provider coverage must re-enable candle stepping after recovery.");
+      assert.equal(await replayTimeline.isDisabled(), false, "Valid provider coverage must re-enable timeline seeking after recovery.");
+      assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Switching back to an already-persisted provider must not duplicate excursion writes.");
 
       const excursionSourceNote = dialog.locator(".trade-data-note");
       await excursionSourceNote.waitFor();
