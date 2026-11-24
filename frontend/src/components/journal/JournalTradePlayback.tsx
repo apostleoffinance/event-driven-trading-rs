@@ -333,7 +333,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
         text: "Entry",
       },
     ];
-    if (exitIndex >= 0 && currentIndex >= exitIndex) {
+    if (hasFullCandleCoverage && exitIndex >= 0 && currentIndex >= exitIndex) {
       markers.push({
         time: candles[exitIndex].time,
         position: trade.direction === "long" ? "aboveBar" as const : "belowBar" as const,
