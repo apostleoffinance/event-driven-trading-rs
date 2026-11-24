@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { EquityChart } from "@/components/charts/EquityChart";
 import { Metric } from "@/components/data-display/Metric";
+import { InfoTooltip } from "@/components/data-display/InfoTooltip";
 import { GradientAccountCard } from "@/components/data-display/GradientAccountCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 
@@ -146,10 +147,10 @@ export default function PortfolioPage() {
           <div className="portfolio-equity-value">{formatPerformanceValue(totalEquity,currency ?? "USD",performanceMode,{percentage:cumulativeReturn})}</div>
           <div className="portfolio-equity-caption">{useJournalFallback ? "Journal-ledger equity · broker equity unavailable" : "Broker-reported portfolio equity"}</div>
         </GradientAccountCard>
-        <Metric label="REALIZED P&L" value={realizedPnl === null ? "Unknown" : formatPerformanceValue(realizedPnl,currency ?? "USD",performanceMode,{percentage:journalInitial>0?(journalRealized/journalInitial)*100:null})} signed />
-        <Metric label="UNREALIZED P&L" value={useJournalFallback ? "Unavailable" : formatPerformanceValue(p.unrealizedPnl,currency ?? "USD",performanceMode)} signed />
+        <Metric label="REALIZED P&L" value={realizedPnl === null ? "Unknown" : formatPerformanceValue(realizedPnl,currency ?? "USD",performanceMode,{percentage:journalInitial>0?(journalRealized/journalInitial)*100:null})} signed help="The profit or loss from trades that have been closed. It does not include the changing result of open trades." />
+        <Metric label="UNREALIZED P&L" value={useJournalFallback ? "Unavailable" : formatPerformanceValue(p.unrealizedPnl,currency ?? "USD",performanceMode)} signed help="The current profit or loss on trades that are still open. This amount can change as market prices move." />
         <div className="metric panel">
-          <div className="metric-label">CUMULATIVE RETURN</div>
+          <div className="metric-label">CUMULATIVE RETURN <InfoTooltip label="Cumulative return" content="The percentage gain or loss compared with the starting balance over the selected period." /></div>
           <div className={`metric-value ${cumulativeReturn >= 0 ? "pos" : "neg"}`}>{cumulativeReturn.toFixed(2)}%</div>
           <div className="metric-sub">{drawdown.toFixed(2)}% max drawdown</div>
         </div>
