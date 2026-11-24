@@ -28,7 +28,8 @@ async function resolveOrganizationId(): Promise<string> {
   const stored = window.sessionStorage.getItem(ACTIVE_ORGANIZATION_KEY);
   if (stored) return stored;
 
-  const token = getAccessToken();
+  let token = getAccessToken();
+  if (!token && await refreshSession()) token = getAccessToken();
   if (!token) throw new ApiError("Your session has expired. Please sign in again.", 401, "unauthorized");
   let response: Response;
   try {
@@ -59,8 +60,9 @@ type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; ba
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, ...init } = options;
   const headers = new Headers(inputHeaders);
-  const requiresOrganization = path.startsWith("/api/v1/trading/") || /^\\/api\\/v1\\/organizations\\/[^/]+/.test(path);
-  if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {\n    headers.set("X-Organization-Id", await resolveOrganizationId());
+  const requiresOrganization = path.startsWith("/api/v1/trading/") || (path.startsWith("/api/v1/organizations/") && path !== "/api/v1/organizations");
+  if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {
+    headers.set("X-Organization-Id", await resolveOrganizationId());
   }
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   headers.set("Accept", "application/json");
