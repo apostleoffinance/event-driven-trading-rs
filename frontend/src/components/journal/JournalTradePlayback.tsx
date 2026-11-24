@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
+import { createChart, type IChartApi, type IPriceLineApi, type ISeriesApi, type Time } from "lightweight-charts";
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
 import type { JournalTrade } from "@/lib/api/journal";
 import { formatPrice } from "@/lib/format";
@@ -141,6 +141,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const exitPriceLineRef = useRef<IPriceLineApi | null>(null);
   const persistedExcursionRef = useRef<string>("");
   const openedTimestampMs = new Date(trade.opened_at).getTime();
   // A valid close timestamp is the authoritative replay prerequisite. The Analytics
@@ -347,9 +348,6 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     const targetPrice = Number(trade.take_profit);
     if (trade.take_profit && Number.isFinite(targetPrice)) series.createPriceLine({ price: targetPrice, color: "#16a34a", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
     const exitPrice = Number(trade.exit_price);
-    if (hasFullCandleCoverage && currentIndex >= exitCandleIndex && trade.exit_price && Number.isFinite(exitPrice)) {
-      series.createPriceLine({ price: exitPrice, color: "#f59e0b", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "Exit" });
-    }
     chartRef.current = chart;
     seriesRef.current = series;
     const observer = new ResizeObserver((entries) => {
@@ -360,11 +358,31 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     observer.observe(node);
     return () => {
       observer.disconnect();
+      if (exitPriceLineRef.current) {
+        series.removePriceLine(exitPriceLineRef.current);
+        exitPriceLineRef.current = null;
+      }
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [isExpanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price, hasFullCandleCoverage, currentIndex, exitCandleIndex]);
+  }, [isExpanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
+
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    const shouldRevealExit = hasFullCandleCoverage && currentIndex >= exitCandleIndex
+      && Boolean(trade.exit_price) && Number.isFinite(Number(trade.exit_price));
+    if (shouldRevealExit && !exitPriceLineRef.current) {
+      exitPriceLineRef.current = series.createPriceLine({
+        price: Number(trade.exit_price), color: "#f59e0b", lineWidth: 1, lineStyle: 1,
+        axisLabelVisible: true, title: "Exit",
+      });
+    } else if (!shouldRevealExit && exitPriceLineRef.current) {
+      series.removePriceLine(exitPriceLineRef.current);
+      exitPriceLineRef.current = null;
+    }
+  }, [currentIndex, exitCandleIndex, hasFullCandleCoverage, trade.exit_price]);
 
   useEffect(() => {
     const chart = chartRef.current;
