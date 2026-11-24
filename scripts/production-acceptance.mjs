@@ -775,6 +775,9 @@ try {
         { timestamp_ms: Date.parse("2026-11-12T12:00:00Z"), open: 1.1180, high: 1.1190, low: 1.1160, close: 1.1168, volume: 120 },
         { timestamp_ms: Date.parse("2026-11-12T13:00:00Z"), open: 1.1168, high: 1.1205, low: 1.1165, close: 1.1190, volume: 130 },
         { timestamp_ms: Date.parse("2026-11-12T14:00:00Z"), open: 1.1190, high: 1.1210, low: 1.1185, close: 1.1188, volume: 140 },
+        // This bar starts exactly at the recorded close. It must remain hidden
+        // from replay and must not contaminate trade-period MFE/MAE calculations.
+        { timestamp_ms: Date.parse("2026-11-12T15:00:00Z"), open: 1.1188, high: 1.1300, low: 1.1100, close: 1.1250, volume: 150 },
       ];
       const tradeRecord = {
         id: tradeId, journal_account_id: account.id, symbol: "EURUSD", direction: "short", status: "closed",
@@ -881,9 +884,10 @@ try {
       await replayPage.waitForFunction(() => document.body.innerText.includes("2.00R"), { timeout: 20_000 });
       assert.ok(excursionsSaved, "Historical replay did not persist the calculated MFE/MAE payload.");
       assert.equal(excursionsSaved.timeframe, "H1");
-      assert.equal(excursionsSaved.candle_count, 5);
+      assert.equal(excursionsSaved.candle_count, 6, "Coverage metadata should retain the complete normalized response, including context candles.");
       assert.ok(Math.abs(Number(excursionsSaved.mfe_r) - 2) < 1e-9, "MFE should be approximately 2R.");
       assert.ok(Math.abs(Number(excursionsSaved.mae_r) + 0.5) < 1e-9, "MAE should be approximately -0.5R.");
+      assert.match(await playback.locator(".journal-playback-controls").textContent(), /1 \/ 5 candles/, "Replay must stop on the 14:00 candle that contains the 15:00 close, excluding the future 15:00 candle.");
       const excursionSourceNote = dialog.locator(".trade-data-note");
       await excursionSourceNote.waitFor();
       assert.match(await excursionSourceNote.textContent(), /historical_candles.*H1/);
