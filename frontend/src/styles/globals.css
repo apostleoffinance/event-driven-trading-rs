@@ -1865,6 +1865,16 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .dashboard-inline-message { color:var(--positive)!important; font-size:10px!important; }
 .dashboard-alert { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; border-color:var(--warning); }
 .dashboard-alert p { margin:0; color:var(--text-muted); font-size:11px; }
+.workspace-onboarding { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,420px); gap:18px; align-items:center; border-color:var(--border-strong); background:var(--bg-1); padding:18px; }
+.workspace-onboarding-copy h2 { margin:5px 0 6px; color:var(--text); font-size:16px; font-weight:600; }
+.workspace-onboarding-copy p { max-width:720px; margin:0; color:var(--text-muted); font-size:12px; line-height:1.6; }
+.workspace-onboarding-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; }
+.workspace-onboarding-form label { grid-column:1/-1; color:var(--text-dim); font-size:11px; }
+.workspace-onboarding-form input { min-width:0; min-height:36px; padding:7px 10px; border:1px solid var(--border-strong); border-radius:5px; background:var(--bg-2); color:var(--text); font:inherit; font-size:12px; }
+.workspace-onboarding-form .btn { min-height:36px; white-space:nowrap; }
+.workspace-onboarding-form .btn:disabled { opacity:.55; cursor:not-allowed; }
+.workspace-onboarding-error { grid-column:1/-1; margin:0; color:var(--danger); font-size:11px; }
+@media(max-width:760px) { .workspace-onboarding { grid-template-columns:1fr; } .workspace-onboarding-form { grid-template-columns:1fr; } .workspace-onboarding-form label { grid-column:auto; } }
 .dashboard-coming-soon { display:flex; align-items:center; gap:14px; flex-wrap:wrap; border-color:var(--border); background:var(--bg-1); padding:15px 18px; }
 .dashboard-coming-soon-icon { display:grid; place-items:center; width:28px; height:28px; flex:0 0 28px; border:1px solid var(--border-strong); border-radius:50%; color:var(--text-muted); font-size:14px; font-weight:700; }
 .dashboard-coming-soon-copy { flex:1 1 420px; min-width:0; }

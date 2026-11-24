@@ -9,7 +9,7 @@ import { useOrganization } from "@/features/organization/OrganizationProvider";
 
 export default function CommandCenterPage() {
   const repos = getRepositories();
-  const { activeOrganizationId, loading: organizationLoading, error: organizationError, refreshOrganizations } = useOrganization();
+  const { organizations, hasMemberships, activeOrganizationId, loading: organizationLoading, error: organizationError, refreshOrganizations, createOrganization } = useOrganization();
   const { events } = useSharedEventStream();
   const [authenticated, setAuthenticated] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
@@ -26,7 +26,7 @@ export default function CommandCenterPage() {
     if (!authenticated || organizationLoading) return;
     if (!activeOrganizationId) {
       setAccounts([]); setPortfolio(null); setPositions([]); setOrders([]); setRisk(null);
-      setError(organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access.");
+      setError(organizationError ?? "Your account has no active workspace. Ask an organization owner to restore your membership or invite you to an active workspace.");
       setLoading(false);
       return;
     }
@@ -49,5 +49,5 @@ export default function CommandCenterPage() {
   }, [authenticated,organizationLoading,activeOrganizationId,organizationError,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk,retryVersion]);
   if (!authResolved || !authenticated) return null;
   if (organizationLoading) return <div className="dashboard-loading" role="status">Loading your organization…</div>;
-  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access." : null)} onRetry={() => { void refreshOrganizations(); setRetryVersion(value => value + 1); }} />;
+  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization." : null)} canCreateWorkspace={!organizationError && organizations.length === 0 && !hasMemberships} onCreateWorkspace={createOrganization} onRetry={() => { void refreshOrganizations(); setRetryVersion(value => value + 1); }} />;
 }
