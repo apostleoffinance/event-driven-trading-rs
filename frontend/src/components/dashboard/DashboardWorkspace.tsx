@@ -51,10 +51,11 @@ function isSavedLayout(value: unknown): value is SavedLayout {
 }
 
 export function DashboardWorkspace({
-  executionAccounts, portfolio, positions, orders, risk, events, loading, error, onRetry,
+  executionAccounts, portfolio, positions, orders, risk, events, loading, error, onRetry, canCreateWorkspace, onCreateWorkspace,
 }: {
   executionAccounts: Account[]; portfolio: PortfolioSnapshot | null; positions: Position[];
-  orders: Order[]; risk: RiskOverview | null; events: TradingEvent[]; loading: boolean; error: string | null; onRetry?: () => void;
+  orders: Order[]; risk: RiskOverview | null; events: TradingEvent[]; loading: boolean; error: string | null;
+  onRetry?: () => void; canCreateWorkspace?: boolean; onCreateWorkspace?: (name: string) => Promise<void>;
 }) {
   const { mode: performanceMode } = usePerformanceDisplay();
   const [authenticated, setAuthenticated] = useState(false);
@@ -66,6 +67,9 @@ export function DashboardWorkspace({
   const [layoutName, setLayoutName] = useState("");
   const [selectedLayout, setSelectedLayout] = useState("");
   const [layoutMessage, setLayoutMessage] = useState("");
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceCreating, setWorkspaceCreating] = useState(false);
+  const [workspaceCreateError, setWorkspaceCreateError] = useState<string | null>(null);
 
   useEffect(() => { setAuthenticated(hasSession()); }, []);
   useEffect(() => {
@@ -142,7 +146,31 @@ export function DashboardWorkspace({
       {layoutMessage?<p className="dashboard-inline-message" role="status">{layoutMessage}</p>:null}
     </section> : null}
 
-    {error ? <section className="panel dashboard-alert" role="alert"><strong>Workspace access needs attention</strong><p>{error}</p><button className="btn" type="button" onClick={()=>onRetry ? onRetry() : window.location.reload()}>Refresh workspace access</button></section> : null}
+    {error ? canCreateWorkspace && onCreateWorkspace ? <section className="panel workspace-onboarding" aria-labelledby="workspace-onboarding-title">
+      <div className="workspace-onboarding-copy">
+        <span className="dashboard-eyebrow">GET STARTED</span>
+        <h2 id="workspace-onboarding-title">Create your EdgeNest workspace</h2>
+        <p>Your account is signed in but does not belong to an organization yet. Create a workspace to establish your organization and become its owner. You can invite teammates and configure account access afterwards.</p>
+      </div>
+      <form className="workspace-onboarding-form" onSubmit={async event => {
+        event.preventDefault();
+        if (workspaceCreating) return;
+        setWorkspaceCreating(true);
+        setWorkspaceCreateError(null);
+        try {
+          await onCreateWorkspace(workspaceName);
+        } catch (cause) {
+          setWorkspaceCreateError(cause instanceof Error ? cause.message : "We couldn't create your workspace. Please try again.");
+        } finally {
+          setWorkspaceCreating(false);
+        }
+      }}>
+        <label htmlFor="workspace-name">Workspace name</label>
+        <input id="workspace-name" name="workspaceName" autoComplete="organization" maxLength={120} minLength={1} required value={workspaceName} onChange={event=>setWorkspaceName(event.target.value)} placeholder="e.g. My Trading Workspace" disabled={workspaceCreating}/>
+        <button className="btn primary" type="submit" disabled={workspaceCreating || !workspaceName.trim()}>{workspaceCreating ? "Creating workspace…" : "Create workspace"}</button>
+      </form>
+      {workspaceCreateError ? <p className="workspace-onboarding-error" role="alert">{workspaceCreateError}</p> : null}
+    </section> : <section className="panel dashboard-alert" role="alert"><strong>Workspace access needs attention</strong><p>{error}</p><button className="btn" type="button" onClick={()=>onRetry ? onRetry() : window.location.reload()}>Refresh workspace access</button></section> : null}
     <section className="panel dashboard-coming-soon" role="status" aria-label="Execution features coming soon">
       <div className="dashboard-coming-soon-icon" aria-hidden="true">i</div>
       <div className="dashboard-coming-soon-copy">
