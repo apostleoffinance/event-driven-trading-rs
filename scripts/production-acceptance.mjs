@@ -844,6 +844,9 @@ try {
         if (pathname.includes("/market-data/instruments")) return json({ instruments: [{ id: "EURUSD", symbol: "EUR/USD", default_provider: "biquote-live" }] });
         if (pathname.includes("/market-data/candles")) {
           assert.equal(url.searchParams.get("timeframe"), "H1", "Replay should start with the H1 history preset.");
+          // Keep the request in flight long enough to assert that the UI does not
+          // announce readiness before historical coverage has been validated.
+          await new Promise(resolve => setTimeout(resolve, 750));
           return json({ candles: candleRows, count: candleRows.length, classification: "live", freshness: "historical", last_updated_at: closedAt });
         }
         return route.continue();
@@ -858,8 +861,17 @@ try {
       await recentTradesPanel.getByRole("button", { name: "EURUSD" }).click();
       const dialog = replayPage.getByRole("dialog");
       await dialog.getByRole("heading", { name: "Historical trade replay" }).waitFor();
-      await dialog.getByText("Replay ready").waitFor();
       const playback = dialog.locator(".journal-playback");
+      const replayReadiness = playback.locator('[data-testid="replay-readiness"]');
+      await replayReadiness.waitFor({ state: "visible" });
+      assert.notEqual(
+        await playback.getAttribute("data-replay-readiness"),
+        "ready",
+        "Replay must not report ready while provider candles are still loading.",
+      );
+      await replayReadiness.getByText("Loading historical candles…").waitFor();
+      await replayReadiness.getByText("Replay ready").waitFor();
+      assert.equal(await playback.getAttribute("data-replay-readiness"), "ready", "Replay readiness must become ready only after full candle coverage is validated.");
       assert.equal(
         await playback.getByText("Recorded close time is in the future.").count(),
         0,

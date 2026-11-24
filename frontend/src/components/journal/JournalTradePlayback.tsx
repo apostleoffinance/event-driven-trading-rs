@@ -11,6 +11,32 @@ import { journalApi } from "@/lib/api/journal";
 const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"] as const;
 type Frame = (typeof FRAMES)[number];
 type ReplayCandle = { time: Time; open: number; high: number; low: number; close: number; volume?: number };
+type ReplayReadiness =
+  | "not-eligible"
+  | "future-close"
+  | "loading-market-data"
+  | "provider-error"
+  | "provider-unavailable"
+  | "loading-candles"
+  | "candle-error"
+  | "no-candles"
+  | "invalid-candles"
+  | "incomplete-coverage"
+  | "ready";
+
+const REPLAY_READINESS_LABELS: Record<ReplayReadiness, string> = {
+  "not-eligible": "Replay unavailable",
+  "future-close": "Invalid close time",
+  "loading-market-data": "Checking market data…",
+  "provider-error": "Provider status unavailable",
+  "provider-unavailable": "No provider available",
+  "loading-candles": "Loading historical candles…",
+  "candle-error": "Historical data unavailable",
+  "no-candles": "No historical candles",
+  "invalid-candles": "Historical data needs review",
+  "incomplete-coverage": "Incomplete trade coverage",
+  ready: "Replay ready",
+};
 
 const FRAME_DURATION_MS: Record<Frame, number> = {
   M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000,
@@ -186,6 +212,27 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     && normalizedCandles.rejectedCount === 0;
   const replayEndIndex = exitCandleIndex >= 0 ? exitCandleIndex : Math.max(0, candles.length - 1);
   const canReplayToRecordedExit = hasFullCandleCoverage;
+  const replayReadiness: ReplayReadiness = !isClosedTrade
+    ? "not-eligible"
+    : closeIsInFuture
+      ? "future-close"
+      : instrumentsQuery.isLoading || providersQuery.isLoading
+        ? "loading-market-data"
+        : providersQuery.isError
+          ? "provider-error"
+          : !selectedProvider
+            ? "provider-unavailable"
+            : candleQuery.isLoading
+              ? "loading-candles"
+              : candleQuery.isError
+                ? "candle-error"
+                : candles.length === 0
+                  ? "no-candles"
+                  : normalizedCandles.rejectedCount > 0
+                    ? "invalid-candles"
+                    : !hasFullCandleCoverage
+                      ? "incomplete-coverage"
+                      : "ready";
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
   const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => {
@@ -370,15 +417,18 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   }, [playing, candles.length, currentIndex, speed, replayEndIndex, canReplayToRecordedExit]);
 
   return (
-    <section className="journal-playback" aria-label="Historical trade playback">
+    <section className="journal-playback" aria-label="Historical trade playback" data-replay-readiness={replayReadiness}>
       <div className="journal-section-heading">
         <div>
           <h3 className="panel-title">TRADE PLAYBACK</h3>
           <p className="muted">Replay historical provider candles from entry toward exit. This is analysis only—no orders are placed.</p>
         </div>
+        <span className="badge" role="status" aria-live="polite" data-testid="replay-readiness">
+          {REPLAY_READINESS_LABELS[replayReadiness]}
+        </span>
         {!alwaysExpanded ? <button className="btn primary" type="button" onClick={() => { setExpanded((value) => !value); setPlaying(false); }} aria-expanded={isExpanded}>
           {isExpanded ? "Close replay" : "▶ Replay trade"}
-        </button> : <span className="badge">Replay ready</span>}
+        </button> : null}
       </div>
       {!isClosedTrade ? <p className="muted">Replay is available for closed trades with valid entry and exit timestamps.</p> : null}
       {closeIsInFuture ? <div className="panel error" role="status">
