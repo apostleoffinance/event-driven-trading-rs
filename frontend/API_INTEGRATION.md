@@ -61,11 +61,19 @@ The frontend exposes sign-in/register at `/login`, Journal at `/journal`, and re
 
 ## CORS requirements
 
-For the Identity and Journal Rust services, set their origin allowlists to the exact frontend origin (for the temporary deployment, the exact workers.dev hostname):
+Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
+
+When the frontend uses the combined API gateway (`NEXT_PUBLIC_API_URL`), configure this variable on the gateway service:
+- `EDGENEST_CORS_ORIGINS=https://<your-frontend-host>`
+
+The gateway answers browser `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
+
+If the frontend calls the Identity, Journal, or Market Data services directly rather than through the combined gateway, configure the corresponding service allow-list on each service:
 - `IDENTITY_CORS_ORIGINS`
 - `JOURNAL_CORS_ORIGINS`
+- `MARKET_DATA_CORS_ORIGINS`
 
-Do not use `*` with credentialed browser sessions. This client currently sends bearer tokens in the Authorization header, so the server must allow Authorization and Content-Type headers. Market Data requests are read-only and currently send Accept.
+This client sends bearer tokens in the `Authorization` header. Cross-origin browser calls therefore require a successful preflight; the gateway must return the allow-origin, allow-methods, and allow-headers response headers. Do not use wildcard origins.
 
 ## Auth session notes
 
