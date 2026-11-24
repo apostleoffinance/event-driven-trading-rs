@@ -21,6 +21,7 @@ type OrganizationContextValue = {
   error: string | null;
   selectOrganization: (id: string) => void;
   refreshOrganizations: () => Promise<void>;
+  createOrganization: (name: string) => Promise<void>;
 };
 
 const STORAGE_KEY = "edgenest.organization.active.v1";
@@ -61,6 +62,26 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     else { setOrganizations([]); setActiveOrganizationId(null); setError(null); setLoading(false); window.sessionStorage.removeItem(STORAGE_KEY); }
   }, [pathname, refreshOrganizations]);
 
+  const createOrganization = useCallback(async (name: string) => {
+    const cleanedName = name.trim();
+    if (!cleanedName || cleanedName.length > 120) {
+      throw new Error("Workspace name must contain between 1 and 120 characters.");
+    }
+    const response = await apiRequest<{ data: Organization }>("/api/v1/organizations", {
+      method: "POST",
+      body: JSON.stringify({ name: cleanedName }),
+    });
+    const created = response.data;
+    if (!created?.id || created.status !== "ACTIVE") {
+      throw new Error("The workspace was created, but the API returned an invalid workspace record. Refresh to verify it.");
+    }
+    setOrganizations(current => [...current.filter(org => org.id !== created.id), created]);
+    setActiveOrganizationId(created.id);
+    window.sessionStorage.setItem(STORAGE_KEY, created.id);
+    setError(null);
+    queryClient.clear();
+  }, [queryClient]);
+
   const selectOrganization = useCallback((id: string) => {
     if (!organizations.some((org) => org.id === id)) return;
     if (id === activeOrganizationId) return;
@@ -72,8 +93,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const activeOrganization = organizations.find((org) => org.id === activeOrganizationId) ?? null;
   const value = useMemo(() => ({
     organizations, activeOrganization, activeOrganizationId, loading, error,
-    selectOrganization, refreshOrganizations,
-  }), [organizations, activeOrganization, activeOrganizationId, loading, error, selectOrganization, refreshOrganizations]);
+    selectOrganization, refreshOrganizations, createOrganization,
+  }), [organizations, activeOrganization, activeOrganizationId, loading, error, selectOrganization, refreshOrganizations, createOrganization]);
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
 }
