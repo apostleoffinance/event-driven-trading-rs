@@ -51,10 +51,10 @@ function isSavedLayout(value: unknown): value is SavedLayout {
 }
 
 export function DashboardWorkspace({
-  executionAccounts, portfolio, positions, orders, risk, events, loading, error,
+  executionAccounts, portfolio, positions, orders, risk, events, loading, error, onRetry,
 }: {
   executionAccounts: Account[]; portfolio: PortfolioSnapshot | null; positions: Position[];
-  orders: Order[]; risk: RiskOverview | null; events: TradingEvent[]; loading: boolean; error: string | null;
+  orders: Order[]; risk: RiskOverview | null; events: TradingEvent[]; loading: boolean; error: string | null; onRetry?: () => void;
 }) {
   const { mode: performanceMode } = usePerformanceDisplay();
   const [authenticated, setAuthenticated] = useState(false);
@@ -142,7 +142,7 @@ export function DashboardWorkspace({
       {layoutMessage?<p className="dashboard-inline-message" role="status">{layoutMessage}</p>:null}
     </section> : null}
 
-    {error ? <section className="panel dashboard-alert" role="alert"><strong>Execution data unavailable</strong><p>{error}</p><button className="btn" type="button" onClick={()=>window.location.reload()}>Retry execution data</button></section> : null}
+    {error ? <section className="panel dashboard-alert" role="alert"><strong>Execution data unavailable</strong><p>{error}</p><button className="btn" type="button" onClick={()=>onRetry ? onRetry() : window.location.reload()}>Retry execution data</button></section> : null}
     {accountsQuery.error ? <section className="panel dashboard-alert" role="alert"><strong>Journal accounts could not be loaded.</strong><button className="btn" onClick={()=>void accountsQuery.refetch()}>Retry</button></section> : null}
 
     <section className="dashboard-kpis" aria-label="Journal performance summary">
@@ -167,7 +167,7 @@ export function DashboardWorkspace({
           <div className="dashboard-risk-row"><div><span>Daily loss utilisation</span><strong>{dailyUtil == null ? "—" : dailyUtil.toFixed(1)+"%"}</strong></div><div className="dashboard-meter"><i className={dailyUtil != null && dailyUtil >= 80 ? "danger" : dailyUtil != null && dailyUtil >= 50 ? "warning" : ""} style={{width: dailyUtil == null ? "0%" : dailyUtil+"%"}}/></div><small>{risk.dailyLossPct.toFixed(2)}% used · limit {risk.dailyLossLimitPct == null ? "not configured" : risk.dailyLossLimitPct.toFixed(2)+"%"}</small></div>
           <div className="dashboard-risk-row"><div><span>Max drawdown utilisation</span><strong>{drawdownUtil == null ? "—" : drawdownUtil.toFixed(1)+"%"}</strong></div><div className="dashboard-meter"><i style={{width: drawdownUtil == null ? "0%" : drawdownUtil+"%"}}/></div><small>{risk.maxDrawdownPct.toFixed(2)}% used · limit {risk.maxDrawdownLimitPct == null ? "not configured" : risk.maxDrawdownLimitPct.toFixed(2)+"%"}</small></div>
           <div className="dashboard-risk-facts"><div><span>Open risk</span><strong>{risk.openRiskPct == null ? "Unavailable" : risk.openRiskPct.toFixed(2)+"%"}</strong></div><div><span>Gross exposure</span><strong>{risk.exposurePct == null ? "Unavailable" : risk.exposurePct.toFixed(1)+"%"}</strong></div><div><span>Kill switch</span><strong>{risk.killSwitch ? "ON" : "OFF"}</strong></div></div>
-        </> : executionConnected ? <div className="dashboard-chart-empty dashboard-risk-empty"><strong>Risk data unavailable</strong><span>An execution account exists, but the risk service has not returned a usable overview. Check the Risk Center and connection status.</span><Link href="/risk" className="btn">Open Risk Center</Link></div> : <div className="dashboard-chart-empty dashboard-risk-empty"><strong>No execution account connected</strong><span>Journal performance remains available above. Connect a broker account to populate live exposure, open risk and limit utilisation.</span><Link href="/accounts" className="btn primary">Connect account</Link></div>}
+        </> : executionConnected ? <div className="dashboard-chart-empty dashboard-risk-empty"><strong>Risk data unavailable</strong><span>An execution account exists, but the risk service has not returned a usable overview. Check the Risk Center and connection status.</span><Link href="/risk" className="btn">Open Risk Center</Link></div> : <div className="dashboard-chart-empty dashboard-risk-empty"><strong>No execution account connected</strong><span>Journal performance remains available above. Connect an execution account to populate live exposure, open risk and limit usage. If you expected an existing account here, ask your organization owner to check that it has been assigned to this workspace.</span><Link href="/accounts" className="btn primary">Connect account</Link></div>}
       </article> : null}
     </section> : null}
 
