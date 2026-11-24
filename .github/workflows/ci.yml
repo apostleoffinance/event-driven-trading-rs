@@ -6,8 +6,13 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  # Avoid running the same branch validation twice when a PR is open.
+  # Pull-request runs remain the required validation for PR branches;
+  # push runs continue to validate ordinary branches and direct pushes to main.
   push:
     branches:
+      - '**'
+    paths-ignore:
       - '**'
   pull_request:
   workflow_dispatch:
