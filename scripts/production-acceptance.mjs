@@ -985,9 +985,13 @@ try {
 
       await providerSelect.selectOption("biquote-error");
       await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "candle-error", undefined, { timeout: 20_000 });
-      assert.equal(await playButton.isDisabled(), true, "Provider request failure must disable playback.");
-      assert.equal(await nextButton.isDisabled(), true, "Provider request failure must disable stepping.");
-      assert.equal(await replayTimeline.isDisabled(), true, "Provider request failure must disable timeline seeking.");
+      // With a failed candle request there are no candles to render a playback
+      // control surface around. The component intentionally shows its error panel
+      // instead; assert the controls are absent rather than waiting on disabled
+      // buttons that cannot exist while the candle array is empty.
+      assert.equal(await playButton.count(), 0, "Provider request failure must not render a Play control without candles.");
+      assert.equal(await nextButton.count(), 0, "Provider request failure must not render a step control without candles.");
+      assert.equal(await replayTimeline.count(), 0, "Provider request failure must not render a timeline without candles.");
       assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Provider request failure must not persist MFE/MAE.");
 
       await providerSelect.selectOption("biquote-live");
