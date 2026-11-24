@@ -97,6 +97,48 @@ fn preflight_is_allowed(headers: &HeaderMap) -> bool {
     })
 }
 
+fn preflight_response(
+    origin: Option<HeaderValue>,
+    request_headers: &HeaderMap,
+    allowed_origins: &[String],
+) -> Response<Body> {
+    let allowed_origin = origin
+        .as_ref()
+        .is_some_and(|value| origin_is_allowed(value, allowed_origins));
+    if !allowed_origin || !preflight_is_allowed(request_headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let mut response = Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Body::empty())
+        .expect("static CORS preflight response is valid");
+    let headers = response.headers_mut();
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        origin.expect("allowed origin was checked"),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_METHODS,
+        HeaderValue::from_static(CORS_ALLOWED_METHODS),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_HEADERS,
+        HeaderValue::from_static(CORS_ALLOWED_HEADERS),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_MAX_AGE,
+        HeaderValue::from_static("600"),
+    );
+    headers.insert(
+        header::VARY,
+        HeaderValue::from_static(
+            "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+        ),
+    );
+    response
+}
+
 /// The gateway terminates browser CORS for every route, including its own
 /// health endpoints. Preflight requests are answered here instead of being
 /// forwarded to an upstream service (which may not expose OPTIONS routes).
@@ -107,41 +149,7 @@ async fn cors_headers(request: Request<Body>, next: Next) -> Response<Body> {
     if request.method() == Method::OPTIONS
         && request.headers().contains_key(header::ACCESS_CONTROL_REQUEST_METHOD)
     {
-        let allowed_origin = origin
-            .as_ref()
-            .is_some_and(|value| origin_is_allowed(value, &allowed_origins));
-        if !allowed_origin || !preflight_is_allowed(request.headers()) {
-            return StatusCode::FORBIDDEN.into_response();
-        }
-
-        let mut response = Response::builder()
-            .status(StatusCode::NO_CONTENT)
-            .body(Body::empty())
-            .expect("static CORS preflight response is valid");
-        let headers = response.headers_mut();
-        headers.insert(
-            header::ACCESS_CONTROL_ALLOW_ORIGIN,
-            origin.expect("allowed origin was checked"),
-        );
-        headers.insert(
-            header::ACCESS_CONTROL_ALLOW_METHODS,
-            HeaderValue::from_static(CORS_ALLOWED_METHODS),
-        );
-        headers.insert(
-            header::ACCESS_CONTROL_ALLOW_HEADERS,
-            HeaderValue::from_static(CORS_ALLOWED_HEADERS),
-        );
-        headers.insert(
-            header::ACCESS_CONTROL_MAX_AGE,
-            HeaderValue::from_static("600"),
-        );
-        headers.insert(
-            header::VARY,
-            HeaderValue::from_static(
-                "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
-            ),
-        );
-        return response;
+        return preflight_response(origin, request.headers(), &allowed_origins);
     }
 
     let mut response = next.run(request).await;
@@ -405,6 +413,56 @@ mod tests {
             HeaderValue::from_static("authorization, x-organization-id"),
         );
         assert!(preflight_is_allowed(&headers));
+    }
+
+    #[test]
+    fn preflight_response_returns_required_browser_cors_headers() {
+        let mut request_headers = HeaderMap::new();
+        request_headers.insert(
+            header::ACCESS_CONTROL_REQUEST_METHOD,
+            HeaderValue::from_static("GET"),
+        );
+        request_headers.insert(
+            header::ACCESS_CONTROL_REQUEST_HEADERS,
+            HeaderValue::from_static("authorization, x-organization-id"),
+        );
+        let allowed = vec!["https://dashboard.example.com".to_owned()];
+        let response = preflight_response(
+            Some(HeaderValue::from_static("https://dashboard.example.com")),
+            &request_headers,
+            &allowed,
+        );
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(
+            response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+            "https://dashboard.example.com"
+        );
+        assert_eq!(
+            response.headers()[header::ACCESS_CONTROL_ALLOW_METHODS],
+            CORS_ALLOWED_METHODS
+        );
+        assert_eq!(
+            response.headers()[header::ACCESS_CONTROL_ALLOW_HEADERS],
+            CORS_ALLOWED_HEADERS
+        );
+        assert_eq!(response.headers()[header::ACCESS_CONTROL_MAX_AGE], "600");
+    }
+
+    #[test]
+    fn preflight_response_rejects_untrusted_origin() {
+        let mut request_headers = HeaderMap::new();
+        request_headers.insert(
+            header::ACCESS_CONTROL_REQUEST_METHOD,
+            HeaderValue::from_static("GET"),
+        );
+        let allowed = vec!["https://dashboard.example.com".to_owned()];
+        let response = preflight_response(
+            Some(HeaderValue::from_static("https://attacker.example")),
+            &request_headers,
+            &allowed,
+        );
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[test]
