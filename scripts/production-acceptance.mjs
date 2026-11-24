@@ -901,7 +901,31 @@ try {
       assert.equal(excursionsSaved.candle_count, 6, "Coverage metadata should retain the complete normalized response, including context candles.");
       assert.ok(Math.abs(Number(excursionsSaved.mfe_r) - 2) < 1e-9, "MFE should be approximately 2R.");
       assert.ok(Math.abs(Number(excursionsSaved.mae_r) + 0.5) < 1e-9, "MAE should be approximately -0.5R.");
-      assert.match(await playback.locator(".journal-playback-controls").textContent(), /1 \/ 5 candles/, "Replay must stop on the 14:00 candle that contains the 15:00 close, excluding the future 15:00 candle.");
+      assert.match(await playback.locator(".journal-playback-controls").textContent(), /1 \/ 5 candles/, "Replay must start at the entry candle and stop on the 14:00 candle that contains the 15:00 close.");
+      assert.equal(await playback.getAttribute("data-replay-start-index"), "0", "Replay start must be the entry candle, not earlier context.");
+      assert.equal(await playback.getAttribute("data-replay-end-index"), "4", "Replay end must be the candle containing the recorded close.");
+      assert.equal(await playback.getAttribute("data-replay-cursor-index"), "0", "Replay cursor must initialize at entry.");
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Exit information must remain hidden before the replay reaches the recorded exit.");
+
+      const nextCandle = playback.getByRole("button", { name: "Next candle" });
+      for (let index = 0; index < 4; index += 1) await nextCandle.click();
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-cursor-index") === "4");
+      assert.match(await playback.locator(".journal-playback-controls").textContent(), /5 \/ 5 candles/);
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "true", "Exit information should become visible only at the recorded exit candle.");
+      assert.equal(await nextCandle.isDisabled(), true, "Next candle must be disabled at the recorded exit.");
+
+      await playback.getByRole("button", { name: "Restart at entry" }).click();
+      assert.equal(await playback.getAttribute("data-replay-cursor-index"), "0", "Restart must return exactly to the entry candle.");
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Restart must hide exit information again.");
+      assert.match(await playback.locator(".journal-playback-controls").textContent(), /1 \/ 5 candles/);
+
+      await playback.getByRole("button", { name: "Play" }).click();
+      await replayPage.waitForFunction(() => {
+        const root = document.querySelector(".journal-playback");
+        const playButton = root?.querySelector(".journal-playback-controls .btn.primary");
+        return root?.getAttribute("data-replay-cursor-index") === "4" && playButton?.textContent?.includes("Play");
+      }, { timeout: 10_000 });
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "true", "Automatic playback must stop at the recorded exit and reveal exit information there.");
       const excursionSourceNote = dialog.locator(".trade-data-note");
       await excursionSourceNote.waitFor();
       assert.match(await excursionSourceNote.textContent(), /historical_candles.*H1/);
