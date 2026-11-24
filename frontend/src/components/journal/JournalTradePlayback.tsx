@@ -313,7 +313,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     if (!candles.length) return;
     setCurrentIndex(replayStartIndex);
     setPlaying(false);
-  }, [candles, entryCandleIndex]);
+  }, [candles, entryCandleIndex, replayStartIndex]);
 
   useEffect(() => {
     if (currentIndex >= candles.length) setCurrentIndex(Math.max(0, candles.length - 1));
@@ -347,7 +347,6 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     if (trade.stop_loss && Number.isFinite(stop)) series.createPriceLine({ price: stop, color: "#ef5350", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "SL" });
     const targetPrice = Number(trade.take_profit);
     if (trade.take_profit && Number.isFinite(targetPrice)) series.createPriceLine({ price: targetPrice, color: "#16a34a", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
-    const exitPrice = Number(trade.exit_price);
     chartRef.current = chart;
     seriesRef.current = series;
     const observer = new ResizeObserver((entries) => {
