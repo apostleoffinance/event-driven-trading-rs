@@ -969,7 +969,7 @@ try {
       const replayTimeline = playback.getByRole("slider", { name: "Trade playback timeline" });
 
       await providerSelect.selectOption("biquote-incomplete");
-      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "incomplete-coverage", { timeout: 15_000 });
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "incomplete-coverage", undefined, { timeout: 15_000 });
       assert.equal(await playButton.isDisabled(), true, "Missing exit coverage must disable automatic playback.");
       assert.equal(await nextButton.isDisabled(), true, "Missing exit coverage must disable candle stepping.");
       assert.equal(await replayTimeline.isDisabled(), true, "Missing exit coverage must disable timeline seeking.");
@@ -977,21 +977,21 @@ try {
       assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Incomplete coverage must not persist MFE/MAE.");
 
       await providerSelect.selectOption("biquote-conflicting");
-      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "invalid-candles", { timeout: 15_000 });
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "invalid-candles", undefined, { timeout: 15_000 });
       assert.equal(await playButton.isDisabled(), true, "Conflicting duplicate candles must disable playback.");
       assert.equal(await nextButton.isDisabled(), true, "Conflicting duplicate candles must disable stepping.");
       assert.equal(await replayTimeline.isDisabled(), true, "Conflicting duplicate candles must disable timeline seeking.");
       assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Conflicting candles must not persist MFE/MAE.");
 
       await providerSelect.selectOption("biquote-error");
-      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "candle-error", { timeout: 20_000 });
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "candle-error", undefined, { timeout: 20_000 });
       assert.equal(await playButton.isDisabled(), true, "Provider request failure must disable playback.");
       assert.equal(await nextButton.isDisabled(), true, "Provider request failure must disable stepping.");
       assert.equal(await replayTimeline.isDisabled(), true, "Provider request failure must disable timeline seeking.");
       assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Provider request failure must not persist MFE/MAE.");
 
       await providerSelect.selectOption("biquote-live");
-      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "ready", { timeout: 15_000 });
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "ready", undefined, { timeout: 15_000 });
       assert.equal(await playback.getAttribute("data-replay-cursor-index"), "0", "Changing provider and restoring valid coverage must reset replay to entry.");
       assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Restoring a provider must not reveal exit before replay.");
       assert.equal(await playButton.isDisabled(), false, "Valid provider coverage must re-enable playback after recovery.");
