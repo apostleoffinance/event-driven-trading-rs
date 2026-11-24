@@ -407,6 +407,10 @@ try {
     await context.close();
   }
 
+  // Live authenticated acceptance mutates account-scoped test data and depends on
+  // production credentials/origin. Keep PR checks deterministic against the PR
+  // Worker preview; execute this end-to-end suite only after deployment on main.
+  if (process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true") {
   assert.ok(email && password, "EDGENEST_ACCEPTANCE_EMAIL and EDGENEST_ACCEPTANCE_PASSWORD must be configured as GitHub Actions secrets.");
 
   console.log("Checking authenticated account switching and saved-view persistence on the deployed frontend...");
@@ -1023,6 +1027,9 @@ try {
       }
     }
     await context.close();
+  }
+  } else {
+    console.log("PR preview: skipping production-authenticated account/API acceptance; this suite runs against the deployed frontend on main.");
   }
 } finally {
   await browser.close();

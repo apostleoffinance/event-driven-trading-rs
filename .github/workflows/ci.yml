@@ -6,9 +6,12 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  # Use one validation run per change: PRs use pull_request, direct changes use push.
+  # This avoids duplicating long macOS preflight work for branches with open PRs.
   push:
     branches:
-      - '**'
+      - main
+      - 'release/**'
   pull_request:
   workflow_dispatch:
 
@@ -126,8 +129,18 @@ jobs:
 
   macos-developer-preflight:
     name: macOS portable MT5 adapter preflight
-    runs-on: macos-latest
+    # macos-14 was retired from GitHub Actions on 2026-11-02.
+    # Use the supported macos-15 arm64 image; keep this version explicit so
+    # image migrations are deliberate and visible in CI.
+    runs-on: macos-15
+    timeout-minutes: 10
     steps:
+      - name: Record runner diagnostics
+        run: |
+          echo "Runner: $RUNNER_NAME"
+          echo "OS: $(sw_vers -productVersion)"
+          echo "Architecture: $(uname -m)"
+          echo "GitHub Actions runner image: $ImageOS / $ImageVersion"
       - name: Checkout
         uses: actions/checkout@v7
       - name: Setup Python

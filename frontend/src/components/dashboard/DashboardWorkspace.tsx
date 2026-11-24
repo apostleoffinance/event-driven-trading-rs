@@ -142,7 +142,15 @@ export function DashboardWorkspace({
       {layoutMessage?<p className="dashboard-inline-message" role="status">{layoutMessage}</p>:null}
     </section> : null}
 
-    {error ? <section className="panel dashboard-alert" role="alert"><strong>Execution data unavailable</strong><p>{error}</p><button className="btn" type="button" onClick={()=>onRetry ? onRetry() : window.location.reload()}>Retry execution data</button></section> : null}
+    {error ? <section className="panel dashboard-alert" role="alert"><strong>Workspace access needs attention</strong><p>{error}</p><button className="btn" type="button" onClick={()=>onRetry ? onRetry() : window.location.reload()}>Refresh workspace access</button></section> : null}
+    <section className="panel dashboard-coming-soon" role="status" aria-label="Execution features coming soon">
+      <div className="dashboard-coming-soon-icon" aria-hidden="true">i</div>
+      <div className="dashboard-coming-soon-copy">
+        <strong>Live execution insights are coming soon</strong>
+        <p>We’re working on bringing live trading activity, execution history and broker-connected performance insights to your dashboard. Your Journal data and performance analytics remain available.</p>
+      </div>
+      <span className="dashboard-coming-soon-label">In development</span>
+    </section>
     {accountsQuery.error ? <section className="panel dashboard-alert" role="alert"><strong>Journal accounts could not be loaded.</strong><button className="btn" onClick={()=>void accountsQuery.refetch()}>Retry</button></section> : null}
 
     <section className="dashboard-kpis" aria-label="Journal performance summary">
