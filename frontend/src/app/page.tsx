@@ -26,7 +26,7 @@ export default function CommandCenterPage() {
     if (!authenticated || organizationLoading) return;
     if (!activeOrganizationId) {
       setAccounts([]); setPortfolio(null); setPositions([]); setOrders([]); setRisk(null);
-      setError(organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access.");
+      setError(organizationError ?? "Your account has no active workspace. Ask an organization owner to restore your membership or invite you to an active workspace.");
       setLoading(false);
       return;
     }
