@@ -129,9 +129,10 @@ jobs:
 
   macos-developer-preflight:
     name: macOS portable MT5 adapter preflight
-    # Pin the image instead of following macos-latest, whose image migrations
-    # can introduce runner provisioning delays unrelated to this repository.
-    runs-on: macos-14
+    # macos-14 was retired from GitHub Actions on 2026-11-02.
+    # Use the supported macos-15 arm64 image; keep this version explicit so
+    # image migrations are deliberate and visible in CI.
+    runs-on: macos-15
     timeout-minutes: 10
     steps:
       - name: Record runner diagnostics
