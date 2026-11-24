@@ -1,5 +1,6 @@
 import { formatPct } from "@/lib/format";
 import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
+import { InfoTooltip } from "@/components/data-display/InfoTooltip";
 
 export function Metric({
   label,
@@ -7,12 +8,14 @@ export function Metric({
   sub,
   signed,
   pct,
+  help,
 }: {
   label: string;
   value: string;
   sub?: string;
   signed?: boolean;
   pct?: number;
+  help?: string;
 }) {
   const { mode } = usePerformanceDisplay();
   const display = Number.isFinite(Number(value)) ? formatPerformanceValue(value,"USD",mode) : value;
@@ -25,7 +28,10 @@ export function Metric({
 
   return (
     <div className="metric panel">
-      <div className="metric-label">{label}</div>
+      <div className="metric-label">
+        {label}
+        {help ? <InfoTooltip label={label} content={help} /> : null}
+      </div>
       <div className={`metric-value ${cls ?? ""}`}>{display}</div>
       {sub ? <div className="metric-sub">{sub}</div> : null}
       {pct !== undefined ? (
