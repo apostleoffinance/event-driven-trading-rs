@@ -5,9 +5,11 @@ import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { getRepositories } from "@/lib/repositories";
 import { hasSession } from "@/lib/auth/session";
 import type { Account, Order, PortfolioSnapshot, Position, RiskOverview } from "@/types/domain";
+import { useOrganization } from "@/features/organization/OrganizationProvider";
 
 export default function CommandCenterPage() {
   const repos = getRepositories();
+  const { activeOrganizationId, loading: organizationLoading, error: organizationError } = useOrganization();
   const { events } = useSharedEventStream();
   const [authenticated, setAuthenticated] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
@@ -20,7 +22,7 @@ export default function CommandCenterPage() {
   const [loading, setLoading] = useState(true);
   useEffect(() => { setAuthenticated(hasSession()); setAuthResolved(true); }, []);
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || organizationLoading || !activeOrganizationId) return;
     let cancelled = false;
     const load = async () => {
       const results = await Promise.allSettled([repos.accounts.listAccounts(),repos.portfolio.getSnapshot(),repos.positions.listPositions(),repos.orders.listOrders(),repos.risk.getOverview()]);
@@ -37,7 +39,8 @@ export default function CommandCenterPage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [authenticated,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk]);
+  }, [authenticated,organizationLoading,activeOrganizationId,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk]);
   if (!authResolved || !authenticated) return null;
-  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error} />;
+  if (organizationLoading) return <div className="dashboard-loading" role="status">Loading your organization…</div>;
+  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access." : null)} />;
 }
