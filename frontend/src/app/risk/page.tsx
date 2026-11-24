@@ -5,6 +5,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
+import { InfoTooltip } from "@/components/data-display/InfoTooltip";
 import { riskDecisionTone, riskToneClass, StatusBadge } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatQuantity } from "@/lib/format";
@@ -26,11 +27,11 @@ const pct = (value: unknown) => { const parsed = numeric(value); return parsed =
 const limit = (value: unknown) => { const parsed = numeric(value); return parsed == null ? "Not set" : `${parsed.toFixed(2)}%`; };
 const fixed = (value: unknown, digits = 2, suffix = "") => { const parsed = numeric(value); return parsed == null ? "—" : `${parsed.toFixed(digits)}${suffix}`; };
 
-function MetricCard({ label, value, detail, tone = "neutral", progress }: {
-  label: string; value: string; detail: string; tone?: "neutral" | "good" | "warning" | "danger"; progress?: number | null;
+function MetricCard({ label, value, detail, help, tone = "neutral", progress }: {
+  label: string; value: string; detail: string; help?: string; tone?: "neutral" | "good" | "warning" | "danger"; progress?: number | null;
 }) {
   return <article className={`risk-center-metric tone-${tone}`}>
-    <div className="risk-center-metric-top"><span>{label}</span><i /></div>
+    <div className="risk-center-metric-top"><span>{label}{help ? <InfoTooltip label={label} content={help} /> : null}</span><i /></div>
     <strong>{value}</strong>
     {progress != null ? <div className="risk-center-progress"><span style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div> : null}
     <small>{detail}</small>
@@ -106,9 +107,9 @@ export default function RiskPage() {
 
     <section className="risk-center-metrics-grid" aria-label="Risk overview">
       <MetricCard label="RISK ENGINE" value={overview?.engineStatus ?? "Unavailable"} detail={overview?.killSwitch ? "Trading halt is active" : "Execution service state"} tone={engineTone} />
-      <MetricCard label="DAILY LOSS" value={pct(overview?.dailyLossPct)} detail={overview?.dailyLossLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.dailyLossLimitPct)}`} tone={dailyUtilization != null && dailyUtilization >= 80 ? "danger" : "neutral"} progress={dailyUtilization} />
-      <MetricCard label="MAX DRAWDOWN" value={pct(overview?.maxDrawdownPct)} detail={overview?.maxDrawdownLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.maxDrawdownLimitPct)}`} tone={drawdownUtilization != null && drawdownUtilization >= 80 ? "warning" : "neutral"} progress={drawdownUtilization} />
-      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatPerformanceValue(portfolio.grossExposure,"USD",performanceMode,{percentage:portfolio.exposurePct}) : "—"} detail={portfolio ? `${fixed(portfolio.exposurePct, 1, "%")} of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} />
+      <MetricCard label="DAILY LOSS" value={pct(overview?.dailyLossPct)} detail={overview?.dailyLossLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.dailyLossLimitPct)}`} help="How much the account has lost today compared with the daily loss limit reported by the execution risk engine." tone={dailyUtilization != null && dailyUtilization >= 80 ? "danger" : "neutral"} progress={dailyUtilization} />
+      <MetricCard label="MAX DRAWDOWN" value={pct(overview?.maxDrawdownPct)} detail={overview?.maxDrawdownLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.maxDrawdownLimitPct)}`} help="The largest fall from an account high, shown here against the maximum limit reported by the execution risk engine." tone={drawdownUtilization != null && drawdownUtilization >= 80 ? "warning" : "neutral"} progress={drawdownUtilization} />
+      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatPerformanceValue(portfolio.grossExposure,"USD",performanceMode,{percentage:portfolio.exposurePct}) : "—"} detail={portfolio ? `${fixed(portfolio.exposurePct, 1, "%")} of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} help="The combined market value of open positions before offsetting opposing positions. It helps show how much of the account is currently in the market." />
     </section>
 
     {overview?.killSwitch ? <div className="risk-center-alert danger" role="alert"><strong>Trading kill switch is active.</strong><span>New execution may be blocked by the risk engine. Review the engine and account controls before resuming.</span></div> : null}
