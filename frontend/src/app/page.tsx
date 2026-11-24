@@ -42,9 +42,6 @@ export default function CommandCenterPage() {
       if (pos.status === "fulfilled") setPositions(pos.value);
       if (o.status === "fulfilled") setOrders(o.value.slice(0,8));
       if (r.status === "fulfilled") setRisk(r.value);
-      const failures = results.filter((x): x is PromiseRejectedResult => x.status === "rejected");
-      const messages = [...new Set(failures.map(x => x.reason instanceof Error ? x.reason.message : "An execution data source is unavailable"))];
-      if (messages.length) setError(messages.join(" · "));
       setLoading(false);
     };
     void load();
