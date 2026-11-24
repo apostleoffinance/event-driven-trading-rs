@@ -60,7 +60,9 @@ type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; ba
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, ...init } = options;
   const headers = new Headers(inputHeaders);
-  const requiresOrganization = path.startsWith("/api/v1/trading/") || (path.startsWith("/api/v1/organizations/") && path !== "/api/v1/organizations");
+  const requiresOrganization =
+    path.startsWith("/api/v1/trading/") ||
+    (path.startsWith("/api/v1/organizations/") && path !== "/api/v1/organizations");
   if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {
     headers.set("X-Organization-Id", await resolveOrganizationId());
   }
