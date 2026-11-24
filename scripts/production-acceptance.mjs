@@ -919,6 +919,24 @@ try {
       assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Restart must hide exit information again.");
       assert.match(await playback.locator(".journal-playback-controls").textContent(), /1 \/ 5 candles/);
 
+      const timeline = playback.getByRole("slider", { name: "Trade playback timeline" });
+      await timeline.evaluate(element => {
+        const input = element;
+        input.value = "2";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-cursor-index") === "2");
+      assert.match(await playback.locator(".journal-playback-controls").textContent(), /3 \/ 5 candles/);
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Seeking before the exit must not reveal exit information.");
+      await playback.getByRole("button", { name: "Restart at entry" }).click();
+
+      await playback.getByRole("button", { name: "Play" }).click();
+      await replayPage.waitForFunction(() => Number(document.querySelector(".journal-playback")?.getAttribute("data-replay-cursor-index")) >= 1);
+      await playback.getByRole("button", { name: "Pause" }).click();
+      const pausedCursor = await playback.getAttribute("data-replay-cursor-index");
+      await replayPage.waitForTimeout(250);
+      assert.equal(await playback.getAttribute("data-replay-cursor-index"), pausedCursor, "Pause must freeze the replay cursor.");
       await playback.getByRole("button", { name: "Play" }).click();
       await replayPage.waitForFunction(() => {
         const root = document.querySelector(".journal-playback");
