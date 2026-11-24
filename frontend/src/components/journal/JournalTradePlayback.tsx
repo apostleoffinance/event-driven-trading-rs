@@ -48,6 +48,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const [currentIndex, setCurrentIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const [framing, setFraming] = useState<"full" | "follow">("full");
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -90,9 +91,12 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       const end = new Date(trade.closed_at || "").getTime();
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Invalid trade coverage interval.");
       const all: Candle[] = [];
-      let cursor = start;
-      for (let pageIndex = 0; cursor < end && pageIndex < 64; pageIndex += 1) {
-        const pageEnd = Math.min(end, cursor + durationMs[frame] * 900);
+      const context = durationMs[frame] * 12;
+      const requestStart = Math.max(0, start - context);
+      const requestEnd = end + context;
+      let cursor = requestStart;
+      for (let pageIndex = 0; cursor < requestEnd && pageIndex < 64; pageIndex += 1) {
+        const pageEnd = Math.min(requestEnd, cursor + durationMs[frame] * 900);
         const page = await marketDataApi.candles({
           instrument: instrument?.id ?? trade.symbol,
           timeframe: frame,
@@ -111,9 +115,11 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   });
 
   const candles = useMemo(() => normalizeCandles(candleQuery.data?.candles ?? []), [candleQuery.data?.candles]);
+  const replayEndFound = candles.findIndex(candle => Number(candle.time) * 1000 >= closeTimestampMs);
+  const replayEndIndex = replayEndFound >= 0 ? replayEndFound : Math.max(0,candles.length-1);
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
-  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1));
+  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => Number(candle.time) * 1000 >= openedTimestampMs && Number(candle.time) * 1000 <= closeTimestampMs);
   const entryPrice = Number(trade.entry_price);
   const favorablePrice = trade.direction === "long"
     ? replayPath.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
@@ -132,12 +138,14 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     const closed = new Date(trade.closed_at || "").getTime();
     const tolerance = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
     if (first > opened + tolerance || last < closed - tolerance) return;
+    const tradeWindow = candles.filter(candle => Number(candle.time) * 1000 >= opened && Number(candle.time) * 1000 <= closed);
+    if (tradeWindow.length === 0) return;
     const fullFavorable = trade.direction === "long"
-      ? candles.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
-      : candles.reduce((value, candle) => Math.min(value, candle.low), entryPrice);
+      ? tradeWindow.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
+      : tradeWindow.reduce((value, candle) => Math.min(value, candle.low), entryPrice);
     const fullAdverse = trade.direction === "long"
-      ? candles.reduce((value, candle) => Math.min(value, candle.low), entryPrice)
-      : candles.reduce((value, candle) => Math.max(value, candle.high), entryPrice);
+      ? tradeWindow.reduce((value, candle) => Math.min(value, candle.low), entryPrice)
+      : tradeWindow.reduce((value, candle) => Math.max(value, candle.high), entryPrice);
     const directionSign = trade.direction === "long" ? 1 : -1;
     const riskDistance = trade.stop_loss ? Math.abs(entryPrice - Number(trade.stop_loss)) : 0;
     const mfeR = riskDistance > 0 ? Math.max(0, ((fullFavorable - entryPrice) * directionSign) / riskDistance) : null;
@@ -164,7 +172,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
+  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.status, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
 
   const coverageToleranceMs = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
   const hasFullCandleCoverage = candles.length > 0
@@ -184,6 +192,13 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   }, [trade.id, frame, selectedProvider]);
 
   useEffect(() => {
+    if (!candles.length) return;
+    const firstTradeCandle = candles.findIndex(candle => Number(candle.time) * 1000 >= openedTimestampMs);
+    setCurrentIndex(firstTradeCandle >= 0 ? firstTradeCandle : 0);
+    setPlaying(false);
+  }, [candles, openedTimestampMs]);
+
+  useEffect(() => {
     if (currentIndex >= candles.length) setCurrentIndex(Math.max(0, candles.length - 1));
   }, [currentIndex, candles.length]);
 
@@ -196,7 +211,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       || "#d1d4dc";
     const chart = createChart(node, {
       width: Math.max(node.clientWidth, 320),
-      height: 380,
+      height: 520,
       layout: { background: { color: "transparent" }, textColor: chartTextColor },
       grid: { vertLines: { color: "rgba(130,130,130,.12)" }, horzLines: { color: "rgba(130,130,130,.12)" } },
       rightPriceScale: { borderColor: "rgba(130,130,130,.25)" },
@@ -221,7 +236,8 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     seriesRef.current = series;
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width;
-      if (width && width > 0) chart.applyOptions({ width });
+      const height = entries[0]?.contentRect.height;
+      if (width && width > 0 && height && height > 0) chart.applyOptions({ width, height });
     });
     observer.observe(node);
     return () => {
@@ -238,18 +254,21 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     if (!chart || !series || candles.length === 0) return;
     const visible = candles.slice(0, Math.max(1, currentIndex + 1));
     series.setData(visible);
+    const entryIndex = Math.max(0, candles.findIndex(candle => Number(candle.time) * 1000 >= openedTimestampMs));
+    const exitFound = candles.findIndex(candle => Number(candle.time) * 1000 >= closeTimestampMs);
+    const exitIndex = exitFound >= 0 ? exitFound : candles.length - 1;
     const markers = [
       {
-        time: candles[0].time,
+        time: candles[entryIndex].time,
         position: trade.direction === "long" ? "belowBar" as const : "aboveBar" as const,
         color: "#3b82f6",
         shape: trade.direction === "long" ? "arrowUp" as const : "arrowDown" as const,
         text: "Entry",
       },
     ];
-    if (currentIndex >= candles.length - 1) {
+    if (currentIndex >= exitIndex) {
       markers.push({
-        time: candles[candles.length - 1].time,
+        time: candles[exitIndex].time,
         position: trade.direction === "long" ? "aboveBar" as const : "belowBar" as const,
         color: "#f59e0b",
         shape: trade.direction === "long" ? "arrowDown" as const : "arrowUp" as const,
@@ -257,18 +276,23 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       });
     }
     series.setMarkers(markers);
-    if (currentIndex === 0) chart.timeScale().fitContent();
-  }, [candles, currentIndex, trade.direction]);
+    // Reserve the complete available trade scene on the time axis while only
+    // revealing candles up to the replay cursor. Future candles remain blank.
+    const visibleRange = framing === "full"
+      ? { from: 0, to: Math.max(1, candles.length - 1) }
+      : { from: Math.max(0, currentIndex - 90), to: Math.min(candles.length - 1, currentIndex + 45) };
+    chart.timeScale().setVisibleLogicalRange(visibleRange);
+  }, [candles, currentIndex, trade.direction, openedTimestampMs, closeTimestampMs, framing]);
 
   useEffect(() => {
     if (!playing) return;
-    if (candles.length < 2 || currentIndex >= candles.length - 1) {
+    if (candles.length < 2 || currentIndex >= replayEndIndex) {
       setPlaying(false);
       return;
     }
     const timer = window.setInterval(() => {
       setCurrentIndex((index) => {
-        if (index >= candles.length - 1) {
+        if (index >= replayEndIndex) {
           setPlaying(false);
           return index;
         }
@@ -276,7 +300,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       });
     }, Math.max(80, 700 / speed));
     return () => window.clearInterval(timer);
-  }, [playing, candles.length, currentIndex, speed]);
+  }, [playing, candles.length, currentIndex, speed, replayEndIndex]);
 
   return (
     <section className="journal-playback" aria-label="Historical trade playback">
@@ -301,6 +325,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
             <label>Provider <select value={selectedProvider} onChange={(event) => setProviderOverride(event.target.value)} disabled={providersQuery.isLoading}>
               {availableProviders.map((item) => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}
             </select></label>
+            <label>View <select value={framing} onChange={(event) => setFraming(event.target.value as "full" | "follow")}><option value="full">Full trade scene</option><option value="follow">Follow replay</option></select></label>
             <label>Speed <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
               <option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option><option value={8}>8×</option>
             </select></label>
@@ -333,13 +358,15 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
               <span><small>Replay MAE</small><strong className="neg">{maePips === null ? "—" : Math.abs(maePips).toFixed(1) + " pips"}</strong></span>
             </div>
             <div className="journal-playback-controls">
-              <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(0); }}>↺ Restart</button>
-              <button className="btn primary" type="button" disabled={candles.length < 2} onClick={() => { if (currentIndex >= candles.length - 1) setCurrentIndex(0); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
-              <button className="btn" type="button" disabled={currentIndex >= candles.length - 1} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(candles.length - 1, value + 1)); }}>Next candle →</button>
-              <span className="muted">{Math.min(currentIndex + 1, candles.length)} / {candles.length} candles</span>
+              <button className="btn" type="button" onClick={() => chartContainerRef.current?.requestFullscreen?.()}>⛶ Fullscreen</button>
+              <button className="btn" type="button" onClick={() => { setFraming("full"); chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:Math.max(1,candles.length-1)}); }}>Fit full trade</button>
+              <button className="btn" type="button" onClick={() => { setPlaying(false); const index=candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,index)); }}>↺ Restart at entry</button>
+              <button className="btn primary" type="button" disabled={candles.length < 2} onClick={() => { if (currentIndex >= replayEndIndex) { const entry = candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,entry)); } setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
+              <button className="btn" type="button" disabled={currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, value + 1)); }}>Next candle →</button>
+              <span className="muted">{Math.min(currentIndex + 1, replayEndIndex + 1)} / {replayEndIndex + 1} candles</span>
             </div>
-            <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, candles.length - 1)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
-            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry/exit markers align to the first/last returned candles; candle provider timestamps may not match exact fills.</p>
+            <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, replayEndIndex)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
+            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the nearest available candles at or after the recorded fills; provider timestamps may not match exact execution times.</p>
           </> : null}
         </div>
       ) : null}

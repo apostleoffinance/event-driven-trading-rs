@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { formatMoney, formatNumber, moneyToNumber } from "@/lib/format";
 import type { EquityPoint } from "@/types/domain";
+import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
@@ -18,6 +19,7 @@ function readCssVar(name: string, fallback: string): string {
 
 export function EquityChart({ series }: { series: EquityPoint[] }) {
   const { theme } = useTheme();
+  const { mode } = usePerformanceDisplay();
 
   const option = useMemo(() => {
     const muted = readCssVar("--chart-muted", "#a8b3c2");
@@ -27,6 +29,9 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
     const line = readCssVar("--chart-line", "#4b93ff");
     const dd = readCssVar("--chart-dd", "#ef6b78");
 
+    const base = series.length ? moneyToNumber(series[0].equity) : 0;
+    const equityValues = series.map(point => moneyToNumber(point.equity));
+    const displayEquity = (value:number) => mode==="hidden"||mode==="r" ? "••••" : mode==="percentage" ? (base>0?Number(value).toFixed(2)+"%":"—") : formatMoney(value);
     return {
       backgroundColor: "transparent",
       textStyle: {
@@ -37,7 +42,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
       tooltip: {
         trigger: "axis",
         formatter: (items: Array<{ seriesName: string; value: number; axisValue: string }>) =>
-          [items[0]?.axisValue ?? "", ...items.map((item) => item.seriesName + ": " + (item.seriesName === "Equity" ? formatMoney(item.value) : formatNumber(item.value, 2) + "%"))].join("<br/>"),
+          [items[0]?.axisValue ?? "", ...items.map((item) => item.seriesName + ": " + (item.seriesName === "Equity" ? displayEquity(item.value) : formatNumber(item.value, 2) + "%"))].join("<br/>"),
       },
       legend: {
         data: ["Equity", "Drawdown %"],
@@ -54,7 +59,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
         {
           type: "value",
           scale: true,
-          axisLabel: { color: dim, fontSize: 12 },
+          axisLabel: { color: dim, fontSize: 12, formatter: (value:number) => mode==="percentage" ? (base>0?Number(value).toFixed(1)+"%":"—") : mode==="hidden"||mode==="r" ? "••••" : formatMoney(value) },
           splitLine: { lineStyle: { color: grid } },
         },
         {
@@ -65,11 +70,11 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
       ],
       series: [
         {
-          name: "Equity",
+          name: mode==="percentage" ? "Return %" : "Equity",
           type: "line",
           smooth: true,
           showSymbol: false,
-          data: series.map((p) => moneyToNumber(p.equity)),
+          data: mode==="percentage" ? equityValues.map(value=>base>0?((value-base)/base)*100:null) : equityValues,
           lineStyle: { color: line, width: 2 },
           areaStyle: {
             color:
@@ -89,7 +94,7 @@ export function EquityChart({ series }: { series: EquityPoint[] }) {
         },
       ],
     };
-  }, [series, theme]);
+  }, [series, theme, mode]);
 
   return (
     <ReactECharts

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { journalApi, type JournalRiskPolicy } from "@/lib/api/journal";
+import { formatMoney } from "@/lib/format";
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 type PolicyForm = Record<keyof JournalRiskPolicy, string>;
 const defaultForm: PolicyForm = {
@@ -28,10 +30,7 @@ function number(value: string): number {
   const n=Number(value);
   return Number.isFinite(n) ? n : 0;
 }
-function formatMoney(value:number,currency:string) {
-  try { return new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}).format(value); }
-  catch { return value.toFixed(2)+" "+currency; }
-}
+
 function validAccountType(value:string): value is JournalRiskPolicy["account_type"] {
   return accountTypes.includes(value);
 }
@@ -50,6 +49,7 @@ function Metric({label,value,sub}:{label:string;value:string;sub?:string}) {
 }
 
 export default function RiskPoliciesPage() {
+  const { mode: performanceMode } = usePerformanceDisplay();
   const client=useQueryClient();
   const accounts=useQuery({queryKey:["journal","accounts"],queryFn:journalApi.listAccounts});
   const [accountId,setAccountId]=useState("");
@@ -146,7 +146,7 @@ export default function RiskPoliciesPage() {
       <section className="panel risk-account-card">
         <div className="risk-account-top"><div><div className="risk-eyebrow">POLICY ACCOUNT</div><h2>{selected?.name??"Select an account"}</h2><p>{selected?.broker||"Journal account"} · {selected?.account_type??"Account"} · {selected?.currency??"—"}</p></div><span className={"risk-state-pill "+(loadedVersion>0?"configured":"new")}>{loadedVersion>0?"Saved policy · v"+loadedVersion:"New policy"}</span></div>
         <div className="risk-account-controls"><label className="risk-field"><span className="risk-field-label">Find an account</span><input value={accountSearch} onChange={e=>setAccountSearch(e.target.value)} placeholder="Search by account or broker…" /></label><label className="risk-field"><span className="risk-field-label">Trading account</span><select value={accountId} onChange={e=>switchAccount(e.target.value)}>{filteredAccounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label></div>
-        <div className="risk-account-facts"><Metric label="ACCOUNT CURRENCY" value={selected?.currency??"—"}/><Metric label="STARTING CAPITAL" value={selected?formatMoney(balance,selected.currency):"—"}/><Metric label="ACCOUNT TYPE" value={selected?.account_type??"—"}/></div>
+        <div className="risk-account-facts"><Metric label="ACCOUNT CURRENCY" value={selected?.currency??"—"}/><Metric label="STARTING CAPITAL" value={selected?formatPerformanceValue(balance,selected.currency,performanceMode):"—"}/><Metric label="ACCOUNT TYPE" value={selected?.account_type??"—"}/></div>
       </section>
       {policyQuery.isLoading?<div className="loading">Loading account policy…</div>:policyQuery.isError?<div className="error">Could not load this account’s risk policy. Your existing configuration has not been changed.</div>:<form onSubmit={save} className="risk-policy-layout">
         <div className="risk-policy-main">

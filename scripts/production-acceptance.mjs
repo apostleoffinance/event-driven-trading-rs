@@ -323,9 +323,67 @@ try {
     await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).waitFor({ state: "attached", timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-templates option").filter({ hasText: "Acceptance template" }).count(), 1, `Saved drawing layout did not persist at ${viewport.name}`);
 
-    const marketDimensions = await page.evaluate(() => ({ viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth }));
+    const marketDimensions = await page.evaluate(() => {
+      const tableScroller = document.querySelector(".market-table-scroll");
+      const tableScroll = tableScroller ? (() => {
+        const rect = tableScroller.getBoundingClientRect();
+        const style = getComputedStyle(tableScroller);
+        return {
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          clientWidth: tableScroller.clientWidth,
+          scrollWidth: tableScroller.scrollWidth,
+          overflowX: style.overflowX,
+          canScrollHorizontally: tableScroller.scrollWidth > tableScroller.clientWidth + 1,
+        };
+      })() : null;
+      const elements = [...document.querySelectorAll("body *")]
+        .filter(el => !el.closest(".market-table-scroll"))
+        .map(el => {
+          const rect = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return {
+            tag: el.tagName,
+            className: typeof el.className === "string" ? el.className : "",
+            id: el.id,
+            text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80),
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+            clientWidth: el.clientWidth,
+            scrollWidth: el.scrollWidth,
+            minWidth: style.minWidth,
+            overflowX: style.overflowX,
+            position: style.position,
+          };
+        })
+        .filter(el => el.right > window.innerWidth + 1 || el.left < -1 || el.scrollWidth > el.clientWidth + 2)
+        .sort((a, b) => b.right - a.right || b.scrollWidth - a.scrollWidth)
+        .slice(0, 30);
+      const main = document.querySelector(".main");
+      const mainRect = main?.getBoundingClientRect();
+      const mainStyle = main ? getComputedStyle(main) : null;
+      const mainDimensions = main && mainRect && mainStyle ? {
+        left: Math.round(mainRect.left),
+        right: Math.round(mainRect.right),
+        width: Math.round(mainRect.width),
+        clientWidth: main.clientWidth,
+        scrollWidth: main.scrollWidth,
+        boxSizing: mainStyle.boxSizing,
+        paddingLeft: mainStyle.paddingLeft,
+        paddingRight: mainStyle.paddingRight,
+      } : null;
+      return { viewportWidth: window.innerWidth, documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth, mainDimensions, tableScroll, elements };
+    });
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-market-data.png`, fullPage: true });
     assert.ok(marketDimensions.documentWidth <= marketDimensions.viewportWidth && marketDimensions.bodyWidth <= marketDimensions.viewportWidth, `Market Data horizontal overflow at ${viewport.name}: ${JSON.stringify(marketDimensions)}`);
+    if (viewport.width <= 600) {
+      assert.ok(marketDimensions.tableScroll, `OHLC table scroll container missing at ${viewport.name}`);
+      assert.equal(marketDimensions.tableScroll.overflowX, "auto", `OHLC table must expose an independent horizontal scroll area at ${viewport.name}: ${JSON.stringify(marketDimensions.tableScroll)}`);
+      assert.ok(marketDimensions.tableScroll.canScrollHorizontally, `OHLC table should remain horizontally scrollable on mobile at ${viewport.name}: ${JSON.stringify(marketDimensions.tableScroll)}`);
+      assert.ok(marketDimensions.tableScroll.right <= marketDimensions.viewportWidth + 1, `OHLC table scroll container exceeds viewport at ${viewport.name}: ${JSON.stringify(marketDimensions.tableScroll)}`);
+    }
     assert.deepEqual(pageErrors, [], `Browser runtime errors on Market Data at ${viewport.name}: ${pageErrors.join("; ")}`);
     assert.deepEqual(marketConsoleErrors, [], `Unexpected Market Data browser console errors at ${viewport.name}: ${marketConsoleErrors.join(" | ")}`);
     console.log(`PASS ${viewport.name}: Market Data canvas, eight timeframe controls, no overflow; expected M15 503 fixture verified; unexpected console errors: none.`);
@@ -357,8 +415,11 @@ try {
   const created = [];
   let accessToken = null;
   try {
-    const loginResponse = await page.goto(`${authFrontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+    const loginResponse = await page.goto(`${authFrontendUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(loginResponse?.status(), 200, "Production login route failed before authenticated acceptance.");
+    await page.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByLabel("Email").waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -533,7 +594,10 @@ try {
     const freshContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     try {
       const freshPage = await freshContext.newPage();
-      await freshPage.goto(`${authFrontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+      await freshPage.goto(`${authFrontendUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await freshPage.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor({ state: "visible", timeout: 20_000 });
+      await freshPage.getByLabel("Email").waitFor({ state: "visible", timeout: 20_000 });
+      await freshPage.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
       await freshPage.getByLabel("Email").fill(email);
       await freshPage.getByLabel("Password").fill(password);
       await freshPage.getByRole("button", { name: "Sign in" }).click();
@@ -796,23 +860,11 @@ try {
         0,
         "Replay must use the corrected full Journal trade timestamp, not the stale Analytics summary timestamp.",
       );
-      await replayPage.waitForFunction(() => {
-        const controls = [...document.querySelectorAll(".journal-playback-toolbar select")];
-        return controls.length === 3 && controls[0].value === "H1";
-      }, undefined, { timeout: 20_000 }).catch(async error => {
-        const state = await replayPage.evaluate(() => ({
-          url: location.href,
-          modal: document.querySelector(".trade-investigation-backdrop")?.innerText ?? null,
-          playback: document.querySelector(".journal-playback")?.innerText ?? null,
-          toolbarCount: document.querySelectorAll(".journal-playback-toolbar").length,
-          body: document.body.innerText.slice(-1800),
-        }));
-        console.log("DEBUG replay console/page errors:", JSON.stringify(replayErrors));
-        console.log("DEBUG replay market requests:", JSON.stringify(replayMarketRequests));
-        console.log("DEBUG replay page state:", JSON.stringify(state));
-        console.log("DEBUG replay readiness error:", error.message);
-        throw error;
-      });
+      const replayToolbar = playback.locator(".journal-playback-toolbar");
+      await replayToolbar.waitFor({ state: "visible" });
+      const replayControls = replayToolbar.locator("select");
+      assert.equal(await replayControls.count(), 4, "Replay toolbar should expose timeframe, provider, view and speed controls.");
+      assert.equal(await replayControls.nth(0).inputValue(), "H1", "Replay should start with the H1 timeframe selected.");
       await playback.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 }).catch(async error => {
         const state = await replayPage.evaluate(() => ({
           url: location.href,

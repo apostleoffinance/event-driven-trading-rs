@@ -9,6 +9,7 @@ import { EDGENEST_LOGO_SRC } from "@/lib/brand-assets";
 import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
+import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 export function Topbar({
   collapsed,
@@ -23,6 +24,7 @@ export function Topbar({
 }) {
   const env = environmentLabel(frontendConfig.environment);
   const { theme, toggleTheme } = useTheme();
+  const { mode: performanceMode, setMode: setPerformanceMode } = usePerformanceDisplay();
   const pathname = usePathname();
   const router = useRouter();
   const accountRef = useRef<HTMLDivElement>(null);
@@ -105,6 +107,7 @@ export function Topbar({
       <div className="topbar-right">
         <span aria-live="polite"><span className={`status-dot ${backendStatus === "connected" ? "ok" : backendStatus === "checking" ? "warn" : "off"}`} aria-hidden />{backendStatus === "connected" ? "SERVICE CONNECTED" : backendStatus === "checking" ? "CONNECTING" : "SERVICE UNAVAILABLE"}</span>
         <span aria-live="polite"><span className={`status-dot ${eventConnected ? "ok" : "off"}`} aria-hidden />{eventConnected ? "EVENTS AVAILABLE" : "EVENTS UNAVAILABLE"}</span>
+        <label className="performance-display-select" title="Choose how financial performance is displayed"><span>Performance</span><select aria-label="Performance display format" value={performanceMode} onChange={event => setPerformanceMode(event.target.value as "currency" | "percentage" | "r" | "hidden")}><option value="currency">Currency</option><option value="percentage">Percentage</option><option value="r">R-multiple</option><option value="hidden">Privacy</option></select></label>
         <button type="button" className="icon-btn" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" className="icon-btn" aria-label="Notifications" title="Notifications"><Bell size={16} /></button>
         <div className="account-menu" ref={accountRef}>

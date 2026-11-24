@@ -8,7 +8,8 @@ import { hasSession } from "@/lib/auth/session";
 import { JournalEquityCurve } from "@/components/dashboard/JournalEquityCurve";
 import { EventStreamList } from "@/components/events/EventStreamList";
 import { StatusBadge, orderTone, riskToneClass } from "@/components/data-display/StatusBadge";
-import { formatMoney, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
+import { formatPrice, formatQuantity } from "@/lib/format";
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import type { Account, Order, PortfolioSnapshot, Position, RiskOverview, TradingEvent } from "@/types/domain";
 
 type Period = "7d" | "30d" | "90d" | "ytd" | "all";
@@ -41,11 +42,6 @@ function dateRange(period: Period): { from?: string; to?: string } {
     to: `${toDate}T23:59:59.999Z`,
   };
 }
-function money(value: string | number | null | undefined, currency = "USD") {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
-  try { return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value)); }
-  catch { return Number(value).toFixed(2) + " " + currency; }
-}
 function finite(value: string | number | null | undefined) { const n = Number(value); return Number.isFinite(n) ? n : 0; }
 function accountSummaryLabel(account: JournalAccount) { return [account.broker || "Journal", account.account_type, account.currency].filter(Boolean).join(" · "); }
 function isSavedLayout(value: unknown): value is SavedLayout {
@@ -60,6 +56,7 @@ export function DashboardWorkspace({
   executionAccounts: Account[]; portfolio: PortfolioSnapshot | null; positions: Position[];
   orders: Order[]; risk: RiskOverview | null; events: TradingEvent[]; loading: boolean; error: string | null;
 }) {
+  const { mode: performanceMode } = usePerformanceDisplay();
   const [authenticated, setAuthenticated] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [period, setPeriod] = useState<Period>("30d");
@@ -91,6 +88,8 @@ export function DashboardWorkspace({
   const ready = activeQueryResults.filter(q => q?.data).map(q => q!.data as JournalAnalytics);
   const currencies = [...new Set(activeAccounts.map(a => a.currency))];
   const commonCurrency = currencies.length === 1 ? currencies[0] : null;
+  const performanceBaseline = activeAccounts.reduce((sum,account)=>sum+finite(account.initial_balance),0);
+  const showMoney = (value:string|number|null|undefined,currency="USD") => formatPerformanceValue(value,currency,performanceMode,{percentage:performanceBaseline>0&&value!=null?Number(value)/performanceBaseline*100:null});
   const totals = (() => {
     const complete = !accountsQuery.isLoading && !accountsQuery.error && activeQueryResults.length === activeAccounts.length && activeQueryResults.every(q => Boolean(q?.data));
     const sum = (key: "trade_count" | "wins" | "losses" | "breakeven") => ready.reduce((n, x) => n + x[key], 0);
@@ -147,19 +146,19 @@ export function DashboardWorkspace({
     {accountsQuery.error ? <section className="panel dashboard-alert" role="alert"><strong>Journal accounts could not be loaded.</strong><button className="btn" onClick={()=>void accountsQuery.refetch()}>Retry</button></section> : null}
 
     <section className="dashboard-kpis" aria-label="Journal performance summary">
-      <article className="panel dashboard-kpi"><span>JOURNAL NET P&amp;L</span><strong className={totals.netProfit == null ? "" : totals.netProfit >= 0 ? "pos" : "neg"}>{totals.netProfit == null ? (currencies.length > 1 ? "Mixed currencies" : "—") : money(totals.netProfit, commonCurrency || "USD")}</strong><small>{commonCurrency ? commonCurrency + " · realized" : "Select one currency to view monetary totals"}</small></article>
+      <article className="panel dashboard-kpi"><span>JOURNAL NET P&amp;L</span><strong className={totals.netProfit == null ? "" : totals.netProfit >= 0 ? "pos" : "neg"}>{totals.netProfit == null ? (currencies.length > 1 ? "Mixed currencies" : "—") : showMoney(totals.netProfit, commonCurrency || "USD")}</strong><small>{commonCurrency ? commonCurrency + " · realized" : "Select one currency to view monetary totals"}</small></article>
       <article className="panel dashboard-kpi"><span>CLOSED TRADES</span><strong>{totals.complete ? totals.trades.toLocaleString() : "—"}</strong><small>{totals.complete ? `${totals.wins} wins · ${totals.losses} losses · ${totals.breakeven} breakeven` : "Waiting for all selected account data"}</small></article>
       <article className="panel dashboard-kpi"><span>WIN RATE</span><strong>{totals.winRate == null ? "—" : totals.winRate.toFixed(1) + "%"}</strong><small>{totals.trades ? "Across selected Journal accounts" : "No closed trades in this period"}</small></article>
       <article className="panel dashboard-kpi"><span>PROFIT FACTOR</span><strong>{totals.profitFactor == null ? "—" : totals.profitFactor.toFixed(2)}</strong><small>{totals.profitFactor == null ? "Insufficient comparable P&amp;L data" : "Gross profit ÷ gross loss"}</small></article>
-      <article className="panel dashboard-kpi"><span>MAX DRAWDOWN</span><strong>{totals.maxDrawdown == null ? "—" : money(totals.maxDrawdown, commonCurrency || "USD")}</strong><small>{totals.maxDrawdown == null ? "Unavailable across mixed currencies" : "Largest reported realized drawdown"}</small></article>
+      <article className="panel dashboard-kpi"><span>MAX DRAWDOWN</span><strong>{totals.maxDrawdown == null ? "—" : showMoney(totals.maxDrawdown, commonCurrency || "USD")}</strong><small>{totals.maxDrawdown == null ? "Unavailable across mixed currencies" : "Largest reported realized drawdown"}</small></article>
     </section>
 
     {isVisible("performance") ? <section className={"dashboard-main-grid"+(!isVisible("risk")?" single":"")}>
       <article className="panel dashboard-panel dashboard-performance">
         <div className="dashboard-panel-heading"><div><h2>Performance overview</h2><p>{selectedAccountData ? activeAccounts[0]?.name + " · " + (range.from ? range.from + " to " + range.to : "All time") : "Select a single account to inspect cumulative realised P&L and drawdown."}</p></div><Link href="/analytics" className="dashboard-text-link">Open Analytics Lab ↗</Link></div>
         {activeQueryResults.some(q=>q?.isLoading) ? <div className="dashboard-chart-empty">Calculating Journal performance…</div> :
-          selectedAccountData && selectedAccountData.equity_curve.length ? <JournalEquityCurve analytics={selectedAccountData} currency={activeAccounts[0]?.currency || "USD"}/> :
-          <>{activeAccounts.length > 1 ? <div className="dashboard-account-comparison">{activeAccounts.map((account,index)=>{const stats=analyticsQueries[index]?.data;return <div className="dashboard-comparison-row" key={account.id}><div><strong>{account.name}</strong><small>{account.currency} · {stats?.trade_count ?? "—"} closed trades</small></div><strong className={stats?(finite(stats.net_profit)>=0?"pos":"neg"):""}>{stats?money(stats.net_profit,account.currency):"—"}</strong><button type="button" className="dashboard-text-link" onClick={()=>setSelectedAccount(account.id)}>Inspect ↗</button></div>;})}</div> : <div className="dashboard-chart-empty"><strong>{activeAccounts.length === 0 ? "No Journal accounts yet" : "No equity history for this period"}</strong><span>Record or import closed trades to build your performance history.</span>{activeAccounts.length === 0 ? <Link href="/journal" className="btn primary">Create Journal account</Link> : null}</div>}</>}
+          selectedAccountData && selectedAccountData.equity_curve.length ? <JournalEquityCurve analytics={selectedAccountData} currency={activeAccounts[0]?.currency || "USD"} startingBalance={Number(activeAccounts[0]?.initial_balance||0)}/> :
+          <>{activeAccounts.length > 1 ? <div className="dashboard-account-comparison">{activeAccounts.map((account,index)=>{const stats=analyticsQueries[index]?.data;return <div className="dashboard-comparison-row" key={account.id}><div><strong>{account.name}</strong><small>{account.currency} · {stats?.trade_count ?? "—"} closed trades</small></div><strong className={stats?(finite(stats.net_profit)>=0?"pos":"neg"):""}>{stats?showMoney(stats.net_profit,account.currency):"—"}</strong><button type="button" className="dashboard-text-link" onClick={()=>setSelectedAccount(account.id)}>Inspect ↗</button></div>;})}</div> : <div className="dashboard-chart-empty"><strong>{activeAccounts.length === 0 ? "No Journal accounts yet" : "No equity history for this period"}</strong><span>Record or import closed trades to build your performance history.</span>{activeAccounts.length === 0 ? <Link href="/journal" className="btn primary">Create Journal account</Link> : null}</div>}</>}
       </article>
       {isVisible("risk") ? <article className="panel dashboard-panel dashboard-risk">
         <div className="dashboard-panel-heading"><div><h2>Risk overview</h2><p>Execution risk controls and account health</p></div><Link href="/risk" className="dashboard-text-link">Risk Center ↗</Link></div>
@@ -175,8 +174,8 @@ export function DashboardWorkspace({
     {isVisible("execution") ? <section className="panel dashboard-panel dashboard-accounts">
       <div className="dashboard-panel-heading"><div><h2>Execution accounts</h2><p>Broker-connected balances, equity and connection health — not Journal estimates.</p></div><Link href="/accounts" className="dashboard-text-link">Manage accounts ↗</Link></div>
       {executionConnected ? <>
-        {portfolio ? <div className="dashboard-execution-totals"><div><small>Portfolio equity</small><strong>{formatMoney(portfolio.totalEquity)}</strong></div><div><small>Available capital</small><strong>{formatMoney(portfolio.availableCapital)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(portfolio.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(portfolio.dailyPnl)}</strong></div><div><small>Gross exposure</small><strong>{formatMoney(portfolio.grossExposure)}</strong></div></div> : <p className="muted">Broker portfolio values are currently unavailable.</p>}
-        <div className="dashboard-execution-account-list">{executionAccounts.map(account=><div className="dashboard-execution-account" key={account.id}><div><strong>{account.name}</strong><span>{account.venueName} · {account.environment} · {account.type}</span></div><div><small>Equity</small><strong>{formatMoney(account.equity)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(account.dailyPnl)>=0?"pos":"neg"}>{formatSignedMoney(account.dailyPnl)}</strong></div><div><small>Connection</small><StatusBadge tone={account.connectionStatus==="HEALTHY"?"ok":account.connectionStatus==="DISCONNECTED"||account.connectionStatus==="ERROR"?"bad":"warn"}>{account.connectionStatus}</StatusBadge></div></div>)}</div>
+        {portfolio ? <div className="dashboard-execution-totals"><div><small>Portfolio equity</small><strong>{showMoney(portfolio.totalEquity)}</strong></div><div><small>Available capital</small><strong>{showMoney(portfolio.availableCapital)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(portfolio.dailyPnl)>=0?"pos":"neg"}>{showMoney(portfolio.dailyPnl)}</strong></div><div><small>Gross exposure</small><strong>{showMoney(portfolio.grossExposure)}</strong></div></div> : <p className="muted">Broker portfolio values are currently unavailable.</p>}
+        <div className="dashboard-execution-account-list">{executionAccounts.map(account=><div className="dashboard-execution-account" key={account.id}><div><strong>{account.name}</strong><span>{account.venueName} · {account.environment} · {account.type}</span></div><div><small>Equity</small><strong>{showMoney(account.equity)}</strong></div><div><small>Daily P&amp;L</small><strong className={finite(account.dailyPnl)>=0?"pos":"neg"}>{showMoney(account.dailyPnl)}</strong></div><div><small>Connection</small><StatusBadge tone={account.connectionStatus==="HEALTHY"?"ok":account.connectionStatus==="DISCONNECTED"||account.connectionStatus==="ERROR"?"bad":"warn"}>{account.connectionStatus}</StatusBadge></div></div>)}</div>
       </> : <div className="dashboard-empty-inline"><span>No execution account connected. Your Journal accounts and historical performance remain available independently.</span><Link href="/accounts" className="btn primary">Set up execution account</Link></div>}
     </section> : null}
 
@@ -186,7 +185,7 @@ export function DashboardWorkspace({
         const index=journalAccounts.findIndex(a=>a.id===account.id); const query=analyticsQueries[index]; const stats=query?.data;
         return <button type="button" className={"dashboard-account-card"+(selectedAccount===account.id?" selected":"")} key={account.id} onClick={()=>setSelectedAccount(selectedAccount===account.id?"all":account.id)}>
           <div className="dashboard-account-top"><div><strong>{account.name}</strong><span>{accountSummaryLabel(account)}</span></div><StatusBadge tone={query?.isError?"warn":query?.isLoading||!stats?"info":"ok"}>{query?.isError?"Unavailable":query?.isLoading||!stats?"Loading":account.linked_trading_account_id?"Linked":"Journal only"}</StatusBadge></div>
-          <div className="dashboard-account-metrics"><div><small>Closed trades</small><strong>{stats?.trade_count ?? "—"}</strong></div><div><small>Net P&amp;L</small><strong className={stats ? finite(stats.net_profit)>=0?"pos":"neg":""}>{stats?money(stats.net_profit,account.currency):"—"}</strong></div><div><small>Win rate</small><strong>{stats?.win_rate_percent == null?"—":Number(stats.win_rate_percent).toFixed(1)+"%"}</strong></div></div>
+          <div className="dashboard-account-metrics"><div><small>Closed trades</small><strong>{stats?.trade_count ?? "—"}</strong></div><div><small>Net P&amp;L</small><strong className={stats ? finite(stats.net_profit)>=0?"pos":"neg":""}>{stats?showMoney(stats.net_profit,account.currency):"—"}</strong></div><div><small>Win rate</small><strong>{stats?.win_rate_percent == null?"—":Number(stats.win_rate_percent).toFixed(1)+"%"}</strong></div></div>
           <span className="dashboard-account-footer">{selectedAccount===account.id?"Selected · click to clear":"View account performance →"}</span>
         </button>;
       })}</div> : <div className="dashboard-empty-inline"><span>No Journal accounts yet.</span><Link href="/journal" className="btn primary">Create or import history</Link></div>}
@@ -194,7 +193,7 @@ export function DashboardWorkspace({
 
     {isVisible("positions") || isVisible("activity") ? <section className="dashboard-bottom-grid">
       {isVisible("positions") ? <article className="panel dashboard-panel"><div className="dashboard-panel-heading"><div><h2>Open positions</h2><p>Live execution positions</p></div><Link href="/positions" className="dashboard-text-link">View all ↗</Link></div>
-        {executionConnected ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Instrument</th><th>Side</th><th>Quantity</th><th>Entry</th><th>Mark</th><th>Unrealized P&amp;L</th></tr></thead><tbody>{positions.length?positions.slice(0,8).map(p=><tr key={p.id}><td>{p.instrumentId}</td><td>{p.side}</td><td className="num">{formatQuantity(p.quantity)}</td><td className="num">{formatPrice(p.entryPrice)}</td><td className="num">{formatPrice(p.markPrice)}</td><td className={"num "+(finite(p.unrealizedPnl)>=0?"pos":"neg")}>{formatSignedMoney(p.unrealizedPnl)}</td></tr>):<tr><td colSpan={6} className="muted">No open execution positions.</td></tr>}</tbody></table></div> : <p className="muted">Connect an execution account to see live positions. Journal trades are available in your trade history.</p>}
+        {executionConnected ? <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Instrument</th><th>Side</th><th>Quantity</th><th>Entry</th><th>Mark</th><th>Unrealized P&amp;L</th></tr></thead><tbody>{positions.length?positions.slice(0,8).map(p=><tr key={p.id}><td>{p.instrumentId}</td><td>{p.side}</td><td className="num">{formatQuantity(p.quantity)}</td><td className="num">{formatPrice(p.entryPrice)}</td><td className="num">{formatPrice(p.markPrice)}</td><td className={"num "+(finite(p.unrealizedPnl)>=0?"pos":"neg")}>{showMoney(p.unrealizedPnl)}</td></tr>):<tr><td colSpan={6} className="muted">No open execution positions.</td></tr>}</tbody></table></div> : <p className="muted">Connect an execution account to see live positions. Journal trades are available in your trade history.</p>}
       </article> : null}
       {isVisible("activity") ? <article className="panel dashboard-panel"><div className="dashboard-panel-heading"><div><h2>Recent activity</h2><p>Latest platform events</p></div><Link href="/events" className="dashboard-text-link">Activity log ↗</Link></div><EventStreamList events={events} limit={7}/></article> : null}
     </section> : null}

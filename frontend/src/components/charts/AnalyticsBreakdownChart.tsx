@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import type { JournalAnalytics } from "@/lib/api/journal";
+import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 type Group = NonNullable<JournalAnalytics["by_symbol"]>[number];
@@ -36,16 +37,19 @@ export function AnalyticsBreakdownChart({
   title,
   groups,
   currency = "USD",
+  baseline = 0,
   onSelect,
   sortBy = "pnl",
 }: {
   title: string;
   groups: Group[];
   currency?: string;
+  baseline?: number;
   onSelect?: (key: string) => void;
   sortBy?: "pnl" | "source";
 }) {
   const { theme } = useTheme();
+  const { mode } = usePerformanceDisplay();
   const ranked = useMemo(
     () =>
       groups
@@ -62,6 +66,8 @@ export function AnalyticsBreakdownChart({
     const positive = css("--positive", theme === "light" ? "#1a7f4b" : "#4fd4a1");
     const negative = css("--negative", theme === "light" ? "#c6283a" : "#f07176");
     const values = ranked.map((group) => Number(group.net_pnl));
+    const chartValues = mode==="percentage" && baseline>0 ? values.map(value=>value/baseline*100) : values;
+    const shownMoney = (value:number) => mode==="currency" ? formatMoney(value,currency) : mode==="percentage" && baseline>0 ? (value/baseline*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—";
     const height = Math.max(220, Math.min(520, ranked.length * 38 + 82));
 
     return {
@@ -80,17 +86,17 @@ export function AnalyticsBreakdownChart({
           if (!group) return "";
           return [
             displayGroupLabel(group.key),
-            "Net P&L: " + formatMoney(Number(group.net_pnl), currency),
+            "Net performance: " + shownMoney(Number(group.net_pnl)),
             "Trades: " + group.trades,
             "Win rate: " + (Number.isFinite(Number(group.win_rate_percent)) ? Number(group.win_rate_percent).toFixed(1) + "%" : "Not available"),
-            "Expectancy: " + (group.expectancy == null ? "Not available" : formatMoney(Number(group.expectancy), currency)),
+            "Expectancy: " + (group.expectancy == null ? "Not available" : shownMoney(Number(group.expectancy))),
           ].join("<br/>");
         },
       },
       xAxis: {
         type: "value",
         scale: true,
-        axisLabel: { color: dim, formatter: (value: number) => formatMoney(value, currency) },
+        axisLabel: { color: dim, formatter: (value: number) => shownMoney(mode==="percentage"&&baseline>0?value*baseline/100:value) },
         axisLine: { lineStyle: { color: axis } },
         splitLine: { lineStyle: { color: grid } },
       },
@@ -110,9 +116,9 @@ export function AnalyticsBreakdownChart({
         : [],
       series: [
         {
-          name: "Net P&L",
+          name: mode==="percentage" ? "Net return" : "Net P&L",
           type: "bar",
-          data: values.map((value) => ({
+          data: chartValues.map((value) => ({
             value,
             itemStyle: {
               color: value >= 0 ? positive : negative,
@@ -124,7 +130,7 @@ export function AnalyticsBreakdownChart({
             show: ranked.length <= 12,
             position: "right",
             color: dim,
-            formatter: (params: { value: number }) => formatMoney(params.value, currency),
+            formatter: (params: { value: number }) => shownMoney(mode==="percentage"&&baseline>0?params.value*baseline/100:params.value),
           },
           emphasis: { focus: "series" },
         },
@@ -134,7 +140,7 @@ export function AnalyticsBreakdownChart({
       animationEasing: "cubicOut",
       __height: height,
     };
-  }, [currency, ranked, sortBy, theme]);
+  }, [currency, ranked, theme, mode, baseline]);
 
   if (ranked.length === 0) {
     return <div className="analytics-chart-empty" role="status">No qualifying data for this breakdown.</div>;

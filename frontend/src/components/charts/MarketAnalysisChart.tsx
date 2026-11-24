@@ -124,7 +124,7 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
       const gridColor = cssColor("--chart-grid", "#2a2d34");
       const axisColor = cssColor("--chart-axis", "#3a3e48");
       chart = createChart(node, {
-        width: Math.max(node.clientWidth, 320),
+        width: Math.max(node.clientWidth, 1),
         height: 500,
         layout: { background: { color: cssColor("--bg-1", "#121418") }, textColor, fontFamily: '"Inter", -apple-system, "Segoe UI", sans-serif', fontSize: 12 },
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
@@ -149,14 +149,22 @@ function MarketAnalysisChartInstance({ onRetry }: { onRetry: () => void }) {
         color: "#e5ad48", lineWidth: 2, priceLineVisible: false, lastValueVisible: false, title: "SMA 20",
         priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
       });
-      resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(entries => {
-        const width = entries[0]?.contentRect.width;
-        if (width && width > 0) chart?.applyOptions({ width });
-      }) : null;
-      if (resizeObserver) resizeObserver.observe(chartContainer);
-      else {
-        resizeHandler = () => { if (chartContainer.clientWidth > 0) chart?.applyOptions({ width: chartContainer.clientWidth }); };
+      // Measure the rendered container, not an ancestor's intrinsic/min-content
+      // width. This keeps Lightweight Charts aligned with the responsive drawing stage.
+      const resizeToContainer = () => {
+        const width = Math.floor(chartContainer.getBoundingClientRect().width);
+        if (width > 0) chart?.applyOptions({ width });
+      };
+      resizeObserver = typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(resizeToContainer)
+        : null;
+      if (resizeObserver) {
+        resizeObserver.observe(chartContainer);
+        resizeToContainer();
+      } else {
+        resizeHandler = resizeToContainer;
         window.addEventListener("resize", resizeHandler);
+        resizeToContainer();
       }
       setChartError(null);
       setChartReady(true);

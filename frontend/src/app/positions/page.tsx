@@ -5,11 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatMoney, formatNumber, formatPrice, formatQuantity, formatSignedMoney } from "@/lib/format";
+import { formatNumber, formatPrice, formatQuantity } from "@/lib/format";
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import type { Position } from "@/types/domain";
 
 export default function PositionsPage() {
+  const { mode: performanceMode } = usePerformanceDisplay();
   const [side, setSide] = useState<"ALL" | "Long" | "Short">("ALL");
   const [selected, setSelected] = useState<Position | null>(null);
 
@@ -51,7 +53,7 @@ export default function PositionsPage() {
           <span
             className={`num ${Number(row.original.unrealizedPnl) >= 0 ? "pos" : "neg"}`}
           >
-            {formatSignedMoney(row.original.unrealizedPnl)}
+            {formatPerformanceValue(row.original.unrealizedPnl,"USD",performanceMode)}
           </span>
         ),
       },
@@ -59,13 +61,13 @@ export default function PositionsPage() {
         accessorKey: "realizedPnl",
         header: "rP&L",
         cell: ({ row }) => (
-          <span className="num">{formatSignedMoney(row.original.realizedPnl)}</span>
+          <span className="num">{formatPerformanceValue(row.original.realizedPnl,"USD",performanceMode)}</span>
         ),
       },
       {
         accessorKey: "exposure",
         header: "Exposure",
-        cell: ({ getValue }) => <span className="num">{formatMoney(String(getValue()))}</span>,
+        cell: ({ getValue }) => <span className="num">{formatPerformanceValue(String(getValue()),"USD",performanceMode)}</span>,
       },
       {
         accessorKey: "riskPct",
@@ -84,7 +86,7 @@ export default function PositionsPage() {
         ),
       },
     ],
-    [],
+    [performanceMode],
   );
 
   if (isLoading) return <div className="loading">Loading positions…</div>;
@@ -136,7 +138,7 @@ export default function PositionsPage() {
               Entry {formatPrice(selected.entryPrice)} · Mark {formatPrice(selected.markPrice)}
             </div>
             <div className="metric-sub num">
-              uP&L {formatSignedMoney(selected.unrealizedPnl)}
+              uP&L {formatPerformanceValue(selected.unrealizedPnl,"USD",performanceMode)}
             </div>
             <button
               type="button"

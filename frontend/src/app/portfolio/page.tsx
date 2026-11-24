@@ -5,7 +5,8 @@ import { EquityChart } from "@/components/charts/EquityChart";
 import { Metric } from "@/components/data-display/Metric";
 import { GradientAccountCard } from "@/components/data-display/GradientAccountCard";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatMoney, formatSignedMoney } from "@/lib/format";
+
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import type { EquityPoint, PortfolioSnapshot } from "@/types/domain";
 import { journalApi, type JournalTrade } from "@/lib/api/journal";
@@ -34,6 +35,7 @@ const amount = (value: string | null | undefined) => {
 };
 
 export default function PortfolioPage() {
+  const { mode: performanceMode } = usePerformanceDisplay();
   const [brokerPortfolio, setBrokerPortfolio] = useState<PortfolioSnapshot | null>(null);
   const [brokerError, setBrokerError] = useState<string | null>(null);
   const [journalAccounts, setJournalAccounts] = useState<JournalPortfolioAccount[]>([]);
@@ -140,12 +142,12 @@ export default function PortfolioPage() {
       ) : null}
       {brokerError && !useJournalFallback ? <div className="error" role="alert">Trading portfolio unavailable: {brokerError}</div> : null}
       <div className="grid grid-kpi" style={{ marginBottom: 12 }}>
-        <GradientAccountCard eyebrow={useJournalFallback ? "JOURNAL LEDGER VIEW" : "PORTFOLIO OVERVIEW"} title="Total equity">
-          <div className="portfolio-equity-value">{useJournalFallback && currency ? formatMoney(totalEquity, currency) : formatMoney(totalEquity)}</div>
+        <GradientAccountCard eyebrow={useJournalFallback ? "JOURNAL LEDGER VIEW" : "PORTFOLIO OVERVIEW"} title={performanceMode === "currency" ? "Total equity" : "Account return"}>
+          <div className="portfolio-equity-value">{formatPerformanceValue(totalEquity,currency ?? "USD",performanceMode,{percentage:cumulativeReturn})}</div>
           <div className="portfolio-equity-caption">{useJournalFallback ? "Journal-ledger equity · broker equity unavailable" : "Broker-reported portfolio equity"}</div>
         </GradientAccountCard>
-        <Metric label="REALIZED P&L" value={realizedPnl === null ? "Unknown" : useJournalFallback && currency ? formatSignedMoney(realizedPnl) + " " + currency : formatSignedMoney(realizedPnl)} signed />
-        <Metric label="UNREALIZED P&L" value={useJournalFallback ? "Unavailable" : formatMoney(p.unrealizedPnl)} signed />
+        <Metric label="REALIZED P&L" value={realizedPnl === null ? "Unknown" : formatPerformanceValue(realizedPnl,currency ?? "USD",performanceMode,{percentage:journalInitial>0?(journalRealized/journalInitial)*100:null})} signed />
+        <Metric label="UNREALIZED P&L" value={useJournalFallback ? "Unavailable" : formatPerformanceValue(p.unrealizedPnl,currency ?? "USD",performanceMode)} signed />
         <div className="metric panel">
           <div className="metric-label">CUMULATIVE RETURN</div>
           <div className={`metric-value ${cumulativeReturn >= 0 ? "pos" : "neg"}`}>{cumulativeReturn.toFixed(2)}%</div>
@@ -162,9 +164,9 @@ export default function PortfolioPage() {
               <tbody>{journalAccounts.map((account) => (
                 <tr key={account.account_id}>
                   <td>{account.name}</td><td>{account.currency}</td>
-                  <td className="num">{formatMoney(account.initial_balance, account.currency)}</td>
-                  <td className={`num ${amount(account.realized_net_pnl) >= 0 ? "pos" : "neg"}`}>{formatSignedMoney(account.realized_net_pnl)} {account.currency}</td>
-                  <td className="num">{formatMoney(account.journal_equity, account.currency)}</td>
+                  <td className="num">{formatPerformanceValue(account.initial_balance,account.currency,performanceMode)}</td>
+                  <td className={`num ${amount(account.realized_net_pnl) >= 0 ? "pos" : "neg"}`}>{formatPerformanceValue(account.realized_net_pnl,account.currency,performanceMode,{percentage:Number(account.initial_balance)>0?(Number(account.realized_net_pnl)/Number(account.initial_balance))*100:null})}</td>
+                  <td className="num">{formatPerformanceValue(account.journal_equity,account.currency,performanceMode)}</td>
                   <td>{account.linked_trading_account_id || "Journal only"}</td><td className="num">{account.trade_count}</td>
                 </tr>
               ))}</tbody>
@@ -180,18 +182,18 @@ export default function PortfolioPage() {
         <div className="panel">
           <div className="panel-title">EXPOSURE</div>
           {useJournalFallback ? <p className="metric-sub">Unavailable — Journal trade records do not provide broker-valued open-position exposure.</p> : <>
-            <div className="metric-sub">Gross {formatMoney(p.grossExposure)}</div>
-            <div className="metric-sub">Net {formatMoney(p.netExposure)}</div>
+            <div className="metric-sub">Gross {formatPerformanceValue(p.grossExposure,currency ?? "USD",performanceMode,{percentage:p.exposurePct})}</div>
+            <div className="metric-sub">Net {formatPerformanceValue(p.netExposure,currency ?? "USD",performanceMode)}</div>
             <div className="metric-sub">Exposure {p.exposurePct.toFixed(1)}%</div>
           </>}
           <div className="panel-title" style={{ marginTop: 16 }}>P&L BY STRATEGY / SETUP</div>
-          {pnlByStrategy.length ? pnlByStrategy.map((row) => <div key={row.strategyId} className="metric-sub num">{row.strategyId}: {formatSignedMoney(row.pnl)}</div>) : <p className="metric-sub">No strategy/setup P&L data available.</p>}
+          {pnlByStrategy.length ? pnlByStrategy.map((row) => <div key={row.strategyId} className="metric-sub num">{row.strategyId}: {formatPerformanceValue(row.pnl,currency ?? "USD",performanceMode)}</div>) : <p className="metric-sub">No strategy/setup P&L data available.</p>}
           <div className="panel-title" style={{ marginTop: 16 }}>P&L BY INSTRUMENT</div>
-          {pnlByInstrument.length ? pnlByInstrument.map((row) => <div key={row.instrumentId} className="metric-sub num">{row.instrumentId}: {formatSignedMoney(row.pnl)}</div>) : <p className="metric-sub">No instrument P&L data available.</p>}
+          {pnlByInstrument.length ? pnlByInstrument.map((row) => <div key={row.instrumentId} className="metric-sub num">{row.instrumentId}: {formatPerformanceValue(row.pnl,currency ?? "USD",performanceMode)}</div>) : <p className="metric-sub">No instrument P&L data available.</p>}
         </div>
       </div>
       {journalAccounts.length > 0 && singleCurrency && useJournalFallback ? (
-        <p className="metric-sub">Journal portfolio: {formatMoney(journalInitial.toFixed(2), currency!)} starting balance · {formatSignedMoney(journalRealized.toFixed(2))} {currency} realized P&L · {closedTrades.length} closed trades included in the equity curve.</p>
+        <p className="metric-sub">Journal portfolio: {formatPerformanceValue(journalInitial.toFixed(2),currency!,performanceMode)} starting balance · {formatPerformanceValue(journalRealized.toFixed(2),currency!,performanceMode,{percentage:journalInitial>0?(journalRealized/journalInitial)*100:null})} realized P&L · {closedTrades.length} closed trades included in the equity curve.</p>
       ) : null}
     </div>
   );

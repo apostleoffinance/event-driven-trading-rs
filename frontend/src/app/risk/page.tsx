@@ -7,7 +7,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { riskDecisionTone, riskToneClass, StatusBadge } from "@/components/data-display/StatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { formatMoney, formatQuantity, formatSignedMoney } from "@/lib/format";
+import { formatQuantity } from "@/lib/format";
+import { formatPerformanceValue, usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { getRepositories } from "@/lib/repositories";
 import { journalApi, type JournalRiskPolicyEnvelope } from "@/lib/api/journal";
 import type { Position, RiskDecisionRecord } from "@/types/domain";
@@ -41,6 +42,7 @@ function PanelHeading({ eyebrow, title, action }: { eyebrow: string; title: stri
 }
 
 export default function RiskPage() {
+  const { mode: performanceMode } = usePerformanceDisplay();
   const overviewQ = useQuery({ queryKey: ["risk", "overview"], queryFn: () => getRepositories().risk.getOverview(), refetchInterval: 15000 });
   const decisionsQ = useQuery({ queryKey: ["risk", "decisions"], queryFn: () => getRepositories().risk.listDecisions(), refetchInterval: 15000 });
   const tradingAccountsQ = useQuery({ queryKey: ["accounts"], queryFn: () => getRepositories().accounts.listAccounts(), refetchInterval: 30000 });
@@ -106,7 +108,7 @@ export default function RiskPage() {
       <MetricCard label="RISK ENGINE" value={overview?.engineStatus ?? "Unavailable"} detail={overview?.killSwitch ? "Trading halt is active" : "Execution service state"} tone={engineTone} />
       <MetricCard label="DAILY LOSS" value={pct(overview?.dailyLossPct)} detail={overview?.dailyLossLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.dailyLossLimitPct)}`} tone={dailyUtilization != null && dailyUtilization >= 80 ? "danger" : "neutral"} progress={dailyUtilization} />
       <MetricCard label="MAX DRAWDOWN" value={pct(overview?.maxDrawdownPct)} detail={overview?.maxDrawdownLimitPct == null ? "No execution limit reported" : `Limit ${limit(overview.maxDrawdownLimitPct)}`} tone={drawdownUtilization != null && drawdownUtilization >= 80 ? "warning" : "neutral"} progress={drawdownUtilization} />
-      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatMoney(portfolio.grossExposure) : "—"} detail={portfolio ? `${fixed(portfolio.exposurePct, 1, "%")} of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} />
+      <MetricCard label="GROSS EXPOSURE" value={portfolio ? formatPerformanceValue(portfolio.grossExposure,"USD",performanceMode,{percentage:portfolio.exposurePct}) : "—"} detail={portfolio ? `${fixed(portfolio.exposurePct, 1, "%")} of equity · ${positions.length} open positions` : "Portfolio exposure unavailable"} />
     </section>
 
     {overview?.killSwitch ? <div className="risk-center-alert danger" role="alert"><strong>Trading kill switch is active.</strong><span>New execution may be blocked by the risk engine. Review the engine and account controls before resuming.</span></div> : null}
@@ -151,10 +153,10 @@ export default function RiskPage() {
         </section>
         <section className="panel risk-center-panel">
           <PanelHeading eyebrow="LIVE PORTFOLIO" title="Open position risk" />
-          <div className="risk-position-total"><strong className={openPositionsPnl >= 0 ? "pos" : "neg"}>{formatSignedMoney(openPositionsPnl)}</strong><small>Unrealized P&amp;L · {positions.length} positions</small></div>
-          <div className="risk-readiness-row"><span>Gross exposure</span><strong>{portfolio ? formatMoney(portfolio.grossExposure) : "—"}</strong></div>
-          <div className="risk-readiness-row"><span>Net exposure</span><strong>{portfolio ? formatMoney(portfolio.netExposure) : "—"}</strong></div>
-          <div className="risk-readiness-row"><span>Portfolio equity</span><strong>{portfolio ? formatMoney(portfolio.totalEquity) : "—"}</strong></div>
+          <div className="risk-position-total"><strong className={openPositionsPnl >= 0 ? "pos" : "neg"}>{formatPerformanceValue(openPositionsPnl,"USD",performanceMode)}</strong><small>Unrealized P&amp;L · {positions.length} positions</small></div>
+          <div className="risk-readiness-row"><span>Gross exposure</span><strong>{portfolio ? formatPerformanceValue(portfolio.grossExposure,"USD",performanceMode,{percentage:portfolio.exposurePct}) : "—"}</strong></div>
+          <div className="risk-readiness-row"><span>Net exposure</span><strong>{portfolio ? formatPerformanceValue(portfolio.netExposure,"USD",performanceMode) : "—"}</strong></div>
+          <div className="risk-readiness-row"><span>Portfolio equity</span><strong>{portfolio ? formatPerformanceValue(portfolio.totalEquity,"USD",performanceMode) : "—"}</strong></div>
           <small className="risk-center-footnote">Position stop-risk is not supplied by the current trading positions API; exposure is not a substitute for stop-loss risk.</small>
         </section>
       </aside>
@@ -168,8 +170,8 @@ export default function RiskPage() {
             <div><strong>{position.instrumentId}</strong><small>{position.side} · {String(position.accountId ?? "Unknown").slice(0, 12)}</small></div>
             <div><small>QUANTITY</small><strong>{formatQuantity(position.quantity)}</strong></div>
             <div><small>ENTRY / MARK</small><strong>{position.entryPrice} / {position.markPrice}</strong></div>
-            <div><small>EXPOSURE</small><strong>{formatMoney(position.exposure)}</strong></div>
-            <div><small>UNREALIZED P&amp;L</small><strong className={amount(position.unrealizedPnl) >= 0 ? "pos" : "neg"}>{formatSignedMoney(position.unrealizedPnl)}</strong></div>
+            <div><small>EXPOSURE</small><strong>{formatPerformanceValue(position.exposure,"USD",performanceMode)}</strong></div>
+            <div><small>UNREALIZED P&amp;L</small><strong className={amount(position.unrealizedPnl) >= 0 ? "pos" : "neg"}>{formatPerformanceValue(position.unrealizedPnl,"USD",performanceMode)}</strong></div>
             <StatusBadge tone={position.riskPct == null ? "warn" : "info"}>{position.riskPct == null ? "Stop risk N/A" : `${fixed(position.riskPct, 2, "%")} risk`}</StatusBadge>
           </div>)}
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import type { HourlyAnalyticsGroup } from "./HourlyPerformanceHeatmap";
+import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 
 type InsightGroup = HourlyAnalyticsGroup;
 type Dimension = "symbol" | "session" | "setup";
@@ -24,10 +25,12 @@ function ranked(groups: InsightGroup[], order: "best" | "worst") {
       : Number(a.net_pnl) - Number(b.net_pnl))[0] ?? null;
 }
 
-function InsightRow({ label, group, currency, rank, scale, onSelect }: {
+function InsightRow({ label, group, currency, rank, scale, baseline, mode, onSelect }: {
   label: string;
   group: InsightGroup;
   currency: string;
+  baseline: number;
+  mode: "currency" | "percentage" | "r" | "hidden";
   rank: string;
   scale: number;
   onSelect: () => void;
@@ -36,12 +39,13 @@ function InsightRow({ label, group, currency, rank, scale, onSelect }: {
   const winRate = Math.max(0, Math.min(100, Number(group.win_rate_percent) || 0));
   const sample = sampleLabel(Number(group.trades));
   const tone = pnl >= 0 ? "positive" : "negative";
+  const pnlLabel = mode==="currency" ? money(pnl,currency) : mode==="percentage" && baseline>0 ? (pnl/baseline*100).toFixed(2)+"%" : mode==="hidden" ? "••••••" : "—";
   const barWidth = Math.max(1.5, Math.abs(pnl) / Math.max(1, scale) * 50);
   return <article className="analytics-insight-item">
     <div className="analytics-insight-item-head">
       <span className="analytics-insight-dimension">{label}</span>
       <span className="analytics-insight-rank">{rank}</span>
-      <strong className={tone}>{money(pnl, currency)}</strong>
+      <strong className={tone}>{pnlLabel}</strong>
     </div>
     <button type="button" className="analytics-insight-select" onClick={onSelect} aria-label={`Investigate ${group.key} ${label.toLowerCase()} group`}>
       {group.key}<span aria-hidden="true"> ↗</span>
@@ -53,7 +57,7 @@ function InsightRow({ label, group, currency, rank, scale, onSelect }: {
     <div className="analytics-insight-winrate" role="progressbar" aria-label={`${group.key} win rate`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={winRate}>
       <span style={{ width: `${winRate}%` }} />
     </div>
-    <div className="analytics-insight-pnl-track" aria-label={`Net P&L ${money(pnl, currency)}`}>
+    <div className="analytics-insight-pnl-track" aria-label={mode==="currency" ? `Net P&L ${pnlLabel}` : "Performance value shown in selected display mode"}>
       <span className="analytics-insight-zero" />
       <span className={`analytics-insight-pnl-bar ${tone}`} style={{
         width: `${barWidth}%`,
@@ -64,13 +68,15 @@ function InsightRow({ label, group, currency, rank, scale, onSelect }: {
   </article>;
 }
 
-export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelectGroup }: {
+export function AnalyticsInsights({ symbols, sessions, setups, currency, baseline, onSelectGroup }: {
   symbols: InsightGroup[];
   sessions: InsightGroup[];
   setups: InsightGroup[];
   currency: string;
+  baseline: number;
   onSelectGroup: (dimension: Dimension, key: string) => void;
 }) {
+  const { mode } = usePerformanceDisplay();
   const candidates = [
     { label: "Instrument", dimension: "symbol" as const, group: ranked(symbols, "best"), rank: "Best instrument by net P&L" },
     { label: "Session", dimension: "session" as const, group: ranked(sessions, "best"), rank: "Best session by net P&L" },
@@ -94,11 +100,11 @@ export function AnalyticsInsights({ symbols, sessions, setups, currency, onSelec
     <div className="analytics-insights-grid">
       <section className="analytics-insight-column" aria-label="Top performing groups">
         <h3>Strongest observed groups</h3>
-        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough trades to rank groups.</p>}
+        {candidates.length ? candidates.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} baseline={baseline} mode={mode} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">Not enough trades to rank groups.</p>}
       </section>
       <section className="analytics-insight-column" aria-label="Groups worth investigating">
         <h3>Groups worth investigating</h3>
-        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No qualifying negative groups.</p>}
+        {risks.length ? risks.map(item => <InsightRow key={item.label} label={item.label} group={item.group!} currency={currency} baseline={baseline} mode={mode} rank={item.rank} scale={scale} onSelect={() => onSelectGroup(item.dimension, item.group!.key)} />) : <p className="muted">No qualifying negative groups.</p>}
       </section>
     </div>
     <p className="analytics-insight-legend"><span><i className="positive" /> Positive net P&amp;L</span><span><i className="negative" /> Negative net P&amp;L</span><span>Win-rate bars are scaled from 0–100%</span></p>
