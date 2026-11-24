@@ -778,6 +778,8 @@ try {
         // This bar starts exactly at the recorded close. It must remain hidden
         // from replay and must not contaminate trade-period MFE/MAE calculations.
         { timestamp_ms: Date.parse("2026-11-12T15:00:00Z"), open: 1.1188, high: 1.1300, low: 1.1100, close: 1.1250, volume: 150 },
+        // Pagination overlap may repeat an identical candle; normalization must deduplicate it.
+        { timestamp_ms: Date.parse("2026-11-12T14:00:00Z"), open: 1.1190, high: 1.1210, low: 1.1185, close: 1.1188, volume: 140 },
       ];
       const tradeRecord = {
         id: tradeId, journal_account_id: account.id, symbol: "EURUSD", direction: "short", status: "closed",
