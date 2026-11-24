@@ -6,14 +6,12 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  # Avoid running the same branch validation twice when a PR is open.
-  # Pull-request runs remain the required validation for PR branches;
-  # push runs continue to validate ordinary branches and direct pushes to main.
+  # Use one validation run per change: PRs use pull_request, direct changes use push.
+  # This avoids duplicating long macOS preflight work for branches with open PRs.
   push:
     branches:
-      - '**'
-    paths-ignore:
-      - '**'
+      - main
+      - 'release/**'
   pull_request:
   workflow_dispatch:
 
