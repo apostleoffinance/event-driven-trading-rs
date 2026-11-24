@@ -185,7 +185,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const hasFullCandleCoverage = entryCandleIndex >= 0 && exitCandleIndex >= entryCandleIndex
     && normalizedCandles.rejectedCount === 0;
   const replayEndIndex = exitCandleIndex >= 0 ? exitCandleIndex : Math.max(0, candles.length - 1);
-  const canReplayToRecordedExit = exitCandleIndex >= 0;
+  const canReplayToRecordedExit = hasFullCandleCoverage;
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
   const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => {
@@ -349,7 +349,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       ? { from: 0, to: Math.max(1, candles.length - 1) }
       : { from: Math.max(0, currentIndex - 90), to: Math.min(candles.length - 1, currentIndex + 45) };
     chart.timeScale().setVisibleLogicalRange(visibleRange);
-  }, [candles, currentIndex, trade.direction, entryCandleIndex, exitCandleIndex, framing]);
+  }, [candles, currentIndex, trade.direction, entryCandleIndex, exitCandleIndex, hasFullCandleCoverage, framing]);
 
   useEffect(() => {
     if (!playing) return;
@@ -428,7 +428,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
             <div className="journal-playback-controls">
               <button className="btn" type="button" onClick={() => chartContainerRef.current?.requestFullscreen?.()}>⛶ Fullscreen</button>
               <button className="btn" type="button" onClick={() => { setFraming("full"); chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:Math.max(1,candles.length-1)}); }}>Fit full trade</button>
-              <button className="btn" type="button" onClick={() => { setPlaying(false); const index=candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,index)); }}>↺ Restart at entry</button>
+              <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(Math.max(0, entryCandleIndex)); }}>↺ Restart at entry</button>
               <button className="btn primary" type="button" disabled={candles.length < 2 || !canReplayToRecordedExit} onClick={() => { if (currentIndex >= replayEndIndex) setCurrentIndex(Math.max(0, entryCandleIndex)); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
               <button className="btn" type="button" disabled={!canReplayToRecordedExit || currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, value + 1)); }}>Next candle →</button>
               <span className="muted">{canReplayToRecordedExit ? `${Math.min(currentIndex + 1, replayEndIndex + 1)} / ${replayEndIndex + 1} candles` : "Recorded exit is outside available candle coverage"}</span>
