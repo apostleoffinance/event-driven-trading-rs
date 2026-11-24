@@ -12,19 +12,82 @@ const FRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"] as const;
 type Frame = (typeof FRAMES)[number];
 type ReplayCandle = { time: Time; open: number; high: number; low: number; close: number; volume?: number };
 
-function normalizeCandles(candles: Candle[]): ReplayCandle[] {
+const FRAME_DURATION_MS: Record<Frame, number> = {
+  M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000,
+  H1: 3_600_000, H4: 14_400_000, D1: 86_400_000,
+};
+
+type CandleNormalizationResult = {
+  candles: ReplayCandle[];
+  rejectedCount: number;
+  conflictingTimestampCount: number;
+};
+
+function normalizeCandles(candles: Candle[]): CandleNormalizationResult {
   const byTime = new Map<number, ReplayCandle>();
+  const conflictingTimestamps = new Set<number>();
+  let rejectedCount = 0;
+
   for (const candle of candles) {
-    if (![candle.timestamp_ms, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite)) continue;
-    if (candle.timestamp_ms <= 0 || candle.high < candle.low) continue;
-    if (candle.high < Math.max(candle.open, candle.close) || candle.low > Math.min(candle.open, candle.close)) continue;
+    if (![candle.timestamp_ms, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite)
+      || candle.timestamp_ms <= 0
+      || candle.high < candle.low
+      || candle.high < Math.max(candle.open, candle.close)
+      || candle.low > Math.min(candle.open, candle.close)) {
+      rejectedCount += 1;
+      continue;
+    }
+
     const seconds = Math.floor(candle.timestamp_ms / 1000);
-    byTime.set(seconds, {
-      time: seconds as Time, open: candle.open, high: candle.high, low: candle.low, close: candle.close,
-      ...(typeof candle.volume === "number" && Number.isFinite(candle.volume) && candle.volume >= 0 ? { volume: candle.volume } : {}),
-    });
+    if (conflictingTimestamps.has(seconds)) continue;
+    const normalized: ReplayCandle = {
+      time: seconds as Time,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      ...(typeof candle.volume === "number" && Number.isFinite(candle.volume) && candle.volume >= 0
+        ? { volume: candle.volume }
+        : {}),
+    };
+    const existing = byTime.get(seconds);
+    if (existing) {
+      const sameCandle = existing.open === normalized.open
+        && existing.high === normalized.high
+        && existing.low === normalized.low
+        && existing.close === normalized.close
+        && existing.volume === normalized.volume;
+      if (!sameCandle) {
+        byTime.delete(seconds);
+        conflictingTimestamps.add(seconds);
+        rejectedCount += 2;
+      }
+      continue;
+    }
+    byTime.set(seconds, normalized);
   }
-  return [...byTime.values()].sort((a, b) => Number(a.time) - Number(b.time));
+
+  return {
+    candles: [...byTime.values()].sort((a, b) => Number(a.time) - Number(b.time)),
+    rejectedCount,
+    conflictingTimestampCount: conflictingTimestamps.size,
+  };
+}
+
+function findEntryCandleIndex(candles: ReplayCandle[], timestampMs: number, durationMs: number): number {
+  return candles.findIndex(candle => {
+    const start = Number(candle.time) * 1000;
+    return start <= timestampMs && timestampMs < start + durationMs;
+  });
+}
+
+function findExitCandleIndex(candles: ReplayCandle[], timestampMs: number, durationMs: number): number {
+  // Candle timestamps identify the start of each bar. The bar ending at the
+  // recorded close is the final trade bar; a bar starting at the close is future data.
+  return candles.findIndex(candle => {
+    const start = Number(candle.time) * 1000;
+    return start < timestampMs && timestampMs <= start + durationMs;
+  });
 }
 
 function timeLabel(time: Time): string {
@@ -86,7 +149,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const candleQuery = useQuery({
     queryKey: ["journal", "trade-replay", trade.id, trade.symbol, trade.opened_at, trade.closed_at, frame, selectedProvider],
     queryFn: async () => {
-      const durationMs: Record<Frame, number> = { M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 };
+      const durationMs = FRAME_DURATION_MS;
       const start = new Date(trade.opened_at).getTime();
       const end = new Date(trade.closed_at || "").getTime();
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Invalid trade coverage interval.");
@@ -114,12 +177,21 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     retry: 1,
   });
 
-  const candles = useMemo(() => normalizeCandles(candleQuery.data?.candles ?? []), [candleQuery.data?.candles]);
-  const replayEndFound = candles.findIndex(candle => Number(candle.time) * 1000 >= closeTimestampMs);
-  const replayEndIndex = replayEndFound >= 0 ? replayEndFound : Math.max(0,candles.length-1);
+  const normalizedCandles = useMemo(() => normalizeCandles(candleQuery.data?.candles ?? []), [candleQuery.data?.candles]);
+  const candles = normalizedCandles.candles;
+  const candleDurationMs = FRAME_DURATION_MS[frame];
+  const entryCandleIndex = findEntryCandleIndex(candles, openedTimestampMs, candleDurationMs);
+  const exitCandleIndex = findExitCandleIndex(candles, closeTimestampMs, candleDurationMs);
+  const hasFullCandleCoverage = entryCandleIndex >= 0 && exitCandleIndex >= entryCandleIndex
+    && normalizedCandles.rejectedCount === 0;
+  const replayEndIndex = exitCandleIndex >= 0 ? exitCandleIndex : Math.max(0, candles.length - 1);
+  const canReplayToRecordedExit = hasFullCandleCoverage;
   const current = candles[Math.min(currentIndex, Math.max(0, candles.length - 1))];
   const pips = current ? movementPips(trade.symbol, Number(trade.entry_price), current.close, trade.direction) : null;
-  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => Number(candle.time) * 1000 >= openedTimestampMs && Number(candle.time) * 1000 <= closeTimestampMs);
+  const replayPath = candles.slice(0, Math.max(1, currentIndex + 1)).filter(candle => {
+    const start = Number(candle.time) * 1000;
+    return start >= openedTimestampMs && start + candleDurationMs <= closeTimestampMs;
+  });
   const entryPrice = Number(trade.entry_price);
   const favorablePrice = trade.direction === "long"
     ? replayPath.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
@@ -131,14 +203,15 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const maePips = movementPips(trade.symbol, entryPrice, adversePrice, trade.direction);
 
   useEffect(() => {
-    if (!isClosedTrade || closeIsInFuture || candles.length === 0 || !Number.isFinite(entryPrice)) return;
+    if (!isClosedTrade || closeIsInFuture || !hasFullCandleCoverage || candles.length === 0 || !Number.isFinite(entryPrice)) return;
     const first = Number(candles[0].time) * 1000;
     const last = Number(candles[candles.length - 1].time) * 1000;
     const opened = new Date(trade.opened_at).getTime();
     const closed = new Date(trade.closed_at || "").getTime();
-    const tolerance = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
-    if (first > opened + tolerance || last < closed - tolerance) return;
-    const tradeWindow = candles.filter(candle => Number(candle.time) * 1000 >= opened && Number(candle.time) * 1000 <= closed);
+    const tradeWindow = candles.filter(candle => {
+      const candleStart = Number(candle.time) * 1000;
+      return candleStart >= opened && candleStart + candleDurationMs <= closed;
+    });
     if (tradeWindow.length === 0) return;
     const fullFavorable = trade.direction === "long"
       ? tradeWindow.reduce((value, candle) => Math.max(value, candle.high), entryPrice)
@@ -172,12 +245,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     }).catch(() => {
       if (persistedExcursionRef.current === key) persistedExcursionRef.current = "";
     });
-  }, [isClosedTrade, closeIsInFuture, candles, entryPrice, trade.id, trade.status, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
-
-  const coverageToleranceMs = ({ M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 } as Record<Frame, number>)[frame] * 2;
-  const hasFullCandleCoverage = candles.length > 0
-    && Number(candles[0].time) * 1000 <= new Date(trade.opened_at).getTime() + coverageToleranceMs
-    && Number(candles[candles.length - 1].time) * 1000 >= new Date(trade.closed_at || "").getTime() - coverageToleranceMs;
+  }, [isClosedTrade, closeIsInFuture, hasFullCandleCoverage, candles, candleDurationMs, entryPrice, trade.id, trade.status, trade.opened_at, trade.closed_at, trade.direction, trade.stop_loss, frame, selectedProvider, queryClient]);
 
   const availableProviders = providersQuery.data?.filter((item) => {
     if (item.id === "demo") return false;
@@ -193,10 +261,9 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
 
   useEffect(() => {
     if (!candles.length) return;
-    const firstTradeCandle = candles.findIndex(candle => Number(candle.time) * 1000 >= openedTimestampMs);
-    setCurrentIndex(firstTradeCandle >= 0 ? firstTradeCandle : 0);
+    setCurrentIndex(entryCandleIndex >= 0 ? entryCandleIndex : 0);
     setPlaying(false);
-  }, [candles, openedTimestampMs]);
+  }, [candles, entryCandleIndex]);
 
   useEffect(() => {
     if (currentIndex >= candles.length) setCurrentIndex(Math.max(0, candles.length - 1));
@@ -254,9 +321,9 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     if (!chart || !series || candles.length === 0) return;
     const visible = candles.slice(0, Math.max(1, currentIndex + 1));
     series.setData(visible);
-    const entryIndex = Math.max(0, candles.findIndex(candle => Number(candle.time) * 1000 >= openedTimestampMs));
-    const exitFound = candles.findIndex(candle => Number(candle.time) * 1000 >= closeTimestampMs);
-    const exitIndex = exitFound >= 0 ? exitFound : candles.length - 1;
+    const entryIndex = entryCandleIndex;
+    const exitIndex = exitCandleIndex;
+    if (entryIndex < 0) return;
     const markers = [
       {
         time: candles[entryIndex].time,
@@ -266,7 +333,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
         text: "Entry",
       },
     ];
-    if (currentIndex >= exitIndex) {
+    if (hasFullCandleCoverage && exitIndex >= 0 && currentIndex >= exitIndex) {
       markers.push({
         time: candles[exitIndex].time,
         position: trade.direction === "long" ? "aboveBar" as const : "belowBar" as const,
@@ -282,11 +349,11 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       ? { from: 0, to: Math.max(1, candles.length - 1) }
       : { from: Math.max(0, currentIndex - 90), to: Math.min(candles.length - 1, currentIndex + 45) };
     chart.timeScale().setVisibleLogicalRange(visibleRange);
-  }, [candles, currentIndex, trade.direction, openedTimestampMs, closeTimestampMs, framing]);
+  }, [candles, currentIndex, trade.direction, entryCandleIndex, exitCandleIndex, hasFullCandleCoverage, framing]);
 
   useEffect(() => {
     if (!playing) return;
-    if (candles.length < 2 || currentIndex >= replayEndIndex) {
+    if (candles.length < 2 || !canReplayToRecordedExit || currentIndex >= replayEndIndex) {
       setPlaying(false);
       return;
     }
@@ -300,7 +367,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       });
     }, Math.max(80, 700 / speed));
     return () => window.clearInterval(timer);
-  }, [playing, candles.length, currentIndex, speed, replayEndIndex]);
+  }, [playing, candles.length, currentIndex, speed, replayEndIndex, canReplayToRecordedExit]);
 
   return (
     <section className="journal-playback" aria-label="Historical trade playback">
@@ -341,8 +408,9 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
           </div> : null}
           {!candleQuery.isLoading && !candleQuery.isError && candles.length > 0 && !hasFullCandleCoverage ? <div className="panel" role="status">
             <strong>Historical candle coverage is incomplete.</strong>
-            <p className="muted">The returned candles do not cover the complete entry-to-exit interval. Replay is available, but MFE/MAE will not be saved from partial data. Try another provider or a coarser timeframe.</p>
+            <p className="muted">The returned candles do not contain both the entry and exit intervals, or the response contains invalid/conflicting candles. Replay cannot reach the recorded exit and MFE/MAE will not be saved from partial data. Try another provider or a coarser timeframe.</p>
           </div> : null}
+          {!candleQuery.isLoading && normalizedCandles.rejectedCount > 0 ? <p className="muted" role="status">Ignored {normalizedCandles.rejectedCount} invalid or conflicting candle rows ({normalizedCandles.conflictingTimestampCount} conflicting timestamps).</p> : null}
           {providersQuery.isSuccess && Boolean(selectedProvider) && !closeIsInFuture && !candleQuery.isLoading && !candleQuery.isError && candles.length === 0 ? <div className="panel">
             <strong>No historical candles found for this trade.</strong>
             <p className="muted">Try a different provider or timeframe. EdgeNest does not generate placeholder market data.</p>
@@ -360,13 +428,13 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
             <div className="journal-playback-controls">
               <button className="btn" type="button" onClick={() => chartContainerRef.current?.requestFullscreen?.()}>⛶ Fullscreen</button>
               <button className="btn" type="button" onClick={() => { setFraming("full"); chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:Math.max(1,candles.length-1)}); }}>Fit full trade</button>
-              <button className="btn" type="button" onClick={() => { setPlaying(false); const index=candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,index)); }}>↺ Restart at entry</button>
-              <button className="btn primary" type="button" disabled={candles.length < 2} onClick={() => { if (currentIndex >= replayEndIndex) { const entry = candles.findIndex(candle => Number(candle.time)*1000 >= openedTimestampMs); setCurrentIndex(Math.max(0,entry)); } setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
-              <button className="btn" type="button" disabled={currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, value + 1)); }}>Next candle →</button>
-              <span className="muted">{Math.min(currentIndex + 1, replayEndIndex + 1)} / {replayEndIndex + 1} candles</span>
+              <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(Math.max(0, entryCandleIndex)); }}>↺ Restart at entry</button>
+              <button className="btn primary" type="button" disabled={candles.length < 2 || !canReplayToRecordedExit} onClick={() => { if (currentIndex >= replayEndIndex) setCurrentIndex(Math.max(0, entryCandleIndex)); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
+              <button className="btn" type="button" disabled={!canReplayToRecordedExit || currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, value + 1)); }}>Next candle →</button>
+              <span className="muted">{canReplayToRecordedExit ? `${Math.min(currentIndex + 1, replayEndIndex + 1)} / ${replayEndIndex + 1} candles` : "Recorded exit is outside available candle coverage"}</span>
             </div>
-            <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, replayEndIndex)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
-            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the nearest available candles at or after the recorded fills; provider timestamps may not match exact execution times.</p>
+            <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, replayEndIndex)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} disabled={!canReplayToRecordedExit} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
+            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the candle intervals containing the recorded fills; partial boundary candles are excluded from MFE/MAE calculations.</p>
           </> : null}
         </div>
       ) : null}
