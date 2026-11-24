@@ -129,8 +129,17 @@ jobs:
 
   macos-developer-preflight:
     name: macOS portable MT5 adapter preflight
-    runs-on: macos-latest
+    # Pin the image instead of following macos-latest, whose image migrations
+    # can introduce runner provisioning delays unrelated to this repository.
+    runs-on: macos-14
+    timeout-minutes: 10
     steps:
+      - name: Record runner diagnostics
+        run: |
+          echo "Runner: $RUNNER_NAME"
+          echo "OS: $(sw_vers -productVersion)"
+          echo "Architecture: $(uname -m)"
+          echo "GitHub Actions runner image: $ImageOS / $ImageVersion"
       - name: Checkout
         uses: actions/checkout@v7
       - name: Setup Python
