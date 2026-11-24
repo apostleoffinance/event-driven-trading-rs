@@ -22,7 +22,15 @@ export default function CommandCenterPage() {
   const [loading, setLoading] = useState(true);
   useEffect(() => { setAuthenticated(hasSession()); setAuthResolved(true); }, []);
   useEffect(() => {
-    if (!authenticated || organizationLoading || !activeOrganizationId) return;
+    if (!authenticated || organizationLoading) return;
+    if (!activeOrganizationId) {
+      setAccounts([]); setPortfolio(null); setPositions([]); setOrders([]); setRisk(null);
+      setError(organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     let cancelled = false;
     const load = async () => {
       const results = await Promise.allSettled([repos.accounts.listAccounts(),repos.portfolio.getSnapshot(),repos.positions.listPositions(),repos.orders.listOrders(),repos.risk.getOverview()]);
@@ -39,7 +47,7 @@ export default function CommandCenterPage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [authenticated,organizationLoading,activeOrganizationId,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk]);
+  }, [authenticated,organizationLoading,activeOrganizationId,organizationError,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk]);
   if (!authResolved || !authenticated) return null;
   if (organizationLoading) return <div className="dashboard-loading" role="status">Loading your organization…</div>;
   return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access." : null)} />;
