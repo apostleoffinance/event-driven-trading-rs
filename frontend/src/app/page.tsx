@@ -9,7 +9,7 @@ import { useOrganization } from "@/features/organization/OrganizationProvider";
 
 export default function CommandCenterPage() {
   const repos = getRepositories();
-  const { activeOrganizationId, loading: organizationLoading, error: organizationError, refreshOrganizations } = useOrganization();
+  const { organizations, activeOrganizationId, loading: organizationLoading, error: organizationError, refreshOrganizations, createOrganization } = useOrganization();
   const { events } = useSharedEventStream();
   const [authenticated, setAuthenticated] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
@@ -49,5 +49,5 @@ export default function CommandCenterPage() {
   }, [authenticated,organizationLoading,activeOrganizationId,organizationError,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk,retryVersion]);
   if (!authResolved || !authenticated) return null;
   if (organizationLoading) return <div className="dashboard-loading" role="status">Loading your organization…</div>;
-  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access." : null)} onRetry={() => { void refreshOrganizations(); setRetryVersion(value => value + 1); }} />;
+  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization." : null)} canCreateWorkspace={!organizationError && organizations.length === 0} onCreateWorkspace={createOrganization} onRetry={() => { void refreshOrganizations(); setRetryVersion(value => value + 1); }} />;
 }
