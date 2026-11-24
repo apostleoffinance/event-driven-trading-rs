@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, apiRequest } from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
 
 export type Organization = {
   id: string;
@@ -60,7 +60,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (id === activeOrganizationId) return;
     window.sessionStorage.setItem(STORAGE_KEY, id);
     setActiveOrganizationId(id);
-    void queryClient.invalidateQueries();
+    queryClient.clear();
   }, [activeOrganizationId, organizations, queryClient]);
 
   const activeOrganization = organizations.find((org) => org.id === activeOrganizationId) ?? null;
