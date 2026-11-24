@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createChart, type IChartApi, type IPriceLineApi, type ISeriesApi, type Time } from "lightweight-charts";
+import { createChart, type IChartApi, type ISeriesApi, type Time } from "lightweight-charts";
 import { marketDataApi, type Candle } from "@/lib/api/market-data";
 import type { JournalTrade } from "@/lib/api/journal";
 import { formatPrice } from "@/lib/format";
@@ -141,7 +141,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const exitPriceLineRef = useRef<IPriceLineApi | null>(null);
+  const exitPriceLineRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]> | null>(null);
   const persistedExcursionRef = useRef<string>("");
   const openedTimestampMs = new Date(trade.opened_at).getTime();
   // A valid close timestamp is the authoritative replay prerequisite. The Analytics
