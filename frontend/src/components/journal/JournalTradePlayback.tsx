@@ -210,7 +210,9 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const exitCandleIndex = findExitCandleIndex(candles, closeTimestampMs, candleDurationMs);
   const hasFullCandleCoverage = entryCandleIndex >= 0 && exitCandleIndex >= entryCandleIndex
     && normalizedCandles.rejectedCount === 0;
-  const replayEndIndex = exitCandleIndex >= 0 ? exitCandleIndex : Math.max(0, candles.length - 1);
+  const replayStartIndex = entryCandleIndex >= 0 ? entryCandleIndex : 0;
+  const replayEndIndex = hasFullCandleCoverage ? exitCandleIndex : Math.max(0, candles.length - 1);
+  const replayCandleCount = hasFullCandleCoverage ? replayEndIndex - replayStartIndex + 1 : 0;
   const canReplayToRecordedExit = hasFullCandleCoverage;
   const replayReadiness: ReplayReadiness = !isClosedTrade
     ? "not-eligible"
@@ -308,7 +310,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
 
   useEffect(() => {
     if (!candles.length) return;
-    setCurrentIndex(entryCandleIndex >= 0 ? entryCandleIndex : 0);
+    setCurrentIndex(replayStartIndex);
     setPlaying(false);
   }, [candles, entryCandleIndex]);
 
@@ -345,7 +347,9 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
     const targetPrice = Number(trade.take_profit);
     if (trade.take_profit && Number.isFinite(targetPrice)) series.createPriceLine({ price: targetPrice, color: "#16a34a", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
     const exitPrice = Number(trade.exit_price);
-    if (trade.exit_price && Number.isFinite(exitPrice)) series.createPriceLine({ price: exitPrice, color: "#f59e0b", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "Exit" });
+    if (hasFullCandleCoverage && currentIndex >= exitCandleIndex && trade.exit_price && Number.isFinite(exitPrice)) {
+      series.createPriceLine({ price: exitPrice, color: "#f59e0b", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "Exit" });
+    }
     chartRef.current = chart;
     seriesRef.current = series;
     const observer = new ResizeObserver((entries) => {
@@ -360,13 +364,14 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [isExpanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price]);
+  }, [isExpanded, candles.length, trade.symbol, trade.entry_price, trade.stop_loss, trade.take_profit, trade.exit_price, hasFullCandleCoverage, currentIndex, exitCandleIndex]);
 
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     if (!chart || !series || candles.length === 0) return;
-    const visible = candles.slice(0, Math.max(1, currentIndex + 1));
+    const visibleEnd = hasFullCandleCoverage ? Math.min(currentIndex, replayEndIndex) : currentIndex;
+    const visible = candles.slice(0, Math.max(1, visibleEnd + 1));
     series.setData(visible);
     const entryIndex = entryCandleIndex;
     const exitIndex = exitCandleIndex;
@@ -396,7 +401,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       ? { from: 0, to: Math.max(1, candles.length - 1) }
       : { from: Math.max(0, currentIndex - 90), to: Math.min(candles.length - 1, currentIndex + 45) };
     chart.timeScale().setVisibleLogicalRange(visibleRange);
-  }, [candles, currentIndex, trade.direction, entryCandleIndex, exitCandleIndex, hasFullCandleCoverage, framing]);
+  }, [candles, currentIndex, trade.direction, entryCandleIndex, exitCandleIndex, hasFullCandleCoverage, framing, replayEndIndex]);
 
   useEffect(() => {
     if (!playing) return;
@@ -408,16 +413,24 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
       setCurrentIndex((index) => {
         if (index >= replayEndIndex) {
           setPlaying(false);
-          return index;
+          return replayEndIndex;
         }
-        return index + 1;
+        return Math.max(replayStartIndex, index + 1);
       });
     }, Math.max(80, 700 / speed));
     return () => window.clearInterval(timer);
-  }, [playing, candles.length, currentIndex, speed, replayEndIndex, canReplayToRecordedExit]);
+  }, [playing, candles.length, currentIndex, speed, replayStartIndex, replayEndIndex, canReplayToRecordedExit]);
 
   return (
-    <section className="journal-playback" aria-label="Historical trade playback" data-replay-readiness={replayReadiness}>
+    <section
+      className="journal-playback"
+      aria-label="Historical trade playback"
+      data-replay-readiness={replayReadiness}
+      data-replay-start-index={replayStartIndex}
+      data-replay-end-index={replayEndIndex}
+      data-replay-cursor-index={currentIndex}
+      data-replay-exit-revealed={String(hasFullCandleCoverage && currentIndex >= exitCandleIndex)}
+    >
       <div className="journal-section-heading">
         <div>
           <h3 className="panel-title">TRADE PLAYBACK</h3>
@@ -478,12 +491,12 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
             <div className="journal-playback-controls">
               <button className="btn" type="button" onClick={() => chartContainerRef.current?.requestFullscreen?.()}>⛶ Fullscreen</button>
               <button className="btn" type="button" onClick={() => { setFraming("full"); chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:Math.max(1,candles.length-1)}); }}>Fit full trade</button>
-              <button className="btn" type="button" onClick={() => { setPlaying(false); setCurrentIndex(Math.max(0, entryCandleIndex)); }}>↺ Restart at entry</button>
-              <button className="btn primary" type="button" disabled={candles.length < 2 || !canReplayToRecordedExit} onClick={() => { if (currentIndex >= replayEndIndex) setCurrentIndex(Math.max(0, entryCandleIndex)); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
-              <button className="btn" type="button" disabled={!canReplayToRecordedExit || currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, value + 1)); }}>Next candle →</button>
-              <span className="muted">{canReplayToRecordedExit ? `${Math.min(currentIndex + 1, replayEndIndex + 1)} / ${replayEndIndex + 1} candles` : "Recorded exit is outside available candle coverage"}</span>
+              <button className="btn" type="button" disabled={!canReplayToRecordedExit} onClick={() => { setPlaying(false); setCurrentIndex(replayStartIndex); }}>↺ Restart at entry</button>
+              <button className="btn primary" type="button" disabled={replayCandleCount < 2 || !canReplayToRecordedExit} onClick={() => { if (currentIndex >= replayEndIndex || currentIndex < replayStartIndex) setCurrentIndex(replayStartIndex); setPlaying((value) => !value); }}>{playing ? "Ⅱ Pause" : "▶ Play"}</button>
+              <button className="btn" type="button" disabled={!canReplayToRecordedExit || currentIndex >= replayEndIndex} onClick={() => { setPlaying(false); setCurrentIndex((value) => Math.min(replayEndIndex, Math.max(replayStartIndex, value + 1))); }}>Next candle →</button>
+              <span className="muted">{canReplayToRecordedExit ? `${Math.min(Math.max(currentIndex - replayStartIndex + 1, 1), replayCandleCount)} / ${replayCandleCount} candles` : "Recorded exit is outside available candle coverage"}</span>
             </div>
-            <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, replayEndIndex)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} disabled={!canReplayToRecordedExit} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
+            <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={replayStartIndex} max={Math.max(replayStartIndex, replayEndIndex)} value={Math.min(Math.max(currentIndex, replayStartIndex), Math.max(replayStartIndex, replayEndIndex))} disabled={!canReplayToRecordedExit} onChange={(event) => { setPlaying(false); setCurrentIndex(Math.min(replayEndIndex, Math.max(replayStartIndex, Number(event.target.value)))); }} aria-label="Trade playback timeline" /></label>
             <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the candle intervals containing the recorded fills; partial boundary candles are excluded from MFE/MAE calculations.</p>
           </> : null}
         </div>
