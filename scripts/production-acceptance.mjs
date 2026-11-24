@@ -920,12 +920,10 @@ try {
       assert.match(await playback.locator(".journal-playback-controls").textContent(), /1 \/ 5 candles/);
 
       const timeline = playback.getByRole("slider", { name: "Trade playback timeline" });
-      await timeline.evaluate(element => {
-        const input = element;
-        input.value = "2";
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      });
+      await timeline.focus();
+      await timeline.press("ArrowRight");
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-cursor-index") === "1");
+      await timeline.press("ArrowRight");
       await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-cursor-index") === "2");
       assert.match(await playback.locator(".journal-playback-controls").textContent(), /3 \/ 5 candles/);
       assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Seeking before the exit must not reveal exit information.");
