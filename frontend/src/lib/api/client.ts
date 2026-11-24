@@ -58,7 +58,10 @@ type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; ba
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, ...init } = options;
-  const headers = new Headers(inputHeaders);\n  const requiresOrganization = path.startsWith("/api/v1/trading/") || /^\\/api\\/v1\\/organizations\\/[^/]+/.test(path);\n  if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {\n    headers.set("X-Organization-Id", await resolveOrganizationId());\n  }
+  const headers = new Headers(inputHeaders);
+  const requiresOrganization = path.startsWith("/api/v1/trading/") || /^\\/api\\/v1\\/organizations\\/[^/]+/.test(path);
+  if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {\n    headers.set("X-Organization-Id", await resolveOrganizationId());
+  }
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   headers.set("Accept", "application/json");
   if (auth) {
