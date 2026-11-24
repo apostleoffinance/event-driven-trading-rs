@@ -415,8 +415,11 @@ try {
   const created = [];
   let accessToken = null;
   try {
-    const loginResponse = await page.goto(`${authFrontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+    const loginResponse = await page.goto(`${authFrontendUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(loginResponse?.status(), 200, "Production login route failed before authenticated acceptance.");
+    await page.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByLabel("Email").waitFor({ state: "visible", timeout: 20_000 });
+    await page.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -591,7 +594,10 @@ try {
     const freshContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     try {
       const freshPage = await freshContext.newPage();
-      await freshPage.goto(`${authFrontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+      await freshPage.goto(`${authFrontendUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await freshPage.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor({ state: "visible", timeout: 20_000 });
+      await freshPage.getByLabel("Email").waitFor({ state: "visible", timeout: 20_000 });
+      await freshPage.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
       await freshPage.getByLabel("Email").fill(email);
       await freshPage.getByLabel("Password").fill(password);
       await freshPage.getByRole("button", { name: "Sign in" }).click();
