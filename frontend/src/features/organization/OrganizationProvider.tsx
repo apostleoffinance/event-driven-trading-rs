@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
+import { hasSession } from "@/lib/auth/session";
 import { apiRequest } from "@/lib/api/client";
 
 export type Organization = {
@@ -26,6 +28,7 @@ const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganizationId, setActiveOrganizationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +56,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  useEffect(() => { void refreshOrganizations(); }, [refreshOrganizations]);
+  useEffect(() => {
+    if (hasSession()) void refreshOrganizations();
+    else { setOrganizations([]); setActiveOrganizationId(null); setError(null); setLoading(false); window.sessionStorage.removeItem(STORAGE_KEY); }
+  }, [pathname, refreshOrganizations]);
 
   const selectOrganization = useCallback((id: string) => {
     if (!organizations.some((org) => org.id === id)) return;
