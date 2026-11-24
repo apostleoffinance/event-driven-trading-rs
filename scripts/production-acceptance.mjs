@@ -801,6 +801,7 @@ try {
         psychology: { emotion_before: null, emotion_during: null, emotion_after: null, confidence: null, fear: null, fomo: null, frustration: null, revenge_intensity: null, boredom: null },
       };
       let excursionsSaved = null;
+      let excursionSaveCount = 0;
       const replayMarketRequests = [];
       const makeAnalytics = () => ({
         generated_at: new Date().toISOString(), trade_count: 1, wins: 1, losses: 0, breakeven: 0,
@@ -837,16 +838,32 @@ try {
         if (pathname.endsWith("/journal/trades/" + tradeId + "/attachments")) return json({ data: [] });
         if (pathname.endsWith("/journal/trades/" + tradeId + "/excursions") && request.method() === "PUT") {
           excursionsSaved = request.postDataJSON();
+          excursionSaveCount += 1;
           return json({ data: { trade_id: tradeId, saved: true, precision: excursionsSaved.timeframe } });
         }
         if (pathname.endsWith("/journal/trades/" + tradeId) && request.method() === "GET") return json({ data: tradeRecord });
-        if (pathname.includes("/market-data/providers")) return json({ providers: [{ id: "biquote-live", name: "BiQuote Live (fixture)", status: { state: "available" } }] });
+        if (pathname.includes("/market-data/providers")) return json({ providers: [
+          { id: "biquote-live", name: "BiQuote Live (fixture)", status: { state: "available" } },
+          { id: "biquote-incomplete", name: "BiQuote Incomplete (fixture)", status: { state: "available" } },
+          { id: "biquote-conflicting", name: "BiQuote Conflicting (fixture)", status: { state: "available" } },
+          { id: "biquote-error", name: "BiQuote Error (fixture)", status: { state: "available" } },
+        ] });
         if (pathname.includes("/market-data/instruments")) return json({ instruments: [{ id: "EURUSD", symbol: "EUR/USD", default_provider: "biquote-live" }] });
         if (pathname.includes("/market-data/candles")) {
+          const provider = url.searchParams.get("provider");
           assert.equal(url.searchParams.get("timeframe"), "H1", "Replay should start with the H1 history preset.");
-          // Keep the request in flight long enough to assert that the UI does not
-          // announce readiness before historical coverage has been validated.
-          await new Promise(resolve => setTimeout(resolve, 750));
+          // Keep the initial request in flight long enough to assert that readiness
+          // is withheld until the provider response has been validated.
+          if (provider === "biquote-live") await new Promise(resolve => setTimeout(resolve, 750));
+          if (provider === "biquote-error") return json({ error: { message: "Acceptance fixture: provider request failed" } }, 503);
+          if (provider === "biquote-incomplete") {
+            const candles = candleRows.filter(candle => candle.timestamp_ms !== Date.parse("2026-11-12T14:00:00Z"));
+            return json({ candles, count: candles.length, classification: "live", freshness: "historical", last_updated_at: closedAt });
+          }
+          if (provider === "biquote-conflicting") {
+            const candles = [...candleRows, { ...candleRows[4], close: 1.1194, high: 1.1212 }];
+            return json({ candles, count: candles.length, classification: "live", freshness: "historical", last_updated_at: closedAt });
+          }
           return json({ candles: candleRows, count: candleRows.length, classification: "live", freshness: "historical", last_updated_at: closedAt });
         }
         return route.continue();
@@ -942,6 +959,43 @@ try {
         return root?.getAttribute("data-replay-cursor-index") === "4" && playButton?.textContent?.includes("Play");
       }, { timeout: 10_000 });
       assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "true", "Automatic playback must stop at the recorded exit and reveal exit information there.");
+
+      // Phase 5 regression matrix: incomplete exit coverage, conflicting duplicate
+      // candles and provider request errors must each block replay and persistence.
+      const savesBeforeRejectedProviders = excursionSaveCount;
+      const providerSelect = replayControls.nth(1);
+      const playButton = playback.getByRole("button", { name: "Play" });
+      const nextButton = playback.getByRole("button", { name: "Next candle" });
+      const replayTimeline = playback.getByRole("slider", { name: "Trade playback timeline" });
+
+      await providerSelect.selectOption("biquote-incomplete");
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "incomplete-coverage", { timeout: 15_000 });
+      assert.equal(await playButton.isDisabled(), true, "Missing exit coverage must disable automatic playback.");
+      assert.equal(await nextButton.isDisabled(), true, "Missing exit coverage must disable candle stepping.");
+      assert.equal(await replayTimeline.isDisabled(), true, "Missing exit coverage must disable timeline seeking.");
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Incomplete coverage must never reveal the recorded exit.");
+      assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Incomplete coverage must not persist MFE/MAE.");
+
+      await providerSelect.selectOption("biquote-conflicting");
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "invalid-candles", { timeout: 15_000 });
+      assert.equal(await playButton.isDisabled(), true, "Conflicting duplicate candles must disable playback.");
+      assert.equal(await nextButton.isDisabled(), true, "Conflicting duplicate candles must disable stepping.");
+      assert.equal(await replayTimeline.isDisabled(), true, "Conflicting duplicate candles must disable timeline seeking.");
+      assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Conflicting candles must not persist MFE/MAE.");
+
+      await providerSelect.selectOption("biquote-error");
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "candle-error", { timeout: 20_000 });
+      assert.equal(await playButton.isDisabled(), true, "Provider request failure must disable playback.");
+      assert.equal(await nextButton.isDisabled(), true, "Provider request failure must disable stepping.");
+      assert.equal(await replayTimeline.isDisabled(), true, "Provider request failure must disable timeline seeking.");
+      assert.equal(excursionSaveCount, savesBeforeRejectedProviders, "Provider request failure must not persist MFE/MAE.");
+
+      await providerSelect.selectOption("biquote-live");
+      await replayPage.waitForFunction(() => document.querySelector(".journal-playback")?.getAttribute("data-replay-readiness") === "ready", { timeout: 15_000 });
+      assert.equal(await playback.getAttribute("data-replay-cursor-index"), "0", "Changing provider and restoring valid coverage must reset replay to entry.");
+      assert.equal(await playback.getAttribute("data-replay-exit-revealed"), "false", "Restoring a provider must not reveal exit before replay.");
+      assert.ok(excursionSaveCount > savesBeforeRejectedProviders, "Valid provider coverage should persist excursions after recovery.");
+
       const excursionSourceNote = dialog.locator(".trade-data-note");
       await excursionSourceNote.waitFor();
       assert.match(await excursionSourceNote.textContent(), /historical_candles.*H1/);
