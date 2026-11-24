@@ -854,23 +854,11 @@ try {
         0,
         "Replay must use the corrected full Journal trade timestamp, not the stale Analytics summary timestamp.",
       );
-      await replayPage.waitForFunction(() => {
-        const controls = [...document.querySelectorAll(".journal-playback-toolbar select")];
-        return controls.length === 3 && controls[0].value === "H1";
-      }, undefined, { timeout: 20_000 }).catch(async error => {
-        const state = await replayPage.evaluate(() => ({
-          url: location.href,
-          modal: document.querySelector(".trade-investigation-backdrop")?.innerText ?? null,
-          playback: document.querySelector(".journal-playback")?.innerText ?? null,
-          toolbarCount: document.querySelectorAll(".journal-playback-toolbar").length,
-          body: document.body.innerText.slice(-1800),
-        }));
-        console.log("DEBUG replay console/page errors:", JSON.stringify(replayErrors));
-        console.log("DEBUG replay market requests:", JSON.stringify(replayMarketRequests));
-        console.log("DEBUG replay page state:", JSON.stringify(state));
-        console.log("DEBUG replay readiness error:", error.message);
-        throw error;
-      });
+      const replayToolbar = playback.locator(".journal-playback-toolbar");
+      await replayToolbar.waitFor({ state: "visible" });
+      const replayControls = replayToolbar.locator("select");
+      assert.equal(await replayControls.count(), 4, "Replay toolbar should expose timeframe, provider, view and speed controls.");
+      assert.equal(await replayControls.nth(0).inputValue(), "H1", "Replay should start with the H1 timeframe selected.");
       await playback.locator(".journal-playback-chart canvas").first().waitFor({ state: "attached", timeout: 20_000 }).catch(async error => {
         const state = await replayPage.evaluate(() => ({
           url: location.href,
