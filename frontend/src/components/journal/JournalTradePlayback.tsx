@@ -149,7 +149,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
   const candleQuery = useQuery({
     queryKey: ["journal", "trade-replay", trade.id, trade.symbol, trade.opened_at, trade.closed_at, frame, selectedProvider],
     queryFn: async () => {
-      const durationMs: Record<Frame, number> = { M1: 60_000, M5: 300_000, M15: 900_000, M30: 1_800_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 };
+      const durationMs = FRAME_DURATION_MS;
       const start = new Date(trade.opened_at).getTime();
       const end = new Date(trade.closed_at || "").getTime();
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Invalid trade coverage interval.");
@@ -434,7 +434,7 @@ export function JournalTradePlayback({ trade, initiallyExpanded = false, alwaysE
               <span className="muted">{canReplayToRecordedExit ? `${Math.min(currentIndex + 1, replayEndIndex + 1)} / ${replayEndIndex + 1} candles` : "Recorded exit is outside available candle coverage"}</span>
             </div>
             <label className="journal-playback-timeline"><span>Timeline</span><input type="range" min={0} max={Math.max(0, replayEndIndex)} value={Math.min(currentIndex, Math.max(0, candles.length - 1))} disabled={!canReplayToRecordedExit} onChange={(event) => { setPlaying(false); setCurrentIndex(Number(event.target.value)); }} aria-label="Trade playback timeline" /></label>
-            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the nearest available candles at or after the recorded fills; provider timestamps may not match exact execution times.</p>
+            <p className="muted">Coverage: {timeLabel(candles[0].time)} – {timeLabel(candles[candles.length - 1].time)}. Entry and exit markers align to the candle intervals containing the recorded fills; partial boundary candles are excluded from MFE/MAE calculations.</p>
           </> : null}
         </div>
       ) : null}
