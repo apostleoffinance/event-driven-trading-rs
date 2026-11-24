@@ -147,7 +147,9 @@ async fn cors_headers(request: Request<Body>, next: Next) -> Response<Body> {
     let origin = request.headers().get(header::ORIGIN).cloned();
 
     if request.method() == Method::OPTIONS
-        && request.headers().contains_key(header::ACCESS_CONTROL_REQUEST_METHOD)
+        && request
+            .headers()
+            .contains_key(header::ACCESS_CONTROL_REQUEST_METHOD)
     {
         return preflight_response(origin, request.headers(), &allowed_origins);
     }
