@@ -21,11 +21,51 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
   return normalized;
 }
 
+const ACTIVE_ORGANIZATION_KEY = "edgenest.organization.active.v1";
+
+async function resolveOrganizationId(): Promise<string> {
+  if (typeof window === "undefined") throw new ApiError("Choose an organization before loading trading data.", 409, "organization_required");
+  const stored = window.sessionStorage.getItem(ACTIVE_ORGANIZATION_KEY);
+  if (stored) return stored;
+
+  let token = getAccessToken();
+  if (!token && await refreshSession()) token = getAccessToken();
+  if (!token) throw new ApiError("Your session has expired. Please sign in again.", 401, "unauthorized");
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}/api/v1/organizations`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("We couldn't load your organizations. Check your connection and try again.", 0, "network_error");
+  }
+  if (!response.ok) {
+    throw new ApiError("We couldn't verify your organization access. Please refresh and try again.", response.status, "organization_lookup_failed");
+  }
+  const body = await response.json() as { data?: Array<{ id: string; status: string }> };
+  const available = (body.data ?? []).filter((org) => org.status === "ACTIVE");
+  if (available.length === 1) {
+    window.sessionStorage.setItem(ACTIVE_ORGANIZATION_KEY, available[0].id);
+    return available[0].id;
+  }
+  if (available.length === 0) {
+    throw new ApiError("Your account isn't part of an active organization yet. Ask your organization owner to invite you or create an organization.", 409, "organization_required");
+  }
+  throw new ApiError("You belong to more than one organization. Choose which organization you want to work in.", 409, "organization_selection_required");
+}
+
 type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { auth = true, retryAuth = true, headers: inputHeaders, baseUrl, ...init } = options;
   const headers = new Headers(inputHeaders);
+  const requiresOrganization =
+    path.startsWith("/api/v1/trading/") ||
+    (path.startsWith("/api/v1/organizations/") && path !== "/api/v1/organizations");
+  if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {
+    headers.set("X-Organization-Id", await resolveOrganizationId());
+  }
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   headers.set("Accept", "application/json");
   if (auth) {

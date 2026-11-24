@@ -5,9 +5,11 @@ import { useSharedEventStream } from "@/features/events/EventStreamProvider";
 import { getRepositories } from "@/lib/repositories";
 import { hasSession } from "@/lib/auth/session";
 import type { Account, Order, PortfolioSnapshot, Position, RiskOverview } from "@/types/domain";
+import { useOrganization } from "@/features/organization/OrganizationProvider";
 
 export default function CommandCenterPage() {
   const repos = getRepositories();
+  const { activeOrganizationId, loading: organizationLoading, error: organizationError, refreshOrganizations } = useOrganization();
   const { events } = useSharedEventStream();
   const [authenticated, setAuthenticated] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
@@ -18,9 +20,18 @@ export default function CommandCenterPage() {
   const [risk, setRisk] = useState<RiskOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retryVersion, setRetryVersion] = useState(0);
   useEffect(() => { setAuthenticated(hasSession()); setAuthResolved(true); }, []);
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || organizationLoading) return;
+    if (!activeOrganizationId) {
+      setAccounts([]); setPortfolio(null); setPositions([]); setOrders([]); setRisk(null);
+      setError(organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     let cancelled = false;
     const load = async () => {
       const results = await Promise.allSettled([repos.accounts.listAccounts(),repos.portfolio.getSnapshot(),repos.positions.listPositions(),repos.orders.listOrders(),repos.risk.getOverview()]);
@@ -32,12 +43,14 @@ export default function CommandCenterPage() {
       if (o.status === "fulfilled") setOrders(o.value.slice(0,8));
       if (r.status === "fulfilled") setRisk(r.value);
       const failures = results.filter((x): x is PromiseRejectedResult => x.status === "rejected");
-      if (failures.length) setError(failures.map(x => x.reason instanceof Error ? x.reason.message : "An execution data source is unavailable").join(" · "));
+      const messages = [...new Set(failures.map(x => x.reason instanceof Error ? x.reason.message : "An execution data source is unavailable"))];
+      if (messages.length) setError(messages.join(" · "));
       setLoading(false);
     };
     void load();
     return () => { cancelled = true; };
-  }, [authenticated,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk]);
+  }, [authenticated,organizationLoading,activeOrganizationId,organizationError,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk,retryVersion]);
   if (!authResolved || !authenticated) return null;
-  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error} />;
+  if (organizationLoading) return <div className="dashboard-loading" role="status">Loading your organization…</div>;
+  return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization. Ask an organization owner for access." : null)} onRetry={() => { void refreshOrganizations(); setRetryVersion(value => value + 1); }} />;
 }

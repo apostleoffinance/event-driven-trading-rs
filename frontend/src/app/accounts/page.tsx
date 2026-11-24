@@ -156,7 +156,7 @@ export default function AccountsPage() {
             data={data}
             columns={columns}
             onRowClick={setSelected}
-            emptyMessage={"No trading accounts linked yet. Create a Paper Account to begin, or link an existing account through your account administrator."}
+            emptyMessage={"No execution accounts are available in this workspace yet. You can create a Paper Account, or ask your organization owner to check whether an existing account has been assigned to this workspace."}
           />
         )}
       </div>
