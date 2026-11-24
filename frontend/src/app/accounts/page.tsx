@@ -141,10 +141,10 @@ export default function AccountsPage() {
             <div className="account-featured-footer"><span>Account balance <strong>{formatPerformanceValue(featuredAccount.balance,"USD",performanceMode)}</strong></span><span>Available capital <strong>{formatPerformanceValue(featuredAccount.availableCapital,"USD",performanceMode)}</strong></span></div>
           </GradientAccountCard>
           <div className="account-featured-metrics">
-            <MetricCard label="DAILY P&L" value={formatPerformanceValue(featuredAccount.dailyPnl,"USD",performanceMode)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" />
-            <MetricCard label="UNREALIZED P&L" value={formatPerformanceValue(featuredAccount.unrealizedPnl, "USD", performanceMode)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" />
-            <MetricCard label="DRAWDOWN" value={formatPct(featuredAccount.drawdownPct)} sub="Reported account drawdown" />
-            <MetricCard label="OPEN POSITIONS" value={String(featuredAccount.openPositionCount)} sub="Current account positions" />
+            <MetricCard label="DAILY P&L" value={formatPerformanceValue(featuredAccount.dailyPnl,"USD",performanceMode)} tone={Number(data[0].dailyPnl) >= 0 ? "positive" : "negative"} sub="Reported account value" help="The account’s profit or loss for the current day, based on the value reported by the connected account." />
+            <MetricCard label="UNREALIZED P&L" value={formatPerformanceValue(featuredAccount.unrealizedPnl, "USD", performanceMode)} tone={Number(data[0].unrealizedPnl) >= 0 ? "positive" : "negative"} sub="Current open-position P&L" help="The profit or loss on trades that are still open. It can change until those trades are closed." />
+            <MetricCard label="DRAWDOWN" value={formatPct(featuredAccount.drawdownPct)} sub="Reported account drawdown" help="How far the account has fallen from its previous high, shown as a percentage." />
+            <MetricCard label="OPEN POSITIONS" value={String(featuredAccount.openPositionCount)} sub="Current account positions" help="The number of trades that are currently open in this account." />
           </div>
         </section>
       ) : null}
