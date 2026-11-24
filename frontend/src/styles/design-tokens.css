@@ -213,3 +213,75 @@
   .gradient-account-card { padding: 16px; }
   .metric-card { padding: 12px; }
 }
+
+
+/* Contextual help: tap/click or keyboard-activate the info icon to read more. */
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-start: 5px;
+  color: var(--text-dim);
+}
+
+.info-tooltip > summary {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: inherit;
+  cursor: pointer;
+  list-style: none;
+}
+
+.info-tooltip > summary::-webkit-details-marker { display: none; }
+.info-tooltip > summary:hover,
+.info-tooltip[open] > summary {
+  color: var(--text);
+  background: var(--bg-2);
+  border-color: var(--border-strong);
+}
+.info-tooltip > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.info-tooltip__panel {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(280px, calc(100vw - 40px));
+  padding: 12px 13px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  white-space: normal;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+.info-tooltip__panel strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.info-tooltip__panel p {
+  margin: 0;
+  color: var(--text-muted);
+}
+.metric-card__label,
+.metric-label,
+.risk-center-metric-top {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}

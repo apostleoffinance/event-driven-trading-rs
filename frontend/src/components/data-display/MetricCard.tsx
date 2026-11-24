@@ -1,10 +1,12 @@
 import type { HTMLAttributes } from "react";
+import { InfoTooltip } from "@/components/data-display/InfoTooltip";
 
 type MetricCardProps = HTMLAttributes<HTMLDivElement> & {
   label: string;
   value: string;
   sub?: string;
   tone?: "neutral" | "positive" | "negative";
+  help?: string;
 };
 
 export function MetricCard({
@@ -12,6 +14,7 @@ export function MetricCard({
   value,
   sub,
   tone = "neutral",
+  help,
   className,
   ...props
 }: MetricCardProps) {
@@ -19,7 +22,10 @@ export function MetricCard({
 
   return (
     <div className={classes} {...props}>
-      <span className="metric-card__label">{label}</span>
+      <span className="metric-card__label">
+        {label}
+        {help ? <InfoTooltip label={label} content={help} /> : null}
+      </span>
       <span className="metric-card__value" data-tone={tone}>
         {value}
       </span>
