@@ -16,7 +16,7 @@ printf '%s\n' "$PSQL_OUTPUT"
 PSQL
 chmod +x "$TMP/psql"
 
-PASS_OUTPUT=$'workspace_migration_applied|0\nworkspace_grants_migration_applied|0\none_active_default_per_organization|0\nentitlements_without_workspace_assignment|0\nassignments_without_active_workspace|0\nassignments_missing_current_audit_event|0\ninvalid_active_workspace_grants|0\ngrants_missing_current_audit_event|0'
+PASS_OUTPUT=$'workspace_migration_applied|0\nworkspace_grants_migration_applied|0\none_active_default_per_organization|0\nworkspaces_missing_current_audit_event|0\nentitlements_without_workspace_assignment|0\nassignments_without_active_workspace|0\nassignments_missing_current_audit_event|0\ninvalid_active_workspace_grants|0\ngrants_missing_current_audit_event|0'
 FAIL_OUTPUT=$'workspace_migration_applied|0\nworkspace_grants_migration_applied|0\none_active_default_per_organization|0\nentitlements_without_workspace_assignment|1\nassignments_without_active_workspace|0\nassignments_missing_current_audit_event|0\ninvalid_active_workspace_grants|0\ngrants_missing_current_audit_event|0'
 
 if DATABASE_URL='postgres://secret.example.invalid/private' \
