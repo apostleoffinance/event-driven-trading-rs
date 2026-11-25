@@ -441,6 +441,12 @@ try {
       { timeout: 45_000 },
     );
     await page.getByRole("button", { name: "Sign in" }).click();
+    // Wait for the authenticated account read during the login route transition.
+    // A later /journal navigation may reuse React Query cache and issue no GET.
+    const initialJournalAccountsResponse = await initialJournalAccountsResponsePromise;
+    assert.equal(initialJournalAccountsResponse.status(), 200, `Journal accounts API failed after login: HTTP ${initialJournalAccountsResponse.status()}`);
+    const initialJournalAccountsPayload = await initialJournalAccountsResponse.json();
+    const initialJournalAccountCount = Array.isArray(initialJournalAccountsPayload.data) ? initialJournalAccountsPayload.data.length : 0;
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 45_000 });
     const authenticatedSessionState = await page.evaluate(() => {
       const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
@@ -448,22 +454,11 @@ try {
     });
     assert.ok(authenticatedSessionState.hasAccessToken, "Login completed without persisting an access token.");
     const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
-    const initialAccountsOutcome = await Promise.race([
-      initialJournalAccountsResponsePromise.then(response => ({ kind: "response", response })),
-      journalAccountsError.waitFor({ state: "visible", timeout: 45_000 }).then(async () => ({
-        kind: "error",
-        message: await journalAccountsError.innerText(),
-      })),
-    ]);
-    assert.equal(
-      initialAccountsOutcome.kind,
-      "response",
-      `Journal accounts query failed before returning a response: ${initialAccountsOutcome.kind === "error" ? initialAccountsOutcome.message : "unknown error"}`,
-    );
-    const initialJournalAccountsResponse = initialAccountsOutcome.response;
-    assert.equal(initialJournalAccountsResponse.status(), 200, `Journal accounts API failed after login: HTTP ${initialJournalAccountsResponse.status()}`);
-    const initialJournalAccountsPayload = await initialJournalAccountsResponse.json();
-    const initialJournalAccountCount = Array.isArray(initialJournalAccountsPayload.data) ? initialJournalAccountsPayload.data.length : 0;
+    const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
+    await journalAccountsError.waitFor({ state: "hidden", timeout: 10_000 }).catch(async () => {
+      const message = await journalAccountsError.innerText().catch(() => "Journal error banner is visible.");
+      throw new Error(`Journal accounts query failed after login: ${message}`);
+    });
 
     // Authenticated Command Centre + Journal visual coverage. Capture the real
     // signed-in routes at all six agreed viewports without creating or changing
