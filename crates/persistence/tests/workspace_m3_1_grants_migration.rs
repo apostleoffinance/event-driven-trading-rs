@@ -85,6 +85,15 @@ async fn grants_are_revisioned_audited_and_membership_revocation_is_immediate(
         "UPDATE workspace_access_grant_events SET reason='tampered' WHERE workspace_id=$1 AND user_id='m31-trader'",
     ).bind(&workspace).execute(&pool).await;
     assert!(history_mutation.is_err());
+
+    let grant_truncate = sqlx::query("TRUNCATE TABLE workspace_access_grants")
+        .execute(&pool)
+        .await;
+    assert!(grant_truncate.is_err());
+    let history_truncate = sqlx::query("TRUNCATE TABLE workspace_access_grant_events")
+        .execute(&pool)
+        .await;
+    assert!(history_truncate.is_err());
     Ok(())
 }
 
