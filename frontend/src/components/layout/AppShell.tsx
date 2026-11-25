@@ -32,5 +32,5 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   </div>;
 }
 export function AppShell({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider><QueryProvider><EventStreamProvider><OrganizationProvider><WorkspaceProvider><PerformanceDisplayProvider><ShellInner>{children}</ShellInner></PerformanceDisplayProvider></WorkspaceProvider></OrganizationProvider></EventStreamProvider></QueryProvider></ThemeProvider>;
+  return <ThemeProvider><QueryProvider><OrganizationProvider><WorkspaceProvider><EventStreamProvider><PerformanceDisplayProvider><ShellInner>{children}</ShellInner></PerformanceDisplayProvider></EventStreamProvider></WorkspaceProvider></OrganizationProvider></QueryProvider></ThemeProvider>;
 }
