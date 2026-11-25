@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 use chrono::Utc;
 use domain::{Organization, OrganizationId};
@@ -17,18 +17,84 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    let selected = all
+    const CORE_VERSIONS: [i64; 6] = [
+        20260306000001,
+        20260906000001,
+        20261027000001,
+        20261027000002,
+        20261027000003,
+        20261027000004,
+    ];
+    let before_r3 = all
         .iter()
         .filter(|migration| migration.version < 20261113000001)
-        .cloned()
         .collect::<Vec<_>>();
-    Migrator {
-        migrations: Cow::Owned(selected),
-        ..Migrator::DEFAULT
-    }
-    .run(pool)
+    assert!(
+        before_r3
+            .iter()
+            .any(|migration| migration.version == 202611070001),
+        "pre-R3 fixture must include the Journal foundation migration"
+    );
+
+    // Match persistence::migrate() exactly: the six core migrations must run
+    // before the historical Journal-first migrations. Numeric SQLx versions
+    // are mixed-width, so simply iterating by version is not chronological.
+    let mut ordered = CORE_VERSIONS
+        .iter()
+        .map(|version| {
+            all.iter()
+                .find(|migration| migration.version == *version)
+                .expect("required core migration must exist")
+        })
+        .collect::<Vec<_>>();
+    ordered.extend(
+        before_r3
+            .iter()
+            .copied()
+            .filter(|migration| !CORE_VERSIONS.contains(&migration.version)),
+    );
+    assert_eq!(
+        ordered.len(),
+        before_r3.len(),
+        "the pre-R3 fixture must include every migration before R3 exactly once"
+    );
+
+    // Create the canonical SQLx 0.8 migration ledger. This is a deliberately
+    // partial historical database, so the normal full Migrator cannot create
+    // the schema for us without also applying the forward migrations.
+    sqlx::raw_sql(
+        "CREATE TABLE _sqlx_migrations (
+            version BIGINT PRIMARY KEY,
+            description TEXT NOT NULL,
+            installed_on TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            success BOOLEAN NOT NULL,
+            checksum BYTEA NOT NULL,
+            execution_time BIGINT NOT NULL
+        )",
+    )
+    .execute(pool)
     .await
     .unwrap();
+
+    for migration in ordered {
+        let mut tx = pool.begin().await.unwrap();
+        sqlx::raw_sql(migration.sql.as_ref())
+            .execute(&mut *tx)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("pre-R3 migration {} failed: {error}", migration.version)
+            });
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations(version,description,success,checksum,execution_time) VALUES($1,$2,TRUE,$3,0)",
+        )
+        .bind(migration.version)
+        .bind(migration.description.as_ref())
+        .bind(migration.checksum.as_ref())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
 }
 
 async fn user(pool: &PgPool, id: &str) {
@@ -38,6 +104,42 @@ async fn user(pool: &PgPool, id: &str) {
         .execute(pool)
         .await
         .unwrap();
+}
+
+async fn legacy_organization(pool: &PgPool, id: &str, owner: &str) {
+    user(pool, owner).await;
+    sqlx::query(
+        "INSERT INTO organizations(id,name,status,revision,created_by,created_at,updated_at) VALUES($1,'R2 upgrade fixture','ACTIVE',1,$2,NOW(),NOW())",
+    )
+    .bind(id)
+    .bind(owner)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO organization_events(organization_id,actor_user_id,revision,previous_name,next_name,previous_status,next_status,reason) VALUES($1,$2,1,NULL,'R2 upgrade fixture',NULL,'ACTIVE','R2 upgrade fixture')",
+    )
+    .bind(id)
+    .bind(owner)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO organization_memberships(organization_id,user_id,role,status,revision,created_by,updated_by,created_at,updated_at) VALUES($1,$2,'OWNER','ACTIVE',1,$2,$2,NOW(),NOW())",
+    )
+    .bind(id)
+    .bind(owner)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO organization_membership_events(organization_id,user_id,actor_user_id,revision,previous_role,next_role,previous_status,next_status,reason) VALUES($1,$2,$2,1,NULL,'OWNER',NULL,'ACTIVE','R2 initial owner')",
+    )
+    .bind(id)
+    .bind(owner)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn organization(pool: &PgPool, id: &str, owner: &str) {
@@ -113,7 +215,7 @@ async fn fresh_install_applies_r3_schema_without_invented_catalogue_or_accounts(
 #[sqlx::test]
 async fn exact_r2_upgrade_preserves_tenant_and_environment_without_identity_backfill(pool: PgPool) {
     apply_before_r3(&pool).await;
-    organization(&pool, "r3-upgrade-org", "r3-upgrade-owner").await;
+    legacy_organization(&pool, "r3-upgrade-org", "r3-upgrade-owner").await;
     quant_account(
         &pool,
         "r3-upgrade-account",
@@ -127,7 +229,10 @@ async fn exact_r2_upgrade_preserves_tenant_and_environment_without_identity_back
     .fetch_one(&pool)
     .await
     .unwrap();
+    // Apply R3 and subsequent migrations against the seeded R2-era data.
+    // This is the upgrade boundary the test is intended to exercise.
     migrate(&pool).await.unwrap();
+
     let after: (Option<String>, String, i64, i64) = sqlx::query_as(
         "SELECT a.environment,a.environment_verification,a.environment_revision,e.revision FROM accounts a JOIN organization_account_entitlements e ON e.account_id=a.id WHERE a.id='r3-upgrade-account'",
     )
@@ -142,6 +247,17 @@ async fn exact_r2_upgrade_preserves_tenant_and_environment_without_identity_back
     .unwrap();
     assert_eq!(before, after);
     assert_eq!((organizations, bindings, external_accounts), (1, 0, 0));
+    let (default_workspaces, account_assignments): (i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM workspaces WHERE organization_id='r3-upgrade-org' AND is_default AND status='ACTIVE'), (SELECT count(*) FROM workspace_account_assignments WHERE organization_id='r3-upgrade-org' AND account_id='r3-upgrade-account')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        (default_workspaces, account_assignments),
+        (1, 1),
+        "M1 must backfill the existing R2 organization and its entitlement"
+    );
 }
 
 #[sqlx::test]

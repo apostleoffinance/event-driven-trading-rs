@@ -65,7 +65,7 @@ try {
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
 
-    const analyticsResponse = await page.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+    const analyticsResponse = await page.goto(`${frontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(analyticsResponse?.status(), 200, `Analytics route failed at ${viewport.name}`);
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
     await page.getByText("Sign-in required").waitFor();
@@ -85,11 +85,13 @@ try {
     page.on("console", message => {
       if (message.type() === "error" && !message.text().includes("503 (Service Unavailable)")) marketConsoleErrors.push(message.text());
     });
-    // The local Worker preview is not an allowed production API origin. Stub
-    // non-market widgets here; production API health/auth/CORS are checked directly
-    // above using the deployed frontend origin. This keeps preview console output
-    // focused on actual UI/runtime errors instead of expected cross-origin denials.
+    // PR Worker previews must be isolated from the live API. Stub both relative
+    // and absolute health endpoints so a future API URL override cannot turn
+    // this responsive UI check into a production CORS/network dependency.
     await page.route("**/healthz", route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
+    }));
+    await page.route("https://edgenest-api.onrender.com/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
     await page.route("**/api/v1/trading/events*", route => route.fulfill({
@@ -130,7 +132,7 @@ try {
       }
       await route.continue();
     });
-    const marketResponse = await page.goto(`${frontendUrl}/market-data`, { waitUntil: "networkidle", timeout: 45_000 });
+    const marketResponse = await page.goto(`${frontendUrl}/market-data`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(marketResponse?.status(), 200, `Market Data route failed at ${viewport.name}`);
     await page.locator(".market-chart-canvas canvas").first().waitFor({ state: "attached", timeout: 20_000 });
     assert.equal(await page.getByRole("heading", { name: "Market Analysis could not initialize" }).count(), 0, `Lightweight Charts error boundary activated at ${viewport.name}`);
@@ -312,7 +314,7 @@ try {
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await page.getByLabel("SMA 20").waitFor();
     assert.equal(await page.getByLabel("SMA 20").isChecked(), true, `Saved layout did not restore indicator visibility at ${viewport.name}`);
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.locator(".market-drawing-row").first().waitFor({ timeout: 10_000 });
     assert.equal(await page.locator(".market-drawing-row").count(), 8, `Drawings were not restored after reload at ${viewport.name}`);
     await timeframeGroup.getByRole("button", { name: "H1", exact: true }).click();
@@ -388,7 +390,7 @@ try {
     assert.deepEqual(marketConsoleErrors, [], `Unexpected Market Data browser console errors at ${viewport.name}: ${marketConsoleErrors.join(" | ")}`);
     console.log(`PASS ${viewport.name}: Market Data canvas, eight timeframe controls, no overflow; expected M15 503 fixture verified; unexpected console errors: none.`);
     // Return to Analytics before exercising its sign-in navigation below.
-    await page.goto(`${frontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.goto(`${frontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
     assert.ok(
       dimensions.documentWidth <= dimensions.viewportWidth && dimensions.bodyWidth <= dimensions.viewportWidth,
@@ -399,7 +401,7 @@ try {
     await page.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor();
     await page.getByLabel("Email").waitFor();
     await page.getByLabel("Password").waitFor();
-    const loginResponse = await page.goto(`${frontendUrl}/login`, { waitUntil: "networkidle", timeout: 45_000 });
+    const loginResponse = await page.goto(`${frontendUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(loginResponse?.status(), 200, `Login route failed at ${viewport.name}`);
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-login.png`, fullPage: true });
     assert.deepEqual(pageErrors, [], `Browser errors at ${viewport.name}: ${pageErrors.join("; ")}`);
@@ -463,7 +465,7 @@ try {
     };
     for (const viewport of viewports) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      const dashboardResponse = await page.goto(`${authFrontendUrl}/`, { waitUntil: "networkidle", timeout: 45_000 });
+      const dashboardResponse = await page.goto(`${authFrontendUrl}/`, { waitUntil: "domcontentloaded", timeout: 45_000 });
       assert.equal(dashboardResponse?.status(), 200, `Authenticated Command Centre route failed at ${viewport.name}`);
       await page.locator(".dashboard-workspace").waitFor({ state: "visible", timeout: 20_000 });
       await page.getByRole("heading", { name: "Your trading dashboard" }).waitFor();
@@ -474,7 +476,7 @@ try {
       await page.screenshot({ path: `${artifactDir}/${viewport.name}-authenticated-dashboard.png`, fullPage: true });
       console.log(`PASS ${viewport.name}: authenticated Command Centre; ${JSON.stringify(dashboardDimensions)}`);
 
-      const journalResponse = await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "networkidle", timeout: 45_000 });
+      const journalResponse = await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "domcontentloaded", timeout: 45_000 });
       assert.equal(journalResponse?.status(), 200, `Authenticated Journal route failed at ${viewport.name}`);
       await page.locator(".journal-page").waitFor({ state: "visible", timeout: 20_000 });
       await page.getByRole("heading", { name: "Trading Journal" }).waitFor();
@@ -495,7 +497,7 @@ try {
     }
     assert.deepEqual(authenticatedPageErrors, [], `Authenticated dashboard/Journal browser errors: ${authenticatedPageErrors.join("; ")}`);
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     // Start observing before navigation so the first analytics request cannot
     // complete before Playwright registers the response listener.
     const verifyLiveBrowserRuntime = process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true";
@@ -505,7 +507,7 @@ try {
           { timeout: 30_000 },
         )
       : null;
-    await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.goto(`${authFrontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.getByRole("heading", { name: "Analytics Lab" }).waitFor();
 
     // The production health/CORS fix is deployed only after this PR merges and
@@ -588,7 +590,7 @@ try {
       }
     }
 
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => Boolean(document.querySelector("label.analytics-filter-field select")));
     const selectedAccountId = await select.inputValue();
     const apiListResponse = await expectHttp(`${savedViewsUrl}?journal_account_id=${encodeURIComponent(selectedAccountId)}`, 200, { headers: apiHeaders });
@@ -606,7 +608,7 @@ try {
       await freshPage.getByLabel("Password").fill(password);
       await freshPage.getByRole("button", { name: "Sign in" }).click();
       await freshPage.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
-      await freshPage.goto(`${authFrontendUrl}/analytics`, { waitUntil: "networkidle", timeout: 45_000 });
+      await freshPage.goto(`${authFrontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const freshToken = await freshPage.evaluate(() => {
         const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
         return session?.access_token ?? null;
@@ -706,7 +708,7 @@ try {
       const policyPage = await uiContext.newPage();
       const policyPageErrors = [];
       policyPage.on("pageerror", error => policyPageErrors.push(error.message));
-      const policyPageResponse = await policyPage.goto(`${frontendUrl}/risk/policies`, { waitUntil: "networkidle", timeout: 45_000 });
+      const policyPageResponse = await policyPage.goto(`${frontendUrl}/risk/policies`, { waitUntil: "domcontentloaded", timeout: 45_000 });
       assert.equal(policyPageResponse?.status(), 200, "Risk Policies route failed in the PR Worker preview.");
       await policyPage.getByRole("heading", { name: "Account Risk Policies" }).waitFor();
       const policyNameInput = policyPage.getByLabel(/Policy name/);
@@ -720,7 +722,7 @@ try {
       assert.equal(uiPolicies.get("risk-acceptance-a").policy.profile_name, savedName, "UI save did not update the account-scoped policy fixture.");
       assert.equal(uiPolicies.get("risk-acceptance-a").version, 5, "UI save did not advance the policy version.");
 
-      await policyPage.reload({ waitUntil: "networkidle" });
+      await policyPage.reload({ waitUntil: "domcontentloaded" });
       await policyPage.getByRole("heading", { name: "Account Risk Policies" }).waitFor();
       assert.equal(await policyPage.getByLabel(/Policy name/).inputValue(), savedName, "Saved policy did not repopulate after a full page reload.");
 
@@ -875,7 +877,7 @@ try {
       const replayPage = await replayContext.newPage();
       const replayErrors = [];
       replayPage.on("pageerror", error => replayErrors.push(error.message));
-      const response = await replayPage.goto(frontendUrl + "/analytics", { waitUntil: "networkidle", timeout: 45_000 });
+      const response = await replayPage.goto(frontendUrl + "/analytics", { waitUntil: "domcontentloaded", timeout: 45_000 });
       assert.equal(response?.status(), 200, "Analytics replay fixture route failed.");
       await replayPage.getByRole("heading", { name: "Analytics Lab" }).waitFor();
       const recentTradesPanel = replayPage.locator("section.panel").filter({ has: replayPage.getByRole("heading", { name: "RECENT CLOSED TRADES" }) });

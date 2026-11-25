@@ -419,7 +419,7 @@ mod qos021a_e3a_r2_api_tests {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn request(
+    async fn request_response(
         pool: &PgPool,
         app: &Router,
         method: Method,
@@ -428,7 +428,7 @@ mod qos021a_e3a_r2_api_tests {
         organization: Option<&str>,
         body: Option<Value>,
         expired: bool,
-    ) -> StatusCode {
+    ) -> axum::response::Response {
         let mut builder = Request::builder().method(method).uri(path);
         if let Some(subject) = subject {
             let expiration = if expired {
@@ -451,7 +451,32 @@ mod qos021a_e3a_r2_api_tests {
         } else {
             builder.body(Body::empty()).unwrap()
         };
-        app.clone().oneshot(request).await.unwrap().status()
+        app.clone().oneshot(request).await.unwrap()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn request(
+        pool: &PgPool,
+        app: &Router,
+        method: Method,
+        path: &str,
+        subject: Option<&str>,
+        organization: Option<&str>,
+        body: Option<Value>,
+        expired: bool,
+    ) -> StatusCode {
+        request_response(
+            pool,
+            app,
+            method,
+            path,
+            subject,
+            organization,
+            body,
+            expired,
+        )
+        .await
+        .status()
     }
 
     #[sqlx::test]
@@ -982,20 +1007,111 @@ mod qos021a_e3a_r2_api_tests {
             StatusCode::NOT_FOUND
         );
 
+        let create_response = request_response(
+            &pool,
+            &app,
+            Method::POST,
+            "/api/v1/organizations",
+            Some("api-owner-a"),
+            None,
+            Some(json!({"name":"Created through authenticated API"})),
+            false,
+        )
+        .await;
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let create_payload: Value = serde_json::from_slice(&create_body).unwrap();
         assert_eq!(
-            request(
-                &pool,
-                &app,
-                Method::POST,
-                "/api/v1/organizations",
-                Some("api-owner-a"),
-                None,
-                Some(json!({"name":"Created through authenticated API"})),
-                false
-            )
-            .await,
-            StatusCode::CREATED
+            create_payload["data"]["defaultWorkspace"]["name"],
+            "Default"
         );
+        assert_eq!(create_payload["data"]["membershipRole"], "OWNER");
+        // Organization, OWNER membership, default workspace and both audit streams
+        // are committed together. The API response contract is additive.
+        let created_org: String = sqlx::query_scalar(
+            "SELECT id FROM organizations WHERE name='Created through authenticated API' AND created_by='api-owner-a'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let provisioned: (String, String, bool, String) = sqlx::query_as(
+            "SELECT id,name,is_default,status FROM workspaces WHERE organization_id=$1",
+        )
+        .bind(&created_org)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(provisioned.1, "Default");
+        assert!(provisioned.2);
+        assert_eq!(provisioned.3, "ACTIVE");
+        let owner_membership: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id='api-owner-a' AND role='OWNER' AND status='ACTIVE')",
+        )
+        .bind(&created_org)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(owner_membership);
+        let workspace_events: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM workspace_events WHERE workspace_id=$1 AND event_type='CREATED'",
+        )
+        .bind(&provisioned.0)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(workspace_events, 1);
+
+        // Fail after the organization INSERT and M1 workspace trigger have
+        // both executed. The transaction must roll back the organization,
+        // both audit records, the OWNER membership, and the default workspace.
+        let rollback_id = "api-org-provision-rollback";
+        sqlx::raw_sql(
+            "CREATE FUNCTION qos021a_fail_owner_membership_insert() RETURNS trigger
+             LANGUAGE plpgsql AS $fail$
+             BEGIN
+                 RAISE EXCEPTION 'injected owner membership failure';
+             END
+             $fail$;
+             CREATE TRIGGER qos021a_fail_owner_membership_insert
+             BEFORE INSERT ON organization_memberships
+             FOR EACH ROW EXECUTE FUNCTION qos021a_fail_owner_membership_insert();",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let rollback_org = domain::Organization::new(
+            domain::OrganizationId::new(rollback_id).unwrap(),
+            "Must roll back",
+            Utc::now(),
+        )
+        .unwrap();
+        assert!(store
+            .create_organization(&rollback_org, "api-owner-a")
+            .await
+            .is_err());
+        sqlx::raw_sql(
+            "DROP TRIGGER qos021a_fail_owner_membership_insert ON organization_memberships;
+             DROP FUNCTION qos021a_fail_owner_membership_insert();",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let rollback_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT
+                (SELECT count(*) FROM organizations WHERE id=$1),
+                (SELECT count(*) FROM organization_events WHERE organization_id=$1),
+                (SELECT count(*) FROM organization_memberships WHERE organization_id=$1),
+                (SELECT count(*) FROM workspaces WHERE organization_id=$1),
+                (SELECT count(*) FROM workspace_events WHERE organization_id=$1)",
+        )
+        .bind(rollback_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(rollback_counts, (0, 0, 0, 0, 0));
+
         let owner_session = hex::encode(Sha256::digest("api-owner-a".as_bytes()));
         sqlx::query("UPDATE identity_sessions SET status='REVOKED',revision=revision+1,revoked_at=NOW(),revocation_reason='test logout',updated_at=NOW() WHERE id=$1")
             .bind(owner_session).execute(&pool).await.unwrap();
