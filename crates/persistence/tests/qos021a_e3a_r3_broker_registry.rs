@@ -26,7 +26,9 @@ async fn apply_before_r3(pool: &PgPool) {
         .filter(|migration| migration.version < 20261113000001)
         .collect::<Vec<_>>();
     assert!(
-        before_r3.iter().any(|migration| migration.version == 202611070001),
+        before_r3
+            .iter()
+            .any(|migration| migration.version == 202611070001),
         "pre-R3 fixture must include the Journal foundation migration"
     );
 
@@ -75,7 +77,6 @@ async fn apply_before_r3(pool: &PgPool) {
         tx.commit().await.unwrap();
     }
 }
-
 
 async fn user(pool: &PgPool, id: &str) {
     sqlx::query("INSERT INTO identity_users(id,email,display_name,password_hash) VALUES($1,$2,$1,'test-only')")
