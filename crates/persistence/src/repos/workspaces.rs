@@ -149,14 +149,14 @@ pub(crate) async fn insert_in_transaction(
             "workspace creation reason must contain 1 to 1000 characters".into(),
         ));
     }
-    let creator_is_authorized: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM organizations o JOIN organization_memberships m ON m.organization_id=o.id WHERE o.id=$1 AND o.status='ACTIVE' AND m.user_id=$2 AND m.status='ACTIVE' AND m.role IN ('OWNER','ADMIN'))",
+    let creator_role: Option<String> = sqlx::query_scalar(
+        "SELECT m.role FROM organizations o JOIN organization_memberships m ON m.organization_id=o.id WHERE o.id=$1 AND o.status='ACTIVE' AND m.user_id=$2 AND m.status='ACTIVE' FOR SHARE OF o,m",
     )
     .bind(workspace.organization_id.as_str())
     .bind(&workspace.created_by)
-    .fetch_one(&mut **tx)
+    .fetch_optional(&mut **tx)
     .await?;
-    if !creator_is_authorized {
+    if !matches!(creator_role.as_deref(), Some("OWNER" | "ADMIN")) {
         return Err(PersistenceError::Other(
             "workspace creator must be an active organization OWNER or ADMIN".into(),
         ));
