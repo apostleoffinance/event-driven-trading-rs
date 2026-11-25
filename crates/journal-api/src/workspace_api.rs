@@ -112,13 +112,17 @@ pub async fn principal(
                 let wr = grant_role.unwrap_or_default();
                 let org_trade = org_role == "TRADER";
                 let org_risk = org_role == "RISK_MANAGER";
-                let (read, trade, risk, manage) = match wr.as_str() {
+                let (read, trade, risk, _workspace_admin) = match wr.as_str() {
                     "WORKSPACE_ADMIN" => (true, org_trade, org_risk, true),
                     "TRADER" => (true, org_trade, false, false),
                     "RISK_MANAGER" => (true, false, org_risk, false),
                     "VIEWER" => (true, false, false, false),
                     _ => return Err(not_found()),
                 };
+                // Workspace administration is still subordinate to the
+                // organization role. Non-OWNER/ADMIN members cannot gain
+                // workspace lifecycle or grant-management authority.
+                let manage = false;
                 (read, trade, risk, manage, wr)
             }
             _ => return Err(not_found()),
@@ -668,7 +672,13 @@ pub async fn update_grant(
             "Grant is already revoked",
         );
     }
-    let next = revision + 1;
+    let Some(next) = revision.checked_add(1) else {
+        return error(
+            StatusCode::CONFLICT,
+            "revision_overflow",
+            "Workspace grant revision is exhausted",
+        );
+    };
     let updated=sqlx::query("UPDATE workspace_access_grants SET role=$4,status=$5,revision=$6,updated_by=$7,reason=$8 WHERE organization_id=$1 AND workspace_id=$2 AND user_id=$3 AND revision=$9")
         .bind(&org).bind(&workspace).bind(&user).bind(&input.role).bind(&input.status).bind(next).bind(&actor).bind(input.reason.trim()).bind(revision).execute(&mut *tx).await;
     if updated.is_err() {
