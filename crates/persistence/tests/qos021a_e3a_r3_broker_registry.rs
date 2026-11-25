@@ -17,49 +17,34 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // Start from the fully supported pre-R3 migration boundary. The normal
-    // production migrator is required here because SQLx validates the complete
-    // migration inventory, including legacy 12-digit migration versions.
+    // Produce the exact pre-R3 database schema from the complete migration
+    // directory. Use the selected migrator only on an empty database; once it
+    // has seeded SQLx's version ledger, let the production migrator apply R3
+    // and every later migration in the canonical order.
     let before_r3 = all
         .iter()
         .filter(|migration| migration.version < 20261113000001)
         .cloned()
         .collect::<Vec<_>>();
-    let pre_r3_versions = before_r3
-        .iter()
-        .map(|migration| migration.version)
-        .collect::<Vec<_>>();
     assert!(
-        pre_r3_versions.contains(&202611070001),
-        "pre-R3 history must include the 12-digit Journal foundation migration"
+        before_r3
+            .iter()
+            .any(|migration| migration.version == 202611070001),
+        "pre-R3 fixture must include the 12-digit Journal foundation migration"
     );
-    let pre_r3_migrator = Migrator {
+    Migrator {
         migrations: Cow::Owned(before_r3),
         ..Migrator::DEFAULT
-    };
-    pre_r3_migrator.run(pool).await.unwrap();
+    }
+    .run(pool)
+    .await
+    .unwrap();
 
-    // Mark schema-dependent migrations after R3 as pending via real raw SQL
-    // execution rather than synthetic SQLx ledger rows. This fixture exists to
-    // prove that the R3 and M1 DDL upgrades work on the exact pre-R3 schema.
-    let r3 = all
-        .iter()
-        .find(|migration| migration.version == 20261113000001)
-        .expect("R3 migration must exist exactly once");
-    sqlx::raw_sql(std::str::from_utf8(r3.sql.as_ref()).unwrap())
-        .execute(pool)
-        .await
-        .unwrap();
-
-    let m1 = all
-        .iter()
-        .find(|migration| migration.version == 20261125000001)
-        .expect("M1 workspace migration must exist exactly once");
-    sqlx::raw_sql(std::str::from_utf8(m1.sql.as_ref()).unwrap())
-        .execute(pool)
-        .await
-        .unwrap();
+    // Upgrade using the full migrator, which ensures SQLx sees the whole
+    // migration inventory and executes R3 before dependent migrations.
+    migrate(pool).await.unwrap();
 }
+
 
 async fn user(pool: &PgPool, id: &str) {
     sqlx::query("INSERT INTO identity_users(id,email,display_name,password_hash) VALUES($1,$2,$1,'test-only')")
