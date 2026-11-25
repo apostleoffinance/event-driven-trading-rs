@@ -10,7 +10,11 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use domain::{OrganizationId, Workspace, WorkspaceId};
+use domain::{
+    effective_workspace_capabilities, MembershipStatus, OrganizationId, OrganizationRole,
+    OrganizationStatus, Workspace, WorkspaceGrantStatus, WorkspaceId, WorkspaceRole,
+    WorkspaceStatus,
+};
 use serde::Deserialize;
 use sqlx::{Postgres, Transaction};
 
@@ -102,27 +106,67 @@ pub async fn principal(
     if org_status != "ACTIVE" || member_status != "ACTIVE" || workspace_status != "ACTIVE" {
         return Err(not_found());
     }
-    let (can_read, can_trade, can_manage_risk, can_manage_workspace, workspace_role) =
-        match org_role.as_str() {
-            "OWNER" | "ADMIN" => (true, true, true, true, "WORKSPACE_ADMIN".to_owned()),
-            "TRADER" | "RISK_MANAGER" | "VIEWER" => {
-                if grant_status.as_deref() != Some("ACTIVE") {
-                    return Err(not_found());
-                }
-                let wr = grant_role.unwrap_or_default();
-                let org_trade = org_role == "TRADER";
-                let org_risk = org_role == "RISK_MANAGER";
-                let (read, trade, risk, manage) = match wr.as_str() {
-                    "WORKSPACE_ADMIN" => (true, org_trade, org_risk, true),
-                    "TRADER" => (true, org_trade, false, false),
-                    "RISK_MANAGER" => (true, false, org_risk, false),
-                    "VIEWER" => (true, false, false, false),
-                    _ => return Err(not_found()),
-                };
-                (read, trade, risk, manage, wr)
-            }
-            _ => return Err(not_found()),
-        };
+    let organization_status = match org_status.as_str() {
+        "ACTIVE" => OrganizationStatus::Active,
+        "SUSPENDED" => OrganizationStatus::Suspended,
+        "CLOSED" => OrganizationStatus::Closed,
+        _ => return Err(not_found()),
+    };
+    let membership_status = match member_status.as_str() {
+        "ACTIVE" => MembershipStatus::Active,
+        "SUSPENDED" => MembershipStatus::Suspended,
+        "REVOKED" => MembershipStatus::Revoked,
+        _ => return Err(not_found()),
+    };
+    let organization_role_value = match org_role.as_str() {
+        "OWNER" => OrganizationRole::Owner,
+        "ADMIN" => OrganizationRole::Admin,
+        "TRADER" => OrganizationRole::Trader,
+        "RISK_MANAGER" => OrganizationRole::RiskManager,
+        "VIEWER" => OrganizationRole::Viewer,
+        _ => return Err(not_found()),
+    };
+    let workspace_status_value = match workspace_status.as_str() {
+        "ACTIVE" => WorkspaceStatus::Active,
+        "ARCHIVED" => WorkspaceStatus::Archived,
+        _ => return Err(not_found()),
+    };
+    let grant = match (grant_role.as_deref(), grant_status.as_deref()) {
+        (Some(role), Some(status)) => {
+            let role = match role {
+                "WORKSPACE_ADMIN" => WorkspaceRole::Admin,
+                "TRADER" => WorkspaceRole::Trader,
+                "RISK_MANAGER" => WorkspaceRole::RiskManager,
+                "VIEWER" => WorkspaceRole::Viewer,
+                _ => return Err(not_found()),
+            };
+            let status = match status {
+                "ACTIVE" => WorkspaceGrantStatus::Active,
+                "REVOKED" => WorkspaceGrantStatus::Revoked,
+                _ => return Err(not_found()),
+            };
+            Some((role, status))
+        }
+        (None, None) => None,
+        _ => return Err(not_found()),
+    };
+    let capabilities = effective_workspace_capabilities(
+        organization_status,
+        membership_status,
+        organization_role_value,
+        grant,
+        workspace_status_value,
+    )
+    .ok_or_else(not_found)?;
+    let workspace_role = grant
+        .map(|(role, _)| role.as_db().to_owned())
+        .unwrap_or_else(|| "WORKSPACE_ADMIN".to_owned());
+    let (can_read, can_trade, can_manage_risk, can_manage_workspace) = (
+        capabilities.read,
+        capabilities.trade,
+        capabilities.manage_risk,
+        capabilities.manage_workspace,
+    );
     Ok(WorkspacePrincipal {
         user_id: claims.sub,
         organization_id: org.to_owned(),
@@ -668,7 +712,13 @@ pub async fn update_grant(
             "Grant is already revoked",
         );
     }
-    let next = revision + 1;
+    let Some(next) = revision.checked_add(1) else {
+        return error(
+            StatusCode::CONFLICT,
+            "revision_overflow",
+            "Workspace grant revision is exhausted",
+        );
+    };
     let updated=sqlx::query("UPDATE workspace_access_grants SET role=$4,status=$5,revision=$6,updated_by=$7,reason=$8 WHERE organization_id=$1 AND workspace_id=$2 AND user_id=$3 AND revision=$9")
         .bind(&org).bind(&workspace).bind(&user).bind(&input.role).bind(&input.status).bind(next).bind(&actor).bind(input.reason.trim()).bind(revision).execute(&mut *tx).await;
     if updated.is_err() {
