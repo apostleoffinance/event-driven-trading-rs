@@ -16,6 +16,7 @@ mod risk;
 mod sizing_audits;
 mod trade_intents;
 mod venues;
+mod workspaces;
 
 use sqlx::PgPool;
 
@@ -182,6 +183,48 @@ impl TradingStore {
         actor: &str,
     ) -> PersistenceResult<()> {
         organizations::create(&self.pool, org, actor).await
+    }
+
+    /// Create a workspace and append its initial audit event in one transaction.
+    /// The creator must be an active organization OWNER or ADMIN.
+    pub async fn create_workspace(
+        &self,
+        workspace: &domain::Workspace,
+        reason: &str,
+    ) -> PersistenceResult<()> {
+        workspaces::create(&self.pool, workspace, reason).await
+    }
+
+    pub async fn workspaces_for_organization(
+        &self,
+        organization: &str,
+    ) -> PersistenceResult<Vec<domain::Workspace>> {
+        workspaces::list_for_organization(&self.pool, organization).await
+    }
+
+    pub async fn workspace(
+        &self,
+        organization: &str,
+        workspace_id: &str,
+    ) -> PersistenceResult<Option<domain::Workspace>> {
+        workspaces::get_for_organization(&self.pool, organization, workspace_id).await
+    }
+
+    pub async fn default_workspace(
+        &self,
+        organization: &str,
+    ) -> PersistenceResult<Option<domain::Workspace>> {
+        workspaces::default_for_organization(&self.pool, organization).await
+    }
+
+    /// Resolve the workspace assigned to a Quant account without bypassing
+    /// organization ownership; callers must still validate active entitlement.
+    pub async fn workspace_for_account(
+        &self,
+        organization: &str,
+        account_id: &str,
+    ) -> PersistenceResult<Option<domain::Workspace>> {
+        workspaces::for_account(&self.pool, organization, account_id).await
     }
 
     pub async fn revise_organization(

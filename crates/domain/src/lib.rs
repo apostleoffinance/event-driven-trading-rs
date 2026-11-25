@@ -27,6 +27,7 @@ pub mod risk;
 pub mod strategy;
 pub mod trade_intent;
 pub mod venue;
+pub mod workspace;
 
 pub use account::{Account, AccountSnapshot, AccountState, AccountStatus, AccountType};
 pub use broker_registry::{
@@ -59,3 +60,4 @@ pub use risk::{RiskDecision, RiskPolicy, RiskProfile, RiskRejectReason, RiskRequ
 pub use strategy::{Strategy, StrategyDeployment, StrategyMetadata};
 pub use trade_intent::TradeIntent;
 pub use venue::{Venue, VenueType};
+pub use workspace::{Workspace, WorkspaceStatus};
