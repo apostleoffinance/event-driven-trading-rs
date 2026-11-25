@@ -93,6 +93,10 @@ fn build_router(state: AppState, origins: Vec<HeaderValue>) -> Router {
             axum::routing::patch(workspace_api::update_grant),
         )
         .route(
+            "/api/v1/organizations/{org}/workspaces/{workspace}/accounts/{account}/assignment",
+            axum::routing::put(workspace_api::assign_account),
+        )
+        .route(
             "/api/v1/organizations/{org}/members",
             get(organizations_api::members).post(organizations_api::add_member),
         )
