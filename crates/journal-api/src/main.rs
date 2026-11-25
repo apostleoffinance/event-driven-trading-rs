@@ -1063,10 +1063,24 @@ mod qos021a_e3a_r2_api_tests {
         .unwrap();
         assert_eq!(workspace_events, 1);
 
-        // An invalid creator identity makes the organization INSERT fail. This
-        // verifies that no organization or trigger-provisioned workspace can
-        // survive a failed creation transaction.
+        // Fail after the organization INSERT and M1 workspace trigger have
+        // both executed. The transaction must roll back the organization,
+        // both audit records, the OWNER membership, and the default workspace.
         let rollback_id = "api-org-provision-rollback";
+        sqlx::raw_sql(
+            "CREATE FUNCTION qos021a_fail_owner_membership_insert() RETURNS trigger
+             LANGUAGE plpgsql AS $
+             BEGIN
+                 RAISE EXCEPTION 'injected owner membership failure';
+             END
+             $;
+             CREATE TRIGGER qos021a_fail_owner_membership_insert
+             BEFORE INSERT ON organization_memberships
+             FOR EACH ROW EXECUTE FUNCTION qos021a_fail_owner_membership_insert();",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         let rollback_org = domain::Organization::new(
             domain::OrganizationId::new(rollback_id).unwrap(),
             "Must roll back",
@@ -1074,17 +1088,29 @@ mod qos021a_e3a_r2_api_tests {
         )
         .unwrap();
         assert!(store
-            .create_organization(&rollback_org, "missing-api-owner")
+            .create_organization(&rollback_org, "api-owner-a")
             .await
             .is_err());
-        let rollback_counts: (i64, i64) = sqlx::query_as(
-            "SELECT (SELECT count(*) FROM organizations WHERE id=$1), (SELECT count(*) FROM workspaces WHERE organization_id=$1)",
+        sqlx::raw_sql(
+            "DROP TRIGGER qos021a_fail_owner_membership_insert ON organization_memberships;
+             DROP FUNCTION qos021a_fail_owner_membership_insert();",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let rollback_counts: (i64, i64, i64, i64, i64) = sqlx::query_as(
+            "SELECT
+                (SELECT count(*) FROM organizations WHERE id=$1),
+                (SELECT count(*) FROM organization_events WHERE organization_id=$1),
+                (SELECT count(*) FROM organization_memberships WHERE organization_id=$1),
+                (SELECT count(*) FROM workspaces WHERE organization_id=$1),
+                (SELECT count(*) FROM workspace_events WHERE organization_id=$1)",
         )
         .bind(rollback_id)
         .fetch_one(&pool)
         .await
         .unwrap();
-        assert_eq!(rollback_counts, (0, 0));
+        assert_eq!(rollback_counts, (0, 0, 0, 0, 0));
 
         let owner_session = hex::encode(Sha256::digest("api-owner-a".as_bytes()));
         sqlx::query("UPDATE identity_sessions SET status='REVOKED',revision=revision+1,revoked_at=NOW(),revocation_reason='test logout',updated_at=NOW() WHERE id=$1")
