@@ -14,10 +14,8 @@ use crate::AppState;
 use domain::{Account, AccountEnvironment, AccountId, AccountState, AccountType, VenueId};
 
 #[allow(clippy::result_large_err)]
-async fn tenant(state: &AppState, headers: &HeaderMap) -> Result<String, Response> {
-    crate::organizations_api::authorize(state, headers, crate::organizations_api::Permission::Read)
-        .await
-        .map(|principal| principal.organization_id)
+async fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::workspace_api::WorkspacePrincipal, Response> {
+    crate::workspace_api::principal(state, headers).await
 }
 
 fn error(status: StatusCode, code: &str, message: &str) -> Response {
@@ -130,6 +128,7 @@ async fn account_rows(
     state: &AppState,
     organization: &str,
     account_id: Option<&str>,
+    workspace_id: &str,
 ) -> Result<Vec<AccountRow>, sqlx::Error> {
     sqlx::query_as::<_,AccountRow>(r#"
         SELECT a.id,a.account_type,a.environment,a.environment_verification,a.environment_revision,
@@ -138,12 +137,13 @@ async fn account_rows(
                s.daily_realized_pnl,(SELECT ps.realized_pnl FROM performance_snapshots ps WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1) AS realized_pnl,
                s.peak_equity,s.kill_switch,s.updated_at
         FROM organization_account_entitlements g
+        JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
         JOIN accounts a ON a.id=g.account_id
         JOIN venues v ON v.id=a.venue_id
         JOIN account_states s ON s.account_id=a.id
-        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND ($2::TEXT IS NULL OR a.id=$2)
+        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 AND wa.workspace_id=$2 AND ($3::TEXT IS NULL OR a.id=$3)
         ORDER BY a.created_at DESC
-    "#).bind(organization).bind(account_id).fetch_all(state.store.pool()).await
+    "#).bind(organization).bind(workspace_id).bind(account_id).fetch_all(state.store.pool()).await
 }
 fn account_json(a: AccountRow) -> serde_json::Value {
     let drawdown = if a.peak_equity > Decimal::ZERO {
@@ -267,11 +267,13 @@ pub async fn create_paper_account(
 }
 
 pub async fn accounts(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
-    match account_rows(&state, &owner, None).await {
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
+    match account_rows(&state, &owner, None, &workspace_id).await {
         Ok(rows) => {
             Json(serde_json::json!({"data":rows.into_iter().map(account_json).collect::<Vec<_>>()}))
                 .into_response()
@@ -284,11 +286,13 @@ pub async fn account(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
-    match account_rows(&state, &owner, Some(&id)).await {
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
+    match account_rows(&state, &owner, Some(&id), &workspace_id).await {
         Ok(mut rows) => match rows.pop() {
             Some(row) => Json(serde_json::json!({"data":account_json(row)})).into_response(),
             None => not_found(),
@@ -298,10 +302,12 @@ pub async fn account(
 }
 
 pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
 
     let totals = sqlx::query_as::<
         _,
@@ -322,9 +328,10 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
       FROM organization_account_entitlements g
       JOIN accounts a ON a.id=g.account_id
       JOIN account_states s ON s.account_id=a.id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE'
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
     "#)
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_one(state.store.pool())
     .await;
 
@@ -349,9 +356,10 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         SELECT ps.realized_pnl FROM performance_snapshots ps
         WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1
       ) latest ON TRUE
-      WHERE g.organization_id=$1 AND g.status='ACTIVE'
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
     "#)
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_one(state.store.pool())
     .await;
     let realized = match realized {
@@ -366,8 +374,8 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
           ps.account_id,date_trunc('hour', ps.captured_at) AS captured_at,
           ps.equity,ps.realized_pnl,ps.drawdown_pct
         FROM performance_snapshots ps
-        JOIN organization_account_entitlements g ON g.account_id=ps.account_id
-        WHERE g.organization_id=$1 AND g.status='ACTIVE'
+        JOIN organization_account_entitlements g ON g.account_id=ps.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
         ORDER BY ps.account_id,date_trunc('hour', ps.captured_at),ps.captured_at DESC
       )
       SELECT captured_at,SUM(equity),SUM(realized_pnl),MAX(drawdown_pct)
@@ -375,6 +383,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     "#,
     )
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_all(state.store.pool())
     .await;
     let series = match series {
@@ -395,11 +404,12 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     let gross = sqlx::query_scalar::<_, Option<Decimal>>(
         r#"
       SELECT SUM(ABS(p.quantity*p.mark_price))
-      FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE'
+      FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
     "#,
     )
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_one(state.store.pool())
     .await;
     let gross = match gross {
@@ -409,10 +419,11 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
 
     let net = sqlx::query_scalar::<_, Option<Decimal>>(r#"
       SELECT SUM(CASE WHEN p.side='long' THEN p.quantity*p.mark_price ELSE -(p.quantity*p.mark_price) END)
-      FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE'
+      FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
     "#)
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_one(state.store.pool())
     .await;
     let net = match net {
@@ -423,11 +434,12 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     let max_drawdown = sqlx::query_scalar::<_, Option<Decimal>>(
         r#"
       SELECT MAX(ps.drawdown_pct)
-      FROM performance_snapshots ps JOIN organization_account_entitlements g ON g.account_id=ps.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE'
+      FROM performance_snapshots ps JOIN organization_account_entitlements g ON g.account_id=ps.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
     "#,
     )
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_one(state.store.pool())
     .await;
     let max_drawdown = match max_drawdown {
@@ -454,16 +466,18 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
 }
 
 pub async fn positions(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let rows=sqlx::query_as::<_,(String,String,String,String,Decimal,Decimal,Decimal,Decimal,DateTime<Utc>)>(r#"
       SELECT p.id,p.account_id,i.symbol,p.side,p.quantity,p.avg_entry_price,p.mark_price,p.realized_pnl,p.opened_at
       FROM positions p JOIN instruments i ON i.id=p.instrument_id
-      JOIN organization_account_entitlements g ON g.account_id=p.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND p.quantity>0 ORDER BY p.opened_at DESC
-    "#).bind(&owner).fetch_all(state.store.pool()).await;
+      JOIN organization_account_entitlements g ON g.account_id=p.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 AND p.quantity>0 ORDER BY p.opened_at DESC
+    "#).bind(&owner).bind(&workspace_id).fetch_all(state.store.pool()).await;
     match rows { Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,account,symbol,side,qty,entry,mark,realized,opened)|{
       let unrealized=if side=="long"{(mark-entry)*qty}else{(entry-mark)*qty};
       serde_json::json!({"id":id,"accountId":account,"strategyId":null,"instrumentId":symbol,"side":if side=="long"{"Long"}else{"Short"},"quantity":dec(qty),"entryPrice":dec(entry),"markPrice":dec(mark),"unrealizedPnl":dec(unrealized),"realizedPnl":dec(realized),"exposure":dec((mark*qty).abs()),"riskPct":null,"openedAt":opened})
@@ -500,10 +514,12 @@ pub async fn orders(
     headers: HeaderMap,
     Query(q): Query<ListLimit>,
 ) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let rows = sqlx::query_as::<_, OrderRow>(
         r#"
@@ -511,11 +527,12 @@ pub async fn orders(
              i.symbol,o.side,o.order_type,o.time_in_force,o.quantity,o.price,o.filled_quantity,
              o.status,o.created_at,o.submitted_at,o.updated_at
       FROM orders o JOIN instruments i ON i.id=o.instrument_id
-      JOIN organization_account_entitlements g ON g.account_id=o.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY o.created_at DESC LIMIT $2
+      JOIN organization_account_entitlements g ON g.account_id=o.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY o.created_at DESC LIMIT $3
     "#,
     )
     .bind(&owner)
+    .bind(&workspace_id)
     .bind(limit)
     .fetch_all(state.store.pool())
     .await;
@@ -534,16 +551,18 @@ pub async fn orders(
 }
 
 pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let rows=sqlx::query_as::<_,(String,String,String,String,bool,DateTime<Utc>,Option<String>)>(r#"
       SELECT d.id,s.name,d.strategy_version,d.account_id,d.enabled,d.created_at,a.environment
       FROM strategy_deployments d JOIN strategies s ON s.id=d.strategy_id JOIN accounts a ON a.id=d.account_id
-      JOIN organization_account_entitlements g ON g.account_id=d.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY d.created_at DESC
-    "#).bind(&owner).fetch_all(state.store.pool()).await;
+      JOIN organization_account_entitlements g ON g.account_id=d.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY d.created_at DESC
+    "#).bind(&owner).bind(&workspace_id).fetch_all(state.store.pool()).await;
     match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,environment)|serde_json::json!({
       "id":id,"name":name,"version":version,"status":if enabled{environment.as_deref().unwrap_or("UNCLASSIFIED")}else{"STOPPED"},"environment":environment,
       "instrumentId":null,"signals":null,"trades":null,"returnPct":null,"sharpe":null,"maxDrawdownPct":null,"winRatePct":null,"profitFactor":null,
@@ -552,26 +571,28 @@ pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Re
 }
 
 pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let row=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<bool>,i64,Option<Decimal>,Option<Decimal>)>(r#"
       WITH owned AS (
         SELECT g.account_id,s.daily_realized_pnl,s.balance,s.equity,s.peak_equity,s.kill_switch
-        FROM organization_account_entitlements g JOIN account_states s ON s.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE'
+        FROM organization_account_entitlements g JOIN account_states s ON s.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
       ), limits AS (
         SELECT MIN(NULLIF(rp.policy_json->>'max_daily_loss_pct','')::NUMERIC) AS daily_limit,
                MIN(NULLIF(rp.policy_json->>'max_drawdown_pct','')::NUMERIC) AS dd_limit
         FROM organization_account_entitlements g
         JOIN strategy_deployments d ON d.account_id=g.account_id
-        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.organization_id=$1 AND g.status='ACTIVE'
+        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
       )
       SELECT COALESCE(SUM(o.daily_realized_pnl),0),COALESCE(SUM(o.balance),0),
         COALESCE(MAX(CASE WHEN o.peak_equity>0 THEN (o.peak_equity-o.equity)/o.peak_equity*100 ELSE 0 END),0),
         BOOL_OR(o.kill_switch),COUNT(*),limits.daily_limit,limits.dd_limit
       FROM owned o CROSS JOIN limits GROUP BY limits.daily_limit,limits.dd_limit
-    "#).bind(&owner).fetch_optional(state.store.pool()).await;
+    "#).bind(&owner).bind(&workspace_id).fetch_optional(state.store.pool()).await;
     let (daily, balance, dd, kill, count, daily_limit, dd_limit) = match row {
         Ok(Some(r)) => r,
         Ok(None) => (
@@ -612,15 +633,17 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
 }
 
 pub async fn risk_decisions(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let rows=sqlx::query_as::<_,(i64,DateTime<Utc>,String,String,String,String,Option<Decimal>,Option<Decimal>,String,Option<String>)>(r#"
       SELECT r.id,r.created_at,r.trade_intent_id,ti.strategy_id,ti.instrument_id,r.account_id,ti.target_quantity,r.quantity,r.decision_type,r.reason
       FROM risk_decisions r JOIN trade_intents ti ON ti.id=r.trade_intent_id
-      JOIN organization_account_entitlements g ON g.account_id=r.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY r.created_at DESC LIMIT 100
-    "#).bind(&owner).fetch_all(state.store.pool()).await;
+      JOIN organization_account_entitlements g ON g.account_id=r.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY r.created_at DESC LIMIT 100
+    "#).bind(&owner).bind(&workspace_id).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,time,intent,strategy,instrument,account,requested,approved,decision,reason)|serde_json::json!({
       "id":id.to_string(),"time":time,"tradeIntentId":intent,"strategyId":strategy,"instrumentId":instrument,"accountId":account,
       "requestedQuantity":requested.map(dec),"approvedQuantity":approved.map(dec),"decision":match decision.as_str(){"approved"=>"APPROVED","resized"=>"RESIZED","rejected"=>"REJECTED",_=>"HALTED"},"reason":reason.unwrap_or_default()
@@ -632,37 +655,41 @@ pub async fn events(
     headers: HeaderMap,
     Query(q): Query<ListLimit>,
 ) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
     let rows=sqlx::query_as::<_,(i64,Option<String>,Option<String>,String,serde_json::Value,DateTime<Utc>,String,String,String)>(r#"
       SELECT e.id,e.order_id,e.venue_id,e.event_type,e.payload_json,e.created_at,o.account_id,o.strategy_id,i.symbol FROM execution_events e
-      JOIN orders o ON o.id=e.order_id JOIN instruments i ON i.id=o.instrument_id JOIN organization_account_entitlements g ON g.account_id=o.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' ORDER BY e.created_at DESC LIMIT $2
-    "#).bind(&owner).bind(limit).fetch_all(state.store.pool()).await;
+      JOIN orders o ON o.id=e.order_id JOIN instruments i ON i.id=o.instrument_id JOIN organization_account_entitlements g ON g.account_id=o.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY e.created_at DESC LIMIT $3
+    "#).bind(&owner).bind(&workspace_id).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time,account,strategy,instrument)|serde_json::json!({
       "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":"Trading activity recorded","payload":payload,"correlationId":venue
     })).collect::<Vec<_>>()})).into_response(),Err(_)=>internal()}
 }
 
 pub async fn reconciliation(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
     let rows=sqlx::query_as::<_,(String,String,DateTime<Utc>,serde_json::Value)>(r#"
       SELECT r.account_id,r.terminal_id,r.captured_at,r.snapshot FROM mt5_bridge_reconciliation_snapshots r
-      JOIN organization_account_entitlements g ON g.account_id=r.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE'
+      JOIN organization_account_entitlements g ON g.account_id=r.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
       ORDER BY r.created_at DESC LIMIT 1
-    "#).bind(&owner).fetch_optional(state.store.pool()).await;
+    "#).bind(&owner).bind(&workspace_id).fetch_optional(state.store.pool()).await;
     match rows{Ok(Some((account,terminal,time,snapshot)))=>Json(serde_json::json!({"data":{"accountId":account,"venueId":terminal,"status":"ALERT","lines":[],"alerts":[{"title":"Reconciliation snapshot available","detail":"Snapshot data is available; live venue comparison is not exposed by this API.","action":"ALERT_ONLY"}],"lastRunAt":time,"snapshot":snapshot}})).into_response(),
       Ok(None)=>Json(serde_json::json!({"data":{"accountId":null,"venueId":null,"status":"ALERT","lines":[],"alerts":[{"title":"No reconciliation snapshot","detail":"No authorized reconciliation snapshot is available.","action":"ALERT_ONLY"}],"lastRunAt":null}})).into_response(),Err(_)=>internal()}
 }
 
 pub async fn system_components(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let _owner = match tenant(&state, &headers).await {
+    let _principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
@@ -693,15 +720,18 @@ pub async fn system_components(State(state): State<AppState>, headers: HeaderMap
     .into_response()
 }
 pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let owner = match tenant(&state, &headers).await {
+    let principal = match tenant(&state, &headers).await {
         Ok(v) => v,
         Err(response) => return response,
     };
+    let owner = principal.organization_id.clone();
+    let workspace_id = principal.workspace_id.clone();
 
     let account_count = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM organization_account_entitlements WHERE organization_id=$1 AND status='ACTIVE'",
     )
     .bind(&owner)
+    .bind(&workspace_id)
     .fetch_one(state.store.pool())
     .await;
 
