@@ -1031,8 +1031,9 @@ mod qos021a_e3a_r2_api_tests {
         .unwrap();
         assert_eq!(workspace_events, 1);
 
-        // A failed initial OWNER membership insert must roll back the organization
-        // and the workspace that the database trigger provisioned for it.
+        // An invalid creator identity makes the organization INSERT fail. This
+        // verifies that no organization or trigger-provisioned workspace can
+        // survive a failed creation transaction.
         let rollback_id = "api-org-provision-rollback";
         let rollback_org = domain::Organization::new(
             domain::OrganizationId::new(rollback_id).unwrap(),
