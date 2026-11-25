@@ -57,6 +57,10 @@ Verify against an authorized test database and deployed API:
 
 Existing Rust API tests cover assignment isolation, missing context, role/grant enforcement, revocation and selected-workspace paper-account creation. Persistence tests cover default backfill, idempotent migration, grant revisions, membership revocation and append-only grant history. Preserve these as mandatory gates.
 
+## Authorization observability
+
+Workspace authorization now emits structured tracing reason codes for database unavailability, principal lookup failures, missing organization/workspace context, inaccessible or inactive workspace context, capability denial, organization/path mismatch and missing organization-admin authority. These events intentionally omit bearer tokens, refresh tokens, user IDs, organization IDs and workspace IDs. Keep the append-only workspace, assignment and grant event tables as the durable audit record; application logs are operational signals, not a replacement for database history.
+
 ## Rollback and recovery
 
 - Before migration: stop; no changes required.
