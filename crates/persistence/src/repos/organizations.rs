@@ -601,8 +601,16 @@ pub async fn create_paper_account_for_owner(
     state: &AccountState,
 ) -> PersistenceResult<i64> {
     create_paper_account_for_owner_inner(
-        pool, organization, actor, None, account, starting_capital, label, state,
-    ).await
+        pool,
+        organization,
+        actor,
+        None,
+        account,
+        starting_capital,
+        label,
+        state,
+    )
+    .await
 }
 
 pub async fn create_paper_account_for_owner_in_workspace(
@@ -616,8 +624,16 @@ pub async fn create_paper_account_for_owner_in_workspace(
     state: &AccountState,
 ) -> PersistenceResult<i64> {
     create_paper_account_for_owner_inner(
-        pool, organization, actor, Some(workspace_id), account, starting_capital, label, state,
-    ).await
+        pool,
+        organization,
+        actor,
+        Some(workspace_id),
+        account,
+        starting_capital,
+        label,
+        state,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
