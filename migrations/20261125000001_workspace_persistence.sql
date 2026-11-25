@@ -199,9 +199,6 @@ CREATE TRIGGER workspace_account_assignment_revision_guard
     BEFORE UPDATE OR DELETE ON workspace_account_assignments
     FOR EACH ROW EXECUTE FUNCTION protect_workspace_account_assignment();
 
-CREATE TRIGGER workspace_account_assignment_events_no_update_delete
-    BEFORE UPDATE OR DELETE ON workspace_account_assignment_events
-    FOR EACH ROW EXECUTE FUNCTION prevent_workspace_history_change();
 
 -- Enforce one active default at transaction commit. Deferral allows M2 to create
 -- an organization and its first workspace in the same transaction.
@@ -281,6 +278,9 @@ END
 $$;
 CREATE TRIGGER workspace_events_no_update_delete
     BEFORE UPDATE OR DELETE ON workspace_events
+    FOR EACH ROW EXECUTE FUNCTION prevent_workspace_history_change();
+CREATE TRIGGER workspace_account_assignment_events_no_update_delete
+    BEFORE UPDATE OR DELETE ON workspace_account_assignment_events
     FOR EACH ROW EXECUTE FUNCTION prevent_workspace_history_change();
 
 COMMENT ON TABLE workspaces IS
