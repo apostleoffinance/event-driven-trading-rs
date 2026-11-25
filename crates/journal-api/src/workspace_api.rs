@@ -180,3 +180,45 @@ pub async fn set_default(State(state):State<AppState>,headers:HeaderMap,Path((or
     if e1.is_err()||e2.is_err()||tx.commit().await.is_err(){return db_error();}
     Json(serde_json::json!({"data":{"id":workspace,"isDefault":true,"revision":new_next}})).into_response()
 }
+
+#[derive(Deserialize)]
+pub struct GrantCreate { pub user_id:String, pub role:String, pub reason:String }
+#[derive(Deserialize)]
+pub struct GrantUpdate { pub expected_revision:i64, pub role:String, pub status:String, pub reason:String }
+fn valid_workspace_role(role:&str)->bool{matches!(role,"WORKSPACE_ADMIN"|"TRADER"|"RISK_MANAGER"|"VIEWER")}
+pub async fn list_grants(State(state):State<AppState>,headers:HeaderMap,Path((org,workspace)):Path<(String,String)>)->Response{
+    if let Err(r)=require_org_admin(&state,&headers,&org).await{return r;}
+    let rows=sqlx::query_as::<_,(String,String,String,i64,String,String,String,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>(
+        "SELECT user_id,role,status,revision,granted_by,updated_by,reason,created_at,updated_at FROM workspace_access_grants WHERE organization_id=$1 AND workspace_id=$2 ORDER BY created_at,user_id")
+        .bind(&org).bind(&workspace).fetch_all(state.store.pool()).await;
+    match rows{
+        Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(user,role,status,revision,granted_by,updated_by,reason,created,updated)|serde_json::json!({"userId":user,"role":role,"status":status,"revision":revision,"grantedBy":granted_by,"updatedBy":updated_by,"reason":reason,"createdAt":created,"updatedAt":updated})).collect::<Vec<_>>()})).into_response(),
+        Err(_)=>db_error()
+    }
+}
+pub async fn create_grant(State(state):State<AppState>,headers:HeaderMap,Path((org,workspace)):Path<(String,String)>,Json(input):Json<GrantCreate>)->Response{
+    let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
+    if input.user_id.trim().is_empty()||input.reason.trim().is_empty()||!valid_workspace_role(&input.role){return error(StatusCode::BAD_REQUEST,"invalid_grant","A valid user_id, workspace role and reason are required");}
+    let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
+    let inserted=sqlx::query("INSERT INTO workspace_access_grants(organization_id,workspace_id,user_id,role,status,revision,granted_by,updated_by,reason) VALUES($1,$2,$3,$4,'ACTIVE',1,$5,$5,$6)")
+        .bind(&org).bind(&workspace).bind(input.user_id.trim()).bind(&input.role).bind(&actor).bind(input.reason.trim()).execute(&mut *tx).await;
+    if inserted.is_err(){return error(StatusCode::CONFLICT,"grant_rejected","Grant target is unavailable, already granted, or not eligible");}
+    if tx.commit().await.is_err(){return db_error();}
+    (StatusCode::CREATED,Json(serde_json::json!({"data":{"userId":input.user_id.trim(),"role":input.role,"status":"ACTIVE","revision":1}}))).into_response()
+}
+pub async fn update_grant(State(state):State<AppState>,headers:HeaderMap,Path((org,workspace,user)):Path<(String,String,String)>,Json(input):Json<GrantUpdate>)->Response{
+    let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
+    if input.reason.trim().is_empty()||!valid_workspace_role(&input.role)||!matches!(input.status.as_str(),"ACTIVE"|"REVOKED"){return error(StatusCode::BAD_REQUEST,"invalid_grant","A valid role, status and reason are required");}
+    let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
+    let old=sqlx::query_as::<_,(String,i64)>("SELECT status,revision FROM workspace_access_grants WHERE organization_id=$1 AND workspace_id=$2 AND user_id=$3 FOR UPDATE")
+        .bind(&org).bind(&workspace).bind(&user).fetch_optional(&mut *tx).await;
+    let Some((old_status,revision))=(match old{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
+    if revision!=input.expected_revision{return error(StatusCode::CONFLICT,"revision_conflict","Workspace grant revision is stale");}
+    if old_status=="REVOKED"&&input.status=="REVOKED"{return error(StatusCode::CONFLICT,"grant_already_revoked","Grant is already revoked");}
+    let next=revision+1;
+    let updated=sqlx::query("UPDATE workspace_access_grants SET role=$4,status=$5,revision=$6,updated_by=$7,reason=$8 WHERE organization_id=$1 AND workspace_id=$2 AND user_id=$3 AND revision=$9")
+        .bind(&org).bind(&workspace).bind(&user).bind(&input.role).bind(&input.status).bind(next).bind(&actor).bind(input.reason.trim()).bind(revision).execute(&mut *tx).await;
+    if updated.is_err(){return error(StatusCode::CONFLICT,"grant_update_rejected","Grant update was rejected by current membership or workspace policy");}
+    if tx.commit().await.is_err(){return db_error();}
+    Json(serde_json::json!({"data":{"userId":user,"role":input.role,"status":input.status,"revision":next}})).into_response()
+}
