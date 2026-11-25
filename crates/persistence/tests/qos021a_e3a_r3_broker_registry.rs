@@ -17,9 +17,6 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // The registry migration now depends on M1's workspace tables and
-    // organization-creation trigger. Build the full predecessor schema while
-    // excluding only the R3 migration under test.
     // R3 (20261113000001) is the migration under test. M1 has a later
     // timestamp but is now a schema prerequisite for this upgrade fixture.
     // Apply only the genuine R2 predecessor set plus M1; do not apply later
