@@ -126,7 +126,11 @@ pub async fn register_pending_binding(
         .bind(quant_account)
         .fetch_optional(&mut *tx)
         .await?;
-        matches!(entitlement, Some((ref entitlement_status, ref workspace_status)) if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE")
+        matches!(
+            entitlement,
+            Some((ref entitlement_status, ref workspace_status))
+                if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE"
+        )
     } else {
         let entitlement_status = sqlx::query_scalar::<_, String>(
             "SELECT status FROM organization_account_entitlements WHERE organization_id=$1 AND account_id=$2 FOR UPDATE",
