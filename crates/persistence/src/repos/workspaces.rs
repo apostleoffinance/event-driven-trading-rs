@@ -102,7 +102,7 @@ pub async fn for_account(
             ON a.workspace_id=w.id AND a.organization_id=w.organization_id
          WHERE a.organization_id=$1 AND a.account_id=$2
     "#;
-    let row = sqlx::query_as::<_, WorkspaceRow>(query.as_str())
+    let row = sqlx::query_as::<_, WorkspaceRow>(query)
         .bind(organization_id)
         .bind(account_id)
         .fetch_optional(pool)
