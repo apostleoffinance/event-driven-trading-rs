@@ -141,7 +141,7 @@ async fn account_rows(
         JOIN accounts a ON a.id=g.account_id
         JOIN venues v ON v.id=a.venue_id
         JOIN account_states s ON s.account_id=a.id
-        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 AND wa.workspace_id=$2 AND ($3::TEXT IS NULL OR a.id=$3)
+        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) AND ($3::TEXT IS NULL OR a.id=$3)
         ORDER BY a.created_at DESC
     "#).bind(organization).bind(workspace_id).bind(account_id).fetch_all(state.store.pool()).await
 }
@@ -328,7 +328,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
       FROM organization_account_entitlements g
       JOIN accounts a ON a.id=g.account_id
       JOIN account_states s ON s.account_id=a.id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
     "#)
     .bind(&owner)
     .bind(&workspace_id)
@@ -356,7 +356,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         SELECT ps.realized_pnl FROM performance_snapshots ps
         WHERE ps.account_id=a.id ORDER BY ps.captured_at DESC LIMIT 1
       ) latest ON TRUE
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
     "#)
     .bind(&owner)
     .bind(&workspace_id)
@@ -375,7 +375,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
           ps.equity,ps.realized_pnl,ps.drawdown_pct
         FROM performance_snapshots ps
         JOIN organization_account_entitlements g ON g.account_id=ps.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+        WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
         ORDER BY ps.account_id,date_trunc('hour', ps.captured_at),ps.captured_at DESC
       )
       SELECT captured_at,SUM(equity),SUM(realized_pnl),MAX(drawdown_pct)
@@ -405,7 +405,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         r#"
       SELECT SUM(ABS(p.quantity*p.mark_price))
       FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
     "#,
     )
     .bind(&owner)
@@ -420,7 +420,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     let net = sqlx::query_scalar::<_, Option<Decimal>>(r#"
       SELECT SUM(CASE WHEN p.side='long' THEN p.quantity*p.mark_price ELSE -(p.quantity*p.mark_price) END)
       FROM positions p JOIN organization_account_entitlements g ON g.account_id=p.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
     "#)
     .bind(&owner)
     .bind(&workspace_id)
@@ -435,7 +435,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
         r#"
       SELECT MAX(ps.drawdown_pct)
       FROM performance_snapshots ps JOIN organization_account_entitlements g ON g.account_id=ps.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
     "#,
     )
     .bind(&owner)
@@ -476,7 +476,7 @@ pub async fn positions(State(state): State<AppState>, headers: HeaderMap) -> Res
       SELECT p.id,p.account_id,i.symbol,p.side,p.quantity,p.avg_entry_price,p.mark_price,p.realized_pnl,p.opened_at
       FROM positions p JOIN instruments i ON i.id=p.instrument_id
       JOIN organization_account_entitlements g ON g.account_id=p.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 AND p.quantity>0 ORDER BY p.opened_at DESC
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) AND p.quantity>0 ORDER BY p.opened_at DESC
     "#).bind(&owner).bind(&workspace_id).fetch_all(state.store.pool()).await;
     match rows { Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,account,symbol,side,qty,entry,mark,realized,opened)|{
       let unrealized=if side=="long"{(mark-entry)*qty}else{(entry-mark)*qty};
@@ -528,7 +528,7 @@ pub async fn orders(
              o.status,o.created_at,o.submitted_at,o.updated_at
       FROM orders o JOIN instruments i ON i.id=o.instrument_id
       JOIN organization_account_entitlements g ON g.account_id=o.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY o.created_at DESC LIMIT $3
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) ORDER BY o.created_at DESC LIMIT $3
     "#,
     )
     .bind(&owner)
@@ -561,7 +561,7 @@ pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Re
       SELECT d.id,s.name,d.strategy_version,d.account_id,d.enabled,d.created_at,a.environment
       FROM strategy_deployments d JOIN strategies s ON s.id=d.strategy_id JOIN accounts a ON a.id=d.account_id
       JOIN organization_account_entitlements g ON g.account_id=d.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY d.created_at DESC
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) ORDER BY d.created_at DESC
     "#).bind(&owner).bind(&workspace_id).fetch_all(state.store.pool()).await;
     match rows {Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,name,version,account,enabled,created,environment)|serde_json::json!({
       "id":id,"name":name,"version":version,"status":if enabled{environment.as_deref().unwrap_or("UNCLASSIFIED")}else{"STOPPED"},"environment":environment,
@@ -580,13 +580,13 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
     let row=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<bool>,i64,Option<Decimal>,Option<Decimal>)>(r#"
       WITH owned AS (
         SELECT g.account_id,s.daily_realized_pnl,s.balance,s.equity,s.peak_equity,s.kill_switch
-        FROM organization_account_entitlements g JOIN account_states s ON s.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+        FROM organization_account_entitlements g JOIN account_states s ON s.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
       ), limits AS (
         SELECT MIN(NULLIF(rp.policy_json->>'max_daily_loss_pct','')::NUMERIC) AS daily_limit,
                MIN(NULLIF(rp.policy_json->>'max_drawdown_pct','')::NUMERIC) AS dd_limit
         FROM organization_account_entitlements g
         JOIN strategy_deployments d ON d.account_id=g.account_id
-        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+        JOIN risk_profiles rp ON rp.id=d.risk_profile_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
       )
       SELECT COALESCE(SUM(o.daily_realized_pnl),0),COALESCE(SUM(o.balance),0),
         COALESCE(MAX(CASE WHEN o.peak_equity>0 THEN (o.peak_equity-o.equity)/o.peak_equity*100 ELSE 0 END),0),
@@ -642,7 +642,7 @@ pub async fn risk_decisions(State(state): State<AppState>, headers: HeaderMap) -
     let rows=sqlx::query_as::<_,(i64,DateTime<Utc>,String,String,String,String,Option<Decimal>,Option<Decimal>,String,Option<String>)>(r#"
       SELECT r.id,r.created_at,r.trade_intent_id,ti.strategy_id,ti.instrument_id,r.account_id,ti.target_quantity,r.quantity,r.decision_type,r.reason
       FROM risk_decisions r JOIN trade_intents ti ON ti.id=r.trade_intent_id
-      JOIN organization_account_entitlements g ON g.account_id=r.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY r.created_at DESC LIMIT 100
+      JOIN organization_account_entitlements g ON g.account_id=r.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) ORDER BY r.created_at DESC LIMIT 100
     "#).bind(&owner).bind(&workspace_id).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,time,intent,strategy,instrument,account,requested,approved,decision,reason)|serde_json::json!({
       "id":id.to_string(),"time":time,"tradeIntentId":intent,"strategyId":strategy,"instrumentId":instrument,"accountId":account,
@@ -665,7 +665,7 @@ pub async fn events(
     let rows=sqlx::query_as::<_,(i64,Option<String>,Option<String>,String,serde_json::Value,DateTime<Utc>,String,String,String)>(r#"
       SELECT e.id,e.order_id,e.venue_id,e.event_type,e.payload_json,e.created_at,o.account_id,o.strategy_id,i.symbol FROM execution_events e
       JOIN orders o ON o.id=e.order_id JOIN instruments i ON i.id=o.instrument_id JOIN organization_account_entitlements g ON g.account_id=o.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id
-      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2 ORDER BY e.created_at DESC LIMIT $3
+      WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2) ORDER BY e.created_at DESC LIMIT $3
     "#).bind(&owner).bind(&workspace_id).bind(limit).fetch_all(state.store.pool()).await;
     match rows{Ok(rows)=>Json(serde_json::json!({"data":rows.into_iter().map(|(id,order,venue,kind,payload,time,account,strategy,instrument)|serde_json::json!({
       "id":id.to_string(),"timestamp":time,"type":status_case(&kind),"entity":order,"accountId":account,"strategyId":strategy,"instrumentId":instrument,"status":"RECORDED","detail":"Trading activity recorded","payload":payload,"correlationId":venue
@@ -681,7 +681,7 @@ pub async fn reconciliation(State(state): State<AppState>, headers: HeaderMap) -
     let workspace_id = principal.workspace_id.clone();
     let rows=sqlx::query_as::<_,(String,String,DateTime<Utc>,serde_json::Value)>(r#"
       SELECT r.account_id,r.terminal_id,r.captured_at,r.snapshot FROM mt5_bridge_reconciliation_snapshots r
-      JOIN organization_account_entitlements g ON g.account_id=r.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND wa.workspace_id=$2
+      JOIN organization_account_entitlements g ON g.account_id=r.account_id JOIN workspace_account_assignments wa ON wa.organization_id=g.organization_id AND wa.account_id=g.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (SELECT 1 FROM workspace_account_assignments wa_scope WHERE wa_scope.organization_id=g.organization_id AND wa_scope.account_id=g.account_id AND wa_scope.workspace_id=$2)
       ORDER BY r.created_at DESC LIMIT 1
     "#).bind(&owner).bind(&workspace_id).fetch_optional(state.store.pool()).await;
     match rows{Ok(Some((account,terminal,time,snapshot)))=>Json(serde_json::json!({"data":{"accountId":account,"venueId":terminal,"status":"ALERT","lines":[],"alerts":[{"title":"Reconciliation snapshot available","detail":"Snapshot data is available; live venue comparison is not exposed by this API.","action":"ALERT_ONLY"}],"lastRunAt":time,"snapshot":snapshot}})).into_response(),
