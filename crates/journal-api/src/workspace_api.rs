@@ -48,6 +48,7 @@ fn not_found() -> Response {
     )
 }
 fn db_error() -> Response {
+    tracing::error!(reason = "workspace_authorization_unavailable", "workspace authorization database operation failed");
     error(
         StatusCode::SERVICE_UNAVAILABLE,
         "authorization_unavailable",
