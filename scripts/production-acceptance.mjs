@@ -476,28 +476,54 @@ try {
     // navigating to Journal a second time.
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
+    const loginFormValid = await page.locator("form").evaluate(form => (form as HTMLFormElement).checkValidity());
+    assert.ok(
+      loginFormValid,
+      "Acceptance credentials do not satisfy the login form's required fields or minimum password length.",
+    );
+    // Observe both requests before submission: this distinguishes a blocked
+    // native form submission, an identity API rejection, and an authenticated
+    // Journal query that never starts.
+    const loginResponsePromise = page.waitForResponse(
+      response => response.url().includes("/api/v1/auth/login") && response.request().method() === "POST",
+      { timeout: 30_000 },
+    );
     const initialJournalAccountsResponsePromise = page.waitForResponse(
       response => response.url().includes("/api/v1/journal/accounts") && response.request().method() === "GET",
       { timeout: 45_000 },
     );
     await page.getByRole("button", { name: "Sign in" }).click();
-    // Wait for the authenticated account read during the login route transition.
-    // A later /journal navigation may reuse React Query cache and issue no GET.
-    const initialJournalAccountsResponse = await initialJournalAccountsResponsePromise;
-    assert.equal(initialJournalAccountsResponse.status(), 200, `Journal accounts API failed after login: HTTP ${initialJournalAccountsResponse.status()}`);
-    const initialJournalAccountsPayload = await initialJournalAccountsResponse.json();
-    const initialJournalAccountCount = Array.isArray(initialJournalAccountsPayload.data) ? initialJournalAccountsPayload.data.length : 0;
-    await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 45_000 });
+    const loginResponse = await loginResponsePromise;
+    if (!loginResponse.ok()) {
+      let detail = `HTTP ${loginResponse.status()}`;
+      try {
+        const body = await loginResponse.json();
+        detail = body?.error?.message ?? body?.message ?? detail;
+      } catch { /* preserve status-only diagnostic for non-JSON login errors */ }
+      throw new Error(`Production acceptance login was rejected: ${detail}`);
+    }
+    await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
     const authenticatedSessionState = await page.evaluate(() => {
       const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
       return { hasAccessToken: Boolean(session?.access_token), hasRefreshToken: Boolean(session?.refresh_token) };
     });
-    assert.ok(authenticatedSessionState.hasAccessToken, "Login completed without persisting an access token.");
-    const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
-    await journalAccountsError.waitFor({ state: "hidden", timeout: 10_000 }).catch(async () => {
-      const message = await journalAccountsError.innerText().catch(() => "Journal error banner is visible.");
-      throw new Error(`Journal accounts query failed after login: ${message}`);
-    });
+    assert.ok(authenticatedSessionState.hasAccessToken, "Identity login returned HTTP 200 but did not persist an access token.");
+    const initialAccountsOutcome = await Promise.race([
+      initialJournalAccountsResponsePromise.then(response => ({ kind: "response", response })),
+      page.locator(".journal-page .panel.error[role='alert']").waitFor({ state: "visible", timeout: 45_000 }).then(async () => ({
+        kind: "error",
+        message: await page.locator(".journal-page .panel.error[role='alert']").innerText(),
+      })),
+    ]);
+    assert.equal(
+      initialAccountsOutcome.kind,
+      "response",
+      `Journal accounts query did not succeed after identity login: ${initialAccountsOutcome.kind === "error" ? initialAccountsOutcome.message : "no response observed"}`,
+    );
+    const initialJournalAccountsResponse = initialAccountsOutcome.response;
+    assert.equal(initialJournalAccountsResponse.status(), 200, `Journal accounts API failed after login: HTTP ${initialJournalAccountsResponse.status()}`);
+    const initialJournalAccountsPayload = await initialJournalAccountsResponse.json();
+    const initialJournalAccountCount = Array.isArray(initialJournalAccountsPayload.data) ? initialJournalAccountsPayload.data.length : 0;
 
     // Authenticated Command Centre + Journal visual coverage. Capture the real
     // signed-in routes at all six agreed viewports without creating or changing
