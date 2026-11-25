@@ -1666,15 +1666,23 @@ mod qos021a_e3a_r2_api_tests {
         let create_in_selected_workspace = Request::builder()
             .method(Method::POST)
             .uri("/api/v1/trading/accounts")
-            .header("authorization", format!("Bearer {owner_token_for_creation}"))
+            .header(
+                "authorization",
+                format!("Bearer {owner_token_for_creation}"),
+            )
             .header("x-organization-id", "ws-org")
             .header("x-workspace-id", second.id.as_str())
             .header("content-type", "application/json")
             .body(Body::from(
-                json!({"name":"Research Paper","initial_capital":"250","environment":"PAPER"}).to_string(),
+                json!({"name":"Research Paper","initial_capital":"250","environment":"PAPER"})
+                    .to_string(),
             ))
             .unwrap();
-        let created = app.clone().oneshot(create_in_selected_workspace).await.unwrap();
+        let created = app
+            .clone()
+            .oneshot(create_in_selected_workspace)
+            .await
+            .unwrap();
         assert_eq!(created.status(), StatusCode::CREATED);
         let created_body = created.into_body().collect().await.unwrap().to_bytes();
         let created_json: Value = serde_json::from_slice(&created_body).unwrap();
