@@ -14,42 +14,44 @@ export type EventStreamState = {
 };
 
 /** Refreshes the authenticated event history and never fabricates trading events. */
-export function useEventStream(limit = 40): EventStreamState {
-  const [events, setEvents] = useState<TradingEvent[]>([]);
-  const [connected, setConnected] = useState(false);
+export function useEventStream(limit = 50) {
+  const [eventState, setEventState] = useState<{
+    scope: string;
+    events: TradingEvent[];
+    connected: boolean;
+  }>({ scope: "", events: [], connected: false });
   const { activeWorkspaceId } = useWorkspace();
   const { activeOrganizationId } = useOrganization();
+  const scopeKey = `${activeOrganizationId ?? ""}:${activeWorkspaceId ?? ""}`;
+  const events = eventState.scope === scopeKey ? eventState.events : [];
+  const connected = eventState.scope === scopeKey && eventState.connected;
 
   useEffect(() => {
     let active = true;
-    setEvents([]);
-    setConnected(false);
     if (!activeOrganizationId || !activeWorkspaceId) {
-      return () => { active = false; };
+      return () => {
+        active = false;
+      };
     }
     const refresh = async () => {
       try {
         const latest = await getRepositories().events.listEvents(limit);
-        if (!active) return;
-        setEvents(latest.slice(0, limit));
-        setConnected(true);
+        if (active) {
+          setEventState({ scope: scopeKey, events: latest, connected: true });
+        }
       } catch {
-        if (active) setConnected(false);
+        if (active) {
+          setEventState({ scope: scopeKey, events: [], connected: false });
+        }
       }
     };
     void refresh();
-    const id = window.setInterval(() => void refresh(), 10000);
+    const timer = window.setInterval(refresh, 10_000);
     return () => {
       active = false;
-      window.clearInterval(id);
+      window.clearInterval(timer);
     };
-  }, [limit, activeOrganizationId, activeWorkspaceId]);
+  }, [limit, activeOrganizationId, activeWorkspaceId, scopeKey]);
 
-  const push = useCallback((event: TradingEvent) => {
-    setEvents((prev) => [event, ...prev].slice(0, limit));
-  }, [limit]);
-
-  const reset = useCallback(() => setEvents([]), []);
-
-  return { events, connected, push, reset };
+  return { events, connected };
 }
