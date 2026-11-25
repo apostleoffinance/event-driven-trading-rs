@@ -61,7 +61,7 @@ async fn apply_before_r3(pool: &PgPool) {
             .find(|migration| migration.version == version)
             .expect("required migration must exist exactly once");
         let mut tx = pool.begin().await.unwrap();
-        sqlx::raw_sql(std::str::from_utf8(migration.sql.as_ref()).unwrap())
+        sqlx::raw_sql(migration.sql.as_ref())
             .execute(&mut *tx)
             .await
             .unwrap_or_else(|error| panic!("migration {version} failed: {error}"));
