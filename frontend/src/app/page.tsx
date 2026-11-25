@@ -6,11 +6,13 @@ import { getRepositories } from "@/lib/repositories";
 import { hasSession } from "@/lib/auth/session";
 import type { Account, Order, PortfolioSnapshot, Position, RiskOverview } from "@/types/domain";
 import { useOrganization } from "@/features/organization/OrganizationProvider";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
 
 export default function CommandCenterPage() {
   const repos = getRepositories();
   const { organizations, hasMemberships, activeOrganizationId, loading: organizationLoading, error: organizationError, refreshOrganizations, createOrganization } = useOrganization();
   const { events } = useSharedEventStream();
+  const { activeWorkspaceId } = useWorkspace();
   const [authenticated, setAuthenticated] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -24,9 +26,9 @@ export default function CommandCenterPage() {
   useEffect(() => { setAuthenticated(hasSession()); setAuthResolved(true); }, []);
   useEffect(() => {
     if (!authenticated || organizationLoading) return;
-    if (!activeOrganizationId) {
+    if (!activeOrganizationId || !activeWorkspaceId) {
       setAccounts([]); setPortfolio(null); setPositions([]); setOrders([]); setRisk(null);
-      setError(organizationError ?? "Your account has no active workspace. Ask an organization owner to restore your membership or invite you to an active workspace.");
+      setError(organizationError ?? (!activeOrganizationId ? "Your account has no active organization. Ask an organization owner to restore your membership." : "Choose an active workspace to load its trading data."));
       setLoading(false);
       return;
     }
@@ -46,7 +48,7 @@ export default function CommandCenterPage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [authenticated,organizationLoading,activeOrganizationId,organizationError,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk,retryVersion]);
+  }, [authenticated,organizationLoading,activeOrganizationId,activeWorkspaceId,organizationError,repos.accounts,repos.portfolio,repos.positions,repos.orders,repos.risk,retryVersion]);
   if (!authResolved || !authenticated) return null;
   if (organizationLoading) return <div className="dashboard-loading" role="status">Loading your organization…</div>;
   return <DashboardWorkspace executionAccounts={accounts} portfolio={portfolio} positions={positions} orders={orders} risk={risk} events={events} loading={loading} error={error ?? (!activeOrganizationId ? organizationError ?? "Your account is not connected to an active organization." : null)} canCreateWorkspace={!organizationError && organizations.length === 0 && !hasMemberships} onCreateWorkspace={createOrganization} onRetry={() => { void refreshOrganizations(); setRetryVersion(value => value + 1); }} />;

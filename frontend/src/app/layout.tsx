@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import "@/styles/globals.css";
 import "@/styles/design-tokens.css";
 import "@/styles/brand-assets.css";
+import "@/styles/workspace-settings.css";
 
 export const metadata: Metadata = {
   title: "EdgeNest | Trading Infrastructure",

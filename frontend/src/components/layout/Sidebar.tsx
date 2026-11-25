@@ -18,6 +18,7 @@ import {
   Shield,
   SlidersHorizontal,
   Wallet,
+  Settings,
 } from "lucide-react";
 
 const sections = [
@@ -51,6 +52,10 @@ const sections = [
   {
     title: "RISK",
     items: [{ href: "/risk", label: "Risk Center", icon: Shield }, { href: "/risk/policies", label: "Account Policies", icon: SlidersHorizontal }],
+  },
+  {
+    title: "WORKSPACE",
+    items: [{ href: "/settings/workspaces", label: "Workspace settings", icon: Settings }],
   },
   {
     title: "TOOLS",
