@@ -375,6 +375,29 @@ impl TradingStore {
         .await
     }
 
+    pub async fn create_paper_account_for_owner_in_workspace(
+        &self,
+        organization: &str,
+        actor: &str,
+        workspace_id: &str,
+        account: &domain::Account,
+        starting_capital: rust_decimal::Decimal,
+        label: &str,
+        state: &domain::AccountState,
+    ) -> PersistenceResult<i64> {
+        organizations::create_paper_account_for_owner_in_workspace(
+            &self.pool,
+            organization,
+            actor,
+            workspace_id,
+            account,
+            starting_capital,
+            label,
+            state,
+        )
+        .await
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn set_account_entitlement_status(
         &self,
