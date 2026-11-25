@@ -293,29 +293,92 @@ mod tests {
     #[test]
     fn owner_and_admin_have_implicit_access_without_grant() {
         for role in [OrganizationRole::Owner, OrganizationRole::Admin] {
-            let caps = effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, role, None, WorkspaceStatus::Active).unwrap();
+            let caps = effective_workspace_capabilities(
+                OrganizationStatus::Active,
+                MembershipStatus::Active,
+                role,
+                None,
+                WorkspaceStatus::Active,
+            )
+            .unwrap();
             assert!(caps.read && caps.trade && caps.manage_risk && caps.manage_workspace);
         }
     }
 
     #[test]
     fn non_admin_members_require_active_grant() {
-        assert!(effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, OrganizationRole::Trader, None, WorkspaceStatus::Active).is_none());
-        assert!(effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, OrganizationRole::Trader, Some((WorkspaceRole::Trader, WorkspaceGrantStatus::Revoked)), WorkspaceStatus::Active).is_none());
-        assert!(effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, OrganizationRole::Trader, Some((WorkspaceRole::Trader, WorkspaceGrantStatus::Active)), WorkspaceStatus::Archived).is_none());
-        assert!(effective_workspace_capabilities(OrganizationStatus::Suspended, MembershipStatus::Active, OrganizationRole::Owner, None, WorkspaceStatus::Active).is_none());
-        assert!(effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Suspended, OrganizationRole::Owner, None, WorkspaceStatus::Active).is_none());
+        assert!(effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Active,
+            OrganizationRole::Trader,
+            None,
+            WorkspaceStatus::Active
+        )
+        .is_none());
+        assert!(effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Active,
+            OrganizationRole::Trader,
+            Some((WorkspaceRole::Trader, WorkspaceGrantStatus::Revoked)),
+            WorkspaceStatus::Active
+        )
+        .is_none());
+        assert!(effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Active,
+            OrganizationRole::Trader,
+            Some((WorkspaceRole::Trader, WorkspaceGrantStatus::Active)),
+            WorkspaceStatus::Archived
+        )
+        .is_none());
+        assert!(effective_workspace_capabilities(
+            OrganizationStatus::Suspended,
+            MembershipStatus::Active,
+            OrganizationRole::Owner,
+            None,
+            WorkspaceStatus::Active
+        )
+        .is_none());
+        assert!(effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Suspended,
+            OrganizationRole::Owner,
+            None,
+            WorkspaceStatus::Active
+        )
+        .is_none());
     }
 
     #[test]
     fn workspace_role_cannot_elevate_organization_role() {
-        let viewer = effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, OrganizationRole::Viewer, Some((WorkspaceRole::Admin, WorkspaceGrantStatus::Active)), WorkspaceStatus::Active).unwrap();
+        let viewer = effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Active,
+            OrganizationRole::Viewer,
+            Some((WorkspaceRole::Admin, WorkspaceGrantStatus::Active)),
+            WorkspaceStatus::Active,
+        )
+        .unwrap();
         assert!(viewer.read);
         assert!(!viewer.trade && !viewer.manage_risk && !viewer.manage_workspace);
-        let trader = effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, OrganizationRole::Trader, Some((WorkspaceRole::RiskManager, WorkspaceGrantStatus::Active)), WorkspaceStatus::Active).unwrap();
+        let trader = effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Active,
+            OrganizationRole::Trader,
+            Some((WorkspaceRole::RiskManager, WorkspaceGrantStatus::Active)),
+            WorkspaceStatus::Active,
+        )
+        .unwrap();
         assert!(trader.read);
         assert!(!trader.trade && !trader.manage_risk);
-        let risk = effective_workspace_capabilities(OrganizationStatus::Active, MembershipStatus::Active, OrganizationRole::RiskManager, Some((WorkspaceRole::Trader, WorkspaceGrantStatus::Active)), WorkspaceStatus::Active).unwrap();
+        let risk = effective_workspace_capabilities(
+            OrganizationStatus::Active,
+            MembershipStatus::Active,
+            OrganizationRole::RiskManager,
+            Some((WorkspaceRole::Trader, WorkspaceGrantStatus::Active)),
+            WorkspaceStatus::Active,
+        )
+        .unwrap();
         assert!(risk.read);
         assert!(!risk.trade && !risk.manage_risk);
     }
