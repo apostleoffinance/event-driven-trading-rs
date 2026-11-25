@@ -63,6 +63,10 @@ define_id!(
     OrganizationId
 );
 define_id!(
+    /// Operational workspace identifier.
+    WorkspaceId
+);
+define_id!(
     /// Trusted broker catalogue identifier.
     BrokerId
 );
