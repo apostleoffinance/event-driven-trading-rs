@@ -135,9 +135,12 @@ async fn grants_reject_admin_targets_and_non_admin_grantors_and_do_not_reactivat
          WHERE organization_id='m31-org' AND user_id='m31-viewer'",
     ).execute(&pool).await?;
 
-    let status:String=sqlx::query_scalar(
+    let status: String = sqlx::query_scalar(
         "SELECT status FROM workspace_access_grants WHERE workspace_id=$1 AND user_id='m31-viewer'",
-    ).bind(&workspace).fetch_one(&pool).await?;
+    )
+    .bind(&workspace)
+    .fetch_one(&pool)
+    .await?;
     assert_eq!(
         status, "REVOKED",
         "downgrading an implicit admin must not resurrect a historical grant"
