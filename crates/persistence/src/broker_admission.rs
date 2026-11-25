@@ -80,6 +80,7 @@ struct OrganizationRow {
     membership_status: Option<String>,
     membership_role: Option<String>,
     workspace_grant_status: Option<String>,
+    workspace_grant_role: Option<String>,
     membership_revision: Option<i64>,
     entitlement_status: Option<String>,
     entitlement_revision: Option<i64>,
@@ -238,7 +239,8 @@ pub async fn evaluate_persisted_broker_admission(
     let organization = sqlx::query_as::<_, OrganizationRow>(
         r#"SELECT o.status AS organization_status, o.revision AS organization_revision,
                   m.status AS membership_status, m.role AS membership_role,
-                  wag.status AS workspace_grant_status, m.revision AS membership_revision,
+                  wag.status AS workspace_grant_status, wag.role AS workspace_grant_role,
+                  m.revision AS membership_revision,
                   e.status AS entitlement_status, e.revision AS entitlement_revision,
                   qa.status AS quant_account_status,
                   w.status AS workspace_status
@@ -273,7 +275,9 @@ pub async fn evaluate_persisted_broker_admission(
             organization_status: lifecycle_status(Some(&row.organization_status)),
             membership_ref: row.membership_status.as_ref().map(|_| actor_ref.to_owned()),
             membership_status: if matches!(row.membership_role.as_deref(), Some("OWNER" | "ADMIN"))
-                || row.workspace_grant_status.as_deref() == Some("ACTIVE")
+                || (row.membership_role.as_deref() == Some("TRADER")
+                    && row.workspace_grant_status.as_deref() == Some("ACTIVE")
+                    && matches!(row.workspace_grant_role.as_deref(), Some("TRADER" | "WORKSPACE_ADMIN")))
             {
                 lifecycle_status(row.membership_status.as_deref())
             } else {
