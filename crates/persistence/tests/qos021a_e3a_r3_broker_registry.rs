@@ -17,11 +17,6 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // This is a migration-boundary fixture, not a production startup path.
-    // Apply the real pre-R3 migrations, then execute the actual R3, I1, R5.02,
-    // I1-R1 and MT5 registry migrations using their source SQL. SQLx's
-    // Migrator cannot run a subset after partial history because it validates
-    // the complete migration inventory and rejects missing versions.
     let before_r3 = all
         .iter()
         .filter(|migration| migration.version < 20261113000001)
@@ -31,6 +26,11 @@ async fn apply_before_r3(pool: &PgPool) {
         before_r3.iter().any(|migration| migration.version == 202611070001),
         "pre-R3 history must include the Journal foundation migration"
     );
+
+    // SQLx validates all registered migrations when running a selected set.
+    // Use the selected history once, on an empty schema, to construct a true
+    // R2-era database. Then apply the real R3 and M1 SQL as a controlled schema
+    // upgrade fixture; do not manufacture _sqlx_migrations entries.
     Migrator {
         migrations: Cow::Owned(before_r3),
         ..Migrator::DEFAULT
@@ -39,28 +39,17 @@ async fn apply_before_r3(pool: &PgPool) {
     .await
     .unwrap();
 
-    // These migrations define the complete schema immediately before M1.
-    // Execute their unmodified SQL directly so the test exercises the real
-    // upgrade DDL without fabricating _sqlx_migrations rows.
-    for version in [
-        20261113000001,
-        20261114000001,
-        20261114000002,
-        20261115000001,
-        20261119000001,
-        20261119000002,
-    ] {
-        let migration = all
-            .iter()
-            .find(|migration| migration.version == version)
-            .unwrap_or_else(|| panic!("required pre-M1 migration {version} must exist"));
-        sqlx::raw_sql(std::str::from_utf8(migration.sql.as_ref()).unwrap())
-            .execute(pool)
-            .await
-            .unwrap_or_else(|error| panic!("pre-M1 migration {version} failed: {error}"));
-    }
+    let r3 = all
+        .iter()
+        .find(|migration| migration.version == 20261113000001)
+        .expect("R3 migration must exist exactly once");
+    sqlx::raw_sql(std::str::from_utf8(r3.sql.as_ref()).unwrap())
+        .execute(pool)
+        .await
+        .unwrap();
 
-    // M1 is the actual change under this test and runs last.
+    // R3 is the schema under test. Apply M1's source SQL directly because M1
+    // is the known downstream consumer of R3's composite entitlement key.
     let m1 = all
         .iter()
         .find(|migration| migration.version == 20261125000001)
@@ -70,6 +59,7 @@ async fn apply_before_r3(pool: &PgPool) {
         .await
         .unwrap();
 }
+
 
 async fn user(pool: &PgPool, id: &str) {
     sqlx::query("INSERT INTO identity_users(id,email,display_name,password_hash) VALUES($1,$2,$1,'test-only')")
