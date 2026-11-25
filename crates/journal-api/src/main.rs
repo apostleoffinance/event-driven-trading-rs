@@ -1516,6 +1516,41 @@ mod qos021a_e3a_r2_api_tests {
             .body(Body::empty()).unwrap();
         assert_eq!(app.clone().oneshot(denied).await.unwrap().status(), StatusCode::NOT_FOUND);
 
+        assert_eq!(request(&pool, &app, Method::POST,
+            &format!("/api/v1/organizations/ws-org/workspaces/{}/members", second.id.as_str()),
+            Some("ws-owner"), Some("ws-org"),
+            Some(json!({"user_id":"ws-trader","role":"TRADER","reason":"grant research workspace access"})), false).await,
+            StatusCode::CREATED);
+
+        let (trader_token_after_grant, trader_claims_after_grant) = token("ws-trader", Utc::now() + Duration::minutes(5));
+        persist_test_token(&pool, &trader_claims_after_grant).await;
+        let granted = Request::builder().method(Method::GET).uri("/api/v1/trading/accounts")
+            .header("authorization", format!("Bearer {trader_token_after_grant}"))
+            .header("x-organization-id", "ws-org")
+            .header("x-workspace-id", second.id.as_str())
+            .body(Body::empty()).unwrap();
+        let granted_response = app.clone().oneshot(granted).await.unwrap();
+        assert_eq!(granted_response.status(), StatusCode::OK);
+        let granted_body = granted_response.into_body().collect().await.unwrap().to_bytes();
+        let granted_json: Value = serde_json::from_slice(&granted_body).unwrap();
+        assert_eq!(granted_json["data"].as_array().unwrap().len(), 1);
+        assert_eq!(granted_json["data"][0]["id"], "ws-account-b");
+
+        assert_eq!(request(&pool, &app, Method::PATCH,
+            &format!("/api/v1/organizations/ws-org/workspaces/{}/members/ws-trader", second.id.as_str()),
+            Some("ws-owner"), Some("ws-org"),
+            Some(json!({"expected_revision":1,"role":"TRADER","status":"REVOKED","reason":"remove research workspace access"})), false).await,
+            StatusCode::OK);
+
+        let (trader_token_after_revoke, trader_claims_after_revoke) = token("ws-trader", Utc::now() + Duration::minutes(5));
+        persist_test_token(&pool, &trader_claims_after_revoke).await;
+        let revoked = Request::builder().method(Method::GET).uri("/api/v1/trading/accounts")
+            .header("authorization", format!("Bearer {trader_token_after_revoke}"))
+            .header("x-organization-id", "ws-org")
+            .header("x-workspace-id", second.id.as_str())
+            .body(Body::empty()).unwrap();
+        assert_eq!(app.clone().oneshot(revoked).await.unwrap().status(), StatusCode::NOT_FOUND);
+
         let (missing_context_token, missing_context_claims) = token("ws-owner", Utc::now() + Duration::minutes(5));
         persist_test_token(&pool, &missing_context_claims).await;
         let missing_context = Request::builder().method(Method::GET).uri("/api/v1/trading/accounts")
