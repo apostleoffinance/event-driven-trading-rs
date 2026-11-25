@@ -75,6 +75,23 @@ pub async fn get_for_organization(
     row.map(map_workspace).transpose()
 }
 
+pub(crate) async fn default_for_organization_in_transaction(
+    tx: &mut Transaction<'_, Postgres>,
+    organization_id: &str,
+) -> PersistenceResult<Workspace> {
+    let query = format!(
+        "{SELECT_WORKSPACE} WHERE organization_id=$1 AND is_default=TRUE AND status='ACTIVE'"
+    );
+    let row = sqlx::query_as::<_, WorkspaceRow>(query.as_str())
+        .bind(organization_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or_else(|| PersistenceError::Other(
+            "organization default workspace was not provisioned".into(),
+        ))?;
+    map_workspace(row)
+}
+
 pub async fn default_for_organization(
     pool: &PgPool,
     organization_id: &str,
