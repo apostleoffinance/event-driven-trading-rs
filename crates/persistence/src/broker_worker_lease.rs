@@ -122,7 +122,27 @@ pub async fn acquire(
                        ON w.id = waa.workspace_id
                       AND w.organization_id = waa.organization_id
                     WHERE waa.account_id = bwa.quant_account_id
+                      AND waa.organization_id = bwa.organization_id
                       AND w.status = 'ACTIVE'
+                      AND EXISTS (
+                          SELECT 1
+                            FROM organization_memberships m
+                            LEFT JOIN workspace_access_grants g
+                              ON g.organization_id=m.organization_id
+                             AND g.workspace_id=w.id
+                             AND g.user_id=m.user_id
+                           WHERE m.organization_id=waa.organization_id
+                             AND m.user_id=bwa.worker_ref
+                             AND m.status='ACTIVE'
+                             AND (
+                                 m.role IN ('OWNER','ADMIN')
+                                 OR (
+                                     m.role='TRADER'
+                                     AND g.status='ACTIVE'
+                                     AND g.role IN ('TRADER','WORKSPACE_ADMIN')
+                                 )
+                             )
+                      )
                )
              FOR SHARE OF bwa
         )
@@ -197,6 +217,19 @@ pub async fn renew(
                JOIN workspaces w ON w.id=waa.workspace_id AND w.organization_id=waa.organization_id
                WHERE bwa.id=$3 AND bwa.quant_account_id=$1 AND bwa.status='ACTIVE'
                  AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
+                 AND EXISTS (
+                     SELECT 1 FROM organization_memberships m
+                     LEFT JOIN workspace_access_grants g
+                       ON g.organization_id=m.organization_id
+                      AND g.workspace_id=w.id
+                      AND g.user_id=m.user_id
+                     WHERE m.organization_id=waa.organization_id
+                       AND m.user_id=bwa.worker_ref AND m.status='ACTIVE'
+                       AND (m.role IN ('OWNER','ADMIN') OR (
+                           m.role='TRADER' AND g.status='ACTIVE'
+                           AND g.role IN ('TRADER','WORKSPACE_ADMIN')
+                       ))
+                 )
            )
         RETURNING lease_until
         "#,
@@ -232,7 +265,20 @@ pub async fn validate(pool: &PgPool, lease: &Mt5WorkerLease) -> PersistenceResul
                    JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id
                    JOIN workspaces w ON w.id=waa.workspace_id AND w.organization_id=waa.organization_id
                    WHERE bwa.id=$3 AND bwa.quant_account_id=$1 AND bwa.status='ACTIVE'
-                     AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
+                 AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
+                 AND EXISTS (
+                     SELECT 1 FROM organization_memberships m
+                     LEFT JOIN workspace_access_grants g
+                       ON g.organization_id=m.organization_id
+                      AND g.workspace_id=w.id
+                      AND g.user_id=m.user_id
+                     WHERE m.organization_id=waa.organization_id
+                       AND m.user_id=bwa.worker_ref AND m.status='ACTIVE'
+                       AND (m.role IN ('OWNER','ADMIN') OR (
+                           m.role='TRADER' AND g.status='ACTIVE'
+                           AND g.role IN ('TRADER','WORKSPACE_ADMIN')
+                       ))
+                 )
                )
         )
         "#,
