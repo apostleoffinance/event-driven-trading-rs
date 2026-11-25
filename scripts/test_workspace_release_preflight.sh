@@ -8,6 +8,9 @@ trap 'rm -rf "$TMP"' EXIT
 cat > "$TMP/psql" <<'PSQL'
 #!/usr/bin/env bash
 set -euo pipefail
+for arg in "$@"; do
+  case "$arg" in postgres://*|postgresql://*) echo "Database URL leaked into process arguments" >&2; exit 98 ;; esac
+done
 cat > "$PSQL_INPUT_FILE"
 printf '%s\n' "$PSQL_OUTPUT"
 PSQL
