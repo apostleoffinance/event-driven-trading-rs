@@ -419,7 +419,7 @@ mod qos021a_e3a_r2_api_tests {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn request(
+    async fn request_response(
         pool: &PgPool,
         app: &Router,
         method: Method,
@@ -428,7 +428,7 @@ mod qos021a_e3a_r2_api_tests {
         organization: Option<&str>,
         body: Option<Value>,
         expired: bool,
-    ) -> StatusCode {
+    ) -> axum::response::Response {
         let mut builder = Request::builder().method(method).uri(path);
         if let Some(subject) = subject {
             let expiration = if expired {
@@ -451,7 +451,23 @@ mod qos021a_e3a_r2_api_tests {
         } else {
             builder.body(Body::empty()).unwrap()
         };
-        app.clone().oneshot(request).await.unwrap().status()
+        app.clone().oneshot(request).await.unwrap()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn request(
+        pool: &PgPool,
+        app: &Router,
+        method: Method,
+        path: &str,
+        subject: Option<&str>,
+        organization: Option<&str>,
+        body: Option<Value>,
+        expired: bool,
+    ) -> StatusCode {
+        request_response(pool, app, method, path, subject, organization, body, expired)
+            .await
+            .status()
     }
 
     #[sqlx::test]
@@ -982,19 +998,29 @@ mod qos021a_e3a_r2_api_tests {
             StatusCode::NOT_FOUND
         );
 
+        let create_response = request_response(
+            &pool,
+            &app,
+            Method::POST,
+            "/api/v1/organizations",
+            Some("api-owner-a"),
+            None,
+            Some(json!({"name":"Created through authenticated API"})),
+            false,
+        )
+        .await;
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_body = axum::body::to_bytes(create_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let create_payload: Value = serde_json::from_slice(&create_body).unwrap();
         assert_eq!(
-            request(
-                &pool,
-                &app,
-                Method::POST,
-                "/api/v1/organizations",
-                Some("api-owner-a"),
-                None,
-                Some(json!({"name":"Created through authenticated API"})),
-                false
-            )
-            .await,
-            StatusCode::CREATED
+            create_payload["data"]["defaultWorkspace"]["name"],
+            "Default"
+        );
+        assert_eq!(
+            create_payload["data"]["membershipRole"],
+            "OWNER"
         );
         // Organization, OWNER membership, default workspace and both audit streams
         // are committed together. The API response contract is additive.
