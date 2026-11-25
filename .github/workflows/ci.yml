@@ -1,9 +1,12 @@
 name: Quant OS CI
 
-# Keep only the newest validation run for a given branch/PR ref.
+# Never terminate an in-flight validation run because a newer commit was pushed.
+# GitHub Actions can queue runs for the same PR ref; every commit keeps its own result.
+# This is important for macOS hosted runners, where pre-setup cancellations produce
+# a red required check with no executed step or diagnostic evidence.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 on:
   # Use one validation run per change: PRs use pull_request, direct changes use push.
