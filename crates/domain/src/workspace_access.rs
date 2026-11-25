@@ -14,6 +14,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum WorkspaceRole {
+    #[serde(rename = "WORKSPACE_ADMIN")]
     Admin,
     Trader,
     RiskManager,
