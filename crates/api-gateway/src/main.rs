@@ -402,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn preflight_allows_authorization_and_tenant_header() {
+    fn preflight_allows_authorization_organization_and_workspace_headers() {
         let mut headers = HeaderMap::new();
         headers.insert(
             header::ACCESS_CONTROL_REQUEST_METHOD,
@@ -410,7 +410,7 @@ mod tests {
         );
         headers.insert(
             header::ACCESS_CONTROL_REQUEST_HEADERS,
-            HeaderValue::from_static("authorization, x-organization-id"),
+            HeaderValue::from_static("authorization, x-organization-id, x-workspace-id"),
         );
         assert!(preflight_is_allowed(&headers));
     }
