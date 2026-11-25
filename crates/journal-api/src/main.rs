@@ -28,6 +28,7 @@ mod psychology;
 mod resources;
 mod risk_policy;
 mod saved_views;
+mod workspace_api;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -59,12 +60,37 @@ fn build_router(state: AppState, origins: Vec<HeaderValue>) -> Router {
             header::CONTENT_TYPE,
             header::ACCEPT,
             axum::http::HeaderName::from_static("x-organization-id"),
+            axum::http::HeaderName::from_static("x-workspace-id"),
         ]);
 
     Router::new()
         .route(
             "/api/v1/organizations",
             get(organizations_api::list).post(organizations_api::create),
+        )
+        .route(
+            "/api/v1/organizations/{org}/workspaces",
+            get(workspace_api::list).post(workspace_api::create),
+        )
+        .route(
+            "/api/v1/organizations/{org}/workspaces/{workspace}",
+            get(workspace_api::get).patch(workspace_api::update),
+        )
+        .route(
+            "/api/v1/organizations/{org}/workspaces/{workspace}/archive",
+            axum::routing::post(workspace_api::archive),
+        )
+        .route(
+            "/api/v1/organizations/{org}/workspaces/{workspace}/default",
+            axum::routing::post(workspace_api::set_default),
+        )
+        .route(
+            "/api/v1/organizations/{org}/workspaces/{workspace}/members",
+            get(workspace_api::list_grants).post(workspace_api::create_grant),
+        )
+        .route(
+            "/api/v1/organizations/{org}/workspaces/{workspace}/members/{user}",
+            axum::routing::patch(workspace_api::update_grant),
         )
         .route(
             "/api/v1/organizations/{org}/members",
