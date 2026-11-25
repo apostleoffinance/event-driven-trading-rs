@@ -62,11 +62,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeOrganizationId]);
 
   useEffect(() => {
     if (hasSession()) void refreshOrganizations();
-    else { setOrganizations([]); setHasMemberships(false); setActiveOrganizationId(null); setError(null); setLoading(false); window.sessionStorage.removeItem(STORAGE_KEY); }
+    else { setOrganizations([]); setHasMemberships(false); setActiveOrganizationId(null); setError(null); setLoading(false); window.sessionStorage.removeItem(STORAGE_KEY); window.sessionStorage.removeItem(WORKSPACE_STORAGE_KEY); }
   }, [pathname, refreshOrganizations]);
 
   const createOrganization = useCallback(async (name: string) => {
@@ -86,6 +86,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     setHasMemberships(true);
     setActiveOrganizationId(created.id);
     window.sessionStorage.setItem(STORAGE_KEY, created.id);
+    window.sessionStorage.removeItem(WORKSPACE_STORAGE_KEY);
     setError(null);
     queryClient.clear();
   }, [queryClient]);
@@ -94,6 +95,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (!organizations.some((org) => org.id === id)) return;
     if (id === activeOrganizationId) return;
     window.sessionStorage.setItem(STORAGE_KEY, id);
+    window.sessionStorage.removeItem(WORKSPACE_STORAGE_KEY);
     setActiveOrganizationId(id);
     queryClient.clear();
   }, [activeOrganizationId, organizations, queryClient]);
