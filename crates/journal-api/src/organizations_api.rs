@@ -184,8 +184,8 @@ pub async fn create(
         }
     };
     match state.store.create_organization(&org,&claims.sub).await {
-        Ok(workspace)=>(StatusCode::CREATED,Json(serde_json::json!({"data":{"id":org.id.as_str(),"name":org.name,"status":"ACTIVE","revision":1,"membershipRole":"OWNER","membershipRevision":1,"defaultWorkspace":{"id":workspace.id.as_str(),"organizationId":workspace.organization_id.as_str(),"name":workspace.name,"slug":workspace.slug,"status":workspace.status.as_db(),"isDefault":workspace.is_default,"revision":workspace.revision,"createdAt":workspace.created_at,"updatedAt":workspace.updated_at}}}))).into_response(),
-        Err(_)=>error(StatusCode::INTERNAL_SERVER_ERROR,"internal_error","Unable to create organization and default workspace"),
+        Ok(())=>(StatusCode::CREATED,Json(serde_json::json!({"data":{"id":org.id.as_str(),"name":org.name,"status":"ACTIVE","revision":1,"membershipRole":"OWNER","membershipRevision":1}}))).into_response(),
+        Err(_)=>error(StatusCode::INTERNAL_SERVER_ERROR,"internal_error","Unable to create organization"),
     }
 }
 

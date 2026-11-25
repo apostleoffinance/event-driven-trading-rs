@@ -43,11 +43,7 @@ fn entitlement_status(value: &str) -> PersistenceResult<EntitlementStatus> {
     }
 }
 
-pub async fn create(
-    pool: &PgPool,
-    org: &Organization,
-    actor: &str,
-) -> PersistenceResult<domain::Workspace> {
+pub async fn create(pool: &PgPool, org: &Organization, actor: &str) -> PersistenceResult<()> {
     let mut tx = pool.begin().await?;
     sqlx::query("INSERT INTO organizations(id,name,status,revision,created_by,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4)")
         .bind(org.id.as_str()).bind(&org.name).bind(actor).bind(org.created_at)
@@ -69,16 +65,8 @@ pub async fn create(
         "organization creator becomes initial owner",
     )
     .await?;
-
-    // M1's AFTER INSERT trigger provisions the default workspace in this
-    // transaction. Read it before commit: a missing workspace must roll back
-    // the organization and initial OWNER membership rather than create a partial tenant.
-    let default_workspace =
-        super::workspaces::default_for_organization_in_transaction(&mut tx, org.id.as_str())
-            .await?;
-
     tx.commit().await?;
-    Ok(default_workspace)
+    Ok(())
 }
 
 pub async fn revise_organization(

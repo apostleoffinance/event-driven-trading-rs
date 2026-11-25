@@ -17,9 +17,12 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
+    // The registry migration now depends on M1's workspace tables and
+    // organization-creation trigger. Build the full predecessor schema while
+    // excluding only the R3 migration under test.
     let selected = all
         .iter()
-        .filter(|migration| migration.version < 20261113000001)
+        .filter(|migration| migration.version != 20261113000001)
         .cloned()
         .collect::<Vec<_>>();
     Migrator {
