@@ -1069,11 +1069,11 @@ mod qos021a_e3a_r2_api_tests {
         let rollback_id = "api-org-provision-rollback";
         sqlx::raw_sql(
             "CREATE FUNCTION qos021a_fail_owner_membership_insert() RETURNS trigger
-             LANGUAGE plpgsql AS $
+             LANGUAGE plpgsql AS $fail$
              BEGIN
                  RAISE EXCEPTION 'injected owner membership failure';
              END
-             $;
+             $fail$;
              CREATE TRIGGER qos021a_fail_owner_membership_insert
              BEFORE INSERT ON organization_memberships
              FOR EACH ROW EXECUTE FUNCTION qos021a_fail_owner_membership_insert();",
