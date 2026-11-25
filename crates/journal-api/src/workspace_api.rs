@@ -11,6 +11,7 @@ use axum::{
 use chrono::Utc;
 use domain::{OrganizationId, Workspace, WorkspaceId};
 use serde::Deserialize;
+use sqlx::{Postgres, Transaction};
 use crate::{auth::ApiAuthError, AppState};
 
 #[derive(Debug, Clone)]
@@ -77,6 +78,13 @@ pub async fn principal(state: &AppState, headers: &HeaderMap) -> Result<Workspac
     })
 }
 
+async fn lock_admin_membership(tx:&mut Transaction<'_,Postgres>,org:&str,actor:&str)->Result<bool,sqlx::Error>{
+    let role=sqlx::query_scalar::<_,String>(
+        "SELECT m.role FROM organizations o JOIN organization_memberships m ON m.organization_id=o.id WHERE o.id=$1 AND o.status='ACTIVE' AND m.user_id=$2 AND m.status='ACTIVE' FOR SHARE OF o,m"
+    ).bind(org).bind(actor).fetch_optional(&mut **tx).await?;
+    Ok(matches!(role.as_deref(),Some("OWNER"|"ADMIN")))
+}
+
 pub async fn require_org_admin(state:&AppState,headers:&HeaderMap,org:&str)->Result<String,Response>{
     let claims=state.auth.authenticate(headers).map_err(ApiAuthError::into_response)?;
     let selected=headers.get("x-organization-id").and_then(|v|v.to_str().ok()).map(str::trim);
@@ -140,6 +148,7 @@ pub async fn update(State(state):State<AppState>,headers:HeaderMap,Path((org,wor
     let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
     if input.reason.trim().is_empty(){return error(StatusCode::BAD_REQUEST,"invalid_request","reason is required");}
     let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
+    match lock_admin_membership(&mut tx,&org,&actor).await{Ok(true)=>{},Ok(false)=>return not_found(),Err(_)=>return db_error()};
     let old=sqlx::query_as::<_,(String,String,bool,i64)>("SELECT name,slug,is_default,revision FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE' FOR UPDATE")
         .bind(&org).bind(&workspace).fetch_optional(&mut *tx).await;
     let Some((old_name,old_slug,is_default,revision))= (match old{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
@@ -149,7 +158,7 @@ pub async fn update(State(state):State<AppState>,headers:HeaderMap,Path((org,wor
     if name.is_empty()||name.len()>120||slug.is_empty()||slug.len()>63||!slug.bytes().all(|b|b.is_ascii_lowercase()||b.is_ascii_digit()||b==b'-')||!slug.as_bytes()[0].is_ascii_alphanumeric()||slug.ends_with('-'){
         return error(StatusCode::BAD_REQUEST,"invalid_workspace","Workspace name or slug is invalid");
     }
-    let next=revision+1;
+    let Some(next)=revision.checked_add(1) else{return error(StatusCode::CONFLICT,"revision_overflow","Workspace revision is exhausted")};
     let changed=sqlx::query("UPDATE workspaces SET name=$3,slug=$4,revision=$5 WHERE organization_id=$1 AND id=$2 AND revision=$6")
         .bind(&org).bind(&workspace).bind(name).bind(slug).bind(next).bind(revision).execute(&mut *tx).await;
     if changed.is_err(){return error(StatusCode::CONFLICT,"workspace_update_rejected","Workspace update failed");}
@@ -165,13 +174,14 @@ pub async fn archive(State(state):State<AppState>,headers:HeaderMap,Path((org,wo
     let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
     if input.reason.trim().is_empty(){return error(StatusCode::BAD_REQUEST,"invalid_request","reason is required");}
     let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
+    match lock_admin_membership(&mut tx,&org,&actor).await{Ok(true)=>{},Ok(false)=>return not_found(),Err(_)=>return db_error()};
     let old=sqlx::query_as::<_,(String,i64,bool)>("SELECT name,revision,is_default FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE' FOR UPDATE").bind(&org).bind(&workspace).fetch_optional(&mut *tx).await;
     let Some((name,revision,is_default))=(match old{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
     if revision!=input.expected_revision{return error(StatusCode::CONFLICT,"revision_conflict","Workspace revision is stale");}
     if is_default{return error(StatusCode::CONFLICT,"default_workspace_required","Set another workspace as default before archiving this workspace");}
     let assigned:i64=match sqlx::query_scalar("SELECT count(*) FROM workspace_account_assignments WHERE organization_id=$1 AND workspace_id=$2").bind(&org).bind(&workspace).fetch_one(&mut *tx).await{Ok(v)=>v,Err(_)=>return db_error()};
     if assigned>0{return error(StatusCode::CONFLICT,"workspace_not_empty","Move all Quant account assignments before archiving this workspace");}
-    let next=revision+1;
+    let Some(next)=revision.checked_add(1) else{return error(StatusCode::CONFLICT,"revision_overflow","Workspace revision is exhausted")};
     if sqlx::query("UPDATE workspaces SET status='ARCHIVED',revision=$3 WHERE organization_id=$1 AND id=$2 AND revision=$4").bind(&org).bind(&workspace).bind(next).bind(revision).execute(&mut *tx).await.is_err(){return db_error();}
     if sqlx::query("INSERT INTO workspace_events(workspace_id,organization_id,actor_user_id,revision,event_type,previous_name,next_name,previous_status,next_status,previous_is_default,next_is_default,reason) VALUES($1,$2,$3,$4,'ARCHIVED',$5,$5,'ACTIVE','ARCHIVED',FALSE,FALSE,$6)").bind(&workspace).bind(&org).bind(actor).bind(next).bind(name).bind(input.reason.trim()).execute(&mut *tx).await.is_err()||tx.commit().await.is_err(){return db_error();}
     Json(serde_json::json!({"data":{"id":workspace,"status":"ARCHIVED","revision":next}})).into_response()
@@ -181,13 +191,14 @@ pub async fn set_default(State(state):State<AppState>,headers:HeaderMap,Path((or
     let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
     if input.reason.trim().is_empty(){return error(StatusCode::BAD_REQUEST,"invalid_request","reason is required");}
     let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
+    match lock_admin_membership(&mut tx,&org,&actor).await{Ok(true)=>{},Ok(false)=>return not_found(),Err(_)=>return db_error()};
     let target=sqlx::query_as::<_,(String,i64,bool)>("SELECT name,revision,is_default FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE' FOR UPDATE").bind(&org).bind(&workspace).fetch_optional(&mut *tx).await;
     let Some((name,revision,is_default))=(match target{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
     if revision!=input.expected_revision{return error(StatusCode::CONFLICT,"revision_conflict","Workspace revision is stale");}
     if is_default{let _=tx.rollback().await;return Json(serde_json::json!({"data":{"id":workspace,"isDefault":true,"revision":revision}})).into_response();}
     let current=sqlx::query_as::<_,(String,String,i64)>("SELECT id,name,revision FROM workspaces WHERE organization_id=$1 AND is_default=TRUE AND status='ACTIVE' FOR UPDATE").bind(&org).fetch_one(&mut *tx).await;
     let (old_id,old_name,old_rev)=match current{Ok(v)=>v,Err(_)=>return db_error()};
-    let old_next=old_rev+1;let new_next=revision+1;
+    let (Some(old_next),Some(new_next))=(old_rev.checked_add(1),revision.checked_add(1)) else{return error(StatusCode::CONFLICT,"revision_overflow","Workspace revision is exhausted")};
     if sqlx::query("UPDATE workspaces SET is_default=FALSE,revision=$2 WHERE id=$1 AND revision=$3").bind(&old_id).bind(old_next).bind(old_rev).execute(&mut *tx).await.is_err(){return db_error();}
     if sqlx::query("UPDATE workspaces SET is_default=TRUE,revision=$2 WHERE id=$1 AND revision=$3").bind(&workspace).bind(new_next).bind(revision).execute(&mut *tx).await.is_err(){return db_error();}
     let e1=sqlx::query("INSERT INTO workspace_events(workspace_id,organization_id,actor_user_id,revision,event_type,previous_name,next_name,previous_status,next_status,previous_is_default,next_is_default,reason) VALUES($1,$2,$3,$4,'DEFAULT_CHANGED',$5,$5,'ACTIVE','ACTIVE',TRUE,FALSE,$6)").bind(&old_id).bind(&org).bind(&actor).bind(old_next).bind(old_name).bind(input.reason.trim()).execute(&mut *tx).await;
@@ -244,8 +255,9 @@ pub async fn assign_account(State(state):State<AppState>,headers:HeaderMap,Path(
     let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
     if input.reason.trim().is_empty(){return error(StatusCode::BAD_REQUEST,"invalid_request","reason is required");}
     let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
-    let target:bool=match sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE')").bind(&org).bind(&workspace).fetch_one(&mut *tx).await{Ok(v)=>v,Err(_)=>return db_error()};
-    if !target{return not_found();}
+    match lock_admin_membership(&mut tx,&org,&actor).await{Ok(true)=>{},Ok(false)=>return not_found(),Err(_)=>return db_error()};
+    let target=sqlx::query_scalar::<_,String>("SELECT id FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE' FOR SHARE").bind(&org).bind(&workspace).fetch_optional(&mut *tx).await;
+    if !matches!(target,Ok(Some(_))){return not_found();}
     let current=sqlx::query_as::<_,(String,i64)>("SELECT workspace_id,revision FROM workspace_account_assignments WHERE organization_id=$1 AND account_id=$2 FOR UPDATE").bind(&org).bind(&account).fetch_optional(&mut *tx).await;
     let Some((old_workspace,revision))=(match current{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
     if revision!=input.expected_revision{return error(StatusCode::CONFLICT,"revision_conflict","Account assignment revision is stale");}
