@@ -13,6 +13,7 @@ SELECT 'workspace_grants_migration_applied', CASE WHEN EXISTS (SELECT 1 FROM _sq
 SELECT 'one_active_default_per_organization', count(*) FROM (
  SELECT o.id FROM organizations o LEFT JOIN workspaces w ON w.organization_id=o.id AND w.is_default AND w.status='ACTIVE' GROUP BY o.id HAVING count(w.id)<>1
 ) invalid_defaults;
+SELECT 'workspaces_missing_current_audit_event', count(*) FROM workspaces w WHERE NOT EXISTS (SELECT 1 FROM workspace_events e WHERE e.workspace_id=w.id AND e.organization_id=w.organization_id AND e.revision=w.revision AND e.next_name=w.name AND e.next_status=w.status AND e.next_is_default=w.is_default);
 SELECT 'entitlements_without_workspace_assignment', count(*) FROM organization_account_entitlements e LEFT JOIN workspace_account_assignments a ON a.organization_id=e.organization_id AND a.account_id=e.account_id WHERE a.account_id IS NULL;
 SELECT 'assignments_without_active_workspace', count(*) FROM workspace_account_assignments a LEFT JOIN workspaces w ON w.id=a.workspace_id AND w.organization_id=a.organization_id WHERE w.id IS NULL OR w.status<>'ACTIVE';
 SELECT 'assignments_missing_current_audit_event', count(*) FROM workspace_account_assignments a WHERE NOT EXISTS (SELECT 1 FROM workspace_account_assignment_events e WHERE e.account_id=a.account_id AND e.workspace_id=a.workspace_id AND e.revision=a.revision);
