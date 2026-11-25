@@ -107,15 +107,50 @@ pub async fn acquire(
     let row = sqlx::query_as::<_, (String, i64, DateTime<Utc>)>(
         r#"
         WITH assignment AS (
-            SELECT id
-              FROM broker_worker_assignments
-             WHERE binding_id = $1
-               AND quant_account_id = $2
-               AND worker_ref = $3
-               AND status = 'ACTIVE'
-               AND valid_from <= NOW()
-               AND valid_until > NOW()
-             FOR SHARE
+            SELECT bwa.id
+              FROM broker_worker_assignments bwa
+             WHERE bwa.binding_id = $1
+               AND bwa.quant_account_id = $2
+               AND bwa.worker_ref = $3
+               AND bwa.status = 'ACTIVE'
+               AND bwa.valid_from <= NOW()
+               AND bwa.valid_until > NOW()
+               AND EXISTS (
+                   SELECT 1
+                     FROM workspace_account_assignments waa
+                     JOIN organizations o
+                       ON o.id = waa.organization_id AND o.status = 'ACTIVE'
+                     JOIN organization_account_entitlements e
+                       ON e.organization_id = waa.organization_id
+                      AND e.account_id = waa.account_id AND e.status = 'ACTIVE'
+                     JOIN accounts a ON a.id = e.account_id AND a.status = 'active'
+                     JOIN workspaces w
+                       ON w.id = waa.workspace_id
+                      AND w.organization_id = waa.organization_id
+                    WHERE waa.account_id = bwa.quant_account_id
+                      AND waa.organization_id = bwa.organization_id
+                      AND w.status = 'ACTIVE'
+                      AND EXISTS (
+                          SELECT 1
+                            FROM organization_memberships m
+                            LEFT JOIN workspace_access_grants g
+                              ON g.organization_id=m.organization_id
+                             AND g.workspace_id=w.id
+                             AND g.user_id=m.user_id
+                           WHERE m.organization_id=waa.organization_id
+                             AND m.user_id=bwa.worker_ref
+                             AND m.status='ACTIVE'
+                             AND (
+                                 m.role IN ('OWNER','ADMIN')
+                                 OR (
+                                     m.role='TRADER'
+                                     AND g.status='ACTIVE'
+                                     AND g.role IN ('TRADER','WORKSPACE_ADMIN')
+                                 )
+                             )
+                      )
+               )
+             FOR SHARE OF bwa
         )
         INSERT INTO broker_worker_leases
             (quant_account_id, terminal_id, assignment_id, worker_ref,
@@ -182,6 +217,29 @@ pub async fn renew(
            AND assignment_id = $3 AND worker_ref = $4
            AND lease_token_hash = $6 AND fencing_token = $7
            AND released_at IS NULL AND lease_until > NOW()
+           AND EXISTS (
+               SELECT 1 FROM broker_worker_assignments bwa
+               JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id AND waa.organization_id=bwa.organization_id
+               JOIN organizations o ON o.id=waa.organization_id AND o.status='ACTIVE'
+               JOIN organization_account_entitlements e ON e.organization_id=waa.organization_id AND e.account_id=waa.account_id AND e.status='ACTIVE'
+               JOIN accounts a ON a.id=e.account_id AND a.status='active'
+               JOIN workspaces w ON w.id=waa.workspace_id AND w.organization_id=waa.organization_id
+               WHERE bwa.id=$3 AND bwa.quant_account_id=$1 AND bwa.status='ACTIVE'
+                 AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
+                 AND EXISTS (
+                     SELECT 1 FROM organization_memberships m
+                     LEFT JOIN workspace_access_grants g
+                       ON g.organization_id=m.organization_id
+                      AND g.workspace_id=w.id
+                      AND g.user_id=m.user_id
+                     WHERE m.organization_id=waa.organization_id
+                       AND m.user_id=bwa.worker_ref AND m.status='ACTIVE'
+                       AND (m.role IN ('OWNER','ADMIN') OR (
+                           m.role='TRADER' AND g.status='ACTIVE'
+                           AND g.role IN ('TRADER','WORKSPACE_ADMIN')
+                       ))
+                 )
+           )
         RETURNING lease_until
         "#,
     )
@@ -211,6 +269,26 @@ pub async fn validate(pool: &PgPool, lease: &Mt5WorkerLease) -> PersistenceResul
                AND assignment_id = $3 AND worker_ref = $4
                AND lease_token_hash = $5 AND fencing_token = $6
                AND released_at IS NULL AND lease_until > NOW()
+               AND EXISTS (
+                   SELECT 1 FROM broker_worker_assignments bwa
+                   JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id AND waa.organization_id=bwa.organization_id
+                   JOIN workspaces w ON w.id=waa.workspace_id AND w.organization_id=waa.organization_id
+                   WHERE bwa.id=$3 AND bwa.quant_account_id=$1 AND bwa.status='ACTIVE'
+                 AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
+                 AND EXISTS (
+                     SELECT 1 FROM organization_memberships m
+                     LEFT JOIN workspace_access_grants g
+                       ON g.organization_id=m.organization_id
+                      AND g.workspace_id=w.id
+                      AND g.user_id=m.user_id
+                     WHERE m.organization_id=waa.organization_id
+                       AND m.user_id=bwa.worker_ref AND m.status='ACTIVE'
+                       AND (m.role IN ('OWNER','ADMIN') OR (
+                           m.role='TRADER' AND g.status='ACTIVE'
+                           AND g.role IN ('TRADER','WORKSPACE_ADMIN')
+                       ))
+                 )
+               )
         )
         "#,
     )

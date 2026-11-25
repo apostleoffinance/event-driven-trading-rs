@@ -22,6 +22,7 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
 }
 
 const ACTIVE_ORGANIZATION_KEY = "edgenest.organization.active.v1";
+const ACTIVE_WORKSPACE_KEY = "edgenest.workspace.active.v1";
 
 async function resolveOrganizationId(): Promise<string> {
   if (typeof window === "undefined") throw new ApiError("Choose an organization before loading trading data.", 409, "organization_required");
@@ -55,6 +56,33 @@ async function resolveOrganizationId(): Promise<string> {
   throw new ApiError("You belong to more than one organization. Choose which organization you want to work in.", 409, "organization_selection_required");
 }
 
+async function resolveWorkspaceId(organizationId: string): Promise<string> {
+  if (typeof window === "undefined") throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_required");
+  const stored = window.sessionStorage.getItem(ACTIVE_WORKSPACE_KEY);
+  if (stored) return stored;
+  let token = getAccessToken();
+  if (!token && await refreshSession()) token = getAccessToken();
+  if (!token) throw new ApiError("Your session has expired. Please sign in again.", 401, "unauthorized");
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl()}/api/v1/organizations/${encodeURIComponent(organizationId)}/workspaces`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "X-Organization-Id": organizationId },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("We couldn't load your workspaces. Check your connection and try again.", 0, "network_error");
+  }
+  if (!response.ok) throw new ApiError("We couldn't verify your workspace access. Refresh and try again.", response.status, "workspace_lookup_failed");
+  const body = await response.json() as { data?: Array<{ id: string; status: string }> };
+  const available = (body.data ?? []).filter((workspace) => workspace.status === "ACTIVE");
+  if (available.length === 1) {
+    window.sessionStorage.setItem(ACTIVE_WORKSPACE_KEY, available[0].id);
+    return available[0].id;
+  }
+  if (available.length === 0) throw new ApiError("You don't have access to an active workspace. Ask an organization owner or administrator for access.", 403, "workspace_access_required");
+  throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_selection_required");
+}
+
 type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -65,6 +93,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     (path.startsWith("/api/v1/organizations/") && path !== "/api/v1/organizations");
   if (auth && requiresOrganization && !headers.has("X-Organization-Id")) {
     headers.set("X-Organization-Id", await resolveOrganizationId());
+  }
+  if (auth && path.startsWith("/api/v1/trading/") && !headers.has("X-Workspace-Id")) {
+    const organizationId = headers.get("X-Organization-Id") ?? await resolveOrganizationId();
+    headers.set("X-Workspace-Id", await resolveWorkspaceId(organizationId));
   }
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   headers.set("Accept", "application/json");

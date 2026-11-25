@@ -152,6 +152,70 @@ async fn append_membership_event(
     Ok(())
 }
 
+async fn insert_workspace_account_assignment(
+    tx: &mut Transaction<'_, Postgres>,
+    organization: &str,
+    workspace_id: &str,
+    account: &str,
+    actor: &str,
+    reason: &str,
+) -> PersistenceResult<()> {
+    let revision = sqlx::query_scalar::<_, i64>(
+        "INSERT INTO workspace_account_assignments(account_id,organization_id,workspace_id,revision,assigned_by,reason) VALUES($1,$2,$3,1,$4,$5) ON CONFLICT(account_id) DO NOTHING RETURNING revision",
+    )
+    .bind(account)
+    .bind(organization)
+    .bind(workspace_id)
+    .bind(actor)
+    .bind(reason.trim())
+    .fetch_optional(&mut **tx)
+    .await?;
+    if let Some(revision) = revision {
+        sqlx::query(
+            "INSERT INTO workspace_account_assignment_events(account_id,organization_id,workspace_id,actor_user_id,revision,reason) VALUES($1,$2,$3,$4,$5,$6)",
+        )
+        .bind(account)
+        .bind(organization)
+        .bind(workspace_id)
+        .bind(actor)
+        .bind(revision)
+        .bind(reason.trim())
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
+}
+
+async fn ensure_default_workspace_assignment(
+    tx: &mut Transaction<'_, Postgres>,
+    organization: &str,
+    account: &str,
+    actor: &str,
+    reason: &str,
+) -> PersistenceResult<()> {
+    let workspace_schema_exists: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.workspace_account_assignments') IS NOT NULL AND to_regclass('public.workspaces') IS NOT NULL",
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if !workspace_schema_exists {
+        // R2/R3 upgrade paths legitimately create entitlements before M1 adds
+        // workspace tables; M1's deterministic backfill assigns those rows.
+        return Ok(());
+    }
+    let workspace =
+        super::workspaces::default_for_organization_in_transaction(tx, organization).await?;
+    insert_workspace_account_assignment(
+        tx,
+        organization,
+        workspace.id.as_str(),
+        account,
+        actor,
+        reason,
+    )
+    .await
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn append_entitlement_event(
     tx: &mut Transaction<'_, Postgres>,
@@ -482,6 +546,7 @@ pub async fn assign_account(
         None if expected_entitlement_revision == 0 => {
             sqlx::query("INSERT INTO organization_account_entitlements(account_id,organization_id,status,revision,assigned_by,updated_by,reason) VALUES($1,$2,'ACTIVE',1,$3,$3,$4)")
                 .bind(account).bind(org).bind(actor).bind(reason.trim()).execute(&mut *tx).await?;
+            ensure_default_workspace_assignment(&mut tx, org, account, actor, reason).await?;
             append_entitlement_event(
                 &mut tx,
                 account,
@@ -502,18 +567,16 @@ pub async fn assign_account(
             if old_revision == expected_entitlement_revision =>
         {
             if old_org != org {
-                let source_owner: bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM organization_memberships WHERE organization_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE')").bind(&old_org).bind(actor).fetch_one(&mut *tx).await?;
-                if !source_owner {
-                    return Err(PersistenceError::Other(
-                        "reassignment requires OWNER approval in both organizations".into(),
-                    ));
-                }
+                return Err(PersistenceError::Other(
+                    "cross-organization Quant account transfer requires a dedicated ownership-transfer workflow; workspace assignment identity is immutable".into(),
+                ));
             }
             let next = old_revision
                 .checked_add(1)
                 .ok_or_else(|| PersistenceError::Other("entitlement revision overflow".into()))?;
             sqlx::query("UPDATE organization_account_entitlements SET organization_id=$2,status='ACTIVE',revision=$3,assigned_by=$4,updated_by=$4,reason=$5,updated_at=NOW() WHERE account_id=$1 AND revision=$6")
                 .bind(account).bind(org).bind(next).bind(actor).bind(reason.trim()).bind(old_revision).execute(&mut *tx).await?;
+            ensure_default_workspace_assignment(&mut tx, org, account, actor, reason).await?;
             append_entitlement_event(
                 &mut tx,
                 account,
@@ -547,6 +610,54 @@ pub async fn create_paper_account_for_owner(
     label: &str,
     state: &AccountState,
 ) -> PersistenceResult<i64> {
+    create_paper_account_for_owner_inner(
+        pool,
+        organization,
+        actor,
+        None,
+        account,
+        starting_capital,
+        label,
+        state,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn create_paper_account_for_owner_in_workspace(
+    pool: &PgPool,
+    organization: &str,
+    actor: &str,
+    workspace_id: &str,
+    account: &Account,
+    starting_capital: rust_decimal::Decimal,
+    label: &str,
+    state: &AccountState,
+) -> PersistenceResult<i64> {
+    create_paper_account_for_owner_inner(
+        pool,
+        organization,
+        actor,
+        Some(workspace_id),
+        account,
+        starting_capital,
+        label,
+        state,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn create_paper_account_for_owner_inner(
+    pool: &PgPool,
+    organization: &str,
+    actor: &str,
+    requested_workspace_id: Option<&str>,
+    account: &Account,
+    starting_capital: rust_decimal::Decimal,
+    label: &str,
+    state: &AccountState,
+) -> PersistenceResult<i64> {
     if account.account_type != AccountType::Simulated
         || account.environment != Some(AccountEnvironment::Paper)
         || account.id != state.account_id
@@ -571,6 +682,21 @@ pub async fn create_paper_account_for_owner(
             "active organization OWNER membership is required".into(),
         ));
     }
+    let workspace_id = match requested_workspace_id {
+        Some(requested) => sqlx::query_scalar::<_, String>(
+            "SELECT id FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE' FOR SHARE",
+        )
+        .bind(organization)
+        .bind(requested)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| PersistenceError::NotFound("workspace".into()))?,
+        None => super::workspaces::default_for_organization_in_transaction(&mut tx, organization)
+            .await?
+            .id
+            .as_str()
+            .to_owned(),
+    };
 
     sqlx::query("INSERT INTO venues(id,venue_type,name,enabled,created_at) VALUES('simulated','simulated','Paper Simulator',FALSE,$1) ON CONFLICT(id) DO NOTHING")
         .bind(account.created_at).execute(&mut *tx).await?;
@@ -600,6 +726,15 @@ pub async fn create_paper_account_for_owner(
     }
     sqlx::query("INSERT INTO organization_account_entitlements(account_id,organization_id,status,revision,assigned_by,updated_by,reason) VALUES($1,$2,'ACTIVE',1,$3,$3,'created as an organization paper account')")
         .bind(account.id.as_str()).bind(organization).bind(actor).execute(&mut *tx).await?;
+    insert_workspace_account_assignment(
+        &mut tx,
+        organization,
+        &workspace_id,
+        account.id.as_str(),
+        actor,
+        "created as an organization paper account in the selected workspace",
+    )
+    .await?;
     append_entitlement_event(
         &mut tx,
         account.id.as_str(),

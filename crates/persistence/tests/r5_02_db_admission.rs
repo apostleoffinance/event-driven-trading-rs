@@ -25,7 +25,10 @@ async fn insert_user(pool: &PgPool, id: &str) {
 async fn seed_tenant_and_account(pool: &PgPool) {
     insert_user(pool, "r502-owner").await;
     insert_user(pool, "r502-verifier").await;
-    TradingStore::new(pool.clone())
+    insert_user(pool, "r502-worker").await;
+    insert_user(pool, "worker-r502").await;
+    let store = TradingStore::new(pool.clone());
+    store
         .create_organization(
             &Organization::new(
                 OrganizationId::new("r502-org").unwrap(),
@@ -37,6 +40,27 @@ async fn seed_tenant_and_account(pool: &PgPool) {
         )
         .await
         .unwrap();
+    for worker in ["r502-worker", "worker-r502"] {
+        store
+            .create_organization_membership(
+                "r502-org",
+                worker,
+                "r502-owner",
+                domain::OrganizationRole::Trader,
+                "MT5 service principal workspace membership",
+            )
+            .await
+            .unwrap();
+    }
+    let default_workspace = store.default_workspace("r502-org").await.unwrap().unwrap();
+    for worker in ["r502-worker", "worker-r502"] {
+        sqlx::query("INSERT INTO workspace_access_grants(organization_id,workspace_id,user_id,role,status,revision,granted_by,updated_by,reason) VALUES('r502-org',$1,$2,'TRADER','ACTIVE',1,'r502-owner','r502-owner','MT5 service principal workspace grant')")
+            .bind(default_workspace.id.as_str())
+            .bind(worker)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
 
     sqlx::query(
         "INSERT INTO venues(id,venue_type,name,created_at) VALUES('simulated','simulated','Paper',NOW()) ON CONFLICT(id) DO NOTHING",
@@ -56,7 +80,7 @@ async fn seed_tenant_and_account(pool: &PgPool) {
     .execute(pool)
     .await
     .unwrap();
-    TradingStore::new(pool.clone())
+    store
         .assign_account_entitlement(
             "r502-org",
             "r502-quant-account",
