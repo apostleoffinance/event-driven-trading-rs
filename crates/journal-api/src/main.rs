@@ -1659,5 +1659,33 @@ mod qos021a_e3a_r2_api_tests {
             app.clone().oneshot(missing_context).await.unwrap().status(),
             StatusCode::BAD_REQUEST
         );
+
+        let (owner_token_for_creation, owner_claims_for_creation) =
+            token("ws-owner", Utc::now() + Duration::minutes(5));
+        persist_test_token(&pool, &owner_claims_for_creation).await;
+        let create_in_selected_workspace = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/trading/accounts")
+            .header("authorization", format!("Bearer {owner_token_for_creation}"))
+            .header("x-organization-id", "ws-org")
+            .header("x-workspace-id", second.id.as_str())
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({"name":"Research Paper","initial_capital":"250","environment":"PAPER"}).to_string(),
+            ))
+            .unwrap();
+        let created = app.clone().oneshot(create_in_selected_workspace).await.unwrap();
+        assert_eq!(created.status(), StatusCode::CREATED);
+        let created_body = created.into_body().collect().await.unwrap().to_bytes();
+        let created_json: Value = serde_json::from_slice(&created_body).unwrap();
+        let created_account = created_json["data"]["id"].as_str().unwrap();
+        let assigned_workspace: String = sqlx::query_scalar(
+            "SELECT workspace_id FROM workspace_account_assignments WHERE account_id=$1 AND organization_id='ws-org'",
+        )
+        .bind(created_account)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(assigned_workspace, second.id.as_str());
     }
 }
