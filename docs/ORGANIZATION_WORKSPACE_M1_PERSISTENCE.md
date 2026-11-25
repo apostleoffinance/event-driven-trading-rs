@@ -8,7 +8,7 @@
 
 M1 adds a persisted Workspace entity beneath Organization. Every organization receives one active default workspace. Existing organization-account entitlements are retained as the organization ownership authority and mirrored into a single workspace assignment per Quant account.
 
-This milestone does not change organization creation (M2), expose workspace HTTP endpoints or request context (M3), migrate all trading-resource queries to workspace scope (M4), or add frontend workspace selection (M5).
+This milestone does not change the organization API response contract (M2), expose workspace HTTP endpoints or request context (M3), migrate all trading-resource queries to workspace scope (M4), or add frontend workspace selection (M5).
 
 ## Schema added
 
@@ -24,7 +24,7 @@ Migration: \`20261125000001_workspace_persistence.sql\`
 - Unique (organization_id, slug).
 - Partial unique index for one active default per organization.
 - Organization/status lookup index.
-- Database constraint triggers enforce exactly one active default at transaction commit. This allows M2 to create an organization and its initial default workspace in one transaction.
+- Database constraint triggers enforce exactly one active default at transaction commit. An AFTER INSERT organization trigger provisions the default workspace and CREATED event inside the same database transaction. This keeps the existing organization-creation API backward-compatible between M1 and M2.
 - Workspace identity/ownership cannot be changed; revisions must increment by exactly one; deletion is rejected in favor of archival.
 
 ### workspace_events
@@ -101,6 +101,7 @@ The SQLx tests require the repository's authorized QOS-020 database test guard. 
 
 - [x] Workspace SQL migration authored.
 - [x] Organization default-workspace backfill and postcondition checks authored.
+- [x] New organization inserts automatically provision a default workspace in the same transaction.
 - [x] Existing organization entitlements preserved and assigned to default workspace.
 - [x] Append-only workspace and assignment audit tables authored.
 - [x] Domain Workspace model and strong ID added.
@@ -113,7 +114,7 @@ The SQLx tests require the repository's authorized QOS-020 database test guard. 
 
 ## Explicit non-goals / next milestones
 
-- M2: update organization creation to insert Organization, initial OWNER membership, default Workspace and initial workspace event in one transaction.
+- M2: update the organization API response to return the database-provisioned default Workspace and make the service/repository contract explicit; the database trigger already keeps provisioning atomic.
 - M3: workspace list/get/create/update/archive/default APIs and server-side authorization.
 - M4: workspace-scope resource reads/writes, broker-account binding and worker admission paths, events, jobs, caches and analytics.
 - M5: frontend workspace selector and onboarding integration.
