@@ -21,9 +21,12 @@ The script opens a READ ONLY transaction and checks:
 - every organization has exactly one active default workspace;
 - every organization account entitlement has a workspace assignment;
 - every assignment points to an active workspace in the same organization;
+- every workspace lifecycle revision has an append-only workspace event;
 - the current assignment revision has an append-only audit event;
 - active grants never target suspended/revoked memberships or implicit OWNER/ADMIN members; grants on suspended organizations or archived workspaces are inert because the request principal independently denies those scopes;
 - every current grant revision has an append-only grant event.
+
+The preflight intentionally does not require an active organization/workspace for a persisted grant row: suspended organizations and archived workspaces may retain historical grant rows, but those rows cannot authorize requests while the scope is inactive. Membership suspension/revocation and promotion to OWNER/ADMIN invalidate active grants.
 
 The preflight intentionally does not require an active organization/workspace for a persisted grant row: suspended organizations and archived workspaces may retain historical grant rows, but those rows cannot authorize requests while the scope is inactive. Membership suspension/revocation and promotion to OWNER/ADMIN invalidate active grants.
 
