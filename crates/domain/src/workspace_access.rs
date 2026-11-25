@@ -386,14 +386,121 @@ mod tests {
     #[test]
     fn grant_creation_and_revision_validate_authority_and_reason() {
         let now = Utc::now();
-        assert!(WorkspaceAccessGrant::new(org(), workspace(), "owner", OrganizationRole::Owner, MembershipStatus::Active, WorkspaceRole::Viewer, OrganizationRole::Admin, MembershipStatus::Active, "admin", "reason", now).is_err());
-        assert!(WorkspaceAccessGrant::new(org(), workspace(), "trader", OrganizationRole::Trader, MembershipStatus::Suspended, WorkspaceRole::Viewer, OrganizationRole::Admin, MembershipStatus::Active, "admin", "reason", now).is_err());
-        assert!(WorkspaceAccessGrant::new(org(), workspace(), "trader", OrganizationRole::Trader, MembershipStatus::Active, WorkspaceRole::Viewer, OrganizationRole::Trader, MembershipStatus::Active, "trader", "reason", now).is_err());
-        let mut grant = WorkspaceAccessGrant::new(org(), workspace(), "trader", OrganizationRole::Trader, MembershipStatus::Active, WorkspaceRole::Trader, OrganizationRole::Owner, MembershipStatus::Active, "owner", "approved", now).unwrap();
+        assert!(WorkspaceAccessGrant::new(
+            org(),
+            workspace(),
+            "owner",
+            OrganizationRole::Owner,
+            MembershipStatus::Active,
+            WorkspaceRole::Viewer,
+            OrganizationRole::Admin,
+            MembershipStatus::Active,
+            "admin",
+            "reason",
+            now
+        )
+        .is_err());
+        assert!(WorkspaceAccessGrant::new(
+            org(),
+            workspace(),
+            "trader",
+            OrganizationRole::Trader,
+            MembershipStatus::Suspended,
+            WorkspaceRole::Viewer,
+            OrganizationRole::Admin,
+            MembershipStatus::Active,
+            "admin",
+            "reason",
+            now
+        )
+        .is_err());
+        assert!(WorkspaceAccessGrant::new(
+            org(),
+            workspace(),
+            "trader",
+            OrganizationRole::Trader,
+            MembershipStatus::Active,
+            WorkspaceRole::Viewer,
+            OrganizationRole::Trader,
+            MembershipStatus::Active,
+            "trader",
+            "reason",
+            now
+        )
+        .is_err());
+        let mut grant = WorkspaceAccessGrant::new(
+            org(),
+            workspace(),
+            "trader",
+            OrganizationRole::Trader,
+            MembershipStatus::Active,
+            WorkspaceRole::Trader,
+            OrganizationRole::Owner,
+            MembershipStatus::Active,
+            "owner",
+            "approved",
+            now,
+        )
+        .unwrap();
         assert_eq!(grant.revision, 1);
-        assert_eq!(grant.revise(1, WorkspaceRole::Viewer, WorkspaceGrantStatus::Active, OrganizationRole::Trader, MembershipStatus::Active, OrganizationRole::Admin, MembershipStatus::Active, "admin", "least privilege", now).unwrap(), 2);
-        assert!(grant.revise(1, WorkspaceRole::Trader, WorkspaceGrantStatus::Revoked, OrganizationRole::Trader, MembershipStatus::Active, OrganizationRole::Admin, MembershipStatus::Active, "admin", "stale", now).is_err());
-        assert!(grant.revise(2, WorkspaceRole::Viewer, WorkspaceGrantStatus::Revoked, OrganizationRole::Trader, MembershipStatus::Active, OrganizationRole::Admin, MembershipStatus::Active, " ", "reason", now).is_err());
-        assert!(grant.revise(2, WorkspaceRole::Viewer, WorkspaceGrantStatus::Active, OrganizationRole::Admin, MembershipStatus::Active, OrganizationRole::Admin, MembershipStatus::Active, "admin", "reactivation denied for implicit admin", now).is_err());
+        assert_eq!(
+            grant
+                .revise(
+                    1,
+                    WorkspaceRole::Viewer,
+                    WorkspaceGrantStatus::Active,
+                    OrganizationRole::Trader,
+                    MembershipStatus::Active,
+                    OrganizationRole::Admin,
+                    MembershipStatus::Active,
+                    "admin",
+                    "least privilege",
+                    now
+                )
+                .unwrap(),
+            2
+        );
+        assert!(grant
+            .revise(
+                1,
+                WorkspaceRole::Trader,
+                WorkspaceGrantStatus::Revoked,
+                OrganizationRole::Trader,
+                MembershipStatus::Active,
+                OrganizationRole::Admin,
+                MembershipStatus::Active,
+                "admin",
+                "stale",
+                now
+            )
+            .is_err());
+        assert!(grant
+            .revise(
+                2,
+                WorkspaceRole::Viewer,
+                WorkspaceGrantStatus::Revoked,
+                OrganizationRole::Trader,
+                MembershipStatus::Active,
+                OrganizationRole::Admin,
+                MembershipStatus::Active,
+                " ",
+                "reason",
+                now
+            )
+            .is_err());
+        assert!(grant
+            .revise(
+                2,
+                WorkspaceRole::Viewer,
+                WorkspaceGrantStatus::Active,
+                OrganizationRole::Admin,
+                MembershipStatus::Active,
+                OrganizationRole::Admin,
+                MembershipStatus::Active,
+                "admin",
+                "reactivation denied for implicit admin",
+                now
+            )
+            .is_err());
     }
 }
