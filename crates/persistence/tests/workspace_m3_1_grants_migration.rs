@@ -51,7 +51,10 @@ async fn grants_are_revisioned_audited_and_membership_revocation_is_immediate(
     let (role,status,revision):(String,String,i64)=sqlx::query_as(
         "SELECT role,status,revision FROM workspace_access_grants WHERE workspace_id=$1 AND user_id='m31-trader'",
     ).bind(&workspace).fetch_one(&pool).await?;
-    assert_eq!((role.as_str(),status.as_str(),revision),("TRADER","ACTIVE",1));
+    assert_eq!(
+        (role.as_str(), status.as_str(), revision),
+        ("TRADER", "ACTIVE", 1)
+    );
 
     sqlx::query(
         "UPDATE workspace_access_grants SET role='VIEWER',revision=2,updated_by='m31-owner',reason='reduced privileges' \
@@ -71,12 +74,12 @@ async fn grants_are_revisioned_audited_and_membership_revocation_is_immediate(
     let (status,revision):(String,i64)=sqlx::query_as(
         "SELECT status,revision FROM workspace_access_grants WHERE workspace_id=$1 AND user_id='m31-trader'",
     ).bind(&workspace).fetch_one(&pool).await?;
-    assert_eq!((status.as_str(),revision),("REVOKED",3));
+    assert_eq!((status.as_str(), revision), ("REVOKED", 3));
 
     let (events,revoked_events):(i64,i64)=sqlx::query_as(
         "SELECT count(*),count(*) FILTER (WHERE event_type='REVOKED') FROM workspace_access_grant_events WHERE workspace_id=$1 AND user_id='m31-trader'",
     ).bind(&workspace).fetch_one(&pool).await?;
-    assert_eq!((events,revoked_events),(3,1));
+    assert_eq!((events, revoked_events), (3, 1));
 
     let history_mutation=sqlx::query(
         "UPDATE workspace_access_grant_events SET reason='tampered' WHERE workspace_id=$1 AND user_id='m31-trader'",
@@ -119,10 +122,13 @@ async fn grants_reject_admin_targets_and_non_admin_grantors_and_do_not_reactivat
          WHERE organization_id='m31-org' AND user_id='m31-viewer'",
     ).execute(&pool).await?;
 
-    let status:String=sqlx::query_scalar(
+    let status: String = sqlx::query_scalar(
         "SELECT status FROM workspace_access_grants WHERE workspace_id=$1 AND user_id='m31-viewer'",
-    ).bind(&workspace).fetch_one(&pool).await?;
-    assert_eq!(status,"REVOKED");
+    )
+    .bind(&workspace)
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(status, "REVOKED");
 
     sqlx::query(
         "UPDATE organization_memberships SET role='VIEWER',revision=revision+1,updated_by='m31-owner' \
@@ -132,14 +138,16 @@ async fn grants_reject_admin_targets_and_non_admin_grantors_and_do_not_reactivat
     let status:String=sqlx::query_scalar(
         "SELECT status FROM workspace_access_grants WHERE workspace_id=$1 AND user_id='m31-viewer'",
     ).bind(&workspace).fetch_one(&pool).await?;
-    assert_eq!(status,"REVOKED","downgrading an implicit admin must not resurrect a historical grant");
+    assert_eq!(
+        status, "REVOKED",
+        "downgrading an implicit admin must not resurrect a historical grant"
+    );
     Ok(())
 }
 
-
 async fn migrate_pre_m3_1(pool: &PgPool) {
-    use std::{borrow::Cow, path::PathBuf};
     use sqlx::migrate::Migrator;
+    use std::{borrow::Cow, path::PathBuf};
 
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../migrations");
     let all = Migrator::new(path).await.unwrap();
@@ -173,9 +181,11 @@ async fn existing_m1_m2_database_is_recognized_and_upgraded_to_m3_1(
     ).fetch_one(&pool).await?;
     assert!(grant_table && event_table);
 
-    let applied:bool=sqlx::query_scalar(
+    let applied: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version=20261125000002 AND success)",
-    ).fetch_one(&pool).await?;
+    )
+    .fetch_one(&pool)
+    .await?;
     assert!(applied);
     Ok(())
 }
