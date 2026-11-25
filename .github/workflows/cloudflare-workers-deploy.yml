@@ -1,13 +1,17 @@
 name: Deploy EdgeNest Frontend to Cloudflare Workers
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "frontend/**"
-      - ".github/workflows/cloudflare-workers-deploy.yml"
   workflow_dispatch:
+    inputs:
+      confirm_production_deploy:
+        description: "Confirm the M6 production rollout gates are closed."
+        required: true
+        type: boolean
+        default: false
+      release_evidence:
+        description: "HTTPS link to the approved release evidence record."
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,12 +23,24 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy frontend
+    if: ${{ inputs.confirm_production_deploy == true && vars.EDGENEST_COOKIE_BFF_READY == 'true' && vars.EDGENEST_R2_DATABASE_VERIFIED == 'true' }}
+    environment: production
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
 
     steps:
+      - name: Validate explicit release authorization
+        env:
+          RELEASE_EVIDENCE: ${{ inputs.release_evidence }}
+        run: |
+          set -euo pipefail
+          case "${RELEASE_EVIDENCE}" in
+            https://*) echo "Release evidence reference supplied." ;;
+            *) echo "A valid HTTPS release evidence reference is required."; exit 1 ;;
+          esac
+          echo "Cookie-backed BFF and R2 database verification gates are enabled."
       - name: Checkout
         uses: actions/checkout@v4
 
