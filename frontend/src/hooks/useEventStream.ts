@@ -25,6 +25,17 @@ export function useEventStream(limit = 50) {
   const scopeKey = `${activeOrganizationId ?? ""}:${activeWorkspaceId ?? ""}`;
   const events = eventState.scope === scopeKey ? eventState.events : [];
   const connected = eventState.scope === scopeKey && eventState.connected;
+  const push = useCallback((event: TradingEvent) => {
+    if (!activeOrganizationId || !activeWorkspaceId) return;
+    setEventState((current) => ({
+      scope: scopeKey,
+      events: [event, ...(current.scope === scopeKey ? current.events : [])].slice(0, limit),
+      connected: true,
+    }));
+  }, [activeOrganizationId, activeWorkspaceId, limit, scopeKey]);
+  const reset = useCallback(() => {
+    setEventState({ scope: scopeKey, events: [], connected: false });
+  }, [scopeKey]);
 
   useEffect(() => {
     let active = true;
@@ -53,5 +64,5 @@ export function useEventStream(limit = 50) {
     };
   }, [limit, activeOrganizationId, activeWorkspaceId, scopeKey]);
 
-  return { events, connected };
+  return { events, connected, push, reset };
 }
