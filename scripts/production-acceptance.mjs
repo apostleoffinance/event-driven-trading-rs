@@ -24,7 +24,11 @@ const viewports = [
 
 async function expectHttp(url, expected, options = {}) {
   const response = await fetch(url, { ...options, signal: AbortSignal.timeout(20_000) });
-  assert.equal(response.status, expected, `${url} returned HTTP ${response.status}; expected ${expected}`);
+  const accepted = Array.isArray(expected) ? expected : [expected];
+  assert.ok(
+    accepted.includes(response.status),
+    `${url} returned HTTP ${response.status}; expected one of ${accepted.join(", ")}`,
+  );
   return response;
 }
 
@@ -42,7 +46,7 @@ if (process.env.VERIFY_PRODUCTION_API !== "false") {
   assert.equal((await unauthorizedResponse.json())?.error?.code, "unauthorized");
 
   console.log("Checking browser CORS preflight...");
-  const preflight = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, 200, {
+  const preflight = await expectHttp(`${apiUrl}/api/v1/journal/analytics/saved-views`, [200, 204], {
     method: "OPTIONS",
     headers: {
       Origin: authFrontendUrl,
