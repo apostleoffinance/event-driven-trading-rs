@@ -17,28 +17,24 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // R3 (20261113000001) is the migration under test. M1 has a later
-    // timestamp but is now a schema prerequisite for this upgrade fixture.
-    // Apply only the genuine R2 predecessor set plus M1; do not apply later
-    // migrations that themselves depend on R3 tables.
-    let selected = all
+    // R3 is a predecessor of M1 at the schema level even though its
+    // timestamp is earlier: R3 adds the composite UNIQUE key on
+    // organization_account_entitlements required by M1's workspace FKs.
+    // Apply the genuine R2 history, then R3, then M1. Exclude every later
+    // migration because some of them depend on the complete R3 schema.
+    let predecessors = all
         .iter()
-        .filter(|migration| {
-            migration.version < 20261113000001 || migration.version == 20261125000001
-        })
+        .filter(|migration| migration.version < 20261113000001)
         .cloned()
         .collect::<Vec<_>>();
     Migrator {
-        migrations: Cow::Owned(selected),
+        migrations: Cow::Owned(predecessors),
         ..Migrator::DEFAULT
     }
     .run(pool)
     .await
     .unwrap();
 
-    // This fixture intentionally has a non-linear history (M1 is newer than
-    // R3), so the production guarded migrator must not be used here. Apply
-    // exactly R3 to verify its upgrade against the explicit predecessor schema.
     let r3 = all
         .iter()
         .filter(|migration| migration.version == 20261113000001)
@@ -47,6 +43,20 @@ async fn apply_before_r3(pool: &PgPool) {
     assert_eq!(r3.len(), 1, "R3 migration must exist exactly once");
     Migrator {
         migrations: Cow::Owned(r3),
+        ..Migrator::DEFAULT
+    }
+    .run(pool)
+    .await
+    .unwrap();
+
+    let m1 = all
+        .iter()
+        .filter(|migration| migration.version == 20261125000001)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(m1.len(), 1, "M1 workspace migration must exist exactly once");
+    Migrator {
+        migrations: Cow::Owned(m1),
         ..Migrator::DEFAULT
     }
     .run(pool)
