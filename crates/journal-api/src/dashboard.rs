@@ -235,19 +235,9 @@ pub async fn create_paper_account(
             "Workspace role does not permit account creation",
         );
     }
-    let default_workspace = match state
-        .store
-        .default_workspace(&principal.organization_id)
-        .await
-    {
-        Ok(Some(v)) => v,
-        _ => return internal(),
-    };
-    if workspace_principal.workspace_id != default_workspace.id.as_str() {
-        return error(StatusCode::CONFLICT, "account_creation_workspace_mismatch", "New Quant accounts are provisioned in the organization's default workspace; select the default workspace first.");
-    }
     let organization_id = principal.organization_id;
     let actor_id = principal.user_id;
+    let workspace_id = workspace_principal.workspace_id;
     let name = input.name.trim();
     if name.is_empty() || name.len() > 80 || input.initial_capital <= Decimal::ZERO {
         return error(
@@ -292,9 +282,10 @@ pub async fn create_paper_account(
     };
     if state
         .store
-        .create_paper_account_for_owner(
+        .create_paper_account_for_owner_in_workspace(
             &organization_id,
             &actor_id,
+            &workspace_id,
             &account,
             input.initial_capital,
             name,
