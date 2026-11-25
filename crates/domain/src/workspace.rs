@@ -124,18 +124,19 @@ fn validate_name(name: &str) -> DomainResult<()> {
 }
 
 fn validate_slug(slug: &str) -> DomainResult<()> {
-    let valid = !slug.is_empty()
-        && slug.len() <= 63
-        && slug.as_bytes()[0].is_ascii_lowercase()
-            || (!slug.is_empty() && slug.len() <= 63 && slug.as_bytes()[0].is_ascii_digit());
-    if !valid
+    let first_is_valid = slug
+        .as_bytes()
+        .first()
+        .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit());
+    if !first_is_valid
+        || slug.len() > 63
         || !slug
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
         || slug.ends_with('-')
     {
         return Err(DomainError::Validation(
-            "workspace slug must be 1 to 63 lowercase letters, digits or hyphens and start with a letter or digit".into(),
+            "workspace slug must be 1 to 63 lowercase letters, digits or hyphens and start and end with a letter or digit".into(),
         ));
     }
     Ok(())
