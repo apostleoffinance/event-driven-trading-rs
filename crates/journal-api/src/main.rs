@@ -1041,7 +1041,10 @@ mod qos021a_e3a_r2_api_tests {
             Utc::now(),
         )
         .unwrap();
-        assert!(store.create_organization(&rollback_org, "missing-api-owner").await.is_err());
+        assert!(store
+            .create_organization(&rollback_org, "missing-api-owner")
+            .await
+            .is_err());
         let rollback_counts: (i64, i64) = sqlx::query_as(
             "SELECT (SELECT count(*) FROM organizations WHERE id=$1), (SELECT count(*) FROM workspaces WHERE organization_id=$1)",
         )

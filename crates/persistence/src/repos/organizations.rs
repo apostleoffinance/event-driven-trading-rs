@@ -73,11 +73,9 @@ pub async fn create(
     // M1's AFTER INSERT trigger provisions the default workspace in this
     // transaction. Read it before commit: a missing workspace must roll back
     // the organization and initial OWNER membership rather than create a partial tenant.
-    let default_workspace = super::workspaces::default_for_organization_in_transaction(
-        &mut tx,
-        org.id.as_str(),
-    )
-    .await?;
+    let default_workspace =
+        super::workspaces::default_for_organization_in_transaction(&mut tx, org.id.as_str())
+            .await?;
 
     tx.commit().await?;
     Ok(default_workspace)

@@ -86,9 +86,9 @@ pub(crate) async fn default_for_organization_in_transaction(
         .bind(organization_id)
         .fetch_optional(&mut **tx)
         .await?
-        .ok_or_else(|| PersistenceError::Other(
-            "organization default workspace was not provisioned".into(),
-        ))?;
+        .ok_or_else(|| {
+            PersistenceError::Other("organization default workspace was not provisioned".into())
+        })?;
     map_workspace(row)
 }
 
