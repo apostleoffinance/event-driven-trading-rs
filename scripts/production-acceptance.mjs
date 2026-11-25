@@ -22,8 +22,10 @@ const viewports = [
   { name: "mobile-360x800", width: 360, height: 800 },
 ];
 
+const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+
 async function expectHttp(url, expected, options = {}) {
-  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(20_000) });
+  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(30_000) });
   const accepted = Array.isArray(expected) ? expected : [expected];
   assert.ok(
     accepted.includes(response.status),
@@ -32,13 +34,51 @@ async function expectHttp(url, expected, options = {}) {
   return response;
 }
 
+async function expectHttpWithRetry(url, expected, options = {}, {
+  attempts = 4,
+  requestTimeoutMs = 30_000,
+  initialBackoffMs = 2_000,
+} = {}) {
+  const accepted = Array.isArray(expected) ? expected : [expected];
+  const transientStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+  const failures = [];
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(requestTimeoutMs),
+        // Do not reuse a cached health response during a release readiness check.
+        cache: "no-store",
+      });
+      if (accepted.includes(response.status)) return response;
+      const detail = `${url} returned HTTP ${response.status}; expected one of ${accepted.join(", ")}`;
+      if (!transientStatuses.has(response.status) || attempt === attempts) {
+        assert.ok(false, detail);
+      }
+      failures.push(detail);
+    } catch (error) {
+      // Assertion failures for non-transient HTTP statuses must not be retried.
+      if (error instanceof assert.AssertionError) throw error;
+      failures.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
+      if (attempt === attempts) {
+        throw new Error(
+          `Production readiness request failed after ${attempts} attempts: ${failures.join(" | ")}`,
+          { cause: error },
+        );
+      }
+    }
+    await sleep(initialBackoffMs * attempt);
+  }
+  throw new Error(`Production readiness request failed: ${failures.join(" | ")}`);
+}
+
 // Keep PR visual acceptance independent from production API availability.
 // The main-branch release run still performs all live API/auth/CORS checks.
 if (process.env.VERIFY_PRODUCTION_API !== "false") {
   console.log("Checking production API health and readiness...");
-  const health = await expectHttp(`${apiUrl}/healthz`, 200);
+  const health = await expectHttpWithRetry(`${apiUrl}/healthz`, 200);
   assert.match(await health.text(), /ok/i);
-  const ready = await expectHttp(`${apiUrl}/readyz`, 200);
+  const ready = await expectHttpWithRetry(`${apiUrl}/readyz`, 200);
   assert.match(await ready.text(), /ready/i);
 
   console.log("Checking saved-view API authentication boundary...");
