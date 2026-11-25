@@ -375,6 +375,7 @@ impl TradingStore {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_paper_account_for_owner_in_workspace(
         &self,
         organization: &str,
