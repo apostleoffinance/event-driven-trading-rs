@@ -23,7 +23,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy frontend
-    if: ${{ inputs.confirm_production_deploy == true && vars.EDGENEST_COOKIE_BFF_READY == 'true' && vars.EDGENEST_R2_DATABASE_VERIFIED == 'true' }}
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_production_deploy == true && vars.EDGENEST_COOKIE_BFF_READY == 'true' && vars.EDGENEST_R2_DATABASE_VERIFIED == 'true' }}
     environment: production
     runs-on: ubuntu-latest
     defaults:
