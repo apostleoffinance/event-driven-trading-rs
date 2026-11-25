@@ -15,6 +15,7 @@ use sqlx::{Postgres, Transaction};
 use crate::{auth::ApiAuthError, AppState};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct WorkspacePrincipal {
     pub user_id: String,
     pub organization_id: String,
