@@ -472,6 +472,11 @@ mod qos021a_e3a_r2_api_tests {
         }
         if let Some(org) = organization {
             builder = builder.header("x-organization-id", org);
+            if let Some(workspace) = sqlx::query_scalar::<_, String>(
+                "SELECT id FROM workspaces WHERE organization_id=$1 AND is_default=TRUE AND status='ACTIVE'",
+            ).bind(org).fetch_optional(pool).await.unwrap() {
+                builder = builder.header("x-workspace-id", workspace);
+            }
         }
         let request = if let Some(value) = body {
             builder
@@ -563,6 +568,14 @@ mod qos021a_e3a_r2_api_tests {
                 )
                 .await
                 .unwrap();
+        }
+        for (user, role) in [
+            ("api-trader", "TRADER"),
+            ("api-viewer", "VIEWER"),
+            ("api-risk", "RISK_MANAGER"),
+        ] {
+            sqlx::query("INSERT INTO workspace_access_grants(organization_id,workspace_id,user_id,role,status,revision,granted_by,updated_by,reason) SELECT 'api-org-a',id,$1,$2,'ACTIVE',1,'api-owner-a','api-owner-a','API workspace grant fixture' FROM workspaces WHERE organization_id='api-org-a' AND is_default=TRUE")
+                .bind(user).bind(role).execute(&pool).await.unwrap();
         }
         insert_quant_account(&pool, &store, "api-account-a", "api-org-a", "api-owner-a").await;
         insert_quant_account(&pool, &store, "api-account-b", "api-org-b", "api-owner-b").await;
