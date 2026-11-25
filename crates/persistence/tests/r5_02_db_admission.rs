@@ -41,13 +41,16 @@ async fn seed_tenant_and_account(pool: &PgPool) {
         .await
         .unwrap();
     for worker in ["r502-worker", "worker-r502"] {
-        store.create_organization_membership(
-            "r502-org",
-            worker,
-            "r502-owner",
-            domain::OrganizationRole::Trader,
-            "MT5 service principal workspace membership",
-        ).await.unwrap();
+        store
+            .create_organization_membership(
+                "r502-org",
+                worker,
+                "r502-owner",
+                domain::OrganizationRole::Trader,
+                "MT5 service principal workspace membership",
+            )
+            .await
+            .unwrap();
     }
     let default_workspace = store.default_workspace("r502-org").await.unwrap().unwrap();
     for worker in ["r502-worker", "worker-r502"] {
