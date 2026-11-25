@@ -52,6 +52,7 @@ fn db_error() -> Response {
 }
 
 /// Resolve an active workspace context. No default workspace fallback is allowed.
+#[allow(clippy::result_large_err)]
 pub async fn principal(
     state: &AppState,
     headers: &HeaderMap,
@@ -147,6 +148,7 @@ async fn lock_admin_membership(
     Ok(matches!(role.as_deref(), Some("OWNER" | "ADMIN")))
 }
 
+#[allow(clippy::result_large_err)]
 pub async fn require_org_admin(
     state: &AppState,
     headers: &HeaderMap,
