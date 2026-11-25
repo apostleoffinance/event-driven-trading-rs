@@ -54,8 +54,14 @@ async fn m1_backfills_one_default_workspace_for_each_existing_organization(
     .fetch_all(&pool)
     .await?;
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0], ("m1-org-a".into(), "Default".into(), true, "default".into()));
-    assert_eq!(rows[1], ("m1-org-b".into(), "Default".into(), true, "default".into()));
+    assert_eq!(
+        rows[0],
+        ("m1-org-a".into(), "Default".into(), true, "default".into())
+    );
+    assert_eq!(
+        rows[1],
+        ("m1-org-b".into(), "Default".into(), true, "default".into())
+    );
 
     let events: i64 = sqlx::query_scalar("SELECT count(*) FROM workspace_events")
         .fetch_one(&pool)
