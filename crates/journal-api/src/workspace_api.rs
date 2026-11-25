@@ -112,7 +112,7 @@ pub async fn principal(
                 let org_trade = org_role == "TRADER";
                 let org_risk = org_role == "RISK_MANAGER";
                 let (read, trade, risk, manage) = match wr.as_str() {
-                    "WORKSPACE_ADMIN" => (true, org_trade, org_risk, false),
+                    "WORKSPACE_ADMIN" => (true, org_trade, org_risk, true),
                     "TRADER" => (true, org_trade, false, false),
                     "RISK_MANAGER" => (true, false, org_risk, false),
                     "VIEWER" => (true, false, false, false),
