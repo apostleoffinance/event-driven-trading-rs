@@ -82,6 +82,7 @@ struct OrganizationRow {
     entitlement_status: Option<String>,
     entitlement_revision: Option<i64>,
     quant_account_status: Option<String>,
+    workspace_status: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -236,13 +237,18 @@ pub async fn evaluate_persisted_broker_admission(
         r#"SELECT o.status AS organization_status, o.revision AS organization_revision,
                   m.status AS membership_status, m.revision AS membership_revision,
                   e.status AS entitlement_status, e.revision AS entitlement_revision,
-                  qa.status AS quant_account_status
+                  qa.status AS quant_account_status,
+                  w.status AS workspace_status
              FROM organizations o
              LEFT JOIN organization_memberships m
                ON m.organization_id = o.id AND m.user_id = $2
              LEFT JOIN organization_account_entitlements e
                ON e.organization_id = o.id AND e.account_id = $3
              LEFT JOIN accounts qa ON qa.id = e.account_id
+             LEFT JOIN workspace_account_assignments waa
+               ON waa.organization_id=e.organization_id AND waa.account_id=e.account_id
+             LEFT JOIN workspaces w
+               ON w.organization_id=waa.organization_id AND w.id=waa.workspace_id
             WHERE o.id = $1"#,
     )
     .bind(&request.organization_ref)
@@ -267,7 +273,10 @@ pub async fn evaluate_persisted_broker_admission(
                 .as_ref()
                 .and_then(|_| binding.as_ref().map(|b| b.quant_account_id.clone())),
             entitlement_status: match row.entitlement_status.as_deref() {
-                Some("ACTIVE") if row.quant_account_status.as_deref() == Some("active") => {
+                Some("ACTIVE")
+                    if row.quant_account_status.as_deref() == Some("active")
+                        && row.workspace_status.as_deref() == Some("ACTIVE") =>
+                {
                     Some(AdmissionLifecycleStatus::Active)
                 }
                 Some(_) => Some(AdmissionLifecycleStatus::Inactive),
