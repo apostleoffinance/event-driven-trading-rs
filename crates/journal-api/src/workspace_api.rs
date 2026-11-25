@@ -332,22 +332,31 @@ pub async fn update(
             "Workspace revision is stale",
         );
     }
-    let name = input.name.as_deref().unwrap_or(&old_name).trim();
-    let slug = input.slug.as_deref().unwrap_or(&old_slug).trim();
-    if name.is_empty()
-        || name.len() > 120
-        || slug.is_empty()
-        || slug.len() > 63
-        || !slug
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-        || !slug.as_bytes()[0].is_ascii_alphanumeric()
-        || slug.ends_with('-')
+    if input
+        .slug
+        .as_deref()
+        .is_some_and(|requested_slug| requested_slug.trim() != old_slug)
     {
         return error(
             StatusCode::BAD_REQUEST,
+            "workspace_slug_immutable",
+            "Workspace slugs are immutable after creation so workspace identity remains auditable",
+        );
+    }
+    let name = input.name.as_deref().unwrap_or(&old_name).trim();
+    let slug = old_slug.as_str();
+    if name.is_empty() || name.len() > 120 {
+        return error(
+            StatusCode::BAD_REQUEST,
             "invalid_workspace",
-            "Workspace name or slug is invalid",
+            "Workspace name must contain 1 to 120 characters",
+        );
+    }
+    if name == old_name {
+        return error(
+            StatusCode::BAD_REQUEST,
+            "no_workspace_changes",
+            "Provide a new workspace name",
         );
     }
     let Some(next) = revision.checked_add(1) else {
