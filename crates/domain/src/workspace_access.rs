@@ -131,6 +131,7 @@ impl WorkspaceAccessGrant {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn revise(
         &mut self,
         expected_revision: u64,
