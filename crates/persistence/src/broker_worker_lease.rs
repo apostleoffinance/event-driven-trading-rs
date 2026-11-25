@@ -118,6 +118,8 @@ pub async fn acquire(
                AND EXISTS (
                    SELECT 1
                      FROM workspace_account_assignments waa
+                     JOIN organizations o
+                       ON o.id = waa.organization_id AND o.status = 'ACTIVE'
                      JOIN workspaces w
                        ON w.id = waa.workspace_id
                       AND w.organization_id = waa.organization_id
@@ -214,6 +216,7 @@ pub async fn renew(
            AND EXISTS (
                SELECT 1 FROM broker_worker_assignments bwa
                JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id
+               JOIN organizations o ON o.id=waa.organization_id AND o.status='ACTIVE'
                JOIN workspaces w ON w.id=waa.workspace_id AND w.organization_id=waa.organization_id
                WHERE bwa.id=$3 AND bwa.quant_account_id=$1 AND bwa.status='ACTIVE'
                  AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
