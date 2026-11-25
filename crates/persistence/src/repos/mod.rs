@@ -181,7 +181,7 @@ impl TradingStore {
         &self,
         org: &domain::Organization,
         actor: &str,
-    ) -> PersistenceResult<()> {
+    ) -> PersistenceResult<domain::Workspace> {
         organizations::create(&self.pool, org, actor).await
     }
 
