@@ -17,20 +17,19 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // Produce the exact pre-R3 database schema from the complete migration
-    // directory. Use the selected migrator only on an empty database; once it
-    // has seeded SQLx's version ledger, let the production migrator apply R3
-    // and every later migration in the canonical order.
+    // This is a migration-boundary fixture, not a production startup path.
+    // Apply the real pre-R3 migrations, then execute the actual R3, I1, R5.02,
+    // I1-R1 and MT5 registry migrations using their source SQL. SQLx's
+    // Migrator cannot run a subset after partial history because it validates
+    // the complete migration inventory and rejects missing versions.
     let before_r3 = all
         .iter()
         .filter(|migration| migration.version < 20261113000001)
         .cloned()
         .collect::<Vec<_>>();
     assert!(
-        before_r3
-            .iter()
-            .any(|migration| migration.version == 202611070001),
-        "pre-R3 fixture must include the 12-digit Journal foundation migration"
+        before_r3.iter().any(|migration| migration.version == 202611070001),
+        "pre-R3 history must include the Journal foundation migration"
     );
     Migrator {
         migrations: Cow::Owned(before_r3),
@@ -40,11 +39,37 @@ async fn apply_before_r3(pool: &PgPool) {
     .await
     .unwrap();
 
-    // Upgrade using the full migrator, which ensures SQLx sees the whole
-    // migration inventory and executes R3 before dependent migrations.
-    migrate(pool).await.unwrap();
-}
+    // These migrations define the complete schema immediately before M1.
+    // Execute their unmodified SQL directly so the test exercises the real
+    // upgrade DDL without fabricating _sqlx_migrations rows.
+    for version in [
+        20261113000001,
+        20261114000001,
+        20261114000002,
+        20261115000001,
+        20261119000001,
+        20261119000002,
+    ] {
+        let migration = all
+            .iter()
+            .find(|migration| migration.version == version)
+            .unwrap_or_else(|| panic!("required pre-M1 migration {version} must exist"));
+        sqlx::raw_sql(std::str::from_utf8(migration.sql.as_ref()).unwrap())
+            .execute(pool)
+            .await
+            .unwrap_or_else(|error| panic!("pre-M1 migration {version} failed: {error}"));
+    }
 
+    // M1 is the actual change under this test and runs last.
+    let m1 = all
+        .iter()
+        .find(|migration| migration.version == 20261125000001)
+        .expect("M1 workspace migration must exist exactly once");
+    sqlx::raw_sql(std::str::from_utf8(m1.sql.as_ref()).unwrap())
+        .execute(pool)
+        .await
+        .unwrap();
+}
 
 async fn user(pool: &PgPool, id: &str) {
     sqlx::query("INSERT INTO identity_users(id,email,display_name,password_hash) VALUES($1,$2,$1,'test-only')")
