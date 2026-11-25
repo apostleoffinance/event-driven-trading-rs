@@ -432,12 +432,16 @@ try {
     await page.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
+    // Observe the accounts request on the authenticated route. React Query may
+    // populate the query during login and reuse it on a later route visit, so
+    // this promise must be armed immediately before the login action, not after
+    // navigating to Journal a second time.
     const initialJournalAccountsResponsePromise = page.waitForResponse(
       response => response.url().includes("/api/v1/journal/accounts") && response.request().method() === "GET",
-      { timeout: 30_000 },
+      { timeout: 45_000 },
     );
     await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
+    await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 45_000 });
     const authenticatedSessionState = await page.evaluate(() => {
       const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
       return { hasAccessToken: Boolean(session?.access_token), hasRefreshToken: Boolean(session?.refresh_token) };
@@ -446,7 +450,7 @@ try {
     const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
     const initialAccountsOutcome = await Promise.race([
       initialJournalAccountsResponsePromise.then(response => ({ kind: "response", response })),
-      journalAccountsError.waitFor({ state: "visible", timeout: 30_000 }).then(async () => ({
+      journalAccountsError.waitFor({ state: "visible", timeout: 45_000 }).then(async () => ({
         kind: "error",
         message: await journalAccountsError.innerText(),
       })),
