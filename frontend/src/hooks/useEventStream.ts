@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getRepositories } from "@/lib/repositories";
 import type { TradingEvent } from "@/types/domain";
+import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
 
 export type EventStreamState = {
   events: TradingEvent[];
@@ -15,9 +16,15 @@ export type EventStreamState = {
 export function useEventStream(limit = 40): EventStreamState {
   const [events, setEvents] = useState<TradingEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const { activeWorkspaceId, activeOrganizationId } = useWorkspace();
 
   useEffect(() => {
     let active = true;
+    setEvents([]);
+    setConnected(false);
+    if (!activeOrganizationId || !activeWorkspaceId) {
+      return () => { active = false; };
+    }
     const refresh = async () => {
       try {
         const latest = await getRepositories().events.listEvents(limit);
@@ -34,7 +41,7 @@ export function useEventStream(limit = 40): EventStreamState {
       active = false;
       window.clearInterval(id);
     };
-  }, [limit]);
+  }, [limit, activeOrganizationId, activeWorkspaceId]);
 
   const push = useCallback((event: TradingEvent) => {
     setEvents((prev) => [event, ...prev].slice(0, limit));
