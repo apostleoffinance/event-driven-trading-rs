@@ -193,6 +193,16 @@ async fn ensure_default_workspace_assignment(
     actor: &str,
     reason: &str,
 ) -> PersistenceResult<()> {
+    let workspace_schema_exists: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.workspace_account_assignments') IS NOT NULL AND to_regclass('public.workspaces') IS NOT NULL",
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if !workspace_schema_exists {
+        // R2/R3 upgrade paths legitimately create entitlements before M1 adds
+        // workspace tables; M1's deterministic backfill assigns those rows.
+        return Ok(());
+    }
     let workspace =
         super::workspaces::default_for_organization_in_transaction(tx, organization).await?;
     insert_workspace_account_assignment(
