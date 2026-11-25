@@ -85,11 +85,13 @@ try {
     page.on("console", message => {
       if (message.type() === "error" && !message.text().includes("503 (Service Unavailable)")) marketConsoleErrors.push(message.text());
     });
-    // The local Worker preview is not an allowed production API origin. Stub
-    // non-market widgets here; production API health/auth/CORS are checked directly
-    // above using the deployed frontend origin. This keeps preview console output
-    // focused on actual UI/runtime errors instead of expected cross-origin denials.
+    // PR Worker previews must be isolated from the live API. Stub both relative
+    // and absolute health endpoints so a future API URL override cannot turn
+    // this responsive UI check into a production CORS/network dependency.
     await page.route("**/healthz", route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
+    }));
+    await page.route("https://edgenest-api.onrender.com/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
     await page.route("**/api/v1/trading/events*", route => route.fulfill({
