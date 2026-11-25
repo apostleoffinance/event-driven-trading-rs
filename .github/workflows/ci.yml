@@ -103,6 +103,15 @@ jobs:
       - name: Run migration transform tests
         run: python -m unittest discover -s scripts/traderos-migration -p 'test_*.py' -v
 
+  workspace-release-preflight:
+    name: Workspace release preflight tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Test read-only workspace invariant preflight
+        run: bash scripts/test_workspace_release_preflight.sh
+
   frontend:
     name: Frontend lint, typecheck, build
     runs-on: ubuntu-latest
