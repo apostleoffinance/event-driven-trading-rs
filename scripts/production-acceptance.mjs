@@ -430,12 +430,12 @@ try {
     await page.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Email").waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
     // Observe the accounts request on the authenticated route. React Query may
     // populate the query during login and reuse it on a later route visit, so
     // this promise must be armed immediately before the login action, not after
     // navigating to Journal a second time.
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
     const initialJournalAccountsResponsePromise = page.waitForResponse(
       response => response.url().includes("/api/v1/journal/accounts") && response.request().method() === "GET",
       { timeout: 45_000 },
