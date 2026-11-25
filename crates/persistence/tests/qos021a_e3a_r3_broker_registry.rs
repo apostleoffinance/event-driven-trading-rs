@@ -54,7 +54,11 @@ async fn apply_before_r3(pool: &PgPool) {
         .filter(|migration| migration.version == 20261125000001)
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(m1.len(), 1, "M1 workspace migration must exist exactly once");
+    assert_eq!(
+        m1.len(),
+        1,
+        "M1 workspace migration must exist exactly once"
+    );
     Migrator {
         migrations: Cow::Owned(m1),
         ..Migrator::DEFAULT
