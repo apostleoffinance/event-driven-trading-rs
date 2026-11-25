@@ -312,7 +312,6 @@ pub async fn accounts(State(state): State<AppState>, headers: HeaderMap) -> Resp
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
     let user_id = principal.user_id.clone();
-    let user_id = principal.user_id.clone();
     match account_rows(&state, &owner, None, &workspace_id, &user_id).await {
         Ok(rows) => {
             Json(serde_json::json!({"data":rows.into_iter().map(account_json).collect::<Vec<_>>()}))
