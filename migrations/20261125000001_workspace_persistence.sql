@@ -26,7 +26,7 @@ CREATE INDEX workspaces_org_status_idx
 
 CREATE TABLE workspace_events (
     id BIGSERIAL PRIMARY KEY,
-    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL,
     organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
     actor_user_id TEXT NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
     revision BIGINT NOT NULL CHECK (revision > 0),
@@ -39,7 +39,9 @@ CREATE TABLE workspace_events (
     next_is_default BOOLEAN NOT NULL,
     reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 1000),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (workspace_id,revision)
+    UNIQUE (workspace_id,revision),
+    FOREIGN KEY (workspace_id,organization_id)
+        REFERENCES workspaces(id,organization_id) ON DELETE RESTRICT
 );
 CREATE INDEX workspace_events_history_idx
     ON workspace_events(workspace_id,created_at DESC);
