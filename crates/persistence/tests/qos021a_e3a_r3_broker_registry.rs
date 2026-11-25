@@ -17,44 +17,62 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // This test targets the migration boundary immediately before R3. Build
-    // the real predecessor schema from its source migrations, preserving the
-    // mixed-width legacy versions (including 202611070001). SQLx's selected
-    // Migrator re-validates the entire discovered migration inventory, so run
-    // the prefix directly and do not ask it to validate a partial history.
+    // Create the actual R2-era schema from the source migrations. SQLx
+    // Migrator is intentionally not used with a filtered migration set:
+    // it validates every discovered migration version, including historical
+    // 12-digit versions, and rejects a partial inventory.
     let before_r3 = all
         .iter()
         .filter(|migration| migration.version < 20261113000001)
         .collect::<Vec<_>>();
     assert!(
         before_r3.iter().any(|migration| migration.version == 202611070001),
-        "pre-R3 fixture must include the 12-digit Journal foundation migration"
+        "pre-R3 fixture must include the Journal foundation migration"
     );
 
     for migration in before_r3 {
-        let sql = std::str::from_utf8(migration.sql.as_ref()).unwrap();
-        sqlx::raw_sql(sql)
-            .execute(pool)
+        let mut tx = pool.begin().await.unwrap();
+        sqlx::raw_sql(std::str::from_utf8(migration.sql.as_ref()).unwrap())
+            .execute(&mut *tx)
             .await
             .unwrap_or_else(|error| {
-                panic!(
-                    "pre-R3 migration {} failed: {error}",
-                    migration.version
-                )
+                panic!("pre-R3 migration {} failed: {error}", migration.version)
             });
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations(version,description,success,checksum,execution_time) VALUES($1,$2,TRUE,$3,0)",
+        )
+        .bind(migration.version)
+        .bind(migration.description.as_ref())
+        .bind(migration.checksum.as_ref())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
     }
 
-    // Execute the unmodified R3 migration followed by M1, whose composite FK
-    // depends on the unique organization/account key added by R3.
+    // Execute R3 and M1 using their source SQL and record matching SQLx
+    // ledger entries, yielding a fully valid migration history with the
+    // exact DDL order this upgrade test is intended to exercise.
     for version in [20261113000001, 20261125000001] {
         let migration = all
             .iter()
             .find(|migration| migration.version == version)
-            .unwrap_or_else(|| panic!("migration {version} must exist exactly once"));
+            .expect("required migration must exist exactly once");
+        let mut tx = pool.begin().await.unwrap();
         sqlx::raw_sql(std::str::from_utf8(migration.sql.as_ref()).unwrap())
-            .execute(pool)
+            .execute(&mut *tx)
             .await
             .unwrap_or_else(|error| panic!("migration {version} failed: {error}"));
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations(version,description,success,checksum,execution_time) VALUES($1,$2,TRUE,$3,0)",
+        )
+        .bind(migration.version)
+        .bind(migration.description.as_ref())
+        .bind(migration.checksum.as_ref())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
     }
 }
 
