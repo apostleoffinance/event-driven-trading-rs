@@ -215,6 +215,12 @@ $$;
 CREATE TRIGGER workspace_access_grants_no_delete
     BEFORE DELETE ON workspace_access_grants
     FOR EACH ROW EXECUTE FUNCTION prevent_workspace_access_grant_delete();
+CREATE TRIGGER workspace_access_grants_no_truncate
+    BEFORE TRUNCATE ON workspace_access_grants
+    FOR EACH STATEMENT EXECUTE FUNCTION prevent_workspace_access_grant_delete();
+CREATE TRIGGER workspace_access_grant_events_no_truncate
+    BEFORE TRUNCATE ON workspace_access_grant_events
+    FOR EACH STATEMENT EXECUTE FUNCTION prevent_workspace_access_grant_history_change();
 
 COMMENT ON TABLE workspace_access_grants IS
     'Explicit workspace access for non-OWNER/ADMIN organization members. Grants never elevate organization-level capabilities; OWNER/ADMIN access is implicit.';
