@@ -233,7 +233,7 @@ CREATE CONSTRAINT TRIGGER workspaces_require_default_workspace
 -- the default workspace in the same transaction as the organization INSERT.
 -- M2 will expose this persisted workspace in the organization API response.
 CREATE FUNCTION provision_default_workspace_for_organization()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
     workspace_id TEXT;
 BEGIN
@@ -257,7 +257,7 @@ BEGIN
     );
     RETURN NEW;
 END
-$;
+$$;
 CREATE TRIGGER organizations_provision_default_workspace
     AFTER INSERT ON organizations
     FOR EACH ROW EXECUTE FUNCTION provision_default_workspace_for_organization();
