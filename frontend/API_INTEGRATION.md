@@ -66,7 +66,7 @@ Use the exact browser-visible frontend origin (scheme + hostname, no path or tra
 When the frontend uses the combined API gateway (`NEXT_PUBLIC_API_URL`), configure this variable on the gateway service:
 - `EDGENEST_CORS_ORIGINS=https://<your-frontend-host>`
 
-The gateway answers browser `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
+The gateway answers browser `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`, and `X-Workspace-Id`. The workspace selector is required on workspace-scoped trading requests and is not authorization evidence. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
 
 If the frontend calls the Identity, Journal, or Market Data services directly rather than through the combined gateway, configure the corresponding service allow-list on each service:
 - `IDENTITY_CORS_ORIGINS`
