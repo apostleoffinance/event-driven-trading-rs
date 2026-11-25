@@ -77,7 +77,7 @@ async fn m1_backfills_one_default_workspace_for_each_existing_organization(
 }
 
 #[sqlx::test]
-async fn m1_rejects_an_organization_committed_without_a_default_workspace(
+async fn m1_organization_creation_atomically_provisions_a_default_workspace(
     pool: PgPool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     migrate(&pool).await?;
@@ -87,11 +87,17 @@ async fn m1_rejects_an_organization_committed_without_a_default_workspace(
     .execute(&pool)
     .await?;
 
-    let result = sqlx::query(
-        "INSERT INTO organizations(id,name,status,revision,created_by) VALUES ('m1-invalid-org','Invalid','ACTIVE',1,'m1-no-workspace')",
+    sqlx::query(
+        "INSERT INTO organizations(id,name,status,revision,created_by) VALUES ('m1-new-org','New Organization','ACTIVE',1,'m1-no-workspace')",
     )
     .execute(&pool)
-    .await;
-    assert!(result.is_err(), "deferred organization default-workspace invariant must reject commit");
+    .await?;
+
+    let (workspace_count, default_count, event_count): (i64, i64, i64) = sqlx::query_as(
+        "SELECT count(*),count(*) FILTER (WHERE is_default AND status='ACTIVE'),(SELECT count(*) FROM workspace_events WHERE organization_id='m1-new-org') FROM workspaces WHERE organization_id='m1-new-org'",
+    )
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!((workspace_count, default_count, event_count), (1, 1, 1));
     Ok(())
 }
