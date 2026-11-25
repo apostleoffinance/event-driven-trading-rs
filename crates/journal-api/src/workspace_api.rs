@@ -237,3 +237,26 @@ pub async fn update_grant(State(state):State<AppState>,headers:HeaderMap,Path((o
     if tx.commit().await.is_err(){return db_error();}
     Json(serde_json::json!({"data":{"userId":user,"role":input.role,"status":input.status,"revision":next}})).into_response()
 }
+
+#[derive(Deserialize)]
+pub struct AccountAssignmentUpdate { pub expected_revision:i64, pub reason:String }
+pub async fn assign_account(State(state):State<AppState>,headers:HeaderMap,Path((org,workspace,account)):Path<(String,String,String)>,Json(input):Json<AccountAssignmentUpdate>)->Response{
+    let actor=match require_org_admin(&state,&headers,&org).await{Ok(v)=>v,Err(r)=>return r};
+    if input.reason.trim().is_empty(){return error(StatusCode::BAD_REQUEST,"invalid_request","reason is required");}
+    let mut tx=match state.store.pool().begin().await{Ok(v)=>v,Err(_)=>return db_error()};
+    let target:bool=match sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE')").bind(&org).bind(&workspace).fetch_one(&mut *tx).await{Ok(v)=>v,Err(_)=>return db_error()};
+    if !target{return not_found();}
+    let current=sqlx::query_as::<_,(String,i64)>("SELECT workspace_id,revision FROM workspace_account_assignments WHERE organization_id=$1 AND account_id=$2 FOR UPDATE").bind(&org).bind(&account).fetch_optional(&mut *tx).await;
+    let Some((old_workspace,revision))=(match current{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
+    if revision!=input.expected_revision{return error(StatusCode::CONFLICT,"revision_conflict","Account assignment revision is stale");}
+    if old_workspace==workspace{return Json(serde_json::json!({"data":{"accountId":account,"workspaceId":workspace,"revision":revision}})).into_response();}
+    let next=revision.checked_add(1).unwrap_or(0);
+    if next==0{return error(StatusCode::CONFLICT,"revision_overflow","Account assignment revision is exhausted");}
+    let changed=sqlx::query("UPDATE workspace_account_assignments SET workspace_id=$3,revision=$4,assigned_by=$5,reason=$6 WHERE organization_id=$1 AND account_id=$2 AND revision=$7")
+        .bind(&org).bind(&account).bind(&workspace).bind(next).bind(&actor).bind(input.reason.trim()).bind(revision).execute(&mut *tx).await;
+    if changed.is_err(){return error(StatusCode::CONFLICT,"assignment_rejected","Account reassignment was rejected");}
+    if sqlx::query("INSERT INTO workspace_account_assignment_events(account_id,organization_id,workspace_id,actor_user_id,revision,reason) VALUES($1,$2,$3,$4,$5,$6)")
+        .bind(&account).bind(&org).bind(&workspace).bind(&actor).bind(next).bind(input.reason.trim()).execute(&mut *tx).await.is_err(){return db_error();}
+    if tx.commit().await.is_err(){return db_error();}
+    Json(serde_json::json!({"data":{"accountId":account,"workspaceId":workspace,"revision":next,"previousWorkspaceId":old_workspace}})).into_response()
+}
