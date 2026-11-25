@@ -21,7 +21,7 @@ SELECT 'grants_missing_current_audit_event', count(*) FROM workspace_access_gran
 COMMIT;
 SQL
 )
-if ! output="$(psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 -F '|' 2>/dev/null <<< "$SQL")"; then
+if ! output="$(PGDATABASE="$DATABASE_URL" psql -X -qAt -v ON_ERROR_STOP=1 -F '|' 2>/dev/null <<< "$SQL")"; then
  echo "BLOCKED: read-only database checks could not be completed. Verify the authorized connection and migration state." >&2
  exit 2
 fi
