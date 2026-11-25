@@ -22,8 +22,10 @@ The script opens a READ ONLY transaction and checks:
 - every organization account entitlement has a workspace assignment;
 - every assignment points to an active workspace in the same organization;
 - the current assignment revision has an append-only audit event;
-- active grants point to active organizations, workspaces and memberships, and never target OWNER/ADMIN members;
+- active grants never target suspended/revoked memberships or implicit OWNER/ADMIN members; grants on suspended organizations or archived workspaces are inert because the request principal independently denies those scopes;
 - every current grant revision has an append-only grant event.
+
+The preflight intentionally does not require an active organization/workspace for a persisted grant row: suspended organizations and archived workspaces may retain historical grant rows, but those rows cannot authorize requests while the scope is inactive. Membership suspension/revocation and promotion to OWNER/ADMIN invalidate active grants.
 
 It emits aggregate counts only. It does not print database URLs, row IDs, account IDs, user IDs or secrets. Exit 0 means the invariants pass; exit 1 means violations exist; exit 2 means the check could not safely complete. A failed/unavailable check is a release blocker.
 
