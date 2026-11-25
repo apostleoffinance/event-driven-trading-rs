@@ -185,6 +185,14 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             .filter(|version| **version < 20261125000001)
             .copied()
             .collect::<Vec<_>>();
+        // M1/M2 deployments are a valid predecessor for the M3.1 grant
+        // migration. Recognize this exact complete prefix separately from
+        // both the pre-workspace schema and the latest schema.
+        let workspace_m1_complete = current
+            .keys()
+            .filter(|version| **version < 20261125000002)
+            .copied()
+            .collect::<Vec<_>>();
         let current_complete = current.keys().copied().collect::<Vec<_>>();
         let recovery_history = is_known_recovery_history(&applied_versions);
         let recognized = applied_versions == core_history
@@ -194,6 +202,7 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             || applied_versions == r3_complete
             || applied_versions == i1_complete
             || applied_versions == workspace_previous_complete
+            || applied_versions == workspace_m1_complete
             || applied_versions == current_complete
             || recovery_history;
         if !recognized {
@@ -216,15 +225,19 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             let has_e2 = applied_versions == e2_complete
                 || applied_versions == r2_complete
                 || applied_versions == current_complete
-                || applied_versions == workspace_previous_complete;
+                || applied_versions == workspace_previous_complete
+                || applied_versions == workspace_m1_complete;
             let has_r3 = applied_versions == r3_complete
                 || applied_versions == current_complete
-                || applied_versions == workspace_previous_complete;
+                || applied_versions == workspace_previous_complete
+                || applied_versions == workspace_m1_complete;
             let has_i1 = applied_versions == i1_complete
                 || applied_versions == current_complete
-                || applied_versions == workspace_previous_complete;
+                || applied_versions == workspace_previous_complete
+                || applied_versions == workspace_m1_complete;
             let has_i1_hardening = applied_versions == current_complete
-                || applied_versions == workspace_previous_complete;
+                || applied_versions == workspace_previous_complete
+                || applied_versions == workspace_m1_complete;
             validate_recognized_schema(connection, true, has_e2, has_r3, has_i1, has_i1_hardening)
                 .await?;
         }
@@ -560,6 +573,42 @@ async fn validate_recognized_schema(
         if !hardened_schema_valid {
             return Err(crate::error::PersistenceError::Other(
                 "complete I1-R1 migration history is missing audit immutability, attribution, or suspension invalidation schema".into(),
+            ));
+        }
+    }
+
+    let applied_workspace_m1: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version=20261125000001 AND success)",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    if applied_workspace_m1 {
+        let workspace_schema_valid: bool = sqlx::query_scalar(
+            "SELECT to_regclass('public.workspaces') IS NOT NULL AND to_regclass('public.workspace_events') IS NOT NULL AND to_regclass('public.workspace_account_assignments') IS NOT NULL AND to_regclass('public.workspace_account_assignment_events') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspaces'::regclass AND tgname='workspaces_identity_revision_guard' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_events'::regclass AND tgname='workspace_events_no_update_delete' AND NOT tgisinternal)",
+        )
+        .fetch_one(&mut *connection)
+        .await?;
+        if !workspace_schema_valid {
+            return Err(crate::error::PersistenceError::Other(
+                "complete M1 migration history is missing workspace persistence or append-only history schema".into(),
+            ));
+        }
+    }
+
+    let applied_workspace_m3_1: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version=20261125000002 AND success)",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    if applied_workspace_m3_1 {
+        let workspace_grant_schema_valid: bool = sqlx::query_scalar(
+            "SELECT to_regclass('public.workspace_access_grants') IS NOT NULL AND to_regclass('public.workspace_access_grant_events') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_access_grants'::regclass AND tgname='workspace_access_grants_authority_guard' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_access_grants'::regclass AND tgname='workspace_access_grants_audit' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_access_grants'::regclass AND tgname='workspace_access_grants_no_delete' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.organization_memberships'::regclass AND tgname='organization_membership_revokes_workspace_grants' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_access_grant_events'::regclass AND tgname='workspace_access_grant_events_no_update_delete' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_access_grants'::regclass AND tgname='workspace_access_grants_no_truncate' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.workspace_access_grant_events'::regclass AND tgname='workspace_access_grant_events_no_truncate' AND NOT tgisinternal)",
+        )
+        .fetch_one(&mut *connection)
+        .await?;
+        if !workspace_grant_schema_valid {
+            return Err(crate::error::PersistenceError::Other(
+                "complete M3.1 migration history is missing workspace access-grant authorization or audit schema".into(),
             ));
         }
     }

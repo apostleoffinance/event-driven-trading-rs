@@ -4,8 +4,8 @@
 //! databases, HTTP clients, exchange SDKs, strategy implementations,
 //! or runtime orchestration.
 //!
-//! Money, prices, quantities, and risk ratios use [`rust_decimal::Decimal`].
-//! All fallible construction returns [`DomainError`] via [`DomainResult`].
+//! Money, prices, quantities, and risk ratios use rust_decimal::Decimal.
+//! All fallible construction returns DomainError via DomainResult.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -28,6 +28,7 @@ pub mod strategy;
 pub mod trade_intent;
 pub mod venue;
 pub mod workspace;
+pub mod workspace_access;
 
 pub use account::{Account, AccountSnapshot, AccountState, AccountStatus, AccountType};
 pub use broker_registry::{
@@ -61,3 +62,7 @@ pub use strategy::{Strategy, StrategyDeployment, StrategyMetadata};
 pub use trade_intent::TradeIntent;
 pub use venue::{Venue, VenueType};
 pub use workspace::{Workspace, WorkspaceStatus};
+pub use workspace_access::{
+    effective_workspace_capabilities, WorkspaceAccessGrant, WorkspaceCapabilities,
+    WorkspaceGrantStatus, WorkspaceRole,
+};
