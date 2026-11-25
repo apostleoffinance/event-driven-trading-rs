@@ -476,7 +476,7 @@ try {
     // navigating to Journal a second time.
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
-    const loginFormValid = await page.locator("form").evaluate(form => (form as HTMLFormElement).checkValidity());
+    const loginFormValid = await page.locator("form").evaluate(form => form.checkValidity());
     assert.ok(
       loginFormValid,
       "Acceptance credentials do not satisfy the login form's required fields or minimum password length.",
