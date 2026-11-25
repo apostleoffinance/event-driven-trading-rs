@@ -465,9 +465,18 @@ mod qos021a_e3a_r2_api_tests {
         body: Option<Value>,
         expired: bool,
     ) -> StatusCode {
-        request_response(pool, app, method, path, subject, organization, body, expired)
-            .await
-            .status()
+        request_response(
+            pool,
+            app,
+            method,
+            path,
+            subject,
+            organization,
+            body,
+            expired,
+        )
+        .await
+        .status()
     }
 
     #[sqlx::test]
@@ -1018,10 +1027,7 @@ mod qos021a_e3a_r2_api_tests {
             create_payload["data"]["defaultWorkspace"]["name"],
             "Default"
         );
-        assert_eq!(
-            create_payload["data"]["membershipRole"],
-            "OWNER"
-        );
+        assert_eq!(create_payload["data"]["membershipRole"], "OWNER");
         // Organization, OWNER membership, default workspace and both audit streams
         // are committed together. The API response contract is additive.
         let created_org: String = sqlx::query_scalar(
