@@ -26,6 +26,7 @@ type OrganizationContextValue = {
 };
 
 const STORAGE_KEY = "edgenest.organization.active.v1";
+const WORKSPACE_STORAGE_KEY = "edgenest.workspace.active.v1";
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
@@ -49,6 +50,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       const stored = window.sessionStorage.getItem(STORAGE_KEY);
       const storedIsValid = stored && available.some((org) => org.id === stored);
       const nextId = storedIsValid ? stored : available.length === 1 ? available[0].id : null;
+      if (nextId !== activeOrganizationId) window.sessionStorage.removeItem(WORKSPACE_STORAGE_KEY);
       setActiveOrganizationId(nextId);
       if (nextId) window.sessionStorage.setItem(STORAGE_KEY, nextId);
       else window.sessionStorage.removeItem(STORAGE_KEY);
