@@ -94,9 +94,14 @@ pub async fn for_account(
     organization_id: &str,
     account_id: &str,
 ) -> PersistenceResult<Option<Workspace>> {
-    let query = format!(
-        "{SELECT_WORKSPACE} w JOIN workspace_account_assignments a ON a.workspace_id=w.id AND a.organization_id=w.organization_id WHERE a.organization_id=$1 AND a.account_id=$2"
-    );
+    let query = r#"
+        SELECT w.id,w.organization_id,w.name,w.slug,w.status,w.is_default,w.revision,
+               w.created_by,w.created_at,w.updated_at
+          FROM workspaces w
+          JOIN workspace_account_assignments a
+            ON a.workspace_id=w.id AND a.organization_id=w.organization_id
+         WHERE a.organization_id=$1 AND a.account_id=$2
+    "#;
     let row = sqlx::query_as::<_, WorkspaceRow>(&query)
         .bind(organization_id)
         .bind(account_id)
@@ -127,6 +132,19 @@ pub(crate) async fn insert_in_transaction(
             "workspace creation reason must contain 1 to 1000 characters".into(),
         ));
     }
+    let creator_is_authorized: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM organizations o JOIN organization_memberships m ON m.organization_id=o.id WHERE o.id=$1 AND o.status='ACTIVE' AND m.user_id=$2 AND m.status='ACTIVE' AND m.role IN ('OWNER','ADMIN'))",
+    )
+    .bind(workspace.organization_id.as_str())
+    .bind(&workspace.created_by)
+    .fetch_one(&mut **tx)
+    .await?;
+    if !creator_is_authorized {
+        return Err(PersistenceError::Other(
+            "workspace creator must be an active organization OWNER or ADMIN".into(),
+        ));
+    }
+
     sqlx::query(
         "INSERT INTO workspaces(id,organization_id,name,slug,status,is_default,revision,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
     )
