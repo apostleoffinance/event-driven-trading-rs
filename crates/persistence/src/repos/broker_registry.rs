@@ -106,14 +106,21 @@ pub async fn register_pending_binding(
         ));
     }
 
-    let entitlement = sqlx::query_scalar::<_, String>(
-        "SELECT status FROM organization_account_entitlements WHERE organization_id=$1 AND account_id=$2 FOR UPDATE",
+    let entitlement = sqlx::query_as::<_, (String, String)>(
+        r#"SELECT e.status,w.status
+             FROM organization_account_entitlements e
+             JOIN workspace_account_assignments waa
+               ON waa.organization_id=e.organization_id AND waa.account_id=e.account_id
+             JOIN workspaces w
+               ON w.organization_id=waa.organization_id AND w.id=waa.workspace_id
+            WHERE e.organization_id=$1 AND e.account_id=$2
+            FOR UPDATE OF e,w"#,
     )
     .bind(organization)
     .bind(quant_account)
     .fetch_optional(&mut *tx)
     .await?;
-    if entitlement.as_deref() != Some("ACTIVE") {
+    if !matches!(entitlement, Some((ref entitlement_status, ref workspace_status)) if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE") {
         return Err(PersistenceError::NotFound(
             "registration unavailable".into(),
         ));
