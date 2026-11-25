@@ -49,7 +49,7 @@ async fn health() -> &'static str {
 
 const DEFAULT_CORS_ORIGINS: &str = "https://edgenest-frontend.edgenest.workers.dev,http://localhost:3000,http://localhost:3107,http://127.0.0.1:8787";
 const CORS_ALLOWED_METHODS: &str = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
-const CORS_ALLOWED_HEADERS: &str = "authorization, content-type, accept, x-organization-id";
+const CORS_ALLOWED_HEADERS: &str = "authorization, content-type, accept, x-organization-id, x-workspace-id";
 
 fn configured_cors_origins() -> Vec<String> {
     env::var("EDGENEST_CORS_ORIGINS")
@@ -92,7 +92,7 @@ fn preflight_is_allowed(headers: &HeaderMap) -> bool {
     requested_headers.split(',').all(|name| {
         matches!(
             name.trim().to_ascii_lowercase().as_str(),
-            "authorization" | "content-type" | "accept" | "x-organization-id"
+            "authorization" | "content-type" | "accept" | "x-organization-id" | "x-workspace-id"
         )
     })
 }
