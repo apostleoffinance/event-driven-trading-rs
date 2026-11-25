@@ -14,10 +14,17 @@ use crate::AppState;
 use domain::{Account, AccountEnvironment, AccountId, AccountState, AccountType, VenueId};
 
 #[allow(clippy::result_large_err)]
-async fn tenant(state: &AppState, headers: &HeaderMap) -> Result<crate::workspace_api::WorkspacePrincipal, Response> {
+async fn tenant(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<crate::workspace_api::WorkspacePrincipal, Response> {
     let principal = crate::workspace_api::principal(state, headers).await?;
     if !principal.can_read {
-        return Err(error(StatusCode::NOT_FOUND, "not_found", "Workspace resource not found"));
+        return Err(error(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Workspace resource not found",
+        ));
     }
     Ok(principal)
 }
@@ -222,9 +229,17 @@ pub async fn create_paper_account(
         return not_found();
     }
     if !workspace_principal.can_trade {
-        return error(StatusCode::FORBIDDEN, "workspace_permission_denied", "Workspace role does not permit account creation");
+        return error(
+            StatusCode::FORBIDDEN,
+            "workspace_permission_denied",
+            "Workspace role does not permit account creation",
+        );
     }
-    let default_workspace = match state.store.default_workspace(&principal.organization_id).await {
+    let default_workspace = match state
+        .store
+        .default_workspace(&principal.organization_id)
+        .await
+    {
         Ok(Some(v)) => v,
         _ => return internal(),
     };

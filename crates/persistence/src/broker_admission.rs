@@ -277,8 +277,10 @@ pub async fn evaluate_persisted_broker_admission(
             membership_status: if matches!(row.membership_role.as_deref(), Some("OWNER" | "ADMIN"))
                 || (row.membership_role.as_deref() == Some("TRADER")
                     && row.workspace_grant_status.as_deref() == Some("ACTIVE")
-                    && matches!(row.workspace_grant_role.as_deref(), Some("TRADER" | "WORKSPACE_ADMIN")))
-            {
+                    && matches!(
+                        row.workspace_grant_role.as_deref(),
+                        Some("TRADER" | "WORKSPACE_ADMIN")
+                    )) {
                 lifecycle_status(row.membership_status.as_deref())
             } else {
                 Some(AdmissionLifecycleStatus::Inactive)

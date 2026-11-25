@@ -120,7 +120,8 @@ pub async fn register_pending_binding(
     .bind(quant_account)
     .fetch_optional(&mut *tx)
     .await?;
-    if !matches!(entitlement, Some((ref entitlement_status, ref workspace_status)) if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE") {
+    if !matches!(entitlement, Some((ref entitlement_status, ref workspace_status)) if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE")
+    {
         return Err(PersistenceError::NotFound(
             "registration unavailable".into(),
         ));

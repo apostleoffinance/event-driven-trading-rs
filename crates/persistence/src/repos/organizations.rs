@@ -159,7 +159,8 @@ async fn ensure_default_workspace_assignment(
     actor: &str,
     reason: &str,
 ) -> PersistenceResult<()> {
-    let workspace = super::workspaces::default_for_organization_in_transaction(tx, organization).await?;
+    let workspace =
+        super::workspaces::default_for_organization_in_transaction(tx, organization).await?;
     let revision = sqlx::query_scalar::<_, i64>(
         "INSERT INTO workspace_account_assignments(account_id,organization_id,workspace_id,revision,assigned_by,reason) VALUES($1,$2,$3,1,$4,$5) ON CONFLICT(account_id) DO NOTHING RETURNING revision",
     )
@@ -633,7 +634,14 @@ pub async fn create_paper_account_for_owner(
     }
     sqlx::query("INSERT INTO organization_account_entitlements(account_id,organization_id,status,revision,assigned_by,updated_by,reason) VALUES($1,$2,'ACTIVE',1,$3,$3,'created as an organization paper account')")
         .bind(account.id.as_str()).bind(organization).bind(actor).execute(&mut *tx).await?;
-    ensure_default_workspace_assignment(&mut tx, organization, account.id.as_str(), actor, "created as an organization paper account in the default workspace").await?;
+    ensure_default_workspace_assignment(
+        &mut tx,
+        organization,
+        account.id.as_str(),
+        actor,
+        "created as an organization paper account in the default workspace",
+    )
+    .await?;
     append_entitlement_event(
         &mut tx,
         account.id.as_str(),
