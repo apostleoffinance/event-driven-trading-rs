@@ -54,7 +54,7 @@ pub async fn list_for_organization(
     let query = format!(
         "{SELECT_WORKSPACE} WHERE organization_id=$1 ORDER BY is_default DESC,created_at,id"
     );
-    let rows = sqlx::query_as::<_, WorkspaceRow>(&query)
+    let rows = sqlx::query_as::<_, WorkspaceRow>(query)
         .bind(organization_id)
         .fetch_all(pool)
         .await?;
