@@ -54,7 +54,7 @@ pub async fn list_for_organization(
     let query = format!(
         "{SELECT_WORKSPACE} WHERE organization_id=$1 ORDER BY is_default DESC,created_at,id"
     );
-    let rows = sqlx::query_as::<_, WorkspaceRow>(query)
+    let rows = sqlx::query_as::<_, WorkspaceRow>(query.as_str())
         .bind(organization_id)
         .fetch_all(pool)
         .await?;
@@ -67,7 +67,7 @@ pub async fn get_for_organization(
     workspace_id: &str,
 ) -> PersistenceResult<Option<Workspace>> {
     let query = format!("{SELECT_WORKSPACE} WHERE organization_id=$1 AND id=$2");
-    let row = sqlx::query_as::<_, WorkspaceRow>(&query)
+    let row = sqlx::query_as::<_, WorkspaceRow>(query.as_str())
         .bind(organization_id)
         .bind(workspace_id)
         .fetch_optional(pool)
@@ -82,7 +82,7 @@ pub async fn default_for_organization(
     let query = format!(
         "{SELECT_WORKSPACE} WHERE organization_id=$1 AND is_default=TRUE AND status='ACTIVE'"
     );
-    let row = sqlx::query_as::<_, WorkspaceRow>(&query)
+    let row = sqlx::query_as::<_, WorkspaceRow>(query.as_str())
         .bind(organization_id)
         .fetch_optional(pool)
         .await?;
@@ -102,7 +102,7 @@ pub async fn for_account(
             ON a.workspace_id=w.id AND a.organization_id=w.organization_id
          WHERE a.organization_id=$1 AND a.account_id=$2
     "#;
-    let row = sqlx::query_as::<_, WorkspaceRow>(&query)
+    let row = sqlx::query_as::<_, WorkspaceRow>(query.as_str())
         .bind(organization_id)
         .bind(account_id)
         .fetch_optional(pool)
