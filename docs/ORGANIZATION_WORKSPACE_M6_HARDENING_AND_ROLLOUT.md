@@ -34,6 +34,16 @@ It emits aggregate counts only. It does not print database URLs, row IDs, accoun
 
 The test harness uses a stub psql and verifies pass/fail behavior, read-only SQL, missing-connection failure and secret non-disclosure. CI runs it on every pull request.
 
+## Production deployment control
+
+The Cloudflare production frontend workflow is manual-only. A push to main or a frontend documentation change must not deploy production. A deployment requires all of the following:
+- manual workflow dispatch with confirm_production_deploy set to true;
+- a supplied HTTPS release-evidence reference;
+- repository Actions variables EDGENEST_COOKIE_BFF_READY=true and EDGENEST_R2_DATABASE_VERIFIED=true;
+- approval through the GitHub production environment protection rules (configure required reviewers).
+
+If any condition is absent, the deploy job is skipped or fails before build/deploy. Do not set either readiness variable until the corresponding security/database evidence is reviewed and approved.
+
 ## Required deployment order
 
 1. Confirm target database, environment, owner, maintenance window and rollback authority.
