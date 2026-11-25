@@ -15,6 +15,7 @@ type WorkspaceGrant = {
   updatedAt: string;
 };
 
+type OrganizationMember = { userId: string; role: string; status: string; revision: number };
 type Envelope<T> = { data: T };
 const roles: WorkspaceGrant["role"][] = ["WORKSPACE_ADMIN", "TRADER", "RISK_MANAGER", "VIEWER"];
 
@@ -32,6 +33,7 @@ export default function WorkspaceSettingsPage() {
   const isOrgAdmin = activeOrganization?.membershipRole === "OWNER" || activeOrganization?.membershipRole === "ADMIN";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [grants, setGrants] = useState<WorkspaceGrant[]>([]);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -41,6 +43,17 @@ export default function WorkspaceSettingsPage() {
   const [newUserId, setNewUserId] = useState("");
   const [newRole, setNewRole] = useState<WorkspaceGrant["role"]>("VIEWER");
   const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (!activeOrganizationId || !isOrgAdmin) { setMembers([]); return; }
+    let current = true;
+    void apiRequest<Envelope<OrganizationMember[]>>(`/api/v1/organizations/${encodeURIComponent(activeOrganizationId)}/members`, { headers: { "X-Organization-Id": activeOrganizationId } })
+      .then((response) => { if (current) setMembers(response.data ?? []); })
+      .catch(() => { if (current) setMembers([]); });
+    return () => { current = false; };
+  }, [activeOrganizationId, isOrgAdmin]);
+
+  const grantableMembers = members.filter((member) => member.status === "ACTIVE" && !["OWNER", "ADMIN"].includes(member.role) && !grants.some((grant) => grant.userId === member.userId));
 
   const selectedWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.id === selectedId) ?? activeWorkspace,
@@ -85,7 +98,7 @@ export default function WorkspaceSettingsPage() {
     }
     setRename(selectedWorkspace.name);
     void loadGrants(selectedWorkspace);
-  }, [selectedWorkspace?.id, selectedWorkspace?.revision, loadGrants]);
+  }, [selectedWorkspace, loadGrants]);
 
   async function runAction(action: () => Promise<void>, success: string) {
     setBusy(true);
@@ -292,9 +305,9 @@ export default function WorkspaceSettingsPage() {
         <section className="panel">
           <div className="workspace-section-heading"><div><h2>Member access</h2><p className="muted">Grant workspace access only to active members of this organization.</p></div></div>
           <form className="workspace-form workspace-grant-form" onSubmit={addGrant}>
-            <label className="journal-field"><span>Organization member user ID</span><input value={newUserId} onChange={(event) => setNewUserId(event.target.value)} required placeholder="User ID" /></label>
+            <label className="journal-field"><span>Organization member</span><select value={newUserId} onChange={(event) => setNewUserId(event.target.value)} required><option value="">Choose active member</option>{grantableMembers.map((member) => <option key={member.userId} value={member.userId}>{member.userId} · {member.role.replaceAll("_", " ")}</option>)}</select></label>
             <label className="journal-field"><span>Workspace role</span><select value={newRole} onChange={(event) => setNewRole(event.target.value as WorkspaceGrant["role"])}>{roles.map((role) => <option key={role} value={role}>{role.replaceAll("_", " ")}</option>)}</select></label>
-            <button className="btn primary" type="submit" disabled={busy || !newUserId.trim()}>Grant access</button>
+            <button className="btn primary" type="submit" disabled={busy || !newUserId.trim() || grantableMembers.length === 0}>Grant access</button>
           </form>
           {grantsLoading ? <div className="loading">Loading access grants…</div> : grants.length === 0 ? <div className="empty">No explicit access grants are recorded for this workspace.</div> : (
             <div className="data-table-wrap"><table className="data-table workspace-grants-table"><thead><tr><th>User ID</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>
@@ -302,7 +315,7 @@ export default function WorkspaceSettingsPage() {
                 <td><code>{grant.userId}</code></td>
                 <td><select aria-label={`Role for ${grant.userId}`} value={grant.role} disabled={busy || grant.status !== "ACTIVE"} onChange={(event) => void updateGrant(grant, { role: event.target.value as WorkspaceGrant["role"] })}>{roles.map((role) => <option key={role} value={role}>{role.replaceAll("_", " ")}</option>)}</select></td>
                 <td><span className={`workspace-grant-status ${grant.status.toLowerCase()}`}>{grant.status}</span></td>
-                <td>{grant.status === "ACTIVE" ? <button type="button" className="btn danger" disabled={busy} onClick={() => void updateGrant(grant, { status: "REVOKED" })}>Revoke</button> : <span className="muted">Revoked</span>}</td>
+                <td>{grant.status === "ACTIVE" ? <button type="button" className="btn danger" disabled={busy} onClick={() => void updateGrant(grant, { status: "REVOKED" })}>Revoke</button> : <button type="button" className="btn" disabled={busy} onClick={() => void updateGrant(grant, { status: "ACTIVE" })}>Reactivate</button>}</td>
               </tr>)}
             </tbody></table></div>
           )}
