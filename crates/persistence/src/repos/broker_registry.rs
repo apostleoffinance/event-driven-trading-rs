@@ -106,22 +106,38 @@ pub async fn register_pending_binding(
         ));
     }
 
-    let entitlement = sqlx::query_as::<_, (String, String)>(
-        r#"SELECT e.status,w.status
-             FROM organization_account_entitlements e
-             JOIN workspace_account_assignments waa
-               ON waa.organization_id=e.organization_id AND waa.account_id=e.account_id
-             JOIN workspaces w
-               ON w.organization_id=waa.organization_id AND w.id=waa.workspace_id
-            WHERE e.organization_id=$1 AND e.account_id=$2
-            FOR UPDATE OF e,w,waa"#,
+    let workspace_schema_exists: bool = sqlx::query_scalar(
+        "SELECT to_regclass('public.workspace_account_assignments') IS NOT NULL AND to_regclass('public.workspaces') IS NOT NULL",
     )
-    .bind(organization)
-    .bind(quant_account)
-    .fetch_optional(&mut *tx)
+    .fetch_one(&mut *tx)
     .await?;
-    if !matches!(entitlement, Some((ref entitlement_status, ref workspace_status)) if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE")
-    {
+    let entitlement_is_active = if workspace_schema_exists {
+        let entitlement = sqlx::query_as::<_, (String, String)>(
+            r#"SELECT e.status,w.status
+                 FROM organization_account_entitlements e
+                 JOIN workspace_account_assignments waa
+                   ON waa.organization_id=e.organization_id AND waa.account_id=e.account_id
+                 JOIN workspaces w
+                   ON w.organization_id=waa.organization_id AND w.id=waa.workspace_id
+                WHERE e.organization_id=$1 AND e.account_id=$2
+                FOR UPDATE OF e,w,waa"#,
+        )
+        .bind(organization)
+        .bind(quant_account)
+        .fetch_optional(&mut *tx)
+        .await?;
+        matches!(entitlement, Some((ref entitlement_status, ref workspace_status)) if entitlement_status == "ACTIVE" && workspace_status == "ACTIVE")
+    } else {
+        let entitlement_status = sqlx::query_scalar::<_, String>(
+            "SELECT status FROM organization_account_entitlements WHERE organization_id=$1 AND account_id=$2 FOR UPDATE",
+        )
+        .bind(organization)
+        .bind(quant_account)
+        .fetch_optional(&mut *tx)
+        .await?;
+        entitlement_status.as_deref() == Some("ACTIVE")
+    };
+    if !entitlement_is_active {
         return Err(PersistenceError::NotFound(
             "registration unavailable".into(),
         ));
