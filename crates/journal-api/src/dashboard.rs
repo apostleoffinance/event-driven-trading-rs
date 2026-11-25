@@ -193,6 +193,20 @@ pub async fn create_paper_account(
         Ok(v) => v,
         Err(response) => return response,
     };
+    let workspace_principal = match crate::workspace_api::principal(&state, &headers).await {
+        Ok(v) => v,
+        Err(response) => return response,
+    };
+    if workspace_principal.organization_id != principal.organization_id {
+        return not_found();
+    }
+    let default_workspace = match state.store.default_workspace(&principal.organization_id).await {
+        Ok(Some(v)) => v,
+        _ => return internal(),
+    };
+    if workspace_principal.workspace_id != default_workspace.id.as_str() {
+        return error(StatusCode::CONFLICT, "account_creation_workspace_mismatch", "New Quant accounts are provisioned in the organization's default workspace; select the default workspace first.");
+    }
     let organization_id = principal.organization_id;
     let actor_id = principal.user_id;
     let name = input.name.trim();
