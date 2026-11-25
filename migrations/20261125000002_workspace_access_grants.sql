@@ -82,8 +82,8 @@ BEGIN
             RAISE EXCEPTION 'workspace grant is already revoked'
                 USING ERRCODE='23514';
         END IF;
-    ELSIF NEW.revision <> 1 OR NEW.status <> 'ACTIVE' THEN
-        RAISE EXCEPTION 'new workspace grants must begin active at revision one'
+    ELSIF NEW.revision <> 1 OR NEW.status <> 'ACTIVE' OR NEW.granted_by <> NEW.updated_by THEN
+        RAISE EXCEPTION 'new workspace grants must begin active at revision one with the grantor as actor'
             USING ERRCODE='23514';
     END IF;
 
@@ -169,7 +169,6 @@ CREATE TRIGGER workspace_access_grants_audit
 CREATE FUNCTION revoke_workspace_grants_on_membership_change()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
-    grant_row RECORD;
     revoke_reason TEXT;
 BEGIN
     IF (NEW.status <> 'ACTIVE') OR NEW.role IN ('OWNER','ADMIN') THEN
@@ -177,19 +176,14 @@ BEGIN
             WHEN NEW.status <> 'ACTIVE' THEN 'Automatically revoked because organization membership became ' || NEW.status
             ELSE 'Automatically revoked because organization role became ' || NEW.role
         END;
-        FOR grant_row IN
-            UPDATE workspace_access_grants
-               SET status='REVOKED',
-                   revision=revision+1,
-                   updated_by=NEW.updated_by,
-                   reason=revoke_reason
-             WHERE organization_id=NEW.organization_id
-               AND user_id=NEW.user_id
-               AND status='ACTIVE'
-            RETURNING workspace_id
-        LOOP
-            NULL;
-        END LOOP;
+        UPDATE workspace_access_grants
+           SET status='REVOKED',
+               revision=revision+1,
+               updated_by=NEW.updated_by,
+               reason=revoke_reason
+         WHERE organization_id=NEW.organization_id
+           AND user_id=NEW.user_id
+           AND status='ACTIVE';
     END IF;
     RETURN NEW;
 END
