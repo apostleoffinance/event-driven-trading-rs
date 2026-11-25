@@ -180,6 +180,11 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             .filter(|version| **version < 20261115000001)
             .copied()
             .collect::<Vec<_>>();
+        let workspace_previous_complete = current
+            .keys()
+            .filter(|version| **version < 20261125000001)
+            .copied()
+            .collect::<Vec<_>>();
         let current_complete = current.keys().copied().collect::<Vec<_>>();
         let recovery_history = is_known_recovery_history(&applied_versions);
         let recognized = applied_versions == core_history
@@ -188,6 +193,7 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
             || applied_versions == r2_complete
             || applied_versions == r3_complete
             || applied_versions == i1_complete
+            || applied_versions == workspace_previous_complete
             || applied_versions == current_complete
             || recovery_history;
         if !recognized {
@@ -209,10 +215,16 @@ async fn migrate_locked(connection: &mut PgConnection) -> PersistenceResult<()> 
         } else {
             let has_e2 = applied_versions == e2_complete
                 || applied_versions == r2_complete
-                || applied_versions == current_complete;
-            let has_r3 = applied_versions == r3_complete || applied_versions == current_complete;
-            let has_i1 = applied_versions == i1_complete || applied_versions == current_complete;
-            let has_i1_hardening = applied_versions == current_complete;
+                || applied_versions == current_complete
+                || applied_versions == workspace_previous_complete;
+            let has_r3 = applied_versions == r3_complete
+                || applied_versions == current_complete
+                || applied_versions == workspace_previous_complete;
+            let has_i1 = applied_versions == i1_complete
+                || applied_versions == current_complete
+                || applied_versions == workspace_previous_complete;
+            let has_i1_hardening = applied_versions == current_complete
+                || applied_versions == workspace_previous_complete;
             validate_recognized_schema(connection, true, has_e2, has_r3, has_i1, has_i1_hardening)
                 .await?;
         }
