@@ -11,6 +11,7 @@ import { hasSession } from "@/lib/auth/session";
 import { EDGENEST_SYMBOL_SRC } from "@/lib/brand-assets";
 import { PerformanceDisplayProvider } from "@/features/performance/PerformanceDisplayProvider";
 import { OrganizationProvider } from "@/features/organization/OrganizationProvider";
+import { WorkspaceProvider } from "@/features/workspace/WorkspaceProvider";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -31,5 +32,5 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   </div>;
 }
 export function AppShell({ children }: { children: React.ReactNode }) {
-  return <ThemeProvider><QueryProvider><EventStreamProvider><OrganizationProvider><PerformanceDisplayProvider><ShellInner>{children}</ShellInner></PerformanceDisplayProvider></OrganizationProvider></EventStreamProvider></QueryProvider></ThemeProvider>;
+  return <ThemeProvider><QueryProvider><EventStreamProvider><OrganizationProvider><WorkspaceProvider><PerformanceDisplayProvider><ShellInner>{children}</ShellInner></PerformanceDisplayProvider></WorkspaceProvider></OrganizationProvider></EventStreamProvider></QueryProvider></ThemeProvider>;
 }
