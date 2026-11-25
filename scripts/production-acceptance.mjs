@@ -454,7 +454,6 @@ try {
     });
     assert.ok(authenticatedSessionState.hasAccessToken, "Login completed without persisting an access token.");
     const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
-    const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
     await journalAccountsError.waitFor({ state: "hidden", timeout: 10_000 }).catch(async () => {
       const message = await journalAccountsError.innerText().catch(() => "Journal error banner is visible.");
       throw new Error(`Journal accounts query failed after login: ${message}`);
