@@ -114,7 +114,7 @@ pub async fn register_pending_binding(
              JOIN workspaces w
                ON w.organization_id=waa.organization_id AND w.id=waa.workspace_id
             WHERE e.organization_id=$1 AND e.account_id=$2
-            FOR UPDATE OF e,w"#,
+            FOR UPDATE OF e,w,waa"#,
     )
     .bind(organization)
     .bind(quant_account)
