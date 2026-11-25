@@ -139,7 +139,7 @@ JOIN workspaces w
   ON w.organization_id=e.organization_id AND w.is_default AND w.status='ACTIVE'
 ON CONFLICT (account_id) DO NOTHING;
 
-DO $$
+DO $
 BEGIN
     IF EXISTS (
         SELECT 1
@@ -151,7 +151,57 @@ BEGIN
         RAISE EXCEPTION 'workspace account backfill failed: an organization entitlement has no workspace assignment';
     END IF;
 END
-$$;
+$;
+
+CREATE TABLE workspace_account_assignment_events (
+    id BIGSERIAL PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES workspace_account_assignments(account_id) ON DELETE RESTRICT,
+    organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL,
+    actor_user_id TEXT NOT NULL REFERENCES identity_users(id) ON DELETE RESTRICT,
+    revision BIGINT NOT NULL CHECK (revision > 0),
+    reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 1000),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (workspace_id,organization_id)
+        REFERENCES workspaces(id,organization_id) ON DELETE RESTRICT,
+    UNIQUE (account_id,revision)
+);
+CREATE INDEX workspace_account_assignment_events_history_idx
+    ON workspace_account_assignment_events(account_id,created_at DESC);
+
+INSERT INTO workspace_account_assignment_events (
+    account_id,organization_id,workspace_id,actor_user_id,revision,reason,created_at
+)
+SELECT
+    a.account_id,a.organization_id,a.workspace_id,a.assigned_by,a.revision,a.reason,a.created_at
+FROM workspace_account_assignments a;
+
+CREATE FUNCTION protect_workspace_account_assignment()
+RETURNS trigger LANGUAGE plpgsql AS $
+BEGIN
+    IF TG_OP='DELETE' THEN
+        RAISE EXCEPTION 'workspace account assignments cannot be deleted'
+            USING ERRCODE='23514';
+    END IF;
+    IF NEW.account_id <> OLD.account_id OR NEW.organization_id <> OLD.organization_id THEN
+        RAISE EXCEPTION 'workspace account assignment ownership is immutable'
+            USING ERRCODE='23514';
+    END IF;
+    IF NEW.revision <> OLD.revision + 1 THEN
+        RAISE EXCEPTION 'workspace account reassignment requires the next revision'
+            USING ERRCODE='23514';
+    END IF;
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END
+$;
+CREATE TRIGGER workspace_account_assignment_revision_guard
+    BEFORE UPDATE OR DELETE ON workspace_account_assignments
+    FOR EACH ROW EXECUTE FUNCTION protect_workspace_account_assignment();
+
+CREATE TRIGGER workspace_account_assignment_events_no_update_delete
+    BEFORE UPDATE OR DELETE ON workspace_account_assignment_events
+    FOR EACH ROW EXECUTE FUNCTION prevent_workspace_history_change();
 
 -- Enforce one active default at transaction commit. Deferral allows M2 to create
 -- an organization and its first workspace in the same transaction.
@@ -237,6 +287,8 @@ COMMENT ON TABLE workspaces IS
     'Operational trading/research environments owned by an organization. Organization remains the membership and billing boundary.';
 COMMENT ON TABLE workspace_account_assignments IS
     'One operational workspace assignment per Quant account; organization_account_entitlements remains the organization ownership authority.';
+COMMENT ON TABLE workspace_account_assignment_events IS
+    'Append-only, revisioned audit history for Quant-account workspace placement.';
 ),
     status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','ARCHIVED')),
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
