@@ -312,6 +312,7 @@ pub async fn accounts(State(state): State<AppState>, headers: HeaderMap) -> Resp
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
     let user_id = principal.user_id.clone();
+    let user_id = principal.user_id.clone();
     match account_rows(&state, &owner, None, &workspace_id, &user_id).await {
         Ok(rows) => {
             Json(serde_json::json!({"data":rows.into_iter().map(account_json).collect::<Vec<_>>()}))
@@ -331,6 +332,7 @@ pub async fn account(
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     match account_rows(&state, &owner, Some(&id), &workspace_id, &user_id).await {
         Ok(mut rows) => match rows.pop() {
             Some(row) => Json(serde_json::json!({"data":account_json(row)})).into_response(),
@@ -347,6 +349,7 @@ pub async fn portfolio(State(state): State<AppState>, headers: HeaderMap) -> Res
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
 
     let totals = sqlx::query_as::<
         _,
@@ -607,6 +610,7 @@ pub async fn positions(State(state): State<AppState>, headers: HeaderMap) -> Res
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let rows=sqlx::query_as::<_,(String,String,String,String,Decimal,Decimal,Decimal,Decimal,DateTime<Utc>)>(r#"
       SELECT p.id,p.account_id,i.symbol,p.side,p.quantity,p.avg_entry_price,p.mark_price,p.realized_pnl,p.opened_at
       FROM positions p JOIN instruments i ON i.id=p.instrument_id
@@ -670,6 +674,7 @@ pub async fn orders(
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let rows = sqlx::query_as::<_, OrderRow>(
         r#"
@@ -723,6 +728,7 @@ pub async fn strategies(State(state): State<AppState>, headers: HeaderMap) -> Re
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let rows=sqlx::query_as::<_,(String,String,String,String,bool,DateTime<Utc>,Option<String>)>(r#"
       SELECT d.id,s.name,d.strategy_version,d.account_id,d.enabled,d.created_at,a.environment
       FROM strategy_deployments d JOIN strategies s ON s.id=d.strategy_id JOIN accounts a ON a.id=d.account_id
@@ -758,6 +764,7 @@ pub async fn risk(State(state): State<AppState>, headers: HeaderMap) -> Response
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let row=sqlx::query_as::<_,(Option<Decimal>,Option<Decimal>,Option<Decimal>,Option<bool>,i64,Option<Decimal>,Option<Decimal>)>(r#"
       WITH owned AS (
         SELECT g.account_id,s.daily_realized_pnl,s.balance,s.equity,s.peak_equity,s.kill_switch
@@ -850,6 +857,7 @@ pub async fn risk_decisions(State(state): State<AppState>, headers: HeaderMap) -
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let rows=sqlx::query_as::<_,(i64,DateTime<Utc>,String,String,String,String,Option<Decimal>,Option<Decimal>,String,Option<String>)>(r#"
       SELECT r.id,r.created_at,r.trade_intent_id,ti.strategy_id,ti.instrument_id,r.account_id,ti.target_quantity,r.quantity,r.decision_type,r.reason
       FROM risk_decisions r JOIN trade_intents ti ON ti.id=r.trade_intent_id
@@ -887,6 +895,7 @@ pub async fn events(
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
     let rows=sqlx::query_as::<_,(i64,Option<String>,Option<String>,String,serde_json::Value,DateTime<Utc>,String,String,String)>(r#"
       SELECT e.id,e.order_id,e.venue_id,e.event_type,e.payload_json,e.created_at,o.account_id,o.strategy_id,i.symbol FROM execution_events e
@@ -920,6 +929,7 @@ pub async fn reconciliation(State(state): State<AppState>, headers: HeaderMap) -
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
     let rows=sqlx::query_as::<_,(String,String,DateTime<Utc>,serde_json::Value)>(r#"
       SELECT r.account_id,r.terminal_id,r.captured_at,r.snapshot FROM mt5_bridge_reconciliation_snapshots r
       JOIN organization_account_entitlements g ON g.account_id=r.account_id WHERE g.organization_id=$1 AND g.status='ACTIVE' AND EXISTS (
@@ -982,6 +992,7 @@ pub async fn system_pipeline(State(state): State<AppState>, headers: HeaderMap) 
     };
     let owner = principal.organization_id.clone();
     let workspace_id = principal.workspace_id.clone();
+    let user_id = principal.user_id.clone();
 
     let account_count = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM organization_account_entitlements WHERE organization_id=$1 AND status='ACTIVE'",
