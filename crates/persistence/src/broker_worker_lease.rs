@@ -219,7 +219,7 @@ pub async fn renew(
            AND released_at IS NULL AND lease_until > NOW()
            AND EXISTS (
                SELECT 1 FROM broker_worker_assignments bwa
-               JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id
+               JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id AND waa.organization_id=bwa.organization_id
                JOIN organizations o ON o.id=waa.organization_id AND o.status='ACTIVE'
                JOIN organization_account_entitlements e ON e.organization_id=waa.organization_id AND e.account_id=waa.account_id AND e.status='ACTIVE'
                JOIN accounts a ON a.id=e.account_id AND a.status='active'
@@ -271,7 +271,7 @@ pub async fn validate(pool: &PgPool, lease: &Mt5WorkerLease) -> PersistenceResul
                AND released_at IS NULL AND lease_until > NOW()
                AND EXISTS (
                    SELECT 1 FROM broker_worker_assignments bwa
-                   JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id
+                   JOIN workspace_account_assignments waa ON waa.account_id=bwa.quant_account_id AND waa.organization_id=bwa.organization_id
                    JOIN workspaces w ON w.id=waa.workspace_id AND w.organization_id=waa.organization_id
                    WHERE bwa.id=$3 AND bwa.quant_account_id=$1 AND bwa.status='ACTIVE'
                  AND bwa.valid_from<=NOW() AND bwa.valid_until>NOW() AND w.status='ACTIVE'
