@@ -16,6 +16,7 @@ type WorkspaceGrant = {
 };
 
 type OrganizationMember = { userId: string; role: string; status: string; revision: number };
+type OrganizationMember = { userId: string; role: string; status: string; revision: number };
 type Envelope<T> = { data: T };
 const roles: WorkspaceGrant["role"][] = ["WORKSPACE_ADMIN", "TRADER", "RISK_MANAGER", "VIEWER"];
 
@@ -34,6 +35,7 @@ export default function WorkspaceSettingsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [grants, setGrants] = useState<WorkspaceGrant[]>([]);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [grantsLoading, setGrantsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -48,6 +50,17 @@ export default function WorkspaceSettingsPage() {
     if (!activeOrganizationId || !isOrgAdmin) { setMembers([]); return; }
     let current = true;
     void apiRequest<Envelope<OrganizationMember[]>>(`/api/v1/organizations/${encodeURIComponent(activeOrganizationId)}/members`, { headers: { "X-Organization-Id": activeOrganizationId } })
+      .then((response) => { if (current) setMembers(response.data ?? []); })
+      .catch(() => { if (current) setMembers([]); });
+    return () => { current = false; };
+  }, [activeOrganizationId, isOrgAdmin]);
+
+  const grantableMembers = members.filter((member) => member.status === "ACTIVE" && !["OWNER", "ADMIN"].includes(member.role) && !grants.some((grant) => grant.userId === member.userId));
+
+  useEffect(() => {
+    if (!activeOrganizationId || !isOrgAdmin) { setMembers([]); return; }
+    let current = true;
+    void apiRequest<Envelope<OrganizationMember[]>>("/api/v1/organizations/" + encodeURIComponent(activeOrganizationId) + "/members", { headers: { "X-Organization-Id": activeOrganizationId } })
       .then((response) => { if (current) setMembers(response.data ?? []); })
       .catch(() => { if (current) setMembers([]); });
     return () => { current = false; };
