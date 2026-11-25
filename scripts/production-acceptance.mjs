@@ -432,8 +432,16 @@ try {
     await page.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
+    const initialJournalAccountsResponsePromise = page.waitForResponse(
+      response => response.url().includes("/api/v1/journal/accounts") && response.request().method() === "GET",
+      { timeout: 30_000 },
+    );
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
+    const initialJournalAccountsResponse = await initialJournalAccountsResponsePromise;
+    assert.equal(initialJournalAccountsResponse.status(), 200, `Journal accounts API failed after login: HTTP ${initialJournalAccountsResponse.status()}`);
+    const initialJournalAccountsPayload = await initialJournalAccountsResponse.json();
+    const initialJournalAccountCount = Array.isArray(initialJournalAccountsPayload.data) ? initialJournalAccountsPayload.data.length : 0;
 
     // Authenticated Command Centre + Journal visual coverage. Capture the real
     // signed-in routes at all six agreed viewports without creating or changing
@@ -480,20 +488,12 @@ try {
       await page.screenshot({ path: `${artifactDir}/${viewport.name}-authenticated-dashboard.png`, fullPage: true });
       console.log(`PASS ${viewport.name}: authenticated Command Centre; ${JSON.stringify(dashboardDimensions)}`);
 
-      const journalAccountsResponsePromise = page.waitForResponse(
-        response => response.url().includes("/api/v1/journal/accounts") && response.request().method() === "GET",
-        { timeout: 30_000 },
-      );
       const journalResponse = await page.goto(`${authFrontendUrl}/journal`, { waitUntil: "domcontentloaded", timeout: 45_000 });
       assert.equal(journalResponse?.status(), 200, `Authenticated Journal route failed at ${viewport.name}`);
       await page.locator(".journal-page").waitFor({ state: "visible", timeout: 20_000 });
       await page.getByRole("heading", { name: "Trading Journal" }).waitFor();
       await page.locator(".journal-page .grid-kpi").waitFor({ state: "visible" });
-      const journalAccountsResponse = await journalAccountsResponsePromise;
-      assert.equal(journalAccountsResponse.status(), 200, `Journal accounts API failed at ${viewport.name}: HTTP ${journalAccountsResponse.status()}`);
-      const journalAccountsPayload = await journalAccountsResponse.json();
-      const journalAccountCount = Array.isArray(journalAccountsPayload.data) ? journalAccountsPayload.data.length : 0;
-      if (journalAccountCount > 0) {
+      if (initialJournalAccountCount > 0) {
         await page.locator(".journal-page .data-table-wrap table").waitFor({ state: "visible", timeout: 10_000 });
       } else {
         await page.getByText("No accounts yet.", { exact: true }).waitFor({ state: "visible", timeout: 10_000 });
@@ -511,7 +511,7 @@ try {
         importControls: [...document.querySelectorAll(".journal-page button")].some(button => /Import trades/i.test(button.textContent || "")),
       }));
       assert.ok(
-        journalStructure.accountTable >= 1 || (journalAccountCount === 0 && journalStructure.emptyAccountsState),
+        journalStructure.accountTable >= 1 || (initialJournalAccountCount === 0 && journalStructure.emptyAccountsState),
         `Journal account table or valid empty state did not render at ${viewport.name}: ${JSON.stringify(journalStructure)}`,
       );
       assert.ok(journalStructure.importControls, `Journal import controls did not render at ${viewport.name}`);
