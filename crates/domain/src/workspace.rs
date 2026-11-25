@@ -78,9 +78,7 @@ impl Workspace {
         now: DateTime<Utc>,
     ) -> DomainResult<u64> {
         if self.revision != expected_revision {
-            return Err(DomainError::Invariant(
-                "workspace revision conflict".into(),
-            ));
+            return Err(DomainError::Invariant("workspace revision conflict".into()));
         }
 
         let next_name = name.map(str::trim).unwrap_or(&self.name);
@@ -175,17 +173,57 @@ mod tests {
     fn rejects_invalid_names_slugs_and_creator() {
         let now = Utc::now();
         let org = OrganizationId::new("org-1").unwrap();
-        assert!(Workspace::new(WorkspaceId::new("ws-1").unwrap(), org.clone(), " ", "ok", "u", now).is_err());
-        assert!(Workspace::new(WorkspaceId::new("ws-2").unwrap(), org.clone(), "Name", "Not Valid", "u", now).is_err());
-        assert!(Workspace::new(WorkspaceId::new("ws-3").unwrap(), org, "Name", "valid", " ", now).is_err());
+        assert!(Workspace::new(
+            WorkspaceId::new("ws-1").unwrap(),
+            org.clone(),
+            " ",
+            "ok",
+            "u",
+            now
+        )
+        .is_err());
+        assert!(Workspace::new(
+            WorkspaceId::new("ws-2").unwrap(),
+            org.clone(),
+            "Name",
+            "Not Valid",
+            "u",
+            now
+        )
+        .is_err());
+        assert!(Workspace::new(
+            WorkspaceId::new("ws-3").unwrap(),
+            org,
+            "Name",
+            "valid",
+            " ",
+            now
+        )
+        .is_err());
     }
 
     #[test]
     fn revisions_are_optimistic_and_archived_workspace_cannot_be_default() {
         let now = Utc::now();
         let mut workspace = workspace();
-        assert_eq!(workspace.revise(1, Some("Research Team"), None, None, None, now).unwrap(), 2);
-        assert!(workspace.revise(1, Some("Stale"), None, None, None, now).is_err());
-        assert!(workspace.revise(2, None, None, Some(WorkspaceStatus::Archived), Some(true), now).is_err());
+        assert_eq!(
+            workspace
+                .revise(1, Some("Research Team"), None, None, None, now)
+                .unwrap(),
+            2
+        );
+        assert!(workspace
+            .revise(1, Some("Stale"), None, None, None, now)
+            .is_err());
+        assert!(workspace
+            .revise(
+                2,
+                None,
+                None,
+                Some(WorkspaceStatus::Archived),
+                Some(true),
+                now
+            )
+            .is_err());
     }
 }
