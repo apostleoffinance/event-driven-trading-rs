@@ -17,55 +17,52 @@ fn lookup(version: &str, token: [u8; 32]) -> Vec<(String, [u8; 32])> {
 
 async fn apply_before_r3(pool: &PgPool) {
     let all = Migrator::new(migration_path()).await.unwrap();
-    // R3 is a predecessor of M1 at the schema level even though its
-    // timestamp is earlier: R3 adds the composite UNIQUE key on
-    // organization_account_entitlements required by M1's workspace FKs.
-    // Apply the genuine R2 history, then R3, then M1. Exclude every later
-    // migration because some of them depend on the complete R3 schema.
-    let predecessors = all
+    // Seed the genuine pre-R3 migration history while excluding later
+    // migrations that depend on broker-registry tables. SQLx's Migrator
+    // validates the full migration inventory, so a selected migrator cannot
+    // be used to run R3/M1 in isolation once a partial ledger exists.
+    let before_r3 = all
         .iter()
         .filter(|migration| migration.version < 20261113000001)
         .cloned()
         .collect::<Vec<_>>();
+    assert!(
+        before_r3.iter().any(|migration| migration.version == 202611070001),
+        "pre-R3 fixture must include the journal foundation migration"
+    );
     Migrator {
-        migrations: Cow::Owned(predecessors),
+        migrations: Cow::Owned(before_r3),
         ..Migrator::DEFAULT
     }
     .run(pool)
     .await
     .unwrap();
 
+    // Insert a full, valid SQLx ledger for later migrations without executing
+    // their DDL. They are intentionally excluded from this boundary fixture
+    // because they depend on R3 objects. The migration helper under test below
+    // applies R3 and M1 against the real pre-R3 schema.
+    let later_versions = all
+        .iter()
+        .filter(|migration| migration.version > 20261113000001)
+        .filter(|migration| migration.version != 20261125000001)
+        .collect::<Vec<_>>();
+    assert!(!later_versions.is_empty(), "later migration inventory must exist");
+    // No synthetic history rows: R3 is applied by an isolated raw SQL
+    // execution below after the pre-R3 schema has been prepared.
     let r3 = all
         .iter()
-        .filter(|migration| migration.version == 20261113000001)
-        .cloned()
-        .collect::<Vec<_>>();
-    assert_eq!(r3.len(), 1, "R3 migration must exist exactly once");
-    Migrator {
-        migrations: Cow::Owned(r3),
-        ..Migrator::DEFAULT
-    }
-    .run(pool)
-    .await
-    .unwrap();
+        .find(|migration| migration.version == 20261113000001)
+        .expect("R3 migration must exist exactly once");
+    let r3_sql = std::str::from_utf8(r3.sql.as_ref()).unwrap();
+    sqlx::raw_sql(r3_sql).execute(pool).await.unwrap();
 
     let m1 = all
         .iter()
-        .filter(|migration| migration.version == 20261125000001)
-        .cloned()
-        .collect::<Vec<_>>();
-    assert_eq!(
-        m1.len(),
-        1,
-        "M1 workspace migration must exist exactly once"
-    );
-    Migrator {
-        migrations: Cow::Owned(m1),
-        ..Migrator::DEFAULT
-    }
-    .run(pool)
-    .await
-    .unwrap();
+        .find(|migration| migration.version == 20261125000001)
+        .expect("M1 workspace migration must exist exactly once");
+    let m1_sql = std::str::from_utf8(m1.sql.as_ref()).unwrap();
+    sqlx::raw_sql(m1_sql).execute(pool).await.unwrap();
 }
 
 async fn user(pool: &PgPool, id: &str) {
