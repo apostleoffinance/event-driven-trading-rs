@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePathname } from "next/navigation";
 import { hasSession } from "@/lib/auth/session";
 import { apiRequest } from "@/lib/api/client";
 import { useOrganization } from "@/features/organization/OrganizationProvider";
@@ -30,7 +29,6 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
-  const pathname = usePathname();
   const { activeOrganizationId } = useOrganization();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
@@ -44,6 +42,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") window.sessionStorage.removeItem(STORAGE_KEY);
       return;
     }
+    setWorkspaces([]);
+    setActiveWorkspaceId(null);
     setLoading(true);
     setError(null);
     try {
@@ -76,7 +76,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setActiveWorkspaceId(null);
       if (typeof window !== "undefined") window.sessionStorage.removeItem(STORAGE_KEY);
     }
-  }, [pathname, activeOrganizationId, refreshWorkspaces]);
+  }, [activeOrganizationId, refreshWorkspaces]);
 
   const selectWorkspace = useCallback((id: string) => {
     if (!workspaces.some((workspace) => workspace.id === id) || id === activeWorkspaceId) return;

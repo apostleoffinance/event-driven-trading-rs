@@ -73,6 +73,12 @@ export default function WorkspaceSettingsPage() {
   }, [activeWorkspaceId, selectedId]);
 
   useEffect(() => {
+    if (selectedId && workspaces.some((workspace) => workspace.id === selectedId) && selectedId !== activeWorkspaceId) {
+      selectWorkspace(selectedId);
+    }
+  }, [selectedId, activeWorkspaceId, workspaces, selectWorkspace]);
+
+  useEffect(() => {
     if (!selectedWorkspace) {
       setGrants([]);
       return;
@@ -116,7 +122,6 @@ export default function WorkspaceSettingsPage() {
       await refreshWorkspaces();
       if (result.data?.id) {
         setSelectedId(result.data.id);
-        selectWorkspace(result.data.id);
       }
       setNewName("");
     }, "Workspace created.");
@@ -240,7 +245,7 @@ export default function WorkspaceSettingsPage() {
         ) : (
           <div className="workspace-list">
             {workspaces.map((workspace) => (
-              <button key={workspace.id} type="button" className={`workspace-choice${selectedWorkspace?.id === workspace.id ? " selected" : ""}`} onClick={() => setSelectedId(workspace.id)} aria-pressed={selectedWorkspace?.id === workspace.id}>
+              <button key={workspace.id} type="button" className={`workspace-choice${selectedWorkspace?.id === workspace.id ? " selected" : ""}`} onClick={() => { setSelectedId(workspace.id); selectWorkspace(workspace.id); }} aria-pressed={selectedWorkspace?.id === workspace.id}>
                 <span className="workspace-choice-main"><strong>{workspace.name}</strong><small>{workspace.slug}</small></span>
                 <span className="workspace-choice-meta">{workspace.isDefault ? <span className="workspace-tag">DEFAULT</span> : null}{activeWorkspaceId === workspace.id ? <span className="workspace-tag current">ACTIVE</span> : null}</span>
               </button>
