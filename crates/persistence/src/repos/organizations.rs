@@ -613,6 +613,7 @@ pub async fn create_paper_account_for_owner(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn create_paper_account_for_owner_in_workspace(
     pool: &PgPool,
     organization: &str,
