@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used)]
 
-use std::{borrow::Cow, path::PathBuf};
+use std::path::PathBuf;
 
 use chrono::Utc;
 use domain::{Organization, OrganizationId};
@@ -34,7 +34,7 @@ async fn apply_before_r3(pool: &PgPool) {
 
     for migration in before_r3 {
         let mut tx = pool.begin().await.unwrap();
-        sqlx::raw_sql(std::str::from_utf8(migration.sql.as_ref()).unwrap())
+        sqlx::raw_sql(migration.sql.as_ref())
             .execute(&mut *tx)
             .await
             .unwrap_or_else(|error| {
