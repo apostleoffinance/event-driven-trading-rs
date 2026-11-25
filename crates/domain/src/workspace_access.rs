@@ -6,7 +6,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{DomainError, DomainResult, MembershipStatus, OrganizationId, OrganizationRole, OrganizationStatus, WorkspaceId, WorkspaceStatus};
+use crate::{
+    DomainError, DomainResult, MembershipStatus, OrganizationId, OrganizationRole,
+    OrganizationStatus, WorkspaceId, WorkspaceStatus,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -30,8 +33,18 @@ impl WorkspaceRole {
     fn capabilities(self) -> WorkspaceCapabilities {
         match self {
             Self::Admin => WorkspaceCapabilities::operational_admin(),
-            Self::Trader => WorkspaceCapabilities { read: true, trade: true, manage_risk: false, manage_workspace: false },
-            Self::RiskManager => WorkspaceCapabilities { read: true, trade: false, manage_risk: true, manage_workspace: false },
+            Self::Trader => WorkspaceCapabilities {
+                read: true,
+                trade: true,
+                manage_risk: false,
+                manage_workspace: false,
+            },
+            Self::RiskManager => WorkspaceCapabilities {
+                read: true,
+                trade: false,
+                manage_risk: true,
+                manage_workspace: false,
+            },
             Self::Viewer => WorkspaceCapabilities::read_only(),
         }
     }
@@ -46,7 +59,10 @@ pub enum WorkspaceGrantStatus {
 
 impl WorkspaceGrantStatus {
     pub fn as_db(self) -> &'static str {
-        match self { Self::Active => "ACTIVE", Self::Revoked => "REVOKED" }
+        match self {
+            Self::Active => "ACTIVE",
+            Self::Revoked => "REVOKED",
+        }
     }
 }
 
@@ -88,10 +104,14 @@ impl WorkspaceAccessGrant {
             ));
         }
         if member_status != MembershipStatus::Active {
-            return Err(DomainError::Invariant("workspace grants require an active organization member".into()));
+            return Err(DomainError::Invariant(
+                "workspace grants require an active organization member".into(),
+            ));
         }
         if !actor_role.may_administer() || actor_status != MembershipStatus::Active {
-            return Err(DomainError::Invariant("workspace grants require an active organization OWNER or ADMIN actor".into()));
+            return Err(DomainError::Invariant(
+                "workspace grants require an active organization OWNER or ADMIN actor".into(),
+            ));
         }
         let user_id = validate_identity(user_id.into(), "workspace grant recipient")?;
         let actor = validate_identity(actor.into(), "workspace grant actor")?;
@@ -125,15 +145,22 @@ impl WorkspaceAccessGrant {
         now: DateTime<Utc>,
     ) -> DomainResult<u64> {
         if self.revision != expected_revision {
-            return Err(DomainError::Invariant("workspace grant revision conflict".into()));
+            return Err(DomainError::Invariant(
+                "workspace grant revision conflict".into(),
+            ));
         }
         if !actor_role.may_administer() || actor_status != MembershipStatus::Active {
-            return Err(DomainError::Invariant("workspace grant changes require an active organization OWNER or ADMIN actor".into()));
+            return Err(DomainError::Invariant(
+                "workspace grant changes require an active organization OWNER or ADMIN actor"
+                    .into(),
+            ));
         }
         if status == WorkspaceGrantStatus::Active
             && (member_role.may_administer() || member_status != MembershipStatus::Active)
         {
-            return Err(DomainError::Invariant("active workspace grants require an active non-admin organization member".into()));
+            return Err(DomainError::Invariant(
+                "active workspace grants require an active non-admin organization member".into(),
+            ));
         }
         let actor = validate_identity(actor.to_owned(), "workspace grant actor")?;
         let reason = validate_reason(reason.to_owned())?;
@@ -142,8 +169,9 @@ impl WorkspaceAccessGrant {
             self.status = status;
             self.updated_by = actor;
             self.reason = reason;
-            self.revision = self.revision.checked_add(1)
-                .ok_or_else(|| DomainError::Invariant("workspace grant revision overflow".into()))?;
+            self.revision = self.revision.checked_add(1).ok_or_else(|| {
+                DomainError::Invariant("workspace grant revision overflow".into())
+            })?;
             self.updated_at = now;
         }
         Ok(self.revision)
@@ -163,11 +191,21 @@ pub struct WorkspaceCapabilities {
 
 impl WorkspaceCapabilities {
     fn read_only() -> Self {
-        Self { read: true, trade: false, manage_risk: false, manage_workspace: false }
+        Self {
+            read: true,
+            trade: false,
+            manage_risk: false,
+            manage_workspace: false,
+        }
     }
 
     fn operational_admin() -> Self {
-        Self { read: true, trade: true, manage_risk: true, manage_workspace: true }
+        Self {
+            read: true,
+            trade: true,
+            manage_risk: true,
+            manage_workspace: true,
+        }
     }
 }
 
@@ -194,10 +232,22 @@ pub fn effective_workspace_capabilities(
         return None;
     }
     let organization = match organization_role {
-        OrganizationRole::Trader => WorkspaceCapabilities { read: true, trade: true, manage_risk: false, manage_workspace: false },
-        OrganizationRole::RiskManager => WorkspaceCapabilities { read: true, trade: false, manage_risk: true, manage_workspace: false },
+        OrganizationRole::Trader => WorkspaceCapabilities {
+            read: true,
+            trade: true,
+            manage_risk: false,
+            manage_workspace: false,
+        },
+        OrganizationRole::RiskManager => WorkspaceCapabilities {
+            read: true,
+            trade: false,
+            manage_risk: true,
+            manage_workspace: false,
+        },
         OrganizationRole::Viewer => WorkspaceCapabilities::read_only(),
-        OrganizationRole::Owner | OrganizationRole::Admin => WorkspaceCapabilities::operational_admin(),
+        OrganizationRole::Owner | OrganizationRole::Admin => {
+            WorkspaceCapabilities::operational_admin()
+        }
     };
     let workspace = workspace_role.capabilities();
     Some(WorkspaceCapabilities {
@@ -211,7 +261,9 @@ pub fn effective_workspace_capabilities(
 fn validate_identity(value: String, label: &str) -> DomainResult<String> {
     let value = value.trim().to_owned();
     if value.is_empty() || value.len() > 128 {
-        return Err(DomainError::Validation(format!("{label} must contain 1 to 128 characters")));
+        return Err(DomainError::Validation(format!(
+            "{label} must contain 1 to 128 characters"
+        )));
     }
     Ok(value)
 }
@@ -219,7 +271,9 @@ fn validate_identity(value: String, label: &str) -> DomainResult<String> {
 fn validate_reason(value: String) -> DomainResult<String> {
     let value = value.trim().to_owned();
     if value.is_empty() || value.len() > 1000 {
-        return Err(DomainError::Validation("workspace grant reason must contain 1 to 1000 characters".into()));
+        return Err(DomainError::Validation(
+            "workspace grant reason must contain 1 to 1000 characters".into(),
+        ));
     }
     Ok(value)
 }
@@ -229,8 +283,12 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
 
-    fn org() -> OrganizationId { OrganizationId::new("org-1").unwrap() }
-    fn workspace() -> WorkspaceId { WorkspaceId::new("ws-1").unwrap() }
+    fn org() -> OrganizationId {
+        OrganizationId::new("org-1").unwrap()
+    }
+    fn workspace() -> WorkspaceId {
+        WorkspaceId::new("ws-1").unwrap()
+    }
 
     #[test]
     fn owner_and_admin_have_implicit_access_without_grant() {
