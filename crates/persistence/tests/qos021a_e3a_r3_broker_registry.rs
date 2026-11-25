@@ -20,13 +20,36 @@ async fn apply_before_r3(pool: &PgPool) {
     // The registry migration now depends on M1's workspace tables and
     // organization-creation trigger. Build the full predecessor schema while
     // excluding only the R3 migration under test.
+    // R3 (20261113000001) is the migration under test. M1 has a later
+    // timestamp but is now a schema prerequisite for this upgrade fixture.
+    // Apply only the genuine R2 predecessor set plus M1; do not apply later
+    // migrations that themselves depend on R3 tables.
     let selected = all
         .iter()
-        .filter(|migration| migration.version != 20261113000001)
+        .filter(|migration| {
+            migration.version < 20261113000001 || migration.version == 20261125000001
+        })
         .cloned()
         .collect::<Vec<_>>();
     Migrator {
         migrations: Cow::Owned(selected),
+        ..Migrator::DEFAULT
+    }
+    .run(pool)
+    .await
+    .unwrap();
+
+    // This fixture intentionally has a non-linear history (M1 is newer than
+    // R3), so the production guarded migrator must not be used here. Apply
+    // exactly R3 to verify its upgrade against the explicit predecessor schema.
+    let r3 = all
+        .iter()
+        .filter(|migration| migration.version == 20261113000001)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(r3.len(), 1, "R3 migration must exist exactly once");
+    Migrator {
+        migrations: Cow::Owned(r3),
         ..Migrator::DEFAULT
     }
     .run(pool)
@@ -130,7 +153,6 @@ async fn exact_r2_upgrade_preserves_tenant_and_environment_without_identity_back
     .fetch_one(&pool)
     .await
     .unwrap();
-    migrate(&pool).await.unwrap();
     let after: (Option<String>, String, i64, i64) = sqlx::query_as(
         "SELECT a.environment,a.environment_verification,a.environment_revision,e.revision FROM accounts a JOIN organization_account_entitlements e ON e.account_id=a.id WHERE a.id='r3-upgrade-account'",
     )
