@@ -48,7 +48,10 @@ fn not_found() -> Response {
     )
 }
 fn db_error() -> Response {
-    tracing::error!(reason = "workspace_authorization_unavailable", "workspace authorization database operation failed");
+    tracing::error!(
+        reason = "workspace_authorization_unavailable",
+        "workspace authorization database operation failed"
+    );
     error(
         StatusCode::SERVICE_UNAVAILABLE,
         "authorization_unavailable",
@@ -72,7 +75,10 @@ pub async fn principal(
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .ok_or_else(|| {
-            tracing::warn!(reason = "missing_organization_context", "workspace request denied");
+            tracing::warn!(
+                reason = "missing_organization_context",
+                "workspace request denied"
+            );
             not_found()
         })?;
     let workspace = headers
@@ -81,7 +87,10 @@ pub async fn principal(
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .ok_or_else(|| {
-            tracing::warn!(reason = "missing_workspace_context", "workspace request denied");
+            tracing::warn!(
+                reason = "missing_workspace_context",
+                "workspace request denied"
+            );
             error(
                 StatusCode::BAD_REQUEST,
                 "workspace_context_required",
@@ -109,11 +118,17 @@ pub async fn principal(
         grant_revision,
     )) = row
     else {
-        tracing::warn!(reason = "workspace_context_not_visible", "workspace request denied");
+        tracing::warn!(
+            reason = "workspace_context_not_visible",
+            "workspace request denied"
+        );
         return Err(not_found());
     };
     if org_status != "ACTIVE" || member_status != "ACTIVE" || workspace_status != "ACTIVE" {
-        tracing::warn!(reason = "inactive_workspace_context", "workspace request denied");
+        tracing::warn!(
+            reason = "inactive_workspace_context",
+            "workspace request denied"
+        );
         return Err(not_found());
     }
     let organization_status = match org_status.as_str() {
@@ -168,7 +183,10 @@ pub async fn principal(
         workspace_status_value,
     )
     .ok_or_else(|| {
-        tracing::warn!(reason = "workspace_capability_denied", "workspace request denied");
+        tracing::warn!(
+            reason = "workspace_capability_denied",
+            "workspace request denied"
+        );
         not_found()
     })?;
     let workspace_role = grant
@@ -220,13 +238,19 @@ pub async fn require_org_admin(
         .and_then(|v| v.to_str().ok())
         .map(str::trim);
     if selected != Some(org) {
-        tracing::warn!(reason = "organization_header_path_mismatch", "workspace administration request denied");
+        tracing::warn!(
+            reason = "organization_header_path_mismatch",
+            "workspace administration request denied"
+        );
         return Err(not_found());
     }
     let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM organizations o JOIN organization_memberships m ON m.organization_id=o.id WHERE o.id=$1 AND o.status='ACTIVE' AND m.user_id=$2 AND m.status='ACTIVE' AND m.role IN ('OWNER','ADMIN'))")
         .bind(org).bind(&claims.sub).fetch_one(state.store.pool()).await.map_err(|_|db_error())?;
     if !allowed {
-        tracing::warn!(reason = "organization_admin_required", "workspace administration request denied");
+        tracing::warn!(
+            reason = "organization_admin_required",
+            "workspace administration request denied"
+        );
         return Err(not_found());
     }
     Ok(claims.sub)
