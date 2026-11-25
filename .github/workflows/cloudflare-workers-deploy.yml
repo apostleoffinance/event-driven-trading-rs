@@ -1,6 +1,9 @@
 name: Deploy EdgeNest Frontend to Cloudflare Workers
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/cloudflare-workers-deploy.yml"
   workflow_dispatch:
     inputs:
       confirm_production_deploy:
