@@ -432,30 +432,53 @@ try {
     await page.getByLabel("Password").waitFor({ state: "visible", timeout: 20_000 });
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
+    const journalRequestFailures = [];
+    page.on("requestfailed", request => {
+      if (request.url().includes("/api/v1/journal/accounts")) {
+        journalRequestFailures.push({
+          method: request.method(),
+          path: new URL(request.url()).pathname,
+          failure: request.failure()?.errorText ?? "unknown request failure",
+        });
+      }
+    });
     const initialJournalAccountsResponsePromise = page.waitForResponse(
       response => response.url().includes("/api/v1/journal/accounts") && response.request().method() === "GET",
       { timeout: 30_000 },
-    );
+    ).then(response => ({ kind: "response", response }))
+      .catch(error => ({ kind: "timeout", message: error.message }));
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
+    await page.locator(".journal-page").waitFor({ state: "visible", timeout: 20_000 });
     const authenticatedSessionState = await page.evaluate(() => {
       const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
       return { hasAccessToken: Boolean(session?.access_token), hasRefreshToken: Boolean(session?.refresh_token) };
     });
     assert.ok(authenticatedSessionState.hasAccessToken, "Login completed without persisting an access token.");
     const journalAccountsError = page.locator(".journal-page .panel.error[role='alert']");
+    const journalAccountsErrorPromise = journalAccountsError.waitFor({ state: "visible", timeout: 15_000 })
+      .then(async () => ({ kind: "error", message: await journalAccountsError.innerText() }))
+      .catch(() => null);
     const initialAccountsOutcome = await Promise.race([
-      initialJournalAccountsResponsePromise.then(response => ({ kind: "response", response })),
-      journalAccountsError.waitFor({ state: "visible", timeout: 30_000 }).then(async () => ({
-        kind: "error",
-        message: await journalAccountsError.innerText(),
-      })),
+      initialJournalAccountsResponsePromise,
+      journalAccountsErrorPromise,
     ]);
-    assert.equal(
-      initialAccountsOutcome.kind,
-      "response",
-      `Journal accounts query failed before returning a response: ${initialAccountsOutcome.kind === "error" ? initialAccountsOutcome.message : "unknown error"}`,
-    );
+    if (initialAccountsOutcome?.kind !== "response") {
+      const diagnostics = await page.evaluate(() => {
+        const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
+        const alert = document.querySelector(".journal-page .panel.error[role='alert']");
+        return {
+          hasAccessToken: Boolean(session?.access_token),
+          hasRefreshToken: Boolean(session?.refresh_token),
+          journalAlert: alert?.textContent?.trim() || null,
+        };
+      });
+      throw new Error(`Journal accounts request did not complete after login: ${JSON.stringify({
+        outcome: initialAccountsOutcome,
+        diagnostics,
+        requestFailures: journalRequestFailures,
+      })}`);
+    }
     const initialJournalAccountsResponse = initialAccountsOutcome.response;
     assert.equal(initialJournalAccountsResponse.status(), 200, `Journal accounts API failed after login: HTTP ${initialJournalAccountsResponse.status()}`);
     const initialJournalAccountsPayload = await initialJournalAccountsResponse.json();
