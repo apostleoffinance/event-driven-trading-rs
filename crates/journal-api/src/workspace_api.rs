@@ -708,7 +708,13 @@ pub async fn update_grant(
             "Grant is already revoked",
         );
     }
-    let next = revision + 1;
+    let Some(next) = revision.checked_add(1) else {
+        return error(
+            StatusCode::CONFLICT,
+            "revision_overflow",
+            "Workspace grant revision is exhausted",
+        );
+    };
     let updated=sqlx::query("UPDATE workspace_access_grants SET role=$4,status=$5,revision=$6,updated_by=$7,reason=$8 WHERE organization_id=$1 AND workspace_id=$2 AND user_id=$3 AND revision=$9")
         .bind(&org).bind(&workspace).bind(&user).bind(&input.role).bind(&input.status).bind(next).bind(&actor).bind(input.reason.trim()).bind(revision).execute(&mut *tx).await;
     if updated.is_err() {
