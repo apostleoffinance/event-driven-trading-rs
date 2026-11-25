@@ -142,7 +142,7 @@ jobs:
     # Use the supported macos-15 arm64 image; keep this version explicit so
     # image migrations are deliberate and visible in CI.
     runs-on: macos-15
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - name: Record runner diagnostics
         run: |
@@ -157,6 +157,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run macOS portable checks
+        timeout-minutes: 3
         run: bash adapters/mt5-python/scripts/mt5-macos-preflight.sh --skip-rust
 
   windows-mt5-powershell-parse:
