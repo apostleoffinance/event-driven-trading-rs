@@ -92,10 +92,22 @@ fn workspace_json(w:&Workspace)->serde_json::Value{
 }
 
 pub async fn list(State(state):State<AppState>,headers:HeaderMap,Path(org):Path<String>)->Response{
-    if let Err(r)=require_org_admin(&state,&headers,&org).await{return r;}
-    match state.store.workspaces_for_organization(&org).await{
-        Ok(rows)=>Json(serde_json::json!({"data":rows.iter().map(workspace_json).collect::<Vec<_>>()})).into_response(),
-        Err(_)=>db_error()
+    let claims=match state.auth.authenticate(&headers){Ok(v)=>v,Err(e)=>return e.into_response()};
+    if headers.get("x-organization-id").and_then(|v|v.to_str().ok()).map(str::trim)!=Some(org.as_str()){return not_found();}
+    let rows=sqlx::query_as::<_,(String,String,String,String,String,bool,i64,String,chrono::DateTime<chrono::Utc>,chrono::DateTime<chrono::Utc>)>(
+        r#"SELECT w.id,w.organization_id,w.name,w.slug,w.status,w.is_default,w.revision,w.created_by,w.created_at,w.updated_at
+           FROM workspaces w JOIN organizations o ON o.id=w.organization_id
+           JOIN organization_memberships m ON m.organization_id=o.id AND m.user_id=$2
+           LEFT JOIN workspace_access_grants g ON g.organization_id=o.id AND g.workspace_id=w.id AND g.user_id=m.user_id
+           WHERE o.id=$1 AND o.status='ACTIVE' AND m.status='ACTIVE' AND w.status='ACTIVE'
+             AND (m.role IN ('OWNER','ADMIN') OR g.status='ACTIVE')
+           ORDER BY w.is_default DESC,w.created_at,w.id"#)
+        .bind(&org).bind(&claims.sub).fetch_all(state.store.pool()).await;
+    match rows{
+        Ok(rows)=>{
+            let values=rows.into_iter().map(|(id,organization_id,name,slug,status,is_default,revision,created_by,created_at,updated_at)|serde_json::json!({"id":id,"organizationId":organization_id,"name":name,"slug":slug,"status":status,"isDefault":is_default,"revision":revision,"createdBy":created_by,"createdAt":created_at,"updatedAt":updated_at})).collect::<Vec<_>>();
+            Json(serde_json::json!({"data":values})).into_response()
+        },Err(_)=>db_error()
     }
 }
 
@@ -114,7 +126,8 @@ pub async fn create(State(state):State<AppState>,headers:HeaderMap,Path(org):Pat
 }
 
 pub async fn get(State(state):State<AppState>,headers:HeaderMap,Path((org,workspace)):Path<(String,String)>)->Response{
-    if let Err(r)=require_org_admin(&state,&headers,&org).await{return r;}
+    let principal=match principal(&state,&headers).await{Ok(v)=>v,Err(r)=>return r};
+    if principal.organization_id!=org||principal.workspace_id!=workspace{return not_found();}
     match state.store.workspace(&org,&workspace).await{
         Ok(Some(w))=>Json(serde_json::json!({"data":workspace_json(&w)})).into_response(),
         Ok(None)=>not_found(),Err(_)=>db_error()
@@ -156,6 +169,8 @@ pub async fn archive(State(state):State<AppState>,headers:HeaderMap,Path((org,wo
     let Some((name,revision,is_default))=(match old{Ok(v)=>v,Err(_)=>return db_error()}) else{return not_found()};
     if revision!=input.expected_revision{return error(StatusCode::CONFLICT,"revision_conflict","Workspace revision is stale");}
     if is_default{return error(StatusCode::CONFLICT,"default_workspace_required","Set another workspace as default before archiving this workspace");}
+    let assigned:i64=match sqlx::query_scalar("SELECT count(*) FROM workspace_account_assignments WHERE organization_id=$1 AND workspace_id=$2").bind(&org).bind(&workspace).fetch_one(&mut *tx).await{Ok(v)=>v,Err(_)=>return db_error()};
+    if assigned>0{return error(StatusCode::CONFLICT,"workspace_not_empty","Move all Quant account assignments before archiving this workspace");}
     let next=revision+1;
     if sqlx::query("UPDATE workspaces SET status='ARCHIVED',revision=$3 WHERE organization_id=$1 AND id=$2 AND revision=$4").bind(&org).bind(&workspace).bind(next).bind(revision).execute(&mut *tx).await.is_err(){return db_error();}
     if sqlx::query("INSERT INTO workspace_events(workspace_id,organization_id,actor_user_id,revision,event_type,previous_name,next_name,previous_status,next_status,previous_is_default,next_is_default,reason) VALUES($1,$2,$3,$4,'ARCHIVED',$5,$5,'ACTIVE','ARCHIVED',FALSE,FALSE,$6)").bind(&workspace).bind(&org).bind(actor).bind(next).bind(name).bind(input.reason.trim()).execute(&mut *tx).await.is_err()||tx.commit().await.is_err(){return db_error();}
