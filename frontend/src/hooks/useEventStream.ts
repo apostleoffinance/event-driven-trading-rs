@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getRepositories } from "@/lib/repositories";
 import type { TradingEvent } from "@/types/domain";
 import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
+import { useOrganization } from "@/features/organization/OrganizationProvider";
 
 export type EventStreamState = {
   events: TradingEvent[];
@@ -16,7 +17,8 @@ export type EventStreamState = {
 export function useEventStream(limit = 40): EventStreamState {
   const [events, setEvents] = useState<TradingEvent[]>([]);
   const [connected, setConnected] = useState(false);
-  const { activeWorkspaceId, activeOrganizationId } = useWorkspace();
+  const { activeWorkspaceId } = useWorkspace();
+  const { activeOrganizationId } = useOrganization();
 
   useEffect(() => {
     let active = true;
