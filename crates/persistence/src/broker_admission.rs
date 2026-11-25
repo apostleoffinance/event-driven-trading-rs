@@ -78,6 +78,8 @@ struct OrganizationRow {
     organization_status: String,
     organization_revision: i64,
     membership_status: Option<String>,
+    membership_role: Option<String>,
+    workspace_grant_status: Option<String>,
     membership_revision: Option<i64>,
     entitlement_status: Option<String>,
     entitlement_revision: Option<i64>,
@@ -235,7 +237,8 @@ pub async fn evaluate_persisted_broker_admission(
 
     let organization = sqlx::query_as::<_, OrganizationRow>(
         r#"SELECT o.status AS organization_status, o.revision AS organization_revision,
-                  m.status AS membership_status, m.revision AS membership_revision,
+                  m.status AS membership_status, m.role AS membership_role,
+                  wag.status AS workspace_grant_status, m.revision AS membership_revision,
                   e.status AS entitlement_status, e.revision AS entitlement_revision,
                   qa.status AS quant_account_status,
                   w.status AS workspace_status
@@ -249,6 +252,8 @@ pub async fn evaluate_persisted_broker_admission(
                ON waa.organization_id=e.organization_id AND waa.account_id=e.account_id
              LEFT JOIN workspaces w
                ON w.organization_id=waa.organization_id AND w.id=waa.workspace_id
+             LEFT JOIN workspace_access_grants wag
+               ON wag.organization_id=o.id AND wag.workspace_id=w.id AND wag.user_id=m.user_id
             WHERE o.id = $1"#,
     )
     .bind(&request.organization_ref)
@@ -267,7 +272,13 @@ pub async fn evaluate_persisted_broker_admission(
             organization_ref: Some(request.organization_ref.clone()),
             organization_status: lifecycle_status(Some(&row.organization_status)),
             membership_ref: row.membership_status.as_ref().map(|_| actor_ref.to_owned()),
-            membership_status: lifecycle_status(row.membership_status.as_deref()),
+            membership_status: if matches!(row.membership_role.as_deref(), Some("OWNER" | "ADMIN"))
+                || row.workspace_grant_status.as_deref() == Some("ACTIVE")
+            {
+                lifecycle_status(row.membership_status.as_deref())
+            } else {
+                Some(AdmissionLifecycleStatus::Inactive)
+            },
             entitlement_ref: row
                 .entitlement_status
                 .as_ref()
