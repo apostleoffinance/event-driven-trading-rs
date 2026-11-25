@@ -229,6 +229,39 @@ CREATE CONSTRAINT TRIGGER workspaces_require_default_workspace
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION check_workspace_default_invariant();
 
+-- Keep pre-M2 organization creation backward-compatible: the database provisions
+-- the default workspace in the same transaction as the organization INSERT.
+-- M2 will expose this persisted workspace in the organization API response.
+CREATE FUNCTION provision_default_workspace_for_organization()
+RETURNS trigger LANGUAGE plpgsql AS $
+DECLARE
+    workspace_id TEXT;
+BEGIN
+    workspace_id := 'ws-default-' || md5(NEW.id);
+    INSERT INTO workspaces (
+        id,organization_id,name,slug,status,is_default,revision,
+        created_by,created_at,updated_at
+    ) VALUES (
+        workspace_id,NEW.id,'Default','default','ACTIVE',TRUE,1,
+        NEW.created_by,NEW.created_at,NEW.updated_at
+    );
+
+    INSERT INTO workspace_events (
+        workspace_id,organization_id,actor_user_id,revision,event_type,
+        previous_name,next_name,previous_status,next_status,
+        previous_is_default,next_is_default,reason
+    ) VALUES (
+        workspace_id,NEW.id,NEW.created_by,1,'CREATED',
+        NULL,'Default',NULL,'ACTIVE',NULL,TRUE,
+        'Automatically provisioned with organization creation'
+    );
+    RETURN NEW;
+END
+$;
+CREATE TRIGGER organizations_provision_default_workspace
+    AFTER INSERT ON organizations
+    FOR EACH ROW EXECUTE FUNCTION provision_default_workspace_for_organization();
+
 CREATE FUNCTION protect_workspace_identity_and_history()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
