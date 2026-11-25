@@ -47,9 +47,12 @@ async fn apply_before_r3(pool: &PgPool) {
                 .expect("required core migration must exist")
         })
         .collect::<Vec<_>>();
-    ordered.extend(before_r3.iter().copied().filter(|migration| {
-        !CORE_VERSIONS.contains(&migration.version)
-    }));
+    ordered.extend(
+        before_r3
+            .iter()
+            .copied()
+            .filter(|migration| !CORE_VERSIONS.contains(&migration.version)),
+    );
     assert_eq!(
         ordered.len(),
         before_r3.len(),
