@@ -135,3 +135,47 @@ async fn grants_reject_admin_targets_and_non_admin_grantors_and_do_not_reactivat
     assert_eq!(status,"REVOKED","downgrading an implicit admin must not resurrect a historical grant");
     Ok(())
 }
+
+
+async fn migrate_pre_m3_1(pool: &PgPool) {
+    use std::{borrow::Cow, path::PathBuf};
+    use sqlx::migrate::Migrator;
+
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../migrations");
+    let all = Migrator::new(path).await.unwrap();
+    let selected = all
+        .iter()
+        .filter(|migration| migration.version < 20261125000002)
+        .cloned()
+        .collect::<Vec<_>>();
+    Migrator {
+        migrations: Cow::Owned(selected),
+        ..Migrator::DEFAULT
+    }
+    .run(pool)
+    .await
+    .unwrap();
+}
+
+#[sqlx::test]
+async fn existing_m1_m2_database_is_recognized_and_upgraded_to_m3_1(
+    pool: PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    migrate_pre_m3_1(&pool).await;
+    seed(&pool).await?;
+
+    // This exercises the real startup migration-history gate against a
+    // database whose last successful migration is M1/M2, not a fresh install.
+    migrate(&pool).await?;
+
+    let (grant_table,event_table):(bool,bool)=sqlx::query_as(
+        "SELECT to_regclass('public.workspace_access_grants') IS NOT NULL, to_regclass('public.workspace_access_grant_events') IS NOT NULL",
+    ).fetch_one(&pool).await?;
+    assert!(grant_table && event_table);
+
+    let applied:bool=sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version=20261125000002 AND success)",
+    ).fetch_one(&pool).await?;
+    assert!(applied);
+    Ok(())
+}
