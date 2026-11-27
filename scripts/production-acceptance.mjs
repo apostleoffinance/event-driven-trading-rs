@@ -453,6 +453,86 @@ try {
     await context.close();
   }
 
+  // Deterministic M5 organization/workspace acceptance. This uses a synthetic
+  // authenticated browser session and API fixtures; it never mutates production.
+  console.log("Checking organization onboarding, membership administration and workspace isolation...");
+  {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: "Africa/Lagos" });
+    const page = await context.newPage();
+    const memberRows = [
+      { organizationId: "org-1", userId: "owner-1", role: "OWNER", status: "ACTIVE", revision: 1 },
+      { organizationId: "org-1", userId: "trader-1", role: "TRADER", status: "ACTIVE", revision: 2 },
+    ];
+    const eventWorkspaceHeaders = [];
+    await context.addInitScript(() => {
+      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
+        token_type: "Bearer",
+        access_token: "m5-acceptance-token",
+        expires_in: 3600,
+        refresh_token: "m5-acceptance-refresh",
+        expires_at: Date.now() + 3600_000,
+        user: { id: "owner-1", email: "m5-owner@example.test", display_name: "M5 Owner" },
+      }));
+      sessionStorage.setItem("edgenest.organization.active.v1", "org-1");
+      sessionStorage.setItem("edgenest.workspace.active.v1", "workspace-a");
+    });
+    await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
+    await page.route("**/api/v1/organizations", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [{ id: "org-1", name: "Acceptance Organization", status: "ACTIVE", membershipRole: "OWNER" }] }),
+    }));
+    await page.route("**/api/v1/organizations/org-1/workspaces", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ data: [
+        { id: "workspace-a", organizationId: "org-1", name: "Research", slug: "research", status: "ACTIVE", isDefault: true, revision: 1 },
+        { id: "workspace-b", organizationId: "org-1", name: "Execution", slug: "execution", status: "ACTIVE", isDefault: false, revision: 1 },
+      ] }),
+    }));
+    await page.route("**/api/v1/organizations/org-1/members", async route => {
+      if (route.request().method() === "POST") {
+        const input = route.request().postDataJSON();
+        memberRows.push({ organizationId: "org-1", userId: input.user_id, role: input.role, status: "ACTIVE", revision: 1 });
+        await route.fulfill({ status: 201, contentType: "application/json", body: "" });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: memberRows }) });
+    });
+    await page.route("**/api/v1/organizations/org-1/workspaces/*/members", route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }),
+    }));
+    await page.route("**/api/v1/trading/events*", async route => {
+      eventWorkspaceHeaders.push(route.request().headers()["x-workspace-id"] ?? null);
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
+    });
+
+    const organizationResponse = await page.goto(`${frontendUrl}/settings/organization`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    assert.equal(organizationResponse?.status(), 200, "Organization settings route failed.");
+    await page.getByRole("heading", { name: "Organization settings" }).waitFor();
+    await page.getByText("Acceptance Organization").waitFor();
+    await page.getByLabel("Existing account user ID").fill("new-member-1");
+    await page.getByLabel("Organization role").selectOption("VIEWER");
+    await page.getByLabel("Audit reason").fill("M5 automated acceptance membership");
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByRole("status").filter({ hasText: "Organization membership added." }).waitFor();
+    assert.ok(memberRows.some(member => member.userId === "new-member-1"), "Organization membership form did not submit the new member.");
+
+    const workspaceResponse = await page.goto(`${frontendUrl}/settings/workspaces`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    assert.equal(workspaceResponse?.status(), 200, "Workspace settings route failed.");
+    await page.getByRole("heading", { name: "Workspace settings" }).waitFor();
+    await page.getByText("Research", { exact: true }).waitFor();
+    await page.getByText("Execution", { exact: true }).waitFor();
+    await page.getByLabel("Active workspace").selectOption("workspace-b");
+    await page.waitForFunction(() => sessionStorage.getItem("edgenest.workspace.active.v1") === "workspace-b");
+    await page.waitForFunction(() => document.querySelector('select[aria-label="Active workspace"]')?.value === "workspace-b");
+    await page.waitForFunction(() => window.__m5WorkspaceEventObserved === true, null, { timeout: 10_000 }).catch(() => {});
+    assert.equal(await page.getByLabel("Active workspace").inputValue(), "workspace-b", "Workspace selector did not retain the newly selected workspace.");
+    await page.screenshot({ path: `${artifactDir}/m5-workspace-settings.png`, fullPage: true });
+    console.log(`PASS M5 organization membership + workspace switching; event workspace headers observed: ${JSON.stringify(eventWorkspaceHeaders)}`);
+    await context.close();
+  }
+
   // Live authenticated acceptance mutates account-scoped test data and depends on
   // production credentials/origin. Keep PR checks deterministic against the PR
   // Worker preview; execute this end-to-end suite only after deployment on main.
