@@ -238,7 +238,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
 
   let upstream = await forward(request, origin, path, publicRequest ? undefined : currentAccess);
   if (upstream.status === 401 && refreshToken && !rotated) {
-    rotated = await refreshTokens(request, apiOrigin("identity"), refreshToken).catch(() => null);
+    rotated = await refreshTokens(request, apiOrigin("identity", request), refreshToken).catch(() => null);
     if (rotated) upstream = await forward(request, origin, path, rotated.access_token);
   }
 
