@@ -69,7 +69,7 @@ async function resolveWorkspaceId(organizationId: string): Promise<string> {
   throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_selection_required");
 }
 
-type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" };
+type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" | "session" };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { auth = true, retryAuth = true, headers: inputHeaders, service: explicitService, ...init } = options;
