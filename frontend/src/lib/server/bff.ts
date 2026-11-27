@@ -221,8 +221,12 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     }
   }
 
-  if (serviceValue === "session" && pathParts.length === 0 && method === "GET") {
-    const identityResponse = await handleBffRequest(request, "identity", ["api", "v1", "auth", "me"], true);
+  if (serviceValue === "session" && pathParts.length === 0 && method === "POST") {
+    if (!validateSameOriginMutation(request)) {
+      return Response.json({ error: { code: "csrf_validation_failed", message: "The request could not be verified." } }, { status: 403, headers: { "Cache-Control": "no-store" } });
+    }
+    const identityRequest = new Request(request.url, { method: "GET", headers: request.headers });
+    const identityResponse = await handleBffRequest(identityRequest, "identity", ["api", "v1", "auth", "me"], true);
     if (identityResponse.status === 401) {
       return Response.json({ authenticated: false }, {
         status: 200,
