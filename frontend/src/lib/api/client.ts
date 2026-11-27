@@ -25,9 +25,15 @@ const ACTIVE_WORKSPACE_KEY = "edgenest.workspace.active.v1";
 
 function serviceFor(baseUrl?: string): "identity" | "journal" | "market-data" | "gateway" {
   if (!baseUrl) return "gateway";
-  if (baseUrl === apiBaseUrl("identity")) return "identity";
-  if (baseUrl === apiBaseUrl("journal")) return "journal";
-  if (baseUrl === apiBaseUrl("market-data")) return "market-data";
+  const normalize = (value?: string) => (value ?? "").trim().replace(/\\/$/, "");
+  const configuredGateway = normalize(process.env.NEXT_PUBLIC_API_URL);
+  const identity = normalize(process.env.NEXT_PUBLIC_IDENTITY_API_URL) || configuredGateway;
+  const journal = normalize(process.env.NEXT_PUBLIC_JOURNAL_API_URL) || configuredGateway;
+  const marketData = normalize(process.env.NEXT_PUBLIC_MARKET_DATA_API_URL) || configuredGateway;
+  const target = normalize(baseUrl);
+  if (target && target === identity) return "identity";
+  if (target && target === journal) return "journal";
+  if (target && target === marketData) return "market-data";
   return "gateway";
 }
 
@@ -104,7 +110,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const organizationId = headers.get("X-Organization-Id") ?? await resolveOrganizationId();
     headers.set("X-Workspace-Id", await resolveWorkspaceId(organizationId));
   }
-  if (init.body && !headers.has("Content-Type") && !(init.body instanceof FormData)) {
+  if (init.body && !headers.has("Content-Type") && !(typeof FormData !== "undefined" && init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("Accept", "application/json");
