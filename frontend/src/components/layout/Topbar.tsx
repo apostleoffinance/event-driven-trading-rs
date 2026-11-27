@@ -42,7 +42,7 @@ export function Topbar({
   useEffect(() => {
     let active = true;
     const initialize = async () => {
-      if (!hasSession()) await restoreSession();
+      await restoreSession();
       if (!active) return;
       setAuthenticated(hasSession());
       setUserEmail(getSessionUser()?.email ?? null);
