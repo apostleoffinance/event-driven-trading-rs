@@ -19,6 +19,7 @@ function writeUser(user: SessionUser): void {
   if (typeof window !== "undefined") {
     // This is a non-authoritative UI cache only. Session credentials never enter Web Storage.
     window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user }));
+    window.sessionStorage.removeItem("edgenest.auth.session.v1");
   }
 }
 
