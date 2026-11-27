@@ -558,7 +558,7 @@ try {
     const organizationResponse = await page.goto(`${frontendUrl}/settings/organization`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(organizationResponse?.status(), 200, "Organization settings route failed.");
     await page.getByRole("heading", { name: "Organization settings" }).waitFor();
-    await page.getByText("Acceptance Organization").waitFor();
+    await page.locator(".workspace-list").getByText("Acceptance Organization", { exact: true }).waitFor();
     await page.getByLabel("Existing account user ID").fill("new-member-1");
     await page.getByLabel("Organization role").selectOption("VIEWER");
     await page.getByLabel("Audit reason").fill("M5 automated acceptance membership");
