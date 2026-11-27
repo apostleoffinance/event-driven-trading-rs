@@ -171,20 +171,10 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
   }
 
   response = await upstreamFetch(url, request, accessToken, body);
-  let rotated: Tokens | null = null;
-  if (response.status === 401 && refreshCookie && !isLoginOrRegister && !isRefresh && !isLogout) {
-    rotated = await rotateRefreshToken(serviceOrigin("identity") || origin, refreshCookie);
-    if (rotated) {
-      accessToken = rotated.access_token;
-      response = await upstreamFetch(url, request, accessToken, body);
-    }
-  }
   const headers = new Headers();
   const contentType = response.headers.get("content-type");
   if (contentType) headers.set("Content-Type", contentType);
   headers.set("Cache-Control", "no-store");
-  if (rotated) setTokenCookies(headers, rotated, request);
-  if (response.status === 401) clearTokenCookies(headers, request);
   return new Response(response.body, { status: response.status, headers });
 }
 
