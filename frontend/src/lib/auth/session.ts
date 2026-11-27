@@ -1,6 +1,6 @@
 "use client";
 
-import { apiBaseUrl, apiRequest } from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
 
 export type SessionUser = { id: string; email: string; display_name: string };
 const SESSION_KEY = "edgenest.auth.session.v2";
