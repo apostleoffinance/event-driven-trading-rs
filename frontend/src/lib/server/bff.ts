@@ -182,6 +182,28 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     }
   }
 
+  if (serviceValue === "session" && pathParts.length === 0 && method === "GET") {
+    const identityResponse = await handleBffRequest(request, "identity", ["api", "v1", "auth", "me"]);
+    if (identityResponse.status === 401) {
+      return Response.json({ authenticated: false }, {
+        status: 200,
+        headers: new Headers(identityResponse.headers),
+      });
+    }
+    if (!identityResponse.ok) return identityResponse;
+    const payload = await identityResponse.json() as { data?: AuthTokens["user"] };
+    if (!payload.data?.id || !payload.data.email) {
+      return Response.json({ error: { code: "invalid_identity_response", message: "The identity service returned an invalid session." } }, {
+        status: 502,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    return Response.json({ authenticated: true, user: payload.data }, {
+      status: 200,
+      headers: new Headers(identityResponse.headers),
+    });
+  }
+
   if (serviceValue === "csrf" && pathParts.length === 0 && method === "GET") {
     const token = csrfCookie(request) ?? crypto.randomUUID();
     const headers = new Headers({ "Cache-Control": "no-store" });
