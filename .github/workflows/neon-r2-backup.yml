@@ -49,7 +49,7 @@ jobs:
       - name: Install age
         run: |
           sudo apt-get update
-          sudo apt-get install --yes age
+          sudo apt-get install --yes age awscli
 
       - name: Create compressed PostgreSQL custom-format dump
         shell: bash
@@ -88,7 +88,7 @@ jobs:
             pg_restore --list < "$RUNNER_TEMP/verified.dump" \
             > "$RUNNER_TEMP/restore-list.txt"
 
-          grep -q 'DATABASE' "$RUNNER_TEMP/restore-list.txt"
+          grep -Eq ' (TABLE|SCHEMA) ' "$RUNNER_TEMP/restore-list.txt"
           sha256sum "$RUNNER_TEMP/edgenest.dump.age" \
             > "$RUNNER_TEMP/edgenest.dump.age.sha256"
 
