@@ -140,6 +140,7 @@ try {
     // PR Worker previews must be isolated from the live API. Stub both relative
     // and absolute health endpoints so a future API URL override cannot turn
     // this responsive UI check into a production CORS/network dependency.
+    await page.route("**/api/bff/health", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
     await page.route("**/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
