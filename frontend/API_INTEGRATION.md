@@ -67,10 +67,10 @@ The frontend exposes sign-in/register at `/login`, Journal at `/journal`, and re
 
 All browser-to-API traffic, including the health check, is same-origin through the BFF and does not require cross-origin CORS. Keep the exact-origin allow-list for approved external clients and direct service integrations. Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
 
-When external browser clients use the combined API gateway, configure this variable on the gateway service:
-- `EDGENEST_CORS_ORIGINS=https://<your-frontend-host>`
+For any approved external browser client that calls the combined API gateway directly (not through the EdgeNest BFF), configure its exact origin on the gateway service:
+- `EDGENEST_CORS_ORIGINS=https://<external-client-host>`
 
-The gateway answers browser `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`, and `X-Workspace-Id`. The workspace selector is required on workspace-scoped trading requests and is not authorization evidence. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
+The gateway answers those external clients’ `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`, and `X-Workspace-Id`. The workspace selector is required on workspace-scoped trading requests and is not authorization evidence. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
 
 If approved external clients call the Identity, Journal, or Market Data services directly rather than through the combined gateway, configure the corresponding service allow-list on each service:
 - `IDENTITY_CORS_ORIGINS`
@@ -130,7 +130,7 @@ Test the deployed frontend from browser devtools/network:
 - Check `/api/v1/auth/me` after login.
 - Load Journal accounts and trade list; verify empty state if no records.
 - Load Market Data provider/instrument list and request a candle batch.
-- Verify CORS preflight and expired-token refresh.
+- Verify BFF CSRF enforcement and refresh-token rotation; verify CORS preflight only for approved external browser clients.
 - Confirm dashboard figures originate from authenticated API responses.
 
 Backend API hosts are **deployment-specific** and cannot be inferred from the Cloudflare frontend Worker URL. Deploy/route the Rust services first, then set their actual public HTTPS origins. Do not put private service hosts or database ports directly in the browser if a public gateway is available.
