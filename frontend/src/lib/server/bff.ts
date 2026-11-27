@@ -123,12 +123,50 @@ async function refreshTokens(origin: string, refreshToken: string): Promise<Auth
   return payload as AuthTokens;
 }
 
-async function refreshFromCookie(request: Request, refreshToken: string): Promise<AuthTokens | null> {
+type RefreshAttempt =
+  | { kind: "ok"; tokens: AuthTokens }
+  | { kind: "invalid" }
+  | { kind: "unavailable" };
+
+const refreshCache = new Map<string, { expiresAt: number; promise: Promise<RefreshAttempt> }>();
+
+async function refreshFromCookie(request: Request, refreshToken: string): Promise<RefreshAttempt> {
+  let cacheKey: string;
   try {
-    return await refreshTokens(apiOrigin("identity", request), refreshToken);
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(refreshToken));
+    cacheKey = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
   } catch {
-    return null;
+    return { kind: "unavailable" };
   }
+
+  const now = Date.now();
+  for (const [key, entry] of refreshCache) {
+    if (entry.expiresAt <= now) refreshCache.delete(key);
+  }
+  const existing = refreshCache.get(cacheKey);
+  if (existing && existing.expiresAt > now) return existing.promise;
+
+  const promise = (async (): Promise<RefreshAttempt> => {
+    let origin: string;
+    try { origin = apiOrigin("identity", request); }
+    catch { return { kind: "unavailable" }; }
+    try {
+      const tokens = await refreshTokens(origin, refreshToken);
+      return tokens ? { kind: "ok", tokens } : { kind: "invalid" };
+    } catch {
+      return { kind: "unavailable" };
+    }
+  })();
+
+  const entry = { expiresAt: now + 30_000, promise };
+  refreshCache.set(cacheKey, entry);
+  const result = await promise;
+  entry.expiresAt = Date.now() + (result.kind === "ok" ? 5_000 : 1_000);
+  if (refreshCache.size > 256) {
+    const oldest = refreshCache.keys().next().value;
+    if (oldest) refreshCache.delete(oldest);
+  }
+  return result;
 }
 
 function upstreamHeaders(request: Request, accessToken?: string): Headers {
@@ -162,7 +200,7 @@ async function forward(request: Request, origin: string, path: string, accessTok
   }
 }
 
-export async function handleBffRequest(request: Request, serviceValue: string, pathParts: string[] = []): Promise<Response> {
+export async function handleBffRequest(request: Request, serviceValue: string, pathParts: string[] = [], allowSessionRefresh = false): Promise<Response> {
   const method = request.method.toUpperCase();
   const jar = cookies(request);
   const accessToken = jar.get(cookieName(request, ACCESS_COOKIE));
@@ -183,7 +221,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   }
 
   if (serviceValue === "session" && pathParts.length === 0 && method === "GET") {
-    const identityResponse = await handleBffRequest(request, "identity", ["api", "v1", "auth", "me"]);
+    const identityResponse = await handleBffRequest(request, "identity", ["api", "v1", "auth", "me"], true);
     if (identityResponse.status === 401) {
       return Response.json({ authenticated: false }, {
         status: 200,
@@ -221,6 +259,12 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   const path = `/${pathParts.join("/")}`;
   if (service === "identity" && path === "/api/v1/auth/refresh") {
     return Response.json({ error: { code: "bff_managed_refresh", message: "Session refresh is managed by the secure BFF." } }, {
+      status: 404,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+  if (service === "identity" && path === "/api/v1/auth/me" && !allowSessionRefresh) {
+    return Response.json({ error: { code: "bff_managed_session", message: "Session validation is managed by the secure BFF." } }, {
       status: 404,
       headers: { "Cache-Control": "no-store" },
     });
@@ -284,19 +328,40 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
   if (!publicRequest && !currentAccess && refreshToken) {
-    rotated = await refreshFromCookie(request, refreshToken);
-    currentAccess = rotated?.access_token;
-    if (!currentAccess) {
-      const headers = new Headers({ "Cache-Control": "no-store" });
-      appendClearedCookies(headers, request);
-      return Response.json({ error: { code: "unauthorized", message: "Your session has expired. Sign in again." } }, { status: 401, headers });
+    if (!allowSessionRefresh) {
+      return Response.json({ error: { code: "session_refresh_required", message: "Refresh the session and retry the request." } }, {
+        status: 401,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
+    const attempt = await refreshFromCookie(request, refreshToken);
+    if (attempt.kind === "unavailable") {
+      return Response.json({ error: { code: "identity_unavailable", message: "The identity service is temporarily unavailable." } }, {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    if (attempt.kind === "invalid") {
+      return responseWithCookies(Response.json({ error: { code: "unauthorized", message: "Your session has expired. Sign in again." } }, { status: 401 }), clearedCookieHeaders(request));
+    }
+    rotated = attempt.tokens;
+    currentAccess = rotated.access_token;
   }
 
   let upstream = await forward(request, origin, path, publicRequest ? undefined : currentAccess);
-  if (upstream.status === 401 && refreshToken && !rotated) {
-    rotated = await refreshTokens(apiOrigin("identity", request), refreshToken).catch(() => null);
-    if (rotated) upstream = await forward(request, origin, path, rotated.access_token);
+  if (allowSessionRefresh && upstream.status === 401 && refreshToken && !rotated) {
+    const attempt = await refreshFromCookie(request, refreshToken);
+    if (attempt.kind === "unavailable") {
+      return Response.json({ error: { code: "identity_unavailable", message: "The identity service is temporarily unavailable." } }, {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    if (attempt.kind === "invalid") {
+      return responseWithCookies(upstream, clearedCookieHeaders(request));
+    }
+    rotated = attempt.tokens;
+    upstream = await forward(request, origin, path, rotated.access_token);
   }
 
   const setCookies: string[] = [];
@@ -305,7 +370,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     setCookies.push(cookieHeader(request, REFRESH_COOKIE, rotated.refresh_token, 30 * 24 * 60 * 60, true, "Lax"));
   }
   if (upstream.status === 401) {
-    return responseWithCookies(upstream, clearedCookieHeaders(request));
+    return responseWithCookies(upstream, allowSessionRefresh ? clearedCookieHeaders(request) : []);
   }
   return responseWithCookies(upstream, setCookies);
 }
