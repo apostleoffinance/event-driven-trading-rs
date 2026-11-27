@@ -9,7 +9,7 @@ The Next.js frontend consumes Rust APIs through a same-origin Backend-for-Fronte
 The frontend is API-only. It does not load seeded or fabricated trading records. If an API is unavailable, the interface displays a loading, error, or empty state rather than substituting sample data.
 
 
-Configure server-only Worker variables for the BFF. Configure the `NEXT_PUBLIC_*` values only when needed for the public health indicator and build-time API-mode availability check:
+Configure the following server-only Worker variables for the BFF:
 
 | Variable | Service | Required routes |
 |---|---|---|
