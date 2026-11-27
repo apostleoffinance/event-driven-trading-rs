@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const dynamic = "force-dynamic";
-export const runtime = "edge";
 
 type Service = "identity" | "journal" | "market-data" | "gateway";
 type Tokens = { access_token: string; refresh_token: string; expires_in: number; user?: unknown };
