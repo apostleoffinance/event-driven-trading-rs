@@ -1,7 +1,5 @@
 "use client";
 
-import { apiRequest } from "@/lib/api/client";
-
 export type SessionUser = { id: string; email: string; display_name: string };
 const SESSION_USER_KEY = "edgenest.auth.user.v2";
 const REFRESH_COMPLETED_KEY = "edgenest.auth.refresh.completedAt";
@@ -109,4 +107,20 @@ export async function refreshSession(): Promise<boolean> {
     } finally { refreshInFlight = null; }
   })();
   return refreshInFlight;
+}
+
+export async function logout(): Promise<void> {
+  try {
+    const token = await csrfToken();
+    await fetch("/api/bff/identity/api/v1/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify({}),
+    });
+  } finally {
+    clearSession();
+    if (typeof window !== "undefined") window.localStorage.removeItem(REFRESH_COMPLETED_KEY);
+  }
 }
