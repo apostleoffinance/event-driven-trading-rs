@@ -841,7 +841,15 @@ try {
     const beforeManagedRefresh = await context.cookies(authFrontendUrl);
     assert.equal(beforeManagedRefresh.find(cookie => cookie.name === refreshCookieName)?.value, refreshCookie.value, "A protected API request rotated the refresh token outside the session endpoint.");
     const refreshProbe = await page.evaluate(async () => {
-      const response = await fetch("/api/bff/session", { credentials: "same-origin", cache: "no-store" });
+      const cookie = document.cookie.split("; ").find(value => value.startsWith("__Host-edgenest_csrf="));
+      const csrf = cookie?.slice("__Host-edgenest_csrf=".length) ?? "";
+      const response = await fetch("/api/bff/session", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({}),
+      });
       return { status: response.status, body: await response.json() };
     });
     assert.equal(refreshProbe.status, 200, "BFF did not refresh and retry an expired access-token request.");
