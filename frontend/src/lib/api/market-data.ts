@@ -32,8 +32,8 @@ export type Candle = { timestamp_ms: number; open: number; high: number; low: nu
 export type CandleResponse = { candles: Candle[]; count?: number; classification?: string; last_updated_at?: string; freshness?: unknown; [key: string]: unknown };
 
 export const marketDataApi = {
-  async providers() { requireApiMode(); return (await apiRequest<{ providers: MarketDataProvider[] }>("/api/v1/market-data/providers", { auth: false, baseUrl: marketDataBaseUrl() })).providers; },
-  async instruments() { requireApiMode(); return (await apiRequest<{ instruments: MarketInstrument[] }>("/api/v1/market-data/instruments", { auth: false, baseUrl: marketDataBaseUrl() })).instruments; },
+  async providers() { requireApiMode(); return (await apiRequest<{ providers: MarketDataProvider[] }>("/api/v1/market-data/providers", { auth: false, service: "market-data" })).providers; },
+  async instruments() { requireApiMode(); return (await apiRequest<{ instruments: MarketInstrument[] }>("/api/v1/market-data/instruments", { auth: false, service: "market-data" })).instruments; },
   async candles(input: { instrument: string; timeframe: string; limit?: number; provider?: string; from?: string; to?: string }) {
     requireApiMode();
     const params = new URLSearchParams({ instrument: input.instrument, timeframe: input.timeframe });
@@ -41,14 +41,14 @@ export const marketDataApi = {
     if (input.provider) params.set("provider", input.provider);
     if (input.from) params.set("from", input.from);
     if (input.to) params.set("to", input.to);
-    return apiRequest<CandleResponse>(`/api/v1/market-data/candles?${params.toString()}`, { auth: false, baseUrl: marketDataBaseUrl() });
+    return apiRequest<CandleResponse>(`/api/v1/market-data/candles?${params.toString()}`, { auth: false, service: "market-data" });
   },
   async fxConvert(input:{from:string;to:string;amount?:number;allow_stale?:boolean}) {
     requireApiMode();
     const params=new URLSearchParams({from:input.from,to:input.to});
     if(input.amount!==undefined)params.set("amount",String(input.amount));
     if(input.allow_stale)params.set("allow_stale","true");
-    return apiRequest<FxConversionResponse>(`/api/v1/market-data/fx/convert?${params.toString()}`,{auth:false,baseUrl:marketDataBaseUrl()});
+    return apiRequest<FxConversionResponse>(`/api/v1/market-data/fx/convert?${params.toString()}`,{auth:false,service:"market-data"});
   },
-  async mt5Latest() { requireApiMode(); return apiRequest<unknown>("/api/v1/market-data/mt5/latest", { auth: false, baseUrl: marketDataBaseUrl() }); },
+  async mt5Latest() { requireApiMode(); return apiRequest<unknown>("/api/v1/market-data/mt5/latest", { auth: false, service: "market-data" }); },
 };
