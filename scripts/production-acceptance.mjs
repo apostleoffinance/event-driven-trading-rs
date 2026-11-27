@@ -114,6 +114,7 @@ try {
   for (const viewport of viewports) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, timezoneId: "Africa/Lagos" });
     const page = await context.newPage();
+    await page.route("**/api/bff/health", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
 
@@ -137,10 +138,7 @@ try {
     page.on("console", message => {
       if (message.type() === "error" && !message.text().includes("503 (Service Unavailable)")) marketConsoleErrors.push(message.text());
     });
-    // PR Worker previews must be isolated from the live API. Stub both relative
-    // and absolute health endpoints so a future API URL override cannot turn
-    // this responsive UI check into a production CORS/network dependency.
-    await page.route("**/api/bff/health", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
+    // PR Worker previews must be isolated from direct health/API dependencies.
     await page.route("**/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
