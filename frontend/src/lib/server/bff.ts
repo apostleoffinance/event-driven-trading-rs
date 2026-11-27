@@ -123,6 +123,14 @@ async function refreshTokens(origin: string, refreshToken: string): Promise<Auth
   return payload as AuthTokens;
 }
 
+async function refreshFromCookie(request: Request, refreshToken: string): Promise<AuthTokens | null> {
+  try {
+    return await refreshTokens(apiOrigin("identity", request), refreshToken);
+  } catch {
+    return null;
+  }
+}
+
 function upstreamHeaders(request: Request, accessToken?: string): Headers {
   const headers = new Headers();
   for (const name of ["accept", "content-type", "x-organization-id", "x-workspace-id"]) {
@@ -254,7 +262,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
   if (!publicRequest && !currentAccess && refreshToken) {
-    rotated = await refreshTokens(apiOrigin("identity", request), refreshToken).catch(() => null);
+    rotated = await refreshFromCookie(request, refreshToken);
     currentAccess = rotated?.access_token;
     if (!currentAccess) {
       const headers = new Headers({ "Cache-Control": "no-store" });
