@@ -115,6 +115,7 @@ async function refreshTokens(origin: string, refreshToken: string): Promise<Auth
     body: JSON.stringify({ refresh_token: refreshToken }),
     redirect: "manual",
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) return null;
   const payload = await response.json() as Partial<AuthTokens>;
