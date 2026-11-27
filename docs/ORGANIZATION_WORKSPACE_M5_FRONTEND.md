@@ -9,7 +9,10 @@ M5 completes the authenticated workspace experience on top of the M3 authorizati
 - The authenticated shell exposes separate organization and workspace selectors.
 - The active workspace is selected only from the authenticated workspace-list response.
 - Users with one accessible workspace receive that workspace automatically; users with multiple accessible workspaces must choose explicitly.
+- The organization settings route is `/settings/organization`.
 - The workspace settings route is `/settings/workspaces`.
+- Organization onboarding is available from Organization settings and provisions the organization, owner membership and default workspace through the existing atomic API.
+- Organization owners/admins can list members, add an existing account by user ID, and revise member roles/status with optimistic revisions and audit reasons.
 - All users can inspect and switch between workspaces returned by the API.
 - Only organization OWNER/ADMIN users see workspace lifecycle and grant-management controls.
 - Organization onboarding continues to use the existing atomic organization/default-workspace provisioning API.
@@ -33,6 +36,10 @@ All mutations send a non-empty audit reason and use server-issued revision numbe
 - Event-stream state is keyed by organization and workspace and is not reused across contexts.
 - The command-center data loader depends on both organization and workspace IDs, so switching workspaces triggers a fresh authenticated read.
 - Trading requests continue to send `X-Organization-Id` and `X-Workspace-Id`; browser storage is a selector only and never proof of authorization.
+
+## Membership and invitation boundary
+
+The current identity/organization API supports adding an existing account by `user_id`; it does not expose email invitations, invitation tokens, pending-invitation state, email delivery or invitation acceptance. The UI deliberately labels this action as adding an existing account and does not pretend that an email invitation has been sent. A true invitation flow requires a separate backend contract and lifecycle before it can be exposed.
 
 ## API contract
 

@@ -64,6 +64,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setError(cause instanceof Error ? cause.message : "Unable to load accessible workspaces.");
       setWorkspaces([]);
       setActiveWorkspaceId(null);
+      window.sessionStorage.removeItem(STORAGE_KEY);
     } finally {
       setLoading(false);
     }

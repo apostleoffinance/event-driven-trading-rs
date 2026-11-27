@@ -72,7 +72,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const createOrganization = useCallback(async (name: string) => {
     const cleanedName = name.trim();
     if (!cleanedName || cleanedName.length > 120) {
-      throw new Error("Workspace name must contain between 1 and 120 characters.");
+      throw new Error("Organization name must contain between 1 and 120 characters.");
     }
     const response = await apiRequest<{ data: Organization }>("/api/v1/organizations", {
       method: "POST",
@@ -80,7 +80,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     });
     const created = response.data;
     if (!created?.id || created.status !== "ACTIVE") {
-      throw new Error("The workspace was created, but the API returned an invalid workspace record. Refresh to verify it.");
+      throw new Error("The organization was created, but the API returned an invalid organization record. Refresh to verify it.");
     }
     setOrganizations(current => [...current.filter(org => org.id !== created.id), created]);
     setHasMemberships(true);

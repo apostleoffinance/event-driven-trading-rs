@@ -126,7 +126,13 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiError(message, response.status, code);
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  const responseBody = await response.text();
+  if (!responseBody.trim()) return undefined as T;
+  try {
+    return JSON.parse(responseBody) as T;
+  } catch {
+    throw new ApiError("The service returned an invalid response. Please try again.", response.status, "invalid_response");
+  }
 }
 
 export function requireApiMode(): void {
