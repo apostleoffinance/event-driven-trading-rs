@@ -38,7 +38,6 @@ function cookieName(request: Request, name: string): string {
 }
 
 function cookieHeader(request: Request, name: string, value: string, maxAge: number, httpOnly: boolean, sameSite: "Lax" | "Strict"): string {
-  const secure = new URL(request.url).protocol === "https:";
   return [
     `${cookieName(request, name)}=${encodeURIComponent(value)}`,
     "Path=/",
@@ -49,10 +48,14 @@ function cookieHeader(request: Request, name: string, value: string, maxAge: num
   ].join("; ");
 }
 
+function clearedCookieHeaders(request: Request): string[] {
+  return [ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE].map(name =>
+    cookieHeader(request, name, "", 0, name !== CSRF_COOKIE, name === CSRF_COOKIE ? "Strict" : "Lax"),
+  );
+}
+
 function appendClearedCookies(headers: Headers, request: Request): void {
-  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE]) {
-    headers.append("Set-Cookie", cookieHeader(request, name, "", 0, name !== CSRF_COOKIE, name === CSRF_COOKIE ? "Strict" : "Lax"));
-  }
+  for (const value of clearedCookieHeaders(request)) headers.append("Set-Cookie", value);
 }
 
 function appendAuthCookies(headers: Headers, request: Request, tokens: AuthTokens): void {
@@ -164,6 +167,9 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     return Response.json({ error: { code: "invalid_bff_service", message: "Unknown API service." } }, { status: 404 });
   }
   const service = serviceValue as Service;
+  if (pathParts.some(part => part === "." || part === ".." || part.includes("/") || part.includes("\\\\"))) {
+    return Response.json({ error: { code: "invalid_bff_path", message: "Unknown API route." } }, { status: 404 });
+  }
   const path = `/${pathParts.join("/")}`;
   if (!path.startsWith("/api/v1/")) {
     return Response.json({ error: { code: "invalid_bff_path", message: "Unknown API route." } }, { status: 404 });
@@ -242,7 +248,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   if (upstream.status === 401) {
     const headers = new Headers({ "Cache-Control": "no-store" });
     appendClearedCookies(headers, request);
-    return responseWithCookies(upstream, [...setCookies, ...[...headers.getSetCookie()]]);
+    return responseWithCookies(upstream, clearedCookieHeaders(request));
   }
   return responseWithCookies(upstream, setCookies);
 }
