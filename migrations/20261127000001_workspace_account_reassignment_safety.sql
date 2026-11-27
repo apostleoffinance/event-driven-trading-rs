@@ -62,6 +62,10 @@ CREATE TRIGGER workspace_account_lock_mt5_order_keys
     BEFORE INSERT OR UPDATE OR DELETE ON mt5_bridge_order_keys
     FOR EACH ROW EXECUTE FUNCTION workspace_account_state_advisory_lock('account_id');
 
+CREATE TRIGGER workspace_account_lock_mt5_streams
+    BEFORE INSERT OR UPDATE OR DELETE ON mt5_bridge_streams
+    FOR EACH ROW EXECUTE FUNCTION workspace_account_state_advisory_lock('account_id');
+
 CREATE TRIGGER workspace_account_lock_mt5_reconciliation
     BEFORE INSERT OR UPDATE OR DELETE ON mt5_bridge_reconciliation_snapshots
     FOR EACH ROW EXECUTE FUNCTION workspace_account_state_advisory_lock('account_id');
