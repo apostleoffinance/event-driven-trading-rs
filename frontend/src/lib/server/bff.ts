@@ -78,7 +78,7 @@ function validateSameOriginMutation(request: Request): boolean {
   return Boolean(cookie && header && cookie === header);
 }
 
-function apiOrigin(service: Service): string {
+function apiOrigin(service: Service, request: Request): string {
   const env = getCloudflareContext().env as RuntimeEnv;
   const value = service === "identity" ? env.IDENTITY_API_ORIGIN
     : service === "journal" ? env.JOURNAL_API_ORIGIN
@@ -86,7 +86,9 @@ function apiOrigin(service: Service): string {
     : env.API_GATEWAY_ORIGIN;
   const fallback = env.API_GATEWAY_ORIGIN;
   const origin = (value || fallback || "").trim().replace(/\/$/, "");
-  if (!origin || !origin.startsWith("https://")) {
+  const requestHost = new URL(request.url).hostname;
+  const localDevelopment = requestHost === "localhost" || requestHost === "127.0.0.1";
+  if (!origin || (!origin.startsWith("https://") && !(localDevelopment && origin.startsWith("http://")))) {
     throw new Error(`The ${service} API origin is not configured as an HTTPS origin.`);
   }
   return origin;
@@ -179,7 +181,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   }
 
   let origin: string;
-  try { origin = apiOrigin(service); }
+  try { origin = apiOrigin(service, request); }
   catch {
     return Response.json({ error: { code: "service_unavailable", message: "This service is temporarily unavailable." } }, { status: 503 });
   }
@@ -225,7 +227,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
   if (!currentAccess && refreshToken) {
-    rotated = await refreshTokens(request, apiOrigin("identity"), refreshToken).catch(() => null);
+    rotated = await refreshTokens(request, apiOrigin("identity", request), refreshToken).catch(() => null);
     currentAccess = rotated?.access_token;
     if (!currentAccess) {
       const headers = new Headers({ "Cache-Control": "no-store" });
