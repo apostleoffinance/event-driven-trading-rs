@@ -460,10 +460,17 @@ try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const organizations = [];
+    const secureFrontend = frontendUrl.startsWith("https://");
+    await context.addCookies([{
+      name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+      value: "acceptance-csrf-token",
+      url: frontendUrl,
+      secure: secureFrontend,
+      httpOnly: false,
+      sameSite: "Strict",
+    }]);
     await context.addInitScript(() => {
-      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
-        token_type: "Bearer", access_token: "m5-onboarding-token", expires_in: 3600,
-        refresh_token: "m5-onboarding-refresh", expires_at: Date.now() + 3600_000,
+      sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({
         user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" },
       }));
     });
