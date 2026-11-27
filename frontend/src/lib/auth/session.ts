@@ -1,89 +1,97 @@
 "use client";
 
 import { apiBaseUrl, apiRequest } from "@/lib/api/client";
-const identityBaseUrl = () => apiBaseUrl("identity");
 
-type AuthPayload = {
-  token_type: "Bearer";
-  access_token: string;
-  expires_in: number;
-  refresh_token: string;
-  user: { id: string; email: string; display_name: string };
-};
-export type SessionUser = AuthPayload["user"];
+export type SessionUser = { id: string; email: string; display_name: string };
+const SESSION_KEY = "edgenest.auth.session.v2";
 
-const SESSION_KEY = "edgenest.auth.session.v1";
-type StoredSession = AuthPayload & { expires_at: number };
-
-function readSession(): StoredSession | null {
+function readUser(): SessionUser | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = window.sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const value = JSON.parse(raw) as StoredSession;
-    if (!value.access_token || !value.refresh_token || !value.expires_at) return null;
-    return value;
+    const value = JSON.parse(raw) as { user?: SessionUser };
+    return value.user?.id && value.user.email ? value.user : null;
   } catch { return null; }
 }
-function writeSession(payload: AuthPayload): void {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...payload, expires_at: Date.now() + payload.expires_in * 1000 }));
+
+function writeUser(user: SessionUser): void {
+  if (typeof window !== "undefined") {
+    // This is a non-authoritative UI cache only. Session credentials never enter Web Storage.
+    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user }));
+  }
 }
-export function getAccessToken(): string | null {
-  const session = readSession();
-  if (!session) return null;
-  return session.expires_at > Date.now() + 30_000 ? session.access_token : null;
-}
-export function getSessionUser(): SessionUser | null { return readSession()?.user ?? null; }
-export function hasSession(): boolean { return Boolean(readSession()?.refresh_token); }
+
+export function getSessionUser(): SessionUser | null { return readUser(); }
+export function hasSession(): boolean { return Boolean(readUser()); }
 export function clearSession(): void {
-  if (typeof window !== "undefined") sessionStorage.removeItem(SESSION_KEY);
+  if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_KEY);
 }
+
+/** Kept temporarily for callers migrating to the BFF; browser access tokens are no longer exposed. */
+export function getAccessToken(): string | null { return null; }
+
 export async function login(email: string, password: string): Promise<SessionUser> {
-  const payload = await apiRequest<AuthPayload>("/api/v1/auth/login", {
-    method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(), body: JSON.stringify({ email, password }),
+  const response = await apiRequest<{ user: SessionUser }>("/api/v1/auth/login", {
+    method: "POST", auth: false, retryAuth: false, baseUrl: apiBaseUrl("identity"),
+    body: JSON.stringify({ email, password }),
   });
-  writeSession(payload);
-  return payload.user;
+  if (!response.user?.id) throw new Error("The identity service returned an invalid session.");
+  writeUser(response.user);
+  return response.user;
 }
+
 export async function register(email: string, display_name: string, password: string): Promise<SessionUser> {
-  const payload = await apiRequest<AuthPayload>("/api/v1/auth/register", {
-    method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(), body: JSON.stringify({ email, display_name, password }),
+  const response = await apiRequest<{ user: SessionUser }>("/api/v1/auth/register", {
+    method: "POST", auth: false, retryAuth: false, baseUrl: apiBaseUrl("identity"),
+    body: JSON.stringify({ email, display_name, password }),
   });
-  writeSession(payload);
-  return payload.user;
+  if (!response.user?.id) throw new Error("The identity service returned an invalid session.");
+  writeUser(response.user);
+  return response.user;
 }
-let refreshInFlight: Promise<boolean> | null = null;
-export async function refreshSession(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  if (refreshInFlight) return refreshInFlight;
-  const session = readSession();
-  if (!session?.refresh_token) return false;
-  refreshInFlight = (async () => {
+
+let restoreInFlight: Promise<SessionUser | null> | null = null;
+
+/** Restores the non-sensitive user hint by asking the same-origin BFF to validate the HttpOnly session. */
+export async function restoreSession(): Promise<SessionUser | null> {
+  if (restoreInFlight) return restoreInFlight;
+  restoreInFlight = (async () => {
     try {
-      const payload = await apiRequest<AuthPayload>("/api/v1/auth/refresh", {
-        method: "POST", auth: false, retryAuth: false, baseUrl: identityBaseUrl(),
-        body: JSON.stringify({ refresh_token: session.refresh_token }),
+      const response = await apiRequest<{ data: SessionUser }>("/api/v1/auth/me", {
+        auth: true, retryAuth: false, baseUrl: apiBaseUrl("identity"),
       });
-      writeSession(payload);
-      return true;
+      if (!response.data?.id) throw new Error("Invalid identity response.");
+      writeUser(response.data);
+      return response.data;
     } catch {
       clearSession();
-      return false;
-    } finally { refreshInFlight = null; }
-  })();
-  return refreshInFlight;
-}
-export async function logout(): Promise<void> {
-  const session = readSession();
-  try {
-    if (session?.refresh_token) {
-      await apiRequest<void>("/api/v1/auth/logout", {
-        method: "POST", auth: true, retryAuth: false, baseUrl: identityBaseUrl(),
-        body: JSON.stringify({ refresh_token: session.refresh_token }),
-      });
+      return null;
+    } finally {
+      restoreInFlight = null;
     }
-  } finally { clearSession(); }
+  })();
+  return restoreInFlight;
 }
+
+export async function refreshSession(): Promise<boolean> {
+  return Boolean(await restoreSession());
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await apiRequest<void>("/api/v1/auth/logout", {
+      method: "POST", auth: false, retryAuth: false, baseUrl: apiBaseUrl("identity"),
+      body: JSON.stringify({}),
+    });
+  } finally {
+    clearSession();
+  }
+}
+
 export async function getCurrentUser(): Promise<SessionUser> {
-  return apiRequest<{ data: SessionUser }>("/api/v1/auth/me", { baseUrl: identityBaseUrl() }).then((r) => r.data);
+  const response = await apiRequest<{ data: SessionUser }>("/api/v1/auth/me", {
+    baseUrl: apiBaseUrl("identity"),
+  });
+  return response.data;
 }
