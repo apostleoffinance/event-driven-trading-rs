@@ -804,6 +804,19 @@ pub async fn assign_account(
         Ok(false) => return not_found(),
         Err(_) => return db_error(),
     };
+    // Serialize reassignment with every account-state/order/position/worker write.
+    // Database triggers use the same account-scoped advisory lock, so a concurrent
+    // execution update either commits before these checks or waits until reassignment
+    // has committed. This closes the check-then-move race across API/worker processes.
+    if sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 78123))")
+        .bind(&account)
+        .execute(&mut *tx)
+        .await
+        .is_err()
+    {
+        return db_error();
+    }
+
     let target=sqlx::query_scalar::<_,String>("SELECT id FROM workspaces WHERE organization_id=$1 AND id=$2 AND status='ACTIVE' FOR SHARE").bind(&org).bind(&workspace).fetch_optional(&mut *tx).await;
     if !matches!(target, Ok(Some(_))) {
         return not_found();
@@ -825,6 +838,97 @@ pub async fn assign_account(
     if old_workspace == workspace {
         return Json(serde_json::json!({"data":{"accountId":account,"workspaceId":workspace,"revision":revision}})).into_response();
     }
+
+    // Missing account state or an unavailable/stale MT5 reconciliation is not
+    // evidence that an account is safe to move. The policy is fail-closed.
+    let safety = sqlx::query_as::<_, (bool, bool, bool)>(
+        r#"
+        SELECT
+            (
+                EXISTS (
+                    SELECT 1 FROM account_states
+                     WHERE account_id = $1 AND open_position_count = 0
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM positions
+                     WHERE account_id = $1 AND quantity <> 0
+                )
+            ) AS is_flat,
+            (
+                NOT EXISTS (
+                    SELECT 1 FROM orders
+                     WHERE account_id = $1
+                       AND status NOT IN ('REJECTED', 'FILLED', 'CANCELLED', 'FAILED')
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM mt5_bridge_order_keys
+                     WHERE account_id = $1 AND state IN ('prepared', 'unknown')
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                      FROM mt5_bridge_streams s
+                      LEFT JOIN LATERAL (
+                          SELECT snapshot
+                            FROM mt5_bridge_reconciliation_snapshots r
+                           WHERE r.account_id = s.account_id
+                             AND r.terminal_id = s.terminal_id
+                           ORDER BY r.reconciled_sequence DESC
+                           LIMIT 1
+                      ) latest ON TRUE
+                     WHERE s.account_id = $1
+                       AND (
+                           s.readiness <> 'ready'
+                           OR latest.snapshot IS NULL
+                           OR jsonb_array_length(COALESCE(latest.snapshot->'open_orders', '[]'::jsonb)) > 0
+                           OR jsonb_array_length(COALESCE(latest.snapshot->'positions', '[]'::jsonb)) > 0
+                       )
+                )
+            ) AS orders_clear,
+            NOT EXISTS (
+                SELECT 1 FROM broker_worker_leases
+                 WHERE quant_account_id = $1
+                   AND released_at IS NULL
+                   AND lease_until > NOW()
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                  FROM broker_worker_sessions s
+                  JOIN broker_worker_assignments bwa ON bwa.id = s.assignment_id
+                 WHERE bwa.quant_account_id = $1
+                   AND s.status = 'READY'
+                   AND s.ready_until > NOW()
+            ) AS no_active_worker
+        "#,
+    )
+    .bind(&account)
+    .fetch_one(&mut *tx)
+    .await;
+    let (is_flat, orders_clear, no_active_worker) = match safety {
+        Ok(v) => v,
+        Err(_) => return db_error(),
+    };
+    if !is_flat {
+        return error(
+            StatusCode::CONFLICT,
+            "account_not_flat",
+            "Account reassignment requires verified zero open positions",
+        );
+    }
+    if !orders_clear {
+        return error(
+            StatusCode::CONFLICT,
+            "account_has_outstanding_orders",
+            "Account reassignment requires no outstanding or ambiguous orders and a ready, flat broker reconciliation",
+        );
+    }
+    if !no_active_worker {
+        return error(
+            StatusCode::CONFLICT,
+            "account_worker_active",
+            "Account reassignment is blocked while a broker worker lease is active",
+        );
+    }
+
     let next = revision.checked_add(1).unwrap_or(0);
     if next == 0 {
         return error(
