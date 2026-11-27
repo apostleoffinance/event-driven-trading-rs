@@ -116,9 +116,9 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
 
   if (isRefresh) {
     if (!refreshCookie) {
-      const headers = new Headers({ "Cache-Control": "no-store" });
+      const headers = new Headers({ "Cache-Control": "no-store", "Content-Type": "application/json" });
       clearTokenCookies(headers, request);
-      return new Response(JSON.stringify({ error: { code: "unauthorized", message: "Your session has expired. Please sign in again." } }), { status: 401, headers: { ...Object.fromEntries(headers), "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: { code: "unauthorized", message: "Your session has expired. Please sign in again." } }), { status: 401, headers });
     }
     const tokens = await rotateRefreshToken(origin, refreshCookie);
     if (!tokens) {
