@@ -18,7 +18,7 @@ Configure server-only Worker variables for the BFF. Configure the `NEXT_PUBLIC_*
 | `NEXT_PUBLIC_JOURNAL_API_URL` | Journal API | `/api/v1/journal/*` |
 | `NEXT_PUBLIC_MARKET_DATA_API_URL` | Market Data API | `/api/v1/market-data/*` |
 
-Set the four server-only origins in Cloudflare Worker Settings → Variables and Secrets. They must be HTTPS origins in production and should not include a path prefix unless the gateway is configured to accept the appended service paths. For local development, loopback HTTP origins are permitted only when the frontend is served from `localhost` or `127.0.0.1`.
+Set the four server-only origins in Cloudflare Worker Settings → Variables and Secrets. They must be HTTPS origins in production and should not include a path prefix unless the gateway is configured to accept the appended service paths. For local development, loopback HTTP origins are permitted only when the frontend is served from `localhost` or `127.0.0.1`. `NEXT_PUBLIC_API_URL` is retained only for the public health indicator; it is not used to forward authenticated API traffic.
 
 Set:
 ```env
