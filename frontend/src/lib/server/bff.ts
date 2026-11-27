@@ -241,7 +241,12 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
         headers: { "Cache-Control": "no-store" },
       });
     }
-    return Response.json({ authenticated: true, user: payload.data }, {
+    const safeUser: AuthTokens["user"] = {
+      id: payload.data.id,
+      email: payload.data.email,
+      display_name: payload.data.display_name || payload.data.email,
+    };
+    return Response.json({ authenticated: true, user: safeUser }, {
       status: 200,
       headers: new Headers(identityResponse.headers),
     });
@@ -319,7 +324,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     const upstream = await forward(request, origin, path);
     if (!upstream.ok) return responseWithCookies(upstream, []);
     const payload = await upstream.json() as Partial<AuthTokens>;
-    if (!payload.access_token || !payload.refresh_token || !payload.expires_in || !payload.user) {
+    if (!payload.access_token || !payload.refresh_token || !payload.expires_in || !payload.user?.id || !payload.user.email) {
       return Response.json({ error: { code: "invalid_identity_response", message: "The identity service returned an invalid session." } }, { status: 502, headers: { "Cache-Control": "no-store" } });
     }
     const tokens = payload as AuthTokens;
@@ -328,7 +333,12 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
       headers.append("Set-Cookie", cookieHeader(request, name, name === ACCESS_COOKIE ? tokens.access_token : tokens.refresh_token,
         name === ACCESS_COOKIE ? tokens.expires_in : 30 * 24 * 60 * 60, true, "Lax"));
     }
-    return Response.json({ user: tokens.user }, { status: 200, headers });
+    const safeUser: AuthTokens["user"] = {
+      id: tokens.user.id,
+      email: tokens.user.email,
+      display_name: tokens.user.display_name || tokens.user.email,
+    };
+    return Response.json({ user: safeUser }, { status: 200, headers });
   }
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
