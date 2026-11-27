@@ -59,6 +59,7 @@ export async function register(email: string, display_name: string, password: st
 }
 
 let restoreInFlight: Promise<SessionUser | null> | null = null;
+type BrowserLockManager = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
 
 /** Restores the non-sensitive user hint by asking the same-origin BFF to validate the HttpOnly session. */
 export async function restoreSession(): Promise<SessionUser | null> {
@@ -67,21 +68,31 @@ export async function restoreSession(): Promise<SessionUser | null> {
   if (restoreInFlight) return restoreInFlight;
   restoreInFlight = (async () => {
     try {
-      const response = await fetch("/api/bff/session", {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) throw new ApiError("Unable to verify the current session.", response.status);
-      const payload = await response.json() as { authenticated: boolean; user?: SessionUser };
-      if (!payload.authenticated) {
-        clearSession();
-        return null;
-      }
-      if (!payload.user?.id || !payload.user.email) throw new Error("Invalid identity response.");
-      writeUser(payload.user);
-      return payload.user;
+      const verifyUnderBrowserLock = async (): Promise<SessionUser | null> => {
+        const response = await fetch("/api/bff/session", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new ApiError("Unable to verify the current session.", response.status);
+        const payload = await response.json() as { authenticated: boolean; user?: SessionUser };
+        if (!payload.authenticated) {
+          clearSession();
+          return null;
+        }
+        if (!payload.user?.id || !payload.user.email) throw new Error("Invalid identity response.");
+        writeUser(payload.user);
+        return payload.user;
+      };
+      const locks = typeof navigator !== "undefined"
+        ? (navigator as Navigator & { locks?: BrowserLockManager }).locks
+        : undefined;
+      // The Web Lock serializes refresh across tabs. The BFF also coalesces
+      // duplicate refreshes within a Worker isolate as a second safety layer.
+      return locks
+        ? await locks.request("edgenest-bff-session-refresh", verifyUnderBrowserLock)
+        : await verifyUnderBrowserLock();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         clearSession();
@@ -98,6 +109,7 @@ export async function restoreSession(): Promise<SessionUser | null> {
 }
 
 export async function refreshSession(): Promise<boolean> {
+  sessionVerified = false;
   return Boolean(await restoreSession());
 }
 
