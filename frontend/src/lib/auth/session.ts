@@ -26,7 +26,10 @@ function writeUser(user: SessionUser): void {
 export function getSessionUser(): SessionUser | null { return readUser(); }
 export function hasSession(): boolean { return Boolean(readUser()); }
 export function clearSession(): void {
-  if (typeof window !== "undefined") {\n    window.sessionStorage.removeItem(SESSION_KEY);\n    window.sessionStorage.removeItem("edgenest.auth.session.v1");\n  }
+  if (typeof window !== "undefined") {
+    window.sessionStorage.removeItem(SESSION_KEY);
+    window.sessionStorage.removeItem("edgenest.auth.session.v1");
+  }
 }
 
 /** Kept temporarily for callers migrating to the BFF; browser access tokens are no longer exposed. */
@@ -34,7 +37,7 @@ export function getAccessToken(): string | null { return null; }
 
 export async function login(email: string, password: string): Promise<SessionUser> {
   const response = await apiRequest<{ user: SessionUser }>("/api/v1/auth/login", {
-    method: "POST", auth: false, retryAuth: false, service: "identity",
+    method: "POST", auth: false, service: "identity",
     body: JSON.stringify({ email, password }),
   });
   if (!response.user?.id) throw new Error("The identity service returned an invalid session.");
@@ -44,7 +47,7 @@ export async function login(email: string, password: string): Promise<SessionUse
 
 export async function register(email: string, display_name: string, password: string): Promise<SessionUser> {
   const response = await apiRequest<{ user: SessionUser }>("/api/v1/auth/register", {
-    method: "POST", auth: false, retryAuth: false, service: "identity",
+    method: "POST", auth: false, service: "identity",
     body: JSON.stringify({ email, display_name, password }),
   });
   if (!response.user?.id) throw new Error("The identity service returned an invalid session.");
@@ -60,7 +63,7 @@ export async function restoreSession(): Promise<SessionUser | null> {
   restoreInFlight = (async () => {
     try {
       const response = await apiRequest<{ data: SessionUser }>("/api/v1/auth/me", {
-        auth: true, retryAuth: false, service: "identity",
+        auth: true, service: "identity",
       });
       if (!response.data?.id) throw new Error("Invalid identity response.");
       writeUser(response.data);
@@ -82,7 +85,7 @@ export async function refreshSession(): Promise<boolean> {
 export async function logout(): Promise<void> {
   try {
     await apiRequest<void>("/api/v1/auth/logout", {
-      method: "POST", auth: false, retryAuth: false, service: "identity",
+      method: "POST", auth: false, service: "identity",
       body: JSON.stringify({}),
     });
   } finally {
