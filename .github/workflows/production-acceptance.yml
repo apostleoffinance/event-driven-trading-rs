@@ -53,9 +53,6 @@ jobs:
 
       - name: Build and launch PR Cloudflare Worker preview
         working-directory: frontend
-        env:
-          # The preview uses same-origin BFF routes; deterministic browser fixtures
-          # intercept the health and service calls. No API origin is bundled.
         run: |
           npm run cloudflare:build
           npx opennextjs-cloudflare preview > /tmp/worker-preview.log 2>&1 &
