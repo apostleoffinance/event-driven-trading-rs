@@ -464,6 +464,8 @@ try {
       { organizationId: "org-1", userId: "trader-1", role: "TRADER", status: "ACTIVE", revision: 2 },
     ];
     const eventWorkspaceHeaders = [];
+    let resolveWorkspaceEvent;
+    const workspaceEventObserved = new Promise(resolve => { resolveWorkspaceEvent = resolve; });
     await context.addInitScript(() => {
       sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
         token_type: "Bearer",
@@ -503,7 +505,9 @@ try {
       status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }),
     }));
     await page.route("**/api/v1/trading/events*", async route => {
-      eventWorkspaceHeaders.push(route.request().headers()["x-workspace-id"] ?? null);
+      const workspaceId = route.request().headers()["x-workspace-id"] ?? null;
+      eventWorkspaceHeaders.push(workspaceId);
+      if (workspaceId === "workspace-b") resolveWorkspaceEvent();
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
     });
 
@@ -526,7 +530,7 @@ try {
     await page.getByLabel("Active workspace").selectOption("workspace-b");
     await page.waitForFunction(() => sessionStorage.getItem("edgenest.workspace.active.v1") === "workspace-b");
     await page.waitForFunction(() => document.querySelector('select[aria-label="Active workspace"]')?.value === "workspace-b");
-    await page.waitForFunction(() => window.__m5WorkspaceEventObserved === true, null, { timeout: 10_000 }).catch(() => {});
+    await Promise.race([workspaceEventObserved, sleep(10_000).then(() => { throw new Error("Workspace-scoped event request did not use the newly selected workspace."); })]);
     assert.equal(await page.getByLabel("Active workspace").inputValue(), "workspace-b", "Workspace selector did not retain the newly selected workspace.");
     await page.screenshot({ path: `${artifactDir}/m5-workspace-settings.png`, fullPage: true });
     console.log(`PASS M5 organization membership + workspace switching; event workspace headers observed: ${JSON.stringify(eventWorkspaceHeaders)}`);
