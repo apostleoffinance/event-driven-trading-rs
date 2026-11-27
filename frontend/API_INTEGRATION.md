@@ -1,6 +1,6 @@
 # EdgeNest Frontend API Configuration
 
-The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin values**, not credentials. Next.js `NEXT_PUBLIC_*` values are embedded into the browser bundle at build time.
+The Next.js frontend consumes Rust APIs through a same-origin Backend-for-Frontend (BFF) running in the Cloudflare Worker. Browser requests target `/api/bff/*`; the Worker forwards requests to the Rust services and attaches the bearer token server-side. The server-only API origins below are runtime Worker variables and must never use the `NEXT_PUBLIC_` prefix.
 
 ## Origins
 
@@ -9,7 +9,7 @@ The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin
 The frontend is API-only. It does not load seeded or fabricated trading records. If an API is unavailable, the interface displays a loading, error, or empty state rather than substituting sample data.
 
 
-Configure one gateway origin or the three service origins:
+Configure server-only Worker variables for the BFF. Configure the `NEXT_PUBLIC_*` values only when needed for the public health indicator and build-time API-mode availability check:
 
 | Variable | Service | Required routes |
 |---|---|---|
@@ -18,7 +18,7 @@ Configure one gateway origin or the three service origins:
 | `NEXT_PUBLIC_JOURNAL_API_URL` | Journal API | `/api/v1/journal/*` |
 | `NEXT_PUBLIC_MARKET_DATA_API_URL` | Market Data API | `/api/v1/market-data/*` |
 
-Service-specific origin wins over `NEXT_PUBLIC_API_URL`. Origins should be HTTPS in production and should not include a path prefix unless your gateway is configured to accept the appended service paths.
+Set the four server-only origins in Cloudflare Worker Settings → Variables and Secrets. They must be HTTPS origins in production and should not include a path prefix unless the gateway is configured to accept the appended service paths. For local development, loopback HTTP origins are permitted only when the frontend is served from `localhost` or `127.0.0.1`.
 
 Set:
 ```env
@@ -73,11 +73,11 @@ If the frontend calls the Identity, Journal, or Market Data services directly ra
 - `JOURNAL_CORS_ORIGINS`
 - `MARKET_DATA_CORS_ORIGINS`
 
-This client sends bearer tokens in the `Authorization` header. Cross-origin browser calls therefore require a successful preflight; the gateway must return the allow-origin, allow-methods, and allow-headers response headers. Do not use wildcard origins.
+The browser does not send bearer tokens or call the Rust service origins directly. The BFF attaches the bearer token to its server-to-server request. Do not enable credentialed wildcard CORS as a substitute for the BFF.
 
 ## Auth session notes
 
-Current client implementation stores access and refresh tokens in tab-scoped `sessionStorage`, rotates tokens via the Identity API when access-token requests return 401, and clears session state on logout or failed refresh. This is a functional first integration, **not the preferred final production security posture**: sessionStorage is accessible to JavaScript and vulnerable to token theft under XSS. Before production use, move token handling to an HttpOnly/Secure/SameSite cookie-backed BFF/session boundary, add CSRF controls as appropriate, and test refresh-token rotation/replay behavior.
+Access and refresh tokens are held only in host-only `HttpOnly` cookies managed by the BFF. The browser cannot read them. The BFF refreshes on upstream 401, rotates both cookies, and clears them when refresh fails or logout is requested. The browser `sessionStorage` entry contains only the non-authoritative user display hint and is not authorization evidence. Keep refresh-token replay/rotation tests and CSRF tests as mandatory release gates.
 
 ## API mode behavior
 
