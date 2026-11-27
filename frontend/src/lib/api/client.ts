@@ -7,15 +7,6 @@ export class ApiError extends Error {
   }
 }
 
-export function apiBaseUrl(): string {
-  const value = (process.env.NEXT_PUBLIC_API_URL || "").trim();
-  if (!value) throw new Error("This service is temporarily unavailable. Please try again later.");
-  const normalized = value.replace(/\/$/, "");
-  if (typeof window !== "undefined" && window.location.protocol === "https:" && normalized.startsWith("http://")) {
-    throw new Error("API URL must use HTTPS when the frontend is served over HTTPS.");
-  }
-  return normalized;
-}
 
 const ACTIVE_ORGANIZATION_KEY = "edgenest.organization.active.v1";
 const ACTIVE_WORKSPACE_KEY = "edgenest.workspace.active.v1";
@@ -136,6 +127,5 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 }
 
 export function requireApiMode(): void {
-  const configured = process.env.NEXT_PUBLIC_API_URL;
-  if (!configured?.trim()) throw new Error("This service is temporarily unavailable. Please try again later.");
+  // API origins are private Cloudflare Worker variables; the same-origin BFF reports availability at request time.
 }
