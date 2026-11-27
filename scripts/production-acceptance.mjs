@@ -483,6 +483,10 @@ try {
         user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" },
       }));
     });
+    await page.route("**/api/bff/identity/api/v1/auth/me", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ data: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" } }),
+    }));
     await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
     await page.route("**/api/bff/gateway/api/v1/organizations", async route => {
       if (route.request().method() === "POST") {
@@ -542,6 +546,10 @@ try {
       sessionStorage.setItem("edgenest.organization.active.v1", "org-1");
       sessionStorage.setItem("edgenest.workspace.active.v1", "workspace-a");
     });
+    await page.route("**/api/bff/identity/api/v1/auth/me", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ data: { id: "owner-1", email: "m5-owner@example.test", display_name: "M5 Owner" } }),
+    }));
     await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
     await page.route("**/api/bff/gateway/api/v1/organizations", route => route.fulfill({
       status: 200,
