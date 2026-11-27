@@ -117,6 +117,7 @@ async function refreshTokens(origin: string, refreshToken: string): Promise<Auth
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
+  if (response.status === 429 || response.status >= 500) throw new Error("Identity service temporarily unavailable.");
   if (!response.ok) return null;
   const payload = await response.json() as Partial<AuthTokens>;
   if (!payload.access_token || !payload.refresh_token || !payload.expires_in || !payload.user) return null;
