@@ -122,6 +122,13 @@ try {
   for (const viewport of viewports) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, timezoneId: "Africa/Lagos" });
     const page = await context.newPage();
+    // The PR preview has no authenticated Worker API origins. Keep the signed-out
+    // viewport fixture deterministic and avoid sending an unseeded CSRF mutation
+    // to the real preview BFF; live CSRF behavior is covered by the opt-in deployed test.
+    await page.route("**/api/bff/session", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ authenticated: false }),
+    }));
     await page.route("**/api/bff/health", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
