@@ -67,7 +67,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let active = true;
     const initialize = async () => {
-      if (!hasSession()) await restoreSession();
+      await restoreSession();
       if (!active) return;
       if (hasSession()) void refreshOrganizations();
       else {
