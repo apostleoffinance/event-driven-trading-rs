@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const dynamic = "force-dynamic";
 export const runtime = "edge";
@@ -9,7 +10,6 @@ type Tokens = { access_token: string; refresh_token: string; expires_in: number;
 const ACCESS_COOKIE = "edgenest_access";
 const REFRESH_COOKIE = "edgenest_refresh";
 const CSRF_COOKIE = "edgenest_csrf";
-const ACCESS_MAX_AGE = 15 * 60;
 const REFRESH_MAX_AGE = 30 * 24 * 60 * 60;
 
 function cookieValue(request: NextRequest, name: string): string | undefined {
@@ -34,12 +34,25 @@ function jsonError(status: number, code: string, message: string) {
   return NextResponse.json({ error: { code, message } }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+type BffEnvironment = {
+  EDGENEST_API_URL?: string;
+  EDGENEST_IDENTITY_API_URL?: string;
+  EDGENEST_JOURNAL_API_URL?: string;
+  EDGENEST_MARKET_DATA_API_URL?: string;
+};
+
 function serviceOrigin(service: Service): string | undefined {
+  let runtimeEnv: BffEnvironment = {};
+  try {
+    runtimeEnv = getCloudflareContext().env as unknown as BffEnvironment;
+  } catch {
+    // Local Next.js development can use process environment variables.
+  }
   const values: Record<Service, string | undefined> = {
-    identity: process.env.EDGENEST_IDENTITY_API_URL || process.env.NEXT_PUBLIC_IDENTITY_API_URL || process.env.NEXT_PUBLIC_API_URL,
-    journal: process.env.EDGENEST_JOURNAL_API_URL || process.env.NEXT_PUBLIC_JOURNAL_API_URL || process.env.NEXT_PUBLIC_API_URL,
-    "market-data": process.env.EDGENEST_MARKET_DATA_API_URL || process.env.NEXT_PUBLIC_MARKET_DATA_API_URL || process.env.NEXT_PUBLIC_API_URL,
-    gateway: process.env.EDGENEST_API_URL || process.env.NEXT_PUBLIC_API_URL,
+    identity: runtimeEnv.EDGENEST_IDENTITY_API_URL || process.env.EDGENEST_IDENTITY_API_URL || process.env.NEXT_PUBLIC_IDENTITY_API_URL || process.env.NEXT_PUBLIC_API_URL,
+    journal: runtimeEnv.EDGENEST_JOURNAL_API_URL || process.env.EDGENEST_JOURNAL_API_URL || process.env.NEXT_PUBLIC_JOURNAL_API_URL || process.env.NEXT_PUBLIC_API_URL,
+    "market-data": runtimeEnv.EDGENEST_MARKET_DATA_API_URL || process.env.EDGENEST_MARKET_DATA_API_URL || process.env.NEXT_PUBLIC_MARKET_DATA_API_URL || process.env.NEXT_PUBLIC_API_URL,
+    gateway: runtimeEnv.EDGENEST_API_URL || process.env.EDGENEST_API_URL || process.env.NEXT_PUBLIC_API_URL,
   };
   return values[service]?.trim().replace(/\/$/, "");
 }
@@ -95,6 +108,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
   const { service: rawService, path: segments } = await context.params;
   if (!["identity", "journal", "market-data", "gateway"].includes(rawService)) return jsonError(404, "service_not_found", "Unknown API service.");
   const service = rawService as Service;
+  if (segments.some((segment) => !/^[A-Za-z0-9._~-]+$/.test(segment) || segment === "." || segment === "..")) return jsonError(400, "invalid_route", "Invalid API route.");
   const path = `/${segments.join("/")}`;
   if (!allowedPath(service, path)) return jsonError(404, "route_not_allowed", "This route is not available through the application gateway.");
   const origin = serviceOrigin(service);
