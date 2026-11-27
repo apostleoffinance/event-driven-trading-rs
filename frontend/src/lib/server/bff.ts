@@ -108,7 +108,7 @@ function responseWithCookies(response: Response, cookieHeaders: string[]): Respo
   return new Response(response.body, { status: response.status, headers });
 }
 
-async function refreshTokens(request: Request, origin: string, refreshToken: string): Promise<AuthTokens | null> {
+async function refreshTokens(origin: string, refreshToken: string): Promise<AuthTokens | null> {
   const response = await fetch(`${origin}/api/v1/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -221,7 +221,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
   if (!currentAccess && refreshToken) {
-    rotated = await refreshTokens(request, apiOrigin("identity", request), refreshToken).catch(() => null);
+    rotated = await refreshTokens(apiOrigin("identity", request), refreshToken).catch(() => null);
     currentAccess = rotated?.access_token;
     if (!currentAccess) {
       const headers = new Headers({ "Cache-Control": "no-store" });
@@ -232,7 +232,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
 
   let upstream = await forward(request, origin, path, publicRequest ? undefined : currentAccess);
   if (upstream.status === 401 && refreshToken && !rotated) {
-    rotated = await refreshTokens(request, apiOrigin("identity", request), refreshToken).catch(() => null);
+    rotated = await refreshTokens(apiOrigin("identity", request), refreshToken).catch(() => null);
     if (rotated) upstream = await forward(request, origin, path, rotated.access_token);
   }
 
