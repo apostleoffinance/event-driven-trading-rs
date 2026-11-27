@@ -1,7 +1,6 @@
 import { handleBffRequest } from "@/lib/server/bff";
 
 export const dynamic = "force-dynamic";
-export const runtime = "edge";
 
 type RouteContext = { params: Promise<{ service: string; path?: string[] }> };
 
