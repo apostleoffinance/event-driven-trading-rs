@@ -108,8 +108,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiError("Unable to connect to EdgeNest services. Please try again.", 0, "network_error");
   }
 
-  if (response.status === 401 && auth) {
-    if (retryAuth && await refreshSession()) {
+  if (response.status === 401 && auth && retryAuth) {
+    if (await refreshSession()) {
       return apiRequest<T>(path, { ...options, retryAuth: false });
     }
     clearSession();
