@@ -1,0 +1,148 @@
+name: Neon encrypted offsite backup
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-r2-production-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Create, verify and upload encrypted Neon backup
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate required configuration
+        shell: bash
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+        run: |
+          set -euo pipefail
+          for name in NEON_DATABASE_URL R2_ACCOUNT_ID R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY BACKUP_AGE_RECIPIENT BACKUP_AGE_IDENTITY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required GitHub secret or variable: $name"
+              exit 1
+            fi
+          done
+          if [[ ! "$BACKUP_AGE_RECIPIENT" =~ ^age1[0-9a-z]+$ ]]; then
+            echo "::error::BACKUP_AGE_RECIPIENT is not a valid age public recipient."
+            exit 1
+          fi
+          if [[ ! "$R2_ACCOUNT_ID" =~ ^[a-f0-9]{32}$ ]]; then
+            echo "::error::R2_ACCOUNT_ID must be the 32-character Cloudflare account ID."
+            exit 1
+          fi
+
+      - name: Install age
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age awscli
+
+      - name: Create compressed PostgreSQL custom-format dump
+        shell: bash
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          docker run --rm --network host \
+            -e DATABASE_URL="$NEON_DATABASE_URL" \
+            postgres:18-alpine \
+            sh -euc 'pg_dump --format=custom --compress=9 --no-owner --no-acl "$DATABASE_URL"' \
+            > "$RUNNER_TEMP/edgenest.dump"
+          test -s "$RUNNER_TEMP/edgenest.dump"
+
+      - name: Encrypt and verify backup archive
+        shell: bash
+        env:
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$RUNNER_TEMP/backup-identity.txt"
+          chmod 600 "$RUNNER_TEMP/backup-identity.txt"
+
+          age --encrypt --recipient "$BACKUP_AGE_RECIPIENT" \
+            --output "$RUNNER_TEMP/edgenest.dump.age" \
+            "$RUNNER_TEMP/edgenest.dump"
+
+          age --decrypt --identity "$RUNNER_TEMP/backup-identity.txt" \
+            --output "$RUNNER_TEMP/verified.dump" \
+            "$RUNNER_TEMP/edgenest.dump.age"
+
+          docker run --rm -i postgres:18-alpine \
+            pg_restore --list < "$RUNNER_TEMP/verified.dump" \
+            > "$RUNNER_TEMP/restore-list.txt"
+
+          grep -Eq ' (TABLE|SCHEMA) ' "$RUNNER_TEMP/restore-list.txt"
+          sha256sum "$RUNNER_TEMP/edgenest.dump.age" \
+            > "$RUNNER_TEMP/edgenest.dump.age.sha256"
+
+          rm -f "$RUNNER_TEMP/edgenest.dump" "$RUNNER_TEMP/verified.dump" \
+            "$RUNNER_TEMP/backup-identity.txt" "$RUNNER_TEMP/restore-list.txt"
+
+      - name: Upload to Cloudflare R2 and verify remote object
+        shell: bash
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+          export AWS_EC2_METADATA_DISABLED=true
+          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          PREFIX="edgenest/production"
+          ARCHIVE="$RUNNER_TEMP/edgenest.dump.age"
+          CHECKSUM="$RUNNER_TEMP/edgenest.dump.age.sha256"
+
+          # Guard the dedicated backup prefix against unexpected growth.
+          existing_bytes="$(aws --endpoint-url "$R2_ENDPOINT" s3api list-objects-v2 \
+            --bucket "$R2_BUCKET" --prefix "$PREFIX/" \
+            --query 'sum(Contents[].Size[])' --output text)"
+          if [ "$existing_bytes" = "None" ] || [ -z "$existing_bytes" ]; then
+            existing_bytes=0
+          fi
+          if [ "$existing_bytes" -gt 8000000000 ]; then
+            echo "::error::Backup prefix is above the 8 GB safety ceiling; refusing upload."
+            exit 1
+          fi
+
+          YEAR="$(date -u +%Y)"
+          MONTH="$(date -u +%m)"
+          DAY="$(date -u +%d)"
+          STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+          KEY="$PREFIX/$YEAR/$MONTH/$DAY/edgenest-$STAMP.dump.age"
+
+          aws --endpoint-url "$R2_ENDPOINT" s3 cp "$ARCHIVE" \
+            "s3://$R2_BUCKET/$KEY" --only-show-errors
+          aws --endpoint-url "$R2_ENDPOINT" s3 cp "$CHECKSUM" \
+            "s3://$R2_BUCKET/$KEY.sha256" --only-show-errors
+
+          remote_bytes="$(aws --endpoint-url "$R2_ENDPOINT" s3api head-object \
+            --bucket "$R2_BUCKET" --key "$KEY" \
+            --query ContentLength --output text)"
+          local_bytes="$(stat -c '%s' "$ARCHIVE")"
+          if [ "$remote_bytes" != "$local_bytes" ]; then
+            echo "::error::Remote object size does not match the local encrypted archive."
+            exit 1
+          fi
+
+          echo "Encrypted backup uploaded and remote size verified."
+          echo "Object key: $KEY"
+          echo "Encrypted bytes: $local_bytes"
