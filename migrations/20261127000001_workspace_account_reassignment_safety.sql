@@ -68,3 +68,51 @@ CREATE TRIGGER workspace_account_lock_worker_leases
 
 COMMENT ON FUNCTION workspace_account_state_advisory_lock() IS
     'Serializes account execution-state writes with workspace reassignment safety checks using advisory transaction lock seed 78123.';
+
+-- A READY broker worker session is active even if its publisher lease has not
+-- yet been acquired. Serialize session lifecycle changes with reassignment too.
+CREATE OR REPLACE FUNCTION workspace_worker_session_advisory_lock()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    old_account_id TEXT;
+    new_account_id TEXT;
+BEGIN
+    IF TG_OP <> 'INSERT' THEN
+        SELECT quant_account_id INTO old_account_id
+          FROM broker_worker_assignments
+         WHERE id = OLD.assignment_id;
+    END IF;
+    IF TG_OP <> 'DELETE' THEN
+        SELECT quant_account_id INTO new_account_id
+          FROM broker_worker_assignments
+         WHERE id = NEW.assignment_id;
+    END IF;
+
+    IF old_account_id IS NOT NULL
+       AND new_account_id IS NOT NULL
+       AND old_account_id <> new_account_id THEN
+        IF old_account_id < new_account_id THEN
+            PERFORM pg_advisory_xact_lock(hashtextextended(old_account_id, 78123));
+            PERFORM pg_advisory_xact_lock(hashtextextended(new_account_id, 78123));
+        ELSE
+            PERFORM pg_advisory_xact_lock(hashtextextended(new_account_id, 78123));
+            PERFORM pg_advisory_xact_lock(hashtextextended(old_account_id, 78123));
+        END IF;
+    ELSE
+        PERFORM pg_advisory_xact_lock(
+            hashtextextended(COALESCE(new_account_id, old_account_id), 78123)
+        );
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER workspace_account_lock_worker_sessions
+    BEFORE INSERT OR UPDATE OR DELETE ON broker_worker_sessions
+    FOR EACH ROW EXECUTE FUNCTION workspace_worker_session_advisory_lock();
