@@ -493,11 +493,11 @@ try {
       { timeout: 45_000 },
     );
     await page.getByRole("button", { name: "Sign in" }).click();
-    const loginResponse = await loginResponsePromise;
-    if (!loginResponse.ok()) {
-      let detail = `HTTP ${loginResponse.status()}`;
+    const authenticationResponse = await loginResponsePromise;
+    if (!authenticationResponse.ok()) {
+      let detail = `HTTP ${authenticationResponse.status()}`;
       try {
-        const body = await loginResponse.json();
+        const body = await authenticationResponse.json();
         detail = body?.error?.message ?? body?.message ?? detail;
       } catch { /* preserve status-only diagnostic for non-JSON login errors */ }
       throw new Error(`Production acceptance login was rejected: ${detail}`);
