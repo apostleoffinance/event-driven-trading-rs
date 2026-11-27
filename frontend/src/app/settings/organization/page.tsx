@@ -179,7 +179,7 @@ export default function OrganizationSettingsPage() {
         ) : !hasMemberships ? <div className="empty">You do not belong to an active organization yet. Create one to provision your organization and its default workspace.</div> : <div className="empty">No active organizations are available to your account.</div>}
       </section>
 
-      {!hasMemberships ? (
+      {!organizationsLoading && !organizationError && !hasMemberships ? (
         <section className="panel">
           <h2>Create organization</h2>
           <p className="muted">Creation is atomic: the API provisions the organization, owner membership and default workspace together.</p>
