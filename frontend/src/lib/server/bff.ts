@@ -134,17 +134,24 @@ function upstreamHeaders(request: Request, accessToken?: string): Headers {
 }
 
 async function forward(request: Request, origin: string, path: string, accessToken?: string): Promise<Response> {
-  const url = new URL(request.url);
-  const target = `${origin}${path}${url.search}`;
-  const method = request.method.toUpperCase();
-  const body = SAFE_METHODS.has(method) ? undefined : await request.arrayBuffer();
-  return fetch(target, {
-    method,
-    headers: upstreamHeaders(request, accessToken),
-    body,
-    redirect: "manual",
-    cache: "no-store",
-  });
+  try {
+    const url = new URL(request.url);
+    const target = `${origin}${path}${url.search}`;
+    const method = request.method.toUpperCase();
+    const body = SAFE_METHODS.has(method) ? undefined : await request.arrayBuffer();
+    return await fetch(target, {
+      method,
+      headers: upstreamHeaders(request, accessToken),
+      body,
+      redirect: "manual",
+      cache: "no-store",
+    });
+  } catch {
+    return Response.json({ error: { code: "upstream_unavailable", message: "The requested service is temporarily unavailable." } }, {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
 }
 
 export async function handleBffRequest(request: Request, serviceValue: string, pathParts: string[] = []): Promise<Response> {
