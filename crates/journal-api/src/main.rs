@@ -1770,7 +1770,10 @@ mod qos021a_e3a_r2_api_tests {
             &pool,
             &app,
             Method::PUT,
-            &format!("/api/v1/organizations/ws-org/workspaces/{}/accounts/{created_account}/assignment", second.id.as_str()),
+            &format!(
+                "/api/v1/organizations/ws-org/workspaces/{}/accounts/{created_account}/assignment",
+                second.id.as_str()
+            ),
             Some("ws-owner"),
             Some("ws-org"),
             Some(json!({"expected_revision":revision + 1,"reason":"attempt move with ambiguous order"})),
