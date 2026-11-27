@@ -19,7 +19,8 @@ function readUser(): SessionUser | null {
 function writeUser(user: SessionUser): void {
   if (typeof window !== "undefined") {
     // This is a non-authoritative UI cache only. Session credentials never enter Web Storage.
-    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user }));
+    const safeUser: SessionUser = { id: user.id, email: user.email, display_name: user.display_name || user.email };
+    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user: safeUser }));
     window.sessionStorage.removeItem("edgenest.auth.session.v1");
     sessionVerified = true;
   }
@@ -63,6 +64,7 @@ type BrowserLockManager = { request<T>(name: string, callback: () => Promise<T>)
 
 /** Restores the non-sensitive user hint by asking the same-origin BFF to validate the HttpOnly session. */
 export async function restoreSession(): Promise<SessionUser | null> {
+  if (typeof window !== "undefined") window.sessionStorage.removeItem("edgenest.auth.session.v1");
   const cached = readUser();
   if (sessionVerified && cached) return cached;
   if (restoreInFlight) return restoreInFlight;
