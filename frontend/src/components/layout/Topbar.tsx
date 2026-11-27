@@ -8,7 +8,7 @@ import { environmentLabel, frontendConfig } from "@/config/frontend";
 import { EDGENEST_LOGO_SRC } from "@/lib/brand-assets";
 import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
-import { getSessionUser, hasSession, logout } from "@/lib/auth/session";
+import { getSessionUser, hasSession, logout, restoreSession } from "@/lib/auth/session";
 import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
 import { useOrganization } from "@/features/organization/OrganizationProvider";
 import { useWorkspace } from "@/features/workspace/WorkspaceProvider";
@@ -41,9 +41,16 @@ export function Topbar({
   // Auth state is stored in sessionStorage, so sync it after client-side route
   // changes (e.g. returning from login/register) rather than during SSR.
   useEffect(() => {
-    setAuthenticated(hasSession());
-    setUserEmail(getSessionUser()?.email ?? null);
-    setAccountOpen(false);
+    let active = true;
+    const initialize = async () => {
+      if (!hasSession()) await restoreSession();
+      if (!active) return;
+      setAuthenticated(hasSession());
+      setUserEmail(getSessionUser()?.email ?? null);
+      setAccountOpen(false);
+    };
+    void initialize();
+    return () => { active = false; };
   }, [pathname]);
 
   // Close the account menu on outside click or Escape.
