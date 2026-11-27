@@ -1,5 +1,4 @@
-import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
-const marketDataBaseUrl = () => apiBaseUrl("market-data");
+import { apiRequest, requireApiMode } from "@/lib/api/client";
 
 export type MarketDataProvider = { id: string; status?: unknown; name?: string; [key: string]: unknown };
 
