@@ -517,25 +517,29 @@ try {
     const eventWorkspaceHeaders = [];
     let resolveWorkspaceEvent;
     const workspaceEventObserved = new Promise(resolve => { resolveWorkspaceEvent = resolve; });
+    const secureFrontend = frontendUrl.startsWith("https://");
+    await context.addCookies([{
+      name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+      value: "m5-acceptance-csrf",
+      url: frontendUrl,
+      secure: secureFrontend,
+      httpOnly: false,
+      sameSite: "Strict",
+    }]);
     await context.addInitScript(() => {
-      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
-        token_type: "Bearer",
-        access_token: "m5-acceptance-token",
-        expires_in: 3600,
-        refresh_token: "m5-acceptance-refresh",
-        expires_at: Date.now() + 3600_000,
+      sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({
         user: { id: "owner-1", email: "m5-owner@example.test", display_name: "M5 Owner" },
       }));
       sessionStorage.setItem("edgenest.organization.active.v1", "org-1");
       sessionStorage.setItem("edgenest.workspace.active.v1", "workspace-a");
     });
     await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
-    await page.route("**/api/v1/organizations", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations", route => route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: [{ id: "org-1", name: "Acceptance Organization", status: "ACTIVE", membershipRole: "OWNER" }] }),
     }));
-    await page.route("**/api/v1/organizations/org-1/workspaces", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-1/workspaces", route => route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: [
@@ -543,7 +547,7 @@ try {
         { id: "workspace-b", organizationId: "org-1", name: "Execution", slug: "execution", status: "ACTIVE", isDefault: false, revision: 1 },
       ] }),
     }));
-    await page.route("**/api/v1/organizations/org-1/members", async route => {
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-1/members", async route => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON();
         memberRows.push({ organizationId: "org-1", userId: input.user_id, role: input.role, status: "ACTIVE", revision: 1 });
@@ -552,10 +556,10 @@ try {
       }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: memberRows }) });
     });
-    await page.route("**/api/v1/organizations/org-1/workspaces/*/members", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-1/workspaces/*/members", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }),
     }));
-    await page.route("**/api/v1/trading/events*", async route => {
+    await page.route("**/api/bff/gateway/api/v1/trading/events*", async route => {
       const workspaceId = route.request().headers()["x-workspace-id"] ?? null;
       eventWorkspaceHeaders.push(workspaceId);
       if (workspaceId === "workspace-b") resolveWorkspaceEvent();
@@ -927,14 +931,14 @@ try {
       await uiContext.addInitScript(rawSession => {
         if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
       }, tokenState.raw_session);
-      await uiContext.route("**/api/v1/auth/me", async route => route.fulfill({
+      await uiContext.route("**/api/bff/identity/api/v1/auth/me", async route => route.fulfill({
         status: 200, contentType: "application/json",
         body: JSON.stringify({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
       }));
-      await uiContext.route("**/api/v1/journal/accounts", async route => route.fulfill({
+      await uiContext.route("**/api/bff/journal/api/v1/journal/accounts", async route => route.fulfill({
         status: 200, contentType: "application/json", body: JSON.stringify({ data: uiAccounts }),
       }));
-      await uiContext.route("**/api/v1/journal/accounts/*/risk-policy", async route => {
+      await uiContext.route("**/api/bff/journal/api/v1/journal/accounts/*/risk-policy", async route => {
         const accountId = new URL(route.request().url()).pathname.split("/").at(-2);
         const current = uiPolicies.get(accountId);
         if (!current) return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found" } }) });
@@ -1073,7 +1077,7 @@ try {
         setup_valid_percent: "100", rules_followed_percent: "100", average_discipline_score: "90",
         notice: "Acceptance fixture only.",
       });
-      await replayContext.route("**/api/v1/**", async route => {
+      await replayContext.route("**/api/bff/**", async route => {
         const request = route.request();
         const url = new URL(request.url());
         const pathname = url.pathname;
