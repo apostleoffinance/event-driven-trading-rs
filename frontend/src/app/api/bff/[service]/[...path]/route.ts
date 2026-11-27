@@ -48,7 +48,7 @@ function allowedPath(service: Service, path: string): boolean {
   if (service === "identity") return path.startsWith("/api/v1/auth/");
   if (service === "journal") return path.startsWith("/api/v1/journal/");
   if (service === "market-data") return path.startsWith("/api/v1/market-data/");
-  return path.startsWith("/api/v1/organizations") || path.startsWith("/api/v1/trading/");
+  return path === "/healthz" || path === "/readyz" || path.startsWith("/api/v1/organizations") || path.startsWith("/api/v1/trading/");
 }
 
 function originAllowed(request: NextRequest): boolean {
@@ -142,10 +142,18 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
   }
 
   if (isLogout) {
+    if (!accessToken && refreshCookie) {
+      const rotated = await rotateRefreshToken(serviceOrigin("identity") || origin, refreshCookie);
+      accessToken = rotated?.access_token;
+    }
     response = await upstreamFetch(url, request, accessToken, JSON.stringify({ refresh_token: refreshCookie || "" }));
+    if (response.status === 401 && refreshCookie) {
+      const rotated = await rotateRefreshToken(serviceOrigin("identity") || origin, refreshCookie);
+      if (rotated) response = await upstreamFetch(url, request, rotated.access_token, JSON.stringify({ refresh_token: rotated.refresh_token }));
+    }
     const headers = new Headers({ "Cache-Control": "no-store" });
     clearTokenCookies(headers, request);
-    return new Response(null, { status: response.ok ? 204 : response.status, headers });
+    return new Response(null, { status: response.ok || response.status === 401 ? 204 : response.status, headers });
   }
 
   response = await upstreamFetch(url, request, accessToken, body);
