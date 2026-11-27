@@ -1652,7 +1652,7 @@ input,select,textarea{accent-color:var(--accent)}select,textarea,input:not([type
 .market-chart-state.is-error { border-color:color-mix(in srgb,var(--negative) 40%,var(--border)); }
 .market-chart-state.is-error span { max-width:760px; overflow-wrap:anywhere; color:var(--text-dim); }
 .market-fetch-indicator { padding:5px 18px; color:var(--text-dim); font-size:10px; text-align:right; }
-.market-overlay-controls { display:flex; align-items:end; flex-wrap:wrap; gap:9px; padding:12px 18px; border-top:1px solid var(--border); }
+.market-overlay-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:9px; padding:12px 18px; border-top:1px solid var(--border); }
 .market-overlay-controls label { width:min(190px,100%); }
 .market-overlay-controls > button { min-height:38px; }
 .market-overlay-controls > span { margin-left:auto; padding-bottom:9px; color:var(--text-dim); font-size:10px; }
