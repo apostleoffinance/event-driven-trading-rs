@@ -95,6 +95,14 @@ if (process.env.VERIFY_PRODUCTION_API !== "false") {
     },
   });
   assert.equal(preflight.headers.get("access-control-allow-origin"), authFrontendUrl);
+
+  console.log("Checking BFF CSRF rejection...");
+  const csrfDenied = await expectHttp(`${authFrontendUrl}/api/bff/identity/api/v1/auth/logout`, 403, {
+    method: "POST",
+    headers: { Origin: "https://attacker.invalid", "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal((await csrfDenied.json())?.error?.code, "csrf_validation_failed");
 } else {
   console.log("PR preview: skipping live production API health/auth/CORS gates; UI routes and browser interactions remain under test.");
 }
@@ -788,6 +796,41 @@ try {
     assert.ok(tokenState?.user?.id, "Login succeeded but the browser did not persist the non-sensitive user hint.");
     assert.equal(String(tokenState.user_email || "").toLowerCase(), email.toLowerCase(), "Authenticated session user does not match configured acceptance user.");
     assert.equal(tokenState.authCookieExposedToJavaScript, false, "BFF access and refresh cookies must be HttpOnly.");
+
+    const accessCookieName = authFrontendUrl.startsWith("https://") ? "__Host-edgenest_access" : "edgenest_access";
+    const refreshCookieName = authFrontendUrl.startsWith("https://") ? "__Host-edgenest_refresh" : "edgenest_refresh";
+    const beforeRotation = await context.cookies(authFrontendUrl);
+    const accessCookie = beforeRotation.find(cookie => cookie.name === accessCookieName);
+    const refreshCookie = beforeRotation.find(cookie => cookie.name === refreshCookieName);
+    assert.ok(accessCookie?.httpOnly && refreshCookie?.httpOnly, "BFF access and refresh cookies must both be HttpOnly.");
+    assert.equal(accessCookie.secure, authFrontendUrl.startsWith("https://"), "Access-cookie Secure attribute does not match the deployed scheme.");
+    assert.equal(refreshCookie.secure, authFrontendUrl.startsWith("https://"), "Refresh-cookie Secure attribute does not match the deployed scheme.");
+    assert.equal(accessCookie.sameSite, "Lax");
+    assert.equal(refreshCookie.sameSite, "Lax");
+    assert.equal(accessCookie.path, "/");
+    assert.equal(refreshCookie.path, "/");
+    assert.ok(refreshCookie.value, "BFF refresh cookie is empty.");
+
+    // Force only the access credential to fail. The BFF must refresh server-side,
+    // retry /auth/me, and replace the rotated access + refresh cookies.
+    await context.addCookies([{
+      name: accessCookieName,
+      value: "acceptance-invalid-access-token",
+      url: authFrontendUrl,
+      httpOnly: true,
+      secure: authFrontendUrl.startsWith("https://"),
+      sameSite: "Lax",
+    }]);
+    const refreshProbe = await page.evaluate(async () => {
+      const response = await fetch("/api/bff/identity/api/v1/auth/me", { credentials: "same-origin", cache: "no-store" });
+      return { status: response.status, body: await response.json() };
+    });
+    assert.equal(refreshProbe.status, 200, "BFF did not refresh and retry an expired access-token request.");
+    const afterRotation = await context.cookies(authFrontendUrl);
+    const rotatedRefreshCookie = afterRotation.find(cookie => cookie.name === refreshCookieName);
+    const rotatedAccessCookie = afterRotation.find(cookie => cookie.name === accessCookieName);
+    assert.ok(rotatedAccessCookie?.value && rotatedAccessCookie.value !== "acceptance-invalid-access-token", "BFF did not replace the invalid access cookie.");
+    assert.ok(rotatedRefreshCookie?.value && rotatedRefreshCookie.value !== refreshCookie.value, "BFF did not persist the rotated refresh cookie.");
 
     // Backend contract assertions use a separate server-side login. The access
     // token never enters browser storage, page state, or browser JavaScript.
