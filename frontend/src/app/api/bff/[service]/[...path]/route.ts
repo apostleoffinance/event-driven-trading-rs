@@ -6,8 +6,8 @@ export const runtime = "edge";
 type Service = "identity" | "journal" | "market-data" | "gateway";
 type Tokens = { access_token: string; refresh_token: string; expires_in: number; user?: unknown };
 
-const ACCESS_COOKIE = "__Host-edgenest_access";
-const REFRESH_COOKIE = "__Host-edgenest_refresh";
+const ACCESS_COOKIE = "edgenest_access";
+const REFRESH_COOKIE = "edgenest_refresh";
 const CSRF_COOKIE = "edgenest_csrf";
 const ACCESS_MAX_AGE = 15 * 60;
 const REFRESH_MAX_AGE = 30 * 24 * 60 * 60;
@@ -53,6 +53,8 @@ function allowedPath(service: Service, path: string): boolean {
 
 function originAllowed(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite === "cross-site") return false;
   return !origin || origin === request.nextUrl.origin;
 }
 function csrfValid(request: NextRequest): boolean {
@@ -61,7 +63,7 @@ function csrfValid(request: NextRequest): boolean {
   return Boolean(cookie && header && cookie.length >= 32 && cookie === header);
 }
 
-async function upstreamFetch(url: string, request: NextRequest, accessToken?: string, body?: string): Promise<Response> {
+async function upstreamFetch(url: string, request: NextRequest, accessToken?: string, body?: BodyInit): Promise<Response> {
   const headers = new Headers({ Accept: request.headers.get("accept") || "application/json" });
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("Content-Type", contentType);
@@ -100,10 +102,11 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
   const method = request.method.toUpperCase();
   if (!["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method)) return jsonError(405, "method_not_allowed", "This method is not supported.");
   const mutating = !["GET", "HEAD"].includes(method);
+  if (mutating && request.headers.get("origin") !== request.nextUrl.origin) return jsonError(403, "origin_check_failed", "A same-origin request is required.");
   if (mutating && !csrfValid(request)) return jsonError(403, "csrf_failed", "Your session security check failed. Refresh the page and try again.");
 
   const url = `${origin}${path}${request.nextUrl.search}`;
-  const body = mutating ? await request.text() : undefined;
+  const body = mutating ? await request.arrayBuffer() : undefined;
   const isLoginOrRegister = service === "identity" && (path.endsWith("/auth/login") || path.endsWith("/auth/register")) && method === "POST";
   const isRefresh = service === "identity" && path.endsWith("/auth/refresh") && method === "POST";
   const isLogout = service === "identity" && path.endsWith("/auth/logout") && method === "POST";
@@ -147,7 +150,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
 
   response = await upstreamFetch(url, request, accessToken, body);
   let rotated: Tokens | null = null;
-  if (response.status === 401 && refreshCookie && service !== "identity") {
+  if (response.status === 401 && refreshCookie && !isLoginOrRegister && !isRefresh && !isLogout) {
     rotated = await rotateRefreshToken(serviceOrigin("identity") || origin, refreshCookie);
     if (rotated) {
       accessToken = rotated.access_token;
@@ -159,7 +162,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ service
   if (contentType) headers.set("Content-Type", contentType);
   headers.set("Cache-Control", "no-store");
   if (rotated) setTokenCookies(headers, rotated, request);
-  if (response.status === 401 && service === "identity") clearTokenCookies(headers, request);
+  if (response.status === 401) clearTokenCookies(headers, request);
   return new Response(response.body, { status: response.status, headers });
 }
 
