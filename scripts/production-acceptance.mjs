@@ -835,7 +835,7 @@ try {
       sameSite: "Lax",
     }]);
     const refreshProbe = await page.evaluate(async () => {
-      const response = await fetch("/api/bff/identity/api/v1/auth/me", { credentials: "same-origin", cache: "no-store" });
+      const response = await fetch("/api/bff/session", { credentials: "same-origin", cache: "no-store" });
       return { status: response.status, body: await response.json() };
     });
     assert.equal(refreshProbe.status, 200, "BFF did not refresh and retry an expired access-token request.");
