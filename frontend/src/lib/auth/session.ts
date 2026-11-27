@@ -1,6 +1,6 @@
 "use client";
 
-import { apiRequest } from "@/lib/api/client";
+import { ApiError, apiRequest } from "@/lib/api/client";
 
 export type SessionUser = { id: string; email: string; display_name: string };
 const SESSION_KEY = "edgenest.auth.session.v2";
@@ -73,9 +73,14 @@ export async function restoreSession(): Promise<SessionUser | null> {
       if (!response.data?.id) throw new Error("Invalid identity response.");
       writeUser(response.data);
       return response.data;
-    } catch {
-      clearSession();
-      return null;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        clearSession();
+        return null;
+      }
+      // Keep a previously cached display hint through transient API outages;
+      // the backend still authorizes every operation using the HttpOnly cookie.
+      return cached;
     } finally {
       restoreInFlight = null;
     }
