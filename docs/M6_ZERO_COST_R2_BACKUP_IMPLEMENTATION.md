@@ -142,10 +142,10 @@ This backup rollout is **not a feature dependency** for Workspace & Organization
 The active product sequence is:
 
 1. Complete the Workspace & Organization persistence and access-control implementation.
-2. Verify Journal workspace creation, organization membership, tenant isolation and authorization behavior.
-3. Complete the Journal MVP integration and regression tests.
+2. Verify organization membership, workspace authorization, account placement and trading-resource isolation.
+3. Complete Journal MVP integration and regression tests while preserving user-private Journal ownership and access boundaries.
 4. Prepare the Journal MVP for rollout after production readiness checks and explicit deployment approval.
 
-Before applying any production Workspace & Organization migration, verify that the existing Neon provider snapshot and isolated restore rehearsal are still available and that the recovery point is suitable for the planned change. The previously recorded snapshot was named `m6-stage-2-pre-workspace-migration-2026-11-27`; verify its current availability and expiry before relying on it. The unfinished R2 backup and restore rehearsal do **not** independently block Workspace & Organization work or the Journal MVP, but the production migration still requires an approved, verified recovery point.
+Before applying any production Workspace & Organization migration, verify that the existing Neon provider snapshot and isolated restore rehearsal are still available and that the recovery point is suitable for the planned change. The previously recorded snapshot was named `m6-stage-2-pre-workspace-migration-2026-11-27`; verify its current availability and expiry before relying on it. The unfinished Cloudflare R2 offsite-backup rollout does **not** independently block Workspace & Organization work or the Journal MVP, but each production migration still requires an approved, verified recovery point. The QOS-021A-E3A-R2 organization/tenant-foundation milestone and QOS-020-R2 test-infrastructure diagnosis use the label “R2” for unrelated engineering work; those labels do not refer to Cloudflare R2 object storage. Deferring Cloudflare R2 does not waive the separate QOS-020 target-database verification, workspace release-preflight, or production security gates.
 
 **Scope boundary:** Deferring R2 means no Cloudflare bucket provisioning, token creation, age identity setup, GitHub secret configuration, backup database-role creation, or first backup run during the current Journal MVP milestone. Preserve PR #210 and this document so the backup rollout can be resumed later without redoing the design work.
