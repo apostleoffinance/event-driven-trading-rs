@@ -1695,5 +1695,88 @@ mod qos021a_e3a_r2_api_tests {
         .await
         .unwrap();
         assert_eq!(assigned_workspace, second.id.as_str());
+
+        // A flat account with no orders or active worker may be reassigned.
+        let default_workspace: String = sqlx::query_scalar(
+            "SELECT id FROM workspaces WHERE organization_id='ws-org' AND is_default=TRUE AND status='ACTIVE'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let revision: i64 = sqlx::query_scalar(
+            "SELECT revision FROM workspace_account_assignments WHERE organization_id='ws-org' AND account_id=$1",
+        )
+        .bind(created_account)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let safe_move = request_response(
+            &pool,
+            &app,
+            Method::PUT,
+            &format!("/api/v1/organizations/ws-org/workspaces/{default_workspace}/accounts/{created_account}/assignment"),
+            Some("ws-owner"),
+            Some("ws-org"),
+            Some(json!({"expected_revision":revision,"reason":"move flat account to default workspace"})),
+            false,
+        )
+        .await;
+        assert_eq!(safe_move.status(), StatusCode::OK);
+        let moved_workspace: String = sqlx::query_scalar(
+            "SELECT workspace_id FROM workspace_account_assignments WHERE organization_id='ws-org' AND account_id=$1",
+        )
+        .bind(created_account)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(moved_workspace, default_workspace);
+
+        // A non-flat account is rejected without changing its assignment revision.
+        sqlx::query("UPDATE account_states SET open_position_count=1 WHERE account_id=$1")
+            .bind(created_account)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let non_flat = request_response(
+            &pool,
+            &app,
+            Method::PUT,
+            &format!("/api/v1/organizations/ws-org/workspaces/{}/accounts/{created_account}/assignment", second.id.as_str()),
+            Some("ws-owner"),
+            Some("ws-org"),
+            Some(json!({"expected_revision":revision + 1,"reason":"attempt unsafe move"})),
+            false,
+        )
+        .await;
+        assert_eq!(non_flat.status(), StatusCode::CONFLICT);
+        let non_flat_body = non_flat.into_body().collect().await.unwrap().to_bytes();
+        let non_flat_json: Value = serde_json::from_slice(&non_flat_body).unwrap();
+        assert_eq!(non_flat_json["error"]["code"], "account_not_flat");
+
+        sqlx::query("UPDATE account_states SET open_position_count=0 WHERE account_id=$1")
+            .bind(created_account)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO mt5_bridge_order_keys(account_id,client_order_id,request_payload,state) VALUES($1,'workspace-move-ambiguous','{}'::jsonb,'unknown')")
+            .bind(created_account)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let ambiguous_order = request_response(
+            &pool,
+            &app,
+            Method::PUT,
+            &format!("/api/v1/organizations/ws-org/workspaces/{}/accounts/{created_account}/assignment", second.id.as_str()),
+            Some("ws-owner"),
+            Some("ws-org"),
+            Some(json!({"expected_revision":revision + 1,"reason":"attempt move with ambiguous order"})),
+            false,
+        )
+        .await;
+        assert_eq!(ambiguous_order.status(), StatusCode::CONFLICT);
+        let ambiguous_body = ambiguous_order.into_body().collect().await.unwrap().to_bytes();
+        let ambiguous_json: Value = serde_json::from_slice(&ambiguous_body).unwrap();
+        assert_eq!(ambiguous_json["error"]["code"], "account_has_outstanding_orders");
     }
 }
