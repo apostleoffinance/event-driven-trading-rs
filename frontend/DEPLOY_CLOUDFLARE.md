@@ -28,18 +28,18 @@ ls -la src/app/login/page.tsx
 Do not deploy a Worker whose build route table omits the login page. A successful OpenNext bundle does not prove every intended route is present.
 
 ## Frontend API configuration
-For EdgeNest's Render API Gateway, configure these variables in Cloudflare Workers Builds **before building/deploying**:
+
+The browser does not receive API origins or bearer tokens. All browser requests use the same-origin `/api/bff/*` routes; the Worker forwards to the Rust services.
+
+Configure these **server-only Worker Variables** in Cloudflare Worker Settings → Variables:
 ```env
-NEXT_PUBLIC_IDENTITY_API_URL=https://edgenest-api.onrender.com
-NEXT_PUBLIC_JOURNAL_API_URL=https://edgenest-api.onrender.com
-NEXT_PUBLIC_MARKET_DATA_API_URL=https://edgenest-api.onrender.com
+API_GATEWAY_ORIGIN=https://edgenest-api.onrender.com
+IDENTITY_API_ORIGIN=https://edgenest-api.onrender.com
+JOURNAL_API_ORIGIN=https://edgenest-api.onrender.com
+MARKET_DATA_API_ORIGIN=https://edgenest-api.onrender.com
 ```
-Identity, Journal, and Market Data currently share the Render API Gateway origin and use distinct path prefixes. `NEXT_PUBLIC_API_URL` is a supported fallback, but the service-specific variables above are preferred. These values are public URLs, not secrets. Never put JWT private keys, database URLs, or broker credentials in `NEXT_PUBLIC_*` variables.
 
-After changing build variables, trigger a fresh Cloudflare build/deployment; Next.js embeds `NEXT_PUBLIC_*` values in the client bundle.
-
-The header's user icon links to `/login`. Login/register use the Rust Identity API and navigate to `/journal` after successful authentication. Journal access requires an authenticated session.
-
+The service-specific origins fall back to `API_GATEWAY_ORIGIN`. Keep values as HTTPS origins without path suffixes. Do not prefix them with `NEXT_PUBLIC_`; they are runtime-only Worker variables, not build variables. For local development, use loopback origins in `.dev.vars` as shown in `.dev.vars.example`.
 ## Temporary Workers URL
 Authenticate to Cloudflare, then deploy:
 ```bash
@@ -54,7 +54,7 @@ With `workers_dev: true`, Wrangler deploys to a temporary `https://edgenest-fron
 - Build command: `npm run cloudflare:build`
 - Deploy command: `npx wrangler deploy`
 - Node version: 20.19+ / current supported Node LTS
-- Ensure all required `NEXT_PUBLIC_*` build variables are configured in Workers Builds. These values are embedded into the client bundle at build time.
+- Configure the four server-only BFF API origins as Worker Variables. Do not expose service origins through `NEXT_PUBLIC_*` build variables.
 - Do not store secrets in `NEXT_PUBLIC_*` variables.
 
 ## Production domain (later)
