@@ -7,13 +7,10 @@ export class ApiError extends Error {
   }
 }
 
-export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): string {
-  const specific = service === "identity" ? process.env.NEXT_PUBLIC_IDENTITY_API_URL
-    : service === "journal" ? process.env.NEXT_PUBLIC_JOURNAL_API_URL
-    : service === "market-data" ? process.env.NEXT_PUBLIC_MARKET_DATA_API_URL : undefined;
-  const value = (specific || process.env.NEXT_PUBLIC_API_URL || "").trim();
+export function apiBaseUrl(): string {
+  const value = (process.env.NEXT_PUBLIC_API_URL || "").trim();
   if (!value) throw new Error("This service is temporarily unavailable. Please try again later.");
-  const normalized = value.replace(/\/$/, "");
+  const normalized = value.replace(/\\/$/, "");
   if (typeof window !== "undefined" && window.location.protocol === "https:" && normalized.startsWith("http://")) {
     throw new Error("API URL must use HTTPS when the frontend is served over HTTPS.");
   }
@@ -139,6 +136,6 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 }
 
 export function requireApiMode(): void {
-  const configured = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_IDENTITY_API_URL || process.env.NEXT_PUBLIC_JOURNAL_API_URL || process.env.NEXT_PUBLIC_MARKET_DATA_API_URL;
+  const configured = process.env.NEXT_PUBLIC_API_URL;
   if (!configured?.trim()) throw new Error("This service is temporarily unavailable. Please try again later.");
 }
