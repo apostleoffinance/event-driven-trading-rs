@@ -17,14 +17,13 @@ Configure server-only Worker variables for the BFF. Configure the `NEXT_PUBLIC_*
 | `IDENTITY_API_ORIGIN` | Server-only Identity API (falls back to gateway) | `/api/v1/auth/*` |
 | `JOURNAL_API_ORIGIN` | Server-only Journal API (falls back to gateway) | `/api/v1/journal/*` |
 | `MARKET_DATA_API_ORIGIN` | Server-only Market Data API (falls back to gateway) | `/api/v1/market-data/*` |
-| `NEXT_PUBLIC_API_URL` | Public gateway health-check origin only | `/healthz` |
 
-Set the four server-only origins in Cloudflare Worker Settings → Variables and Secrets. They must be HTTPS origins in production and should not include a path prefix unless the gateway is configured to accept the appended service paths. For local development, loopback HTTP origins are permitted only when the frontend is served from `localhost` or `127.0.0.1`. `NEXT_PUBLIC_API_URL` is retained only for the public health indicator; it is not used to forward authenticated API traffic.
+
+Set the four server-only origins in Cloudflare Worker Settings → Variables and Secrets. They must be HTTPS origins in production and should not include a path prefix unless the gateway is configured to accept the appended service paths. For local development, loopback HTTP origins are permitted only when the frontend is served from `localhost` or `127.0.0.1`. The public health indicator also uses the same-origin BFF, so no API origin is exposed in the browser bundle.
 
 Set:
 ```env
 NEXT_PUBLIC_ENVIRONMENT=PAPER
-NEXT_PUBLIC_API_URL=https://<gateway-api-host>
 
 # Server-only values; use .dev.vars locally and Cloudflare Worker Variables in production.
 API_GATEWAY_ORIGIN=https://<gateway-api-host>
@@ -66,7 +65,7 @@ The frontend exposes sign-in/register at `/login`, Journal at `/journal`, and re
 
 ## CORS requirements
 
-Browser-to-API traffic is same-origin through the BFF and does not require cross-origin CORS. Keep the exact-origin allow-list for approved external clients and direct service integrations. Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
+All browser-to-API traffic, including the health check, is same-origin through the BFF and does not require cross-origin CORS. Keep the exact-origin allow-list for approved external clients and direct service integrations. Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
 
 When external browser clients use the combined API gateway, configure this variable on the gateway service:
 - `EDGENEST_CORS_ORIGINS=https://<your-frontend-host>`
