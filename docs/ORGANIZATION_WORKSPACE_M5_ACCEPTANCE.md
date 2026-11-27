@@ -4,6 +4,12 @@ Run against an isolated test organization with at least two active workspaces an
 
 | Scenario | Expected result |
 |---|---|
+| User opens organization settings | Active organizations and selected organization context are shown; empty state is explicit |
+| User without memberships creates an organization | Organization, OWNER membership and default workspace are provisioned atomically |
+| Owner opens organization settings | Organization members are listed; add-existing-account and membership controls are visible |
+| Admin adds an existing account | Membership is created with selected organization role and audit reason |
+| Admin changes membership role/status | Revision-checked API mutation succeeds; refreshed membership state is shown |
+| Non-admin opens organization settings | Membership list is not exposed; management controls are hidden |
 | Owner opens workspace settings | All accessible active workspaces are listed; create and lifecycle controls are visible |
 | Trader opens workspace settings | Only authorized workspaces are listed; organization-admin controls are hidden |
 | Organization has one accessible workspace | It is selected automatically |
@@ -18,7 +24,8 @@ Run against an isolated test organization with at least two active workspaces an
 | Owner grants/revises/revokes access | API validates active organization membership and role eligibility; refreshed grant revision is used |
 | Stale workspace/grant revision | API conflict is surfaced; user refreshes before retrying |
 | Cross-organization or forged workspace ID | API denies access; client-side selection is not treated as authorization |
-| API unavailable | Explicit loading/error state is shown; no mock workspace or trading data is substituted |
+| API unavailable | Explicit loading/error state is shown; no mock organization, workspace or trading data is substituted |
+| Email invitation requested | UI does not claim to send an invitation; current API only supports adding an existing account by user ID |
 | Mobile viewport and keyboard navigation | Workspace list, forms, tables and controls remain usable and focus-visible |
 
 ## CI gates
