@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { hasSession } from "@/lib/auth/session";
+import { hasSession, restoreSession } from "@/lib/auth/session";
 import { apiRequest } from "@/lib/api/client";
 
 export type Organization = {
@@ -65,8 +65,23 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [activeOrganizationId]);
 
   useEffect(() => {
-    if (hasSession()) void refreshOrganizations();
-    else { setOrganizations([]); setHasMemberships(false); setActiveOrganizationId(null); setError(null); setLoading(false); window.sessionStorage.removeItem(STORAGE_KEY); window.sessionStorage.removeItem(WORKSPACE_STORAGE_KEY); }
+    let active = true;
+    const initialize = async () => {
+      if (!hasSession()) await restoreSession();
+      if (!active) return;
+      if (hasSession()) void refreshOrganizations();
+      else {
+        setOrganizations([]);
+        setHasMemberships(false);
+        setActiveOrganizationId(null);
+        setError(null);
+        setLoading(false);
+        window.sessionStorage.removeItem(STORAGE_KEY);
+        window.sessionStorage.removeItem(WORKSPACE_STORAGE_KEY);
+      }
+    };
+    void initialize();
+    return () => { active = false; };
   }, [pathname, refreshOrganizations]);
 
   const createOrganization = useCallback(async (name: string) => {
