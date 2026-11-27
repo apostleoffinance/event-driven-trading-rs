@@ -552,7 +552,7 @@ try {
       const workspaceId = route.request().headers()["x-workspace-id"] ?? null;
       eventWorkspaceHeaders.push(workspaceId);
       if (workspaceId === "workspace-b") resolveWorkspaceEvent();
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }) });
     });
 
     const organizationResponse = await page.goto(`${frontendUrl}/settings/organization`, { waitUntil: "domcontentloaded", timeout: 45_000 });
