@@ -13,19 +13,24 @@ Configure server-only Worker variables for the BFF. Configure the `NEXT_PUBLIC_*
 
 | Variable | Service | Required routes |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | Shared gateway (optional fallback) | routes below |
-| `NEXT_PUBLIC_IDENTITY_API_URL` | Identity API | `/api/v1/auth/*` |
-| `NEXT_PUBLIC_JOURNAL_API_URL` | Journal API | `/api/v1/journal/*` |
-| `NEXT_PUBLIC_MARKET_DATA_API_URL` | Market Data API | `/api/v1/market-data/*` |
+| `API_GATEWAY_ORIGIN` | Server-only shared gateway | `/api/v1/organizations/*`, `/api/v1/trading/*` |
+| `IDENTITY_API_ORIGIN` | Server-only Identity API (falls back to gateway) | `/api/v1/auth/*` |
+| `JOURNAL_API_ORIGIN` | Server-only Journal API (falls back to gateway) | `/api/v1/journal/*` |
+| `MARKET_DATA_API_ORIGIN` | Server-only Market Data API (falls back to gateway) | `/api/v1/market-data/*` |
+| `NEXT_PUBLIC_API_URL` | Public gateway health-check origin only | `/healthz` |
 
 Set the four server-only origins in Cloudflare Worker Settings → Variables and Secrets. They must be HTTPS origins in production and should not include a path prefix unless the gateway is configured to accept the appended service paths. For local development, loopback HTTP origins are permitted only when the frontend is served from `localhost` or `127.0.0.1`. `NEXT_PUBLIC_API_URL` is retained only for the public health indicator; it is not used to forward authenticated API traffic.
 
 Set:
 ```env
 NEXT_PUBLIC_ENVIRONMENT=PAPER
-NEXT_PUBLIC_IDENTITY_API_URL=https://<identity-api-host>
-NEXT_PUBLIC_JOURNAL_API_URL=https://<journal-api-host>
-NEXT_PUBLIC_MARKET_DATA_API_URL=https://<market-data-api-host>
+NEXT_PUBLIC_API_URL=https://<gateway-api-host>
+
+# Server-only values; use .dev.vars locally and Cloudflare Worker Variables in production.
+API_GATEWAY_ORIGIN=https://<gateway-api-host>
+IDENTITY_API_ORIGIN=https://<identity-api-host>
+JOURNAL_API_ORIGIN=https://<journal-api-host>
+MARKET_DATA_API_ORIGIN=https://<market-data-api-host>
 ```
 
 Do not put private JWT keys, refresh-token signing keys, database URLs, broker/MT5 credentials, venue secrets, or privileged tokens in any `NEXT_PUBLIC_*` variable.
@@ -61,14 +66,14 @@ The frontend exposes sign-in/register at `/login`, Journal at `/journal`, and re
 
 ## CORS requirements
 
-Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
+Browser-to-API traffic is same-origin through the BFF and does not require cross-origin CORS. Keep the exact-origin allow-list for approved external clients and direct service integrations. Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
 
-When the frontend uses the combined API gateway (`NEXT_PUBLIC_API_URL`), configure this variable on the gateway service:
+When external browser clients use the combined API gateway, configure this variable on the gateway service:
 - `EDGENEST_CORS_ORIGINS=https://<your-frontend-host>`
 
 The gateway answers browser `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`, and `X-Workspace-Id`. The workspace selector is required on workspace-scoped trading requests and is not authorization evidence. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
 
-If the frontend calls the Identity, Journal, or Market Data services directly rather than through the combined gateway, configure the corresponding service allow-list on each service:
+If approved external clients call the Identity, Journal, or Market Data services directly rather than through the combined gateway, configure the corresponding service allow-list on each service:
 - `IDENTITY_CORS_ORIGINS`
 - `JOURNAL_CORS_ORIGINS`
 - `MARKET_DATA_CORS_ORIGINS`
