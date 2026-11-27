@@ -125,8 +125,7 @@ export async function logout(): Promise<void> {
 }
 
 export async function getCurrentUser(): Promise<SessionUser> {
-  const response = await apiRequest<{ data: SessionUser }>("/api/v1/auth/me", {
-    service: "identity",
-  });
-  return response.data;
+  const user = await restoreSession();
+  if (!user) throw new ApiError("Sign in to continue.", 401, "unauthorized");
+  return user;
 }
