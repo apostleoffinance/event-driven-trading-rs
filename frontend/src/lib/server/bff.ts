@@ -152,6 +152,20 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
   const accessToken = jar.get(cookieName(request, ACCESS_COOKIE));
   const refreshToken = jar.get(cookieName(request, REFRESH_COOKIE));
 
+  if (serviceValue === "health" && pathParts.length === 0 && method === "GET") {
+    try {
+      const origin = apiOrigin("gateway", request);
+      const health = await fetch(`${origin}/healthz`, {
+        headers: { Accept: "text/plain" },
+        redirect: "manual",
+        cache: "no-store",
+      });
+      return responseWithCookies(health, []);
+    } catch {
+      return new Response("unavailable", { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+  }
+
   if (serviceValue === "csrf" && pathParts.length === 0 && method === "GET") {
     const token = csrfCookie(request) ?? crypto.randomUUID();
     const headers = new Headers({ "Cache-Control": "no-store" });
