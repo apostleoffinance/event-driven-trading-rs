@@ -69,14 +69,12 @@ export async function restoreSession(): Promise<SessionUser | null> {
   restoreInFlight = (async () => {
     try {
       const verifyUnderBrowserLock = async (): Promise<SessionUser | null> => {
-        const response = await fetch("/api/bff/session", {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: { Accept: "application/json" },
+        const payload = await apiRequest<{ authenticated: boolean; user?: SessionUser }>("", {
+          method: "POST",
+          auth: false,
+          service: "session",
+          body: JSON.stringify({}),
         });
-        if (!response.ok) throw new ApiError("Unable to verify the current session.", response.status);
-        const payload = await response.json() as { authenticated: boolean; user?: SessionUser };
         if (!payload.authenticated) {
           clearSession();
           return null;
