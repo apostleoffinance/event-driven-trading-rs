@@ -467,15 +467,18 @@ try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const organizations = [];
+    // PR #213 moved authentication to HttpOnly cookies. Seed only the
+    // non-sensitive user hint; the browser never receives access/refresh tokens.
     await context.addInitScript(() => {
-      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
-        token_type: "Bearer", access_token: "m5-onboarding-token", expires_in: 3600,
-        refresh_token: "m5-onboarding-refresh", expires_at: Date.now() + 3600_000,
+      sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({
         user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" },
       }));
     });
-    await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
-    await page.route("**/api/v1/organizations", async route => {
+    await page.route("**/api/bff/csrf", route => route.fulfill({
+      status: 204,
+      headers: { "Set-Cookie": "edgenest_csrf=test-csrf-token; Path=/; SameSite=Strict" },
+    }));
+    await page.route("**/api/bff/gateway/api/v1/organizations", async route => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON();
         const created = {
@@ -488,7 +491,7 @@ try {
       }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: organizations }) });
     });
-    await page.route("**/api/v1/organizations/org-created/workspaces", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-created/workspaces", route => route.fulfill({
       status: 200, contentType: "application/json",
       body: JSON.stringify({ data: [{ id: "workspace-default", organizationId: "org-created", name: "Default", slug: "default", status: "ACTIVE", isDefault: true, revision: 1 }] }),
     }));
