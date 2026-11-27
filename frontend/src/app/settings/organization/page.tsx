@@ -199,7 +199,7 @@ export default function OrganizationSettingsPage() {
           </div>
           {!canAdminister ? <p className="muted">Only organization owners and administrators can manage membership.</p> : (
             <>
-              <p className="muted">Add an existing EdgeNest account by its user ID. This API does not currently issue email invitations; do not enter an email address unless it is the account's actual user ID.</p>
+              <p className="muted">Add an existing EdgeNest account by its user ID. This API does not currently issue email invitations; do not enter an email address unless it is the account&apos;s actual user ID.</p>
               <form className="workspace-form workspace-grant-form" onSubmit={addMember}>
                 <label className="journal-field"><span>Existing account user ID</span><input value={newMemberId} onChange={(event) => setNewMemberId(event.target.value)} required placeholder="User ID" /></label>
                 <label className="journal-field"><span>Organization role</span><select value={newMemberRole} onChange={(event) => setNewMemberRole(event.target.value as Exclude<OrganizationRole, "OWNER">)}>{assignableRoles.map((role) => <option key={role} value={role}>{role.replaceAll("_", " ")}</option>)}</select></label>
