@@ -570,7 +570,7 @@ try {
     assert.equal(workspaceResponse?.status(), 200, "Workspace settings route failed.");
     await page.getByRole("heading", { name: "Workspace settings" }).waitFor();
     await page.getByText("Research", { exact: true }).waitFor();
-    await page.getByText("Execution", { exact: true }).waitFor();
+    await page.locator(".workspace-list").getByText("Execution", { exact: true }).waitFor();
     await page.getByLabel("Active workspace").selectOption("workspace-b");
     await page.waitForFunction(() => sessionStorage.getItem("edgenest.workspace.active.v1") === "workspace-b");
     await page.waitForFunction(() => document.querySelector('select[aria-label="Active workspace"]')?.value === "workspace-b");
