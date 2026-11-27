@@ -67,7 +67,7 @@ function validateSameOriginMutation(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin || origin !== new URL(request.url).origin) return false;
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
+  if (fetchSite && fetchSite !== "same-origin") return false;
   const cookie = csrfCookie(request);
   const header = request.headers.get("x-csrf-token");
   return Boolean(cookie && header && cookie === header);
@@ -194,20 +194,46 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     return Response.json({ error: { code: "csrf_validation_failed", message: "The request could not be verified. Refresh the page and try again." } }, { status: 403 });
   }
 
+  const loginOrRegister = service === "identity" && method === "POST" &&
+    (path === "/api/v1/auth/login" || path === "/api/v1/auth/register");
+  const logoutRequest = service === "identity" && path === "/api/v1/auth/logout" && method === "POST";
+  const publicRequest = isPublicRequest(service, path, method);
+
+  if (logoutRequest) {
+    if (refreshToken) {
+      try {
+        const identityOrigin = apiOrigin("identity", request);
+        await fetch(`${identityOrigin}/api/v1/auth/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+          redirect: "manual",
+          cache: "no-store",
+          signal: AbortSignal.timeout(5_000),
+        }).catch(() => undefined);
+      } catch { /* Always clear the browser session, even if Identity is unavailable. */ }
+    }
+    const headers = new Headers({ "Cache-Control": "no-store" });
+    appendClearedCookies(headers, request);
+    return new Response(null, { status: 204, headers });
+  }
+
+  if (!loginOrRegister && !publicRequest && !accessToken && !refreshToken) {
+    return Response.json({ error: { code: "unauthorized", message: "Sign in to continue." } }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+
   let origin: string;
   try { origin = apiOrigin(service, request); }
   catch {
-    return Response.json({ error: { code: "service_unavailable", message: "This service is temporarily unavailable." } }, { status: 503 });
+    return Response.json({ error: { code: "service_unavailable", message: "This service is temporarily unavailable." } }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 
-  const loginOrRegister = service === "identity" && method === "POST" &&
-    (path === "/api/v1/auth/login" || path === "/api/v1/auth/register");
   if (loginOrRegister) {
     const upstream = await forward(request, origin, path);
     if (!upstream.ok) return responseWithCookies(upstream, []);
     const payload = await upstream.json() as Partial<AuthTokens>;
     if (!payload.access_token || !payload.refresh_token || !payload.expires_in || !payload.user) {
-      return Response.json({ error: { code: "invalid_identity_response", message: "The identity service returned an invalid session." } }, { status: 502 });
+      return Response.json({ error: { code: "invalid_identity_response", message: "The identity service returned an invalid session." } }, { status: 502, headers: { "Cache-Control": "no-store" } });
     }
     const tokens = payload as AuthTokens;
     const headers = new Headers({ "Cache-Control": "no-store" });
@@ -217,27 +243,6 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     }
     return Response.json({ user: tokens.user }, { status: 200, headers });
   }
-
-  if (service === "identity" && path === "/api/v1/auth/logout" && method === "POST") {
-    if (refreshToken) {
-      await fetch(`${origin}/api/v1/auth/logout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-        redirect: "manual",
-        cache: "no-store",
-      }).catch(() => undefined);
-    }
-    const headers = new Headers({ "Cache-Control": "no-store" });
-    appendClearedCookies(headers, request);
-    return new Response(null, { status: 204, headers });
-  }
-
-  const publicRequest = isPublicRequest(service, path, method);
-  if (!publicRequest && !accessToken && !refreshToken) {
-    return Response.json({ error: { code: "unauthorized", message: "Sign in to continue." } }, { status: 401 });
-  }
-
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
   if (!publicRequest && !currentAccess && refreshToken) {
