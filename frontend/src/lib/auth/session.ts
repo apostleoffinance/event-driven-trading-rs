@@ -67,12 +67,21 @@ export async function restoreSession(): Promise<SessionUser | null> {
   if (restoreInFlight) return restoreInFlight;
   restoreInFlight = (async () => {
     try {
-      const response = await apiRequest<{ data: SessionUser }>("/api/v1/auth/me", {
-        auth: true, service: "identity",
+      const response = await fetch("/api/bff/session", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
       });
-      if (!response.data?.id) throw new Error("Invalid identity response.");
-      writeUser(response.data);
-      return response.data;
+      if (!response.ok) throw new ApiError("Unable to verify the current session.", response.status);
+      const payload = await response.json() as { authenticated: boolean; user?: SessionUser };
+      if (!payload.authenticated) {
+        clearSession();
+        return null;
+      }
+      if (!payload.user?.id || !payload.user.email) throw new Error("Invalid identity response.");
+      writeUser(payload.user);
+      return payload.user;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         clearSession();
