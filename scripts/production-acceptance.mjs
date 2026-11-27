@@ -138,14 +138,14 @@ try {
     await page.route("https://edgenest-api.onrender.com/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
-    await page.route("**/api/v1/trading/events*", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/trading/events*", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify([]),
     }));
 
     // Deterministic provider fixtures let this preview test real series rendering
     // without relying on CORS or an external market feed.
     const marketFixtureRequests = [];
-    await page.route("**/api/v1/market-data/**", async route => {
+    await page.route("**/api/bff/market-data/api/v1/market-data/**", async route => {
       const requestUrl = new URL(route.request().url());
       marketFixtureRequests.push({ path: requestUrl.pathname, query: requestUrl.search });
       if (requestUrl.pathname.endsWith("/providers")) {
@@ -468,7 +468,7 @@ try {
       }));
     });
     await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
-    await page.route("**/api/v1/organizations", async route => {
+    await page.route("**/api/bff/gateway/api/v1/organizations", async route => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON();
         const created = {
@@ -481,7 +481,7 @@ try {
       }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: organizations }) });
     });
-    await page.route("**/api/v1/organizations/org-created/workspaces", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-created/workspaces", route => route.fulfill({
       status: 200, contentType: "application/json",
       body: JSON.stringify({ data: [{ id: "workspace-default", organizationId: "org-created", name: "Default", slug: "default", status: "ACTIVE", isDefault: true, revision: 1 }] }),
     }));
@@ -632,10 +632,15 @@ try {
     }
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
     const authenticatedSessionState = await page.evaluate(() => {
-      const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
-      return { hasAccessToken: Boolean(session?.access_token), hasRefreshToken: Boolean(session?.refresh_token) };
+      const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v2") || "null");
+      const visibleCookies = document.cookie;
+      return {
+        hasUserHint: Boolean(session?.user?.id),
+        authCookieExposedToJavaScript: /(?:^|;\\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(visibleCookies),
+      };
     });
-    assert.ok(authenticatedSessionState.hasAccessToken, "Identity login returned HTTP 200 but did not persist an access token.");
+    assert.ok(authenticatedSessionState.hasUserHint, "Identity login returned HTTP 200 but did not persist the non-sensitive user hint.");
+    assert.equal(authenticatedSessionState.authCookieExposedToJavaScript, false, "Authentication cookies must be HttpOnly and unavailable to JavaScript.");
     const initialAccountsOutcome = await Promise.race([
       initialJournalAccountsResponsePromise.then(response => ({ kind: "response", response })),
       page.locator(".journal-page .panel.error[role='alert']").waitFor({ state: "visible", timeout: 45_000 }).then(async () => ({
