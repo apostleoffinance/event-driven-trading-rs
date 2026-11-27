@@ -38,6 +38,7 @@ function cookieName(request: Request, name: string): string {
 }
 
 function cookieHeader(request: Request, name: string, value: string, maxAge: number, httpOnly: boolean, sameSite: "Lax" | "Strict"): string {
+  const secure = new URL(request.url).protocol === "https:";
   return [
     `${cookieName(request, name)}=${encodeURIComponent(value)}`,
     "Path=/",
@@ -58,12 +59,6 @@ function appendClearedCookies(headers: Headers, request: Request): void {
   for (const value of clearedCookieHeaders(request)) headers.append("Set-Cookie", value);
 }
 
-function appendAuthCookies(headers: Headers, request: Request, tokens: AuthTokens): void {
-  headers.append("Set-Cookie", cookieHeader(request, ACCESS_COOKIE, tokens.access_token, tokens.expires_in, true, "Lax"));
-  // The Identity service remains authoritative for refresh-token expiry and rotation.
-  headers.append("Set-Cookie", cookieHeader(request, REFRESH_COOKIE, tokens.refresh_token, 30 * 24 * 60 * 60, true, "Lax"));
-}
-
 function csrfCookie(request: Request): string | undefined {
   return cookies(request).get(cookieName(request, CSRF_COOKIE));
 }
@@ -79,7 +74,7 @@ function validateSameOriginMutation(request: Request): boolean {
 }
 
 function apiOrigin(service: Service, request: Request): string {
-  const env = getCloudflareContext().env as RuntimeEnv;
+  const env = getCloudflareContext().env as unknown as RuntimeEnv;
   const value = service === "identity" ? env.IDENTITY_API_ORIGIN
     : service === "journal" ? env.JOURNAL_API_ORIGIN
     : service === "market-data" ? env.MARKET_DATA_API_ORIGIN
@@ -153,7 +148,6 @@ async function forward(request: Request, origin: string, path: string, accessTok
 
 export async function handleBffRequest(request: Request, serviceValue: string, pathParts: string[] = []): Promise<Response> {
   const method = request.method.toUpperCase();
-  const secure = new URL(request.url).protocol === "https:";
   const jar = cookies(request);
   const accessToken = jar.get(cookieName(request, ACCESS_COOKIE));
   const refreshToken = jar.get(cookieName(request, REFRESH_COOKIE));
@@ -169,7 +163,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     return Response.json({ error: { code: "invalid_bff_service", message: "Unknown API service." } }, { status: 404 });
   }
   const service = serviceValue as Service;
-  if (pathParts.some(part => part === "." || part === ".." || part.includes("/") || part.includes("\\\\"))) {
+  if (pathParts.some(part => part === "." || part === ".." || part.includes("/") || part.includes("\\"))) {
     return Response.json({ error: { code: "invalid_bff_path", message: "Unknown API route." } }, { status: 404 });
   }
   const path = `/${pathParts.join("/")}`;
@@ -248,8 +242,6 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     setCookies.push(cookieHeader(request, REFRESH_COOKIE, rotated.refresh_token, 30 * 24 * 60 * 60, true, "Lax"));
   }
   if (upstream.status === 401) {
-    const headers = new Headers({ "Cache-Control": "no-store" });
-    appendClearedCookies(headers, request);
     return responseWithCookies(upstream, clearedCookieHeaders(request));
   }
   return responseWithCookies(upstream, setCookies);
