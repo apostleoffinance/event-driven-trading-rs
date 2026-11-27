@@ -453,6 +453,50 @@ try {
     await context.close();
   }
 
+  // Verify the first-organization onboarding path provisions an organization
+  // and default workspace through the existing atomic API contract.
+  console.log("Checking first-organization onboarding...");
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    const organizations = [];
+    await context.addInitScript(() => {
+      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
+        token_type: "Bearer", access_token: "m5-onboarding-token", expires_in: 3600,
+        refresh_token: "m5-onboarding-refresh", expires_at: Date.now() + 3600_000,
+        user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" },
+      }));
+    });
+    await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
+    await page.route("**/api/v1/organizations", async route => {
+      if (route.request().method() === "POST") {
+        const input = route.request().postDataJSON();
+        const created = {
+          id: "org-created", name: input.name, status: "ACTIVE", membershipRole: "OWNER",
+          defaultWorkspace: { id: "workspace-default", organizationId: "org-created", name: "Default", slug: "default", status: "ACTIVE", isDefault: true, revision: 1 },
+        };
+        organizations.push({ id: created.id, name: created.name, status: created.status, membershipRole: created.membershipRole });
+        await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ data: created }) });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: organizations }) });
+    });
+    await page.route("**/api/v1/organizations/org-created/workspaces", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ data: [{ id: "workspace-default", organizationId: "org-created", name: "Default", slug: "default", status: "ACTIVE", isDefault: true, revision: 1 }] }),
+    }));
+    const response = await page.goto(`${frontendUrl}/settings/organization`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    assert.equal(response?.status(), 200, "Organization onboarding route failed.");
+    await page.getByRole("heading", { name: "Create organization" }).waitFor();
+    await page.getByLabel("Organization name").fill("New Quant Organization");
+    await page.getByRole("button", { name: "Create organization" }).click();
+    await page.getByRole("status").filter({ hasText: "Organization and its default workspace were created." }).waitFor();
+    assert.equal(organizations[0]?.name, "New Quant Organization", "Organization onboarding did not submit the organization name.");
+    await page.waitForFunction(() => sessionStorage.getItem("edgenest.organization.active.v1") === "org-created");
+    await page.screenshot({ path: `${artifactDir}/m5-organization-onboarding.png`, fullPage: true });
+    await context.close();
+  }
+
   // Deterministic M5 organization/workspace acceptance. This uses a synthetic
   // authenticated browser session and API fixtures; it never mutates production.
   console.log("Checking organization onboarding, membership administration and workspace isolation...");
