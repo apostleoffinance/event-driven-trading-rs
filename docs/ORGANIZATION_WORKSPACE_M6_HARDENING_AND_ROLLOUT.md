@@ -4,7 +4,7 @@
 
 **Current production decision: NO-GO until the following blockers are closed.**
 
-1. The frontend currently stores access and refresh tokens in JavaScript-readable sessionStorage. Before production workspace rollout, implement and security-test an HttpOnly, Secure, SameSite cookie-backed BFF/session boundary and CSRF protections. CORS and short access-token TTLs are not substitutes.
+1. Browser-token exposure: the cookie-backed BFF/session implementation is proposed in PR #213. It moves access/refresh credentials to host-only HttpOnly cookies, adds same-origin + double-submit CSRF checks, and performs refresh rotation server-side. This blocker remains open until the PR passes CI/review, the Worker is deployed with server-only API origins, and opt-in live acceptance verifies cookie flags, CSRF rejection and refresh rotation. CORS and short access-token TTLs are not substitutes.
 2. The M0 architecture audit records an unresolved R2 authorized-database verification gate. A disposable QOS-020 CI database is not evidence that the actual target database has been inspected, backed up or migrated safely. Resolve target-database verification and backup/restore rehearsal before any production migration.
 3. Workspace migration backfills account entitlements and creates append-only audit history. A destructive down-migration is not a safe rollback. Keep the workspace schema and history if application code must be rolled back.
 
@@ -39,10 +39,10 @@ The test harness uses a stub psql and verifies pass/fail behavior, read-only SQL
 The Cloudflare production frontend workflow is manual-only. A push to main or a frontend documentation change must not deploy production. A deployment requires all of the following:
 - manual workflow dispatch with confirm_production_deploy set to true;
 - a supplied HTTPS release-evidence reference;
-- repository Actions variables EDGENEST_COOKIE_BFF_READY=true and EDGENEST_R2_DATABASE_VERIFIED=true;
+- repository Actions variables EDGENEST_COOKIE_BFF_READY=true (after CI and implementation-security review) and EDGENEST_R2_DATABASE_VERIFIED=true (after database evidence review);
 - approval through the GitHub production environment protection rules (configure required reviewers).
 
-If any condition is absent, the deploy job is skipped or fails before build/deploy. Do not set either readiness variable until the corresponding security/database evidence is reviewed and approved.
+If any condition is absent, the deploy job is skipped or fails before build/deploy. Do not set either readiness variable until the corresponding implementation-security or database evidence is reviewed and approved. After deployment, run the opt-in live BFF acceptance and require it to pass before recording a final GO decision or expanding the Workspace rollout.
 
 ## Required deployment order
 

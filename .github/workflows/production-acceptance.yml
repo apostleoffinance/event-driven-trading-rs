@@ -53,11 +53,6 @@ jobs:
 
       - name: Build and launch PR Cloudflare Worker preview
         working-directory: frontend
-        env:
-          # Keep the PR Worker preview same-origin. Browser acceptance stubs the
-          # health and trading widgets and supplies deterministic market fixtures;
-          # production API/CORS checks run only on main after deployment.
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:8787
         run: |
           npm run cloudflare:build
           npx opennextjs-cloudflare preview > /tmp/worker-preview.log 2>&1 &
@@ -83,7 +78,7 @@ jobs:
           FRONTEND_URL: http://127.0.0.1:8787
           AUTH_FRONTEND_URL: https://edgenest-frontend.edgenest.workers.dev
           API_URL: https://edgenest-api.onrender.com
-          VERIFY_LIVE_BROWSER_RUNTIME: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_live_authenticated_browser_acceptance == true) }}
+          VERIFY_LIVE_BROWSER_RUNTIME: ${{ github.event_name == 'workflow_dispatch' && inputs.run_live_authenticated_browser_acceptance == true }}
           VERIFY_PRODUCTION_API: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_live_authenticated_browser_acceptance == true) }}
           ACCEPTANCE_ARTIFACT_DIR: artifacts/production-acceptance
           EDGENEST_ACCEPTANCE_EMAIL: ${{ secrets.EDGENEST_ACCEPTANCE_EMAIL }}

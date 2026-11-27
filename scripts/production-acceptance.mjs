@@ -95,8 +95,24 @@ if (process.env.VERIFY_PRODUCTION_API !== "false") {
     },
   });
   assert.equal(preflight.headers.get("access-control-allow-origin"), authFrontendUrl);
+
+
 } else {
   console.log("PR preview: skipping live production API health/auth/CORS gates; UI routes and browser interactions remain under test.");
+}
+
+if (process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true") {
+  console.log("Checking deployed BFF CSRF rejection...");
+  const csrfDenied = await expectHttp(`${authFrontendUrl}/api/bff/identity/api/v1/auth/logout`, 403, {
+    method: "POST",
+    headers: { Origin: "https://attacker.invalid", "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal((await csrfDenied.json())?.error?.code, "csrf_validation_failed");
+  const directMe = await expectHttp(`${authFrontendUrl}/api/bff/identity/api/v1/auth/me`, 404);
+  assert.equal((await directMe.json())?.error?.code, "bff_managed_session");
+  const directRefresh = await expectHttp(`${authFrontendUrl}/api/bff/identity/api/v1/auth/refresh`, 404);
+  assert.equal((await directRefresh.json())?.error?.code, "bff_managed_refresh");
 }
 
 await mkdir(artifactDir, { recursive: true });
@@ -106,6 +122,14 @@ try {
   for (const viewport of viewports) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, timezoneId: "Africa/Lagos" });
     const page = await context.newPage();
+    // The PR preview has no authenticated Worker API origins. Keep the signed-out
+    // viewport fixture deterministic and avoid sending an unseeded CSRF mutation
+    // to the real preview BFF; live CSRF behavior is covered by the opt-in deployed test.
+    await page.route("**/api/bff/session", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ authenticated: false }),
+    }));
+    await page.route("**/api/bff/health", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
 
@@ -129,23 +153,21 @@ try {
     page.on("console", message => {
       if (message.type() === "error" && !message.text().includes("503 (Service Unavailable)")) marketConsoleErrors.push(message.text());
     });
-    // PR Worker previews must be isolated from the live API. Stub both relative
-    // and absolute health endpoints so a future API URL override cannot turn
-    // this responsive UI check into a production CORS/network dependency.
+    // PR Worker previews must be isolated from direct health/API dependencies.
     await page.route("**/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
     await page.route("https://edgenest-api.onrender.com/healthz", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
     }));
-    await page.route("**/api/v1/trading/events*", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/trading/events*", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify([]),
     }));
 
     // Deterministic provider fixtures let this preview test real series rendering
     // without relying on CORS or an external market feed.
     const marketFixtureRequests = [];
-    await page.route("**/api/v1/market-data/**", async route => {
+    await page.route("**/api/bff/market-data/api/v1/market-data/**", async route => {
       const requestUrl = new URL(route.request().url());
       marketFixtureRequests.push({ path: requestUrl.pathname, query: requestUrl.search });
       if (requestUrl.pathname.endsWith("/providers")) {
@@ -460,15 +482,26 @@ try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const organizations = [];
+    const secureFrontend = frontendUrl.startsWith("https://");
+    await context.addCookies([{
+      name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+      value: "acceptance-csrf-token",
+      url: frontendUrl,
+      secure: secureFrontend,
+      httpOnly: false,
+      sameSite: "Strict",
+    }]);
     await context.addInitScript(() => {
-      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
-        token_type: "Bearer", access_token: "m5-onboarding-token", expires_in: 3600,
-        refresh_token: "m5-onboarding-refresh", expires_at: Date.now() + 3600_000,
+      sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({
         user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" },
       }));
     });
+    await page.route("**/api/bff/session", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ authenticated: true, user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" } }),
+    }));
     await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
-    await page.route("**/api/v1/organizations", async route => {
+    await page.route("**/api/bff/gateway/api/v1/organizations", async route => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON();
         const created = {
@@ -481,7 +514,7 @@ try {
       }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: organizations }) });
     });
-    await page.route("**/api/v1/organizations/org-created/workspaces", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-created/workspaces", route => route.fulfill({
       status: 200, contentType: "application/json",
       body: JSON.stringify({ data: [{ id: "workspace-default", organizationId: "org-created", name: "Default", slug: "default", status: "ACTIVE", isDefault: true, revision: 1 }] }),
     }));
@@ -510,25 +543,33 @@ try {
     const eventWorkspaceHeaders = [];
     let resolveWorkspaceEvent;
     const workspaceEventObserved = new Promise(resolve => { resolveWorkspaceEvent = resolve; });
+    const secureFrontend = frontendUrl.startsWith("https://");
+    await context.addCookies([{
+      name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+      value: "m5-acceptance-csrf",
+      url: frontendUrl,
+      secure: secureFrontend,
+      httpOnly: false,
+      sameSite: "Strict",
+    }]);
     await context.addInitScript(() => {
-      sessionStorage.setItem("edgenest.auth.session.v1", JSON.stringify({
-        token_type: "Bearer",
-        access_token: "m5-acceptance-token",
-        expires_in: 3600,
-        refresh_token: "m5-acceptance-refresh",
-        expires_at: Date.now() + 3600_000,
+      sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({
         user: { id: "owner-1", email: "m5-owner@example.test", display_name: "M5 Owner" },
       }));
       sessionStorage.setItem("edgenest.organization.active.v1", "org-1");
       sessionStorage.setItem("edgenest.workspace.active.v1", "workspace-a");
     });
+    await page.route("**/api/bff/session", route => route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ authenticated: true, user: { id: "owner-1", email: "m5-owner@example.test", display_name: "M5 Owner" } }),
+    }));
     await page.route("**/healthz", route => route.fulfill({ status: 200, contentType: "text/plain", body: "ok" }));
-    await page.route("**/api/v1/organizations", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations", route => route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: [{ id: "org-1", name: "Acceptance Organization", status: "ACTIVE", membershipRole: "OWNER" }] }),
     }));
-    await page.route("**/api/v1/organizations/org-1/workspaces", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-1/workspaces", route => route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ data: [
@@ -536,7 +577,7 @@ try {
         { id: "workspace-b", organizationId: "org-1", name: "Execution", slug: "execution", status: "ACTIVE", isDefault: false, revision: 1 },
       ] }),
     }));
-    await page.route("**/api/v1/organizations/org-1/members", async route => {
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-1/members", async route => {
       if (route.request().method() === "POST") {
         const input = route.request().postDataJSON();
         memberRows.push({ organizationId: "org-1", userId: input.user_id, role: input.role, status: "ACTIVE", revision: 1 });
@@ -545,10 +586,10 @@ try {
       }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: memberRows }) });
     });
-    await page.route("**/api/v1/organizations/org-1/workspaces/*/members", route => route.fulfill({
+    await page.route("**/api/bff/gateway/api/v1/organizations/org-1/workspaces/*/members", route => route.fulfill({
       status: 200, contentType: "application/json", body: JSON.stringify({ data: [] }),
     }));
-    await page.route("**/api/v1/trading/events*", async route => {
+    await page.route("**/api/bff/gateway/api/v1/trading/events*", async route => {
       const workspaceId = route.request().headers()["x-workspace-id"] ?? null;
       eventWorkspaceHeaders.push(workspaceId);
       if (workspaceId === "workspace-b") resolveWorkspaceEvent();
@@ -632,10 +673,15 @@ try {
     }
     await page.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
     const authenticatedSessionState = await page.evaluate(() => {
-      const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
-      return { hasAccessToken: Boolean(session?.access_token), hasRefreshToken: Boolean(session?.refresh_token) };
+      const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v2") || "null");
+      const visibleCookies = document.cookie;
+      return {
+        hasUserHint: Boolean(session?.user?.id),
+        authCookieExposedToJavaScript: /(?:^|;\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(visibleCookies),
+      };
     });
-    assert.ok(authenticatedSessionState.hasAccessToken, "Identity login returned HTTP 200 but did not persist an access token.");
+    assert.ok(authenticatedSessionState.hasUserHint, "Identity login returned HTTP 200 but did not persist the non-sensitive user hint.");
+    assert.equal(authenticatedSessionState.authCookieExposedToJavaScript, false, "Authentication cookies must be HttpOnly and unavailable to JavaScript.");
     const initialAccountsOutcome = await Promise.race([
       initialJournalAccountsResponsePromise.then(response => ({ kind: "response", response })),
       page.locator(".journal-page .panel.error[role='alert']").waitFor({ state: "visible", timeout: 45_000 }).then(async () => ({
@@ -761,14 +807,76 @@ try {
     }
 
     const tokenState = await page.evaluate(() => {
-      const raw = sessionStorage.getItem("edgenest.auth.session.v1");
-      if (!raw) return null;
-      const session = JSON.parse(raw);
-      return { access_token: session.access_token, user_email: session.user?.email, raw_session: raw };
+      const raw = sessionStorage.getItem("edgenest.auth.session.v2");
+      const session = raw ? JSON.parse(raw) : null;
+      return {
+        user: session?.user ?? null,
+        user_email: session?.user?.email ?? null,
+        authCookieExposedToJavaScript: /(?:^|;\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie),
+      };
     });
-    assert.ok(tokenState?.access_token, "Login succeeded but the browser session did not contain an access token.");
+    assert.ok(tokenState?.user?.id, "Login succeeded but the browser did not persist the non-sensitive user hint.");
     assert.equal(String(tokenState.user_email || "").toLowerCase(), email.toLowerCase(), "Authenticated session user does not match configured acceptance user.");
-    accessToken = tokenState.access_token;
+    assert.equal(tokenState.authCookieExposedToJavaScript, false, "BFF access and refresh cookies must be HttpOnly.");
+
+    const accessCookieName = authFrontendUrl.startsWith("https://") ? "__Host-edgenest_access" : "edgenest_access";
+    const refreshCookieName = authFrontendUrl.startsWith("https://") ? "__Host-edgenest_refresh" : "edgenest_refresh";
+    const beforeRotation = await context.cookies(authFrontendUrl);
+    const accessCookie = beforeRotation.find(cookie => cookie.name === accessCookieName);
+    const refreshCookie = beforeRotation.find(cookie => cookie.name === refreshCookieName);
+    assert.ok(accessCookie?.httpOnly && refreshCookie?.httpOnly, "BFF access and refresh cookies must both be HttpOnly.");
+    assert.equal(accessCookie.secure, authFrontendUrl.startsWith("https://"), "Access-cookie Secure attribute does not match the deployed scheme.");
+    assert.equal(refreshCookie.secure, authFrontendUrl.startsWith("https://"), "Refresh-cookie Secure attribute does not match the deployed scheme.");
+    assert.equal(accessCookie.sameSite, "Lax");
+    assert.equal(refreshCookie.sameSite, "Lax");
+    assert.equal(accessCookie.path, "/");
+    assert.equal(refreshCookie.path, "/");
+    assert.ok(refreshCookie.value, "BFF refresh cookie is empty.");
+
+    // Force only the access credential to fail. The BFF must refresh server-side,
+    // retry /auth/me, and replace the rotated access + refresh cookies.
+    await context.addCookies([{
+      name: accessCookieName,
+      value: "acceptance-invalid-access-token",
+      url: authFrontendUrl,
+      httpOnly: true,
+      secure: authFrontendUrl.startsWith("https://"),
+      sameSite: "Lax",
+    }]);
+    const protectedProbe = await page.request.get(`${authFrontendUrl}/api/bff/gateway/api/v1/organizations`);
+    assert.equal(protectedProbe.status(), 401, "Protected API proxy should request a managed session refresh instead of rotating a token itself.");
+    const beforeManagedRefresh = await context.cookies(authFrontendUrl);
+    assert.equal(beforeManagedRefresh.find(cookie => cookie.name === refreshCookieName)?.value, refreshCookie.value, "A protected API request rotated the refresh token outside the session endpoint.");
+    const refreshProbe = await page.evaluate(async () => {
+      const cookie = document.cookie.split("; ").find(value => value.startsWith("__Host-edgenest_csrf="));
+      const csrf = cookie?.slice("__Host-edgenest_csrf=".length) ?? "";
+      const response = await fetch("/api/bff/session", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({}),
+      });
+      return { status: response.status, body: await response.json() };
+    });
+    assert.equal(refreshProbe.status, 200, "BFF did not refresh and retry an expired access-token request.");
+    const afterRotation = await context.cookies(authFrontendUrl);
+    const rotatedRefreshCookie = afterRotation.find(cookie => cookie.name === refreshCookieName);
+    const rotatedAccessCookie = afterRotation.find(cookie => cookie.name === accessCookieName);
+    assert.ok(rotatedAccessCookie?.value && rotatedAccessCookie.value !== "acceptance-invalid-access-token", "BFF did not replace the invalid access cookie.");
+    assert.ok(rotatedRefreshCookie?.value && rotatedRefreshCookie.value !== refreshCookie.value, "BFF did not persist the rotated refresh cookie.");
+
+    // Backend contract assertions use a separate server-side login. The access
+    // token never enters browser storage, page state, or browser JavaScript.
+    const directLoginResponse = await expectHttp(`${apiUrl}/api/v1/auth/login`, 200, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const directLoginPayload = await directLoginResponse.json();
+    assert.ok(directLoginPayload.access_token, "Server-side acceptance login did not return an access token.");
+    assert.equal(String(directLoginPayload.user?.email || "").toLowerCase(), email.toLowerCase(), "Server-side acceptance identity did not match configured user.");
+    accessToken = directLoginPayload.access_token;
 
     const apiHeaders = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
     const accountsResponse = await expectHttp(`${apiUrl}/api/v1/journal/accounts`, 200, { headers: apiHeaders });
@@ -842,15 +950,19 @@ try {
       await freshPage.getByRole("button", { name: "Sign in" }).click();
       await freshPage.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
       await freshPage.goto(`${authFrontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-      const freshToken = await freshPage.evaluate(() => {
-        const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
-        return session?.access_token ?? null;
+      const freshSession = await freshPage.evaluate(() => {
+        const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v2") || "null");
+        return { userId: session?.user?.id ?? null, authCookieExposed: /(?:^|;\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie) };
       });
-      assert.ok(freshToken, "Fresh browser context could not establish a new authenticated session.");
+      assert.ok(freshSession.userId, "Fresh browser context could not establish an authenticated BFF session.");
+      assert.equal(freshSession.authCookieExposed, false, "Fresh browser context exposed an authentication cookie to JavaScript.");
       for (const item of created) {
-        const response = await expectHttp(`${savedViewsUrl}?journal_account_id=${encodeURIComponent(item.accountId)}`, 200, { headers: { Authorization: `Bearer ${freshToken}` } });
-        const body = await response.json();
-        assert.ok((body.data ?? []).some(view => view.id === item.id), "Saved view was not available in a fresh authenticated browser context.");
+        const result = await freshPage.evaluate(async accountId => {
+          const response = await fetch(`/api/bff/journal/api/v1/journal/analytics/saved-views?journal_account_id=${encodeURIComponent(accountId)}`, { credentials: "same-origin", cache: "no-store" });
+          return { status: response.status, body: await response.json() };
+        }, item.accountId);
+        assert.equal(result.status, 200, "Saved-view BFF request failed in a fresh authenticated browser context.");
+        assert.ok((result.body.data ?? []).some(view => view.id === item.id), "Saved view was not available in a fresh authenticated browser context.");
       }
       console.log("PASS authenticated acceptance: two-account saved-view scope, reload persistence and fresh-browser persistence.");
     } finally {
@@ -912,17 +1024,26 @@ try {
     ]);
     const uiContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: "Africa/Lagos" });
     try {
-      await uiContext.addInitScript(rawSession => {
-        if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
-      }, tokenState.raw_session);
-      await uiContext.route("**/api/v1/auth/me", async route => route.fulfill({
+      const secureFrontend = frontendUrl.startsWith("https://");
+      await uiContext.addCookies([{
+        name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+        value: "ui-acceptance-csrf",
+        url: frontendUrl,
+        secure: secureFrontend,
+        httpOnly: false,
+        sameSite: "Strict",
+      }]);
+      await uiContext.addInitScript(user => {
+        if (user) sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({ user }));
+      }, tokenState.user);
+      await uiContext.route("**/api/bff/session", async route => route.fulfill({
         status: 200, contentType: "application/json",
-        body: JSON.stringify({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
+        body: JSON.stringify({ authenticated: true, user: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
       }));
-      await uiContext.route("**/api/v1/journal/accounts", async route => route.fulfill({
+      await uiContext.route("**/api/bff/journal/api/v1/journal/accounts", async route => route.fulfill({
         status: 200, contentType: "application/json", body: JSON.stringify({ data: uiAccounts }),
       }));
-      await uiContext.route("**/api/v1/journal/accounts/*/risk-policy", async route => {
+      await uiContext.route("**/api/bff/journal/api/v1/journal/accounts/*/risk-policy", async route => {
         const accountId = new URL(route.request().url()).pathname.split("/").at(-2);
         const current = uiPolicies.get(accountId);
         if (!current) return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: { code: "not_found" } }) });
@@ -1001,9 +1122,18 @@ try {
     // the displayed metrics without modifying any production Journal trade.
     const replayContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: "Africa/Lagos", locale: "en-US" });
     try {
-      await replayContext.addInitScript(rawSession => {
-        if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
-      }, tokenState.raw_session);
+      const secureFrontend = frontendUrl.startsWith("https://");
+      await replayContext.addCookies([{
+        name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+        value: "replay-acceptance-csrf",
+        url: frontendUrl,
+        secure: secureFrontend,
+        httpOnly: false,
+        sameSite: "Strict",
+      }]);
+      await replayContext.addInitScript(user => {
+        if (user) sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({ user }));
+      }, tokenState.user);
       const openedAt = "2026-11-12T10:00:00Z";
       const closedAt = "2026-11-12T15:00:00Z";
       const tradeId = "acceptance-replay-trade";
@@ -1061,13 +1191,13 @@ try {
         setup_valid_percent: "100", rules_followed_percent: "100", average_discipline_score: "90",
         notice: "Acceptance fixture only.",
       });
-      await replayContext.route("**/api/v1/**", async route => {
+      await replayContext.route("**/api/bff/**", async route => {
         const request = route.request();
         const url = new URL(request.url());
         const pathname = url.pathname;
         if (pathname.includes("/market-data/")) replayMarketRequests.push(pathname);
         const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-        if (pathname.endsWith("/auth/me")) return json({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } });
+        if (pathname.endsWith("/api/bff/session")) return json({ authenticated: true, user: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } });
         if (pathname.endsWith("/journal/accounts")) return json({ data: [account] });
         if (pathname.endsWith("/journal/analytics/saved-views")) return json({ data: [] });
         if (pathname.endsWith("/journal/setups")) return json({ data: [] });

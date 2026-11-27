@@ -7,7 +7,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { PublicLandingPage } from "@/components/landing/PublicLandingPage";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { hasSession } from "@/lib/auth/session";
+import { hasSession, restoreSession } from "@/lib/auth/session";
 import { EDGENEST_SYMBOL_SRC } from "@/lib/brand-assets";
 import { PerformanceDisplayProvider } from "@/features/performance/PerformanceDisplayProvider";
 import { OrganizationProvider } from "@/features/organization/OrganizationProvider";
@@ -20,7 +20,15 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false);
   const pathname = usePathname();
   const stream = useSharedEventStream();
-  useEffect(() => { setAuthenticated(hasSession()); setAuthResolved(true); }, [pathname]);
+  useEffect(() => {
+    let active = true;
+    const initialize = async () => {
+      await restoreSession();
+      if (active) { setAuthenticated(hasSession()); setAuthResolved(true); }
+    };
+    void initialize();
+    return () => { active = false; };
+  }, [pathname]);
 
   if (pathname === "/" && authResolved && !authenticated) return <PublicLandingPage />;
   if (pathname === "/" && !authResolved) return <div className="landing-boot" aria-label="Loading EdgeNest"><img className="landing-boot-symbol" src={EDGENEST_SYMBOL_SRC} alt="" width={85} height={72} /></div>;

@@ -1,5 +1,4 @@
-import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
-const journalBaseUrl = () => apiBaseUrl("journal");
+import { apiRequest, requireApiMode } from "@/lib/api/client";
 
 export type JournalAnalyticsSavedView = {
   id: string;
@@ -48,37 +47,37 @@ export const journalApi = {
     const params = new URLSearchParams();
     if (accountId) params.set("journal_account_id", accountId);
     const suffix = params.toString() ? `?${params.toString()}` : "";
-    const response = await apiRequest<DataEnvelope<JournalAnalyticsSavedView[]>>(`/api/v1/journal/analytics/saved-views${suffix}`, { baseUrl: journalBaseUrl() });
+    const response = await apiRequest<DataEnvelope<JournalAnalyticsSavedView[]>>(`/api/v1/journal/analytics/saved-views${suffix}`, { service: "journal" });
     return response.data.map(view => ({ id:view.id, name:view.name, accountId:view.journal_account_id ?? "", fromDate:view.filters.fromDate ?? "", toDate:view.filters.toDate ?? "", datePreset:view.filters.datePreset ?? "all", symbolFilter:view.filters.symbolFilter ?? "", setupFilter:view.filters.setupFilter ?? "" }));
   },
   async saveAnalyticsSavedView(input: { name:string; accountId:string | null; filters:{fromDate:string;toDate:string;datePreset:string;symbolFilter:string;setupFilter:string} }) {
     requireApiMode();
-    return apiRequest<DataEnvelope<JournalAnalyticsSavedView>>("/api/v1/journal/analytics/saved-views", { method:"POST", baseUrl:journalBaseUrl(), body:JSON.stringify({name:input.name,journal_account_id:input.accountId,filters:input.filters}) });
+    return apiRequest<DataEnvelope<JournalAnalyticsSavedView>>("/api/v1/journal/analytics/saved-views", { method:"POST", service:"journal", body:JSON.stringify({name:input.name,journal_account_id:input.accountId,filters:input.filters}) });
   },
   async deleteAnalyticsSavedView(id:string) {
     requireApiMode();
-    return apiRequest<void>(`/api/v1/journal/analytics/saved-views/${encodeURIComponent(id)}`, { method:"DELETE", baseUrl:journalBaseUrl() });
+    return apiRequest<void>(`/api/v1/journal/analytics/saved-views/${encodeURIComponent(id)}`, { method:"DELETE", service:"journal" });
   },
   async getRiskPolicy(accountId: string) {
     requireApiMode();
-    return apiRequest<{policy:JournalRiskPolicy;version:number;updated_at:string|null;account_currency?:string}>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {baseUrl:journalBaseUrl()});
+    return apiRequest<{policy:JournalRiskPolicy;version:number;updated_at:string|null;account_currency?:string}>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {service:"journal"});
   },
   async saveRiskPolicy(accountId: string, policy: JournalRiskPolicy) {
     requireApiMode();
-    return apiRequest<JournalRiskPolicyEnvelope>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(policy)});
+    return apiRequest<JournalRiskPolicyEnvelope>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy`, {method:"PUT",service:"journal",body:JSON.stringify(policy)});
   },
   async evaluateRiskPolicy(accountId: string, input: {currency:string;risk_amount:number;potential_reward?:number|null;equity:number;start_of_day_balance?:number;start_of_day_equity?:number;peak_equity?:number;lot_size?:number;trade_notional?:number;current_open_notional?:number}) {
     requireApiMode();
-    return apiRequest<Record<string,unknown>>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy/evaluate`, {method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+    return apiRequest<Record<string,unknown>>(`/api/v1/journal/accounts/${encodeURIComponent(accountId)}/risk-policy/evaluate`, {method:"POST",service:"journal",body:JSON.stringify(input)});
   },
 
   async saveExcursions(tradeId: string, input: {mfe_price:number;mae_price:number;mfe_r:number|null;mae_r:number|null;timeframe:string;provider:string;candle_count:number;coverage_start:string;coverage_end:string}) {
     requireApiMode();
-    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean;precision:string}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/excursions`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean;precision:string}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/excursions`, {method:"PUT",service:"journal",body:JSON.stringify(input)});
   },
   async createAttachmentUploadUrl(tradeId: string, input: {original_filename:string;content_type:string;byte_size:number;attachment_type:"before"|"after"}) {
     requireApiMode();
-    return (await apiRequest<DataEnvelope<{upload_url:string;storage_key:string;storage_provider:string;content_type:string;byte_size:number;original_filename:string;attachment_type:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload-url`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)})).data;
+    return (await apiRequest<DataEnvelope<{upload_url:string;storage_key:string;storage_provider:string;content_type:string;byte_size:number;original_filename:string;attachment_type:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload-url`,{method:"POST",service:"journal",body:JSON.stringify(input)})).data;
   },
   async uploadAttachment(tradeId: string, file: File, attachmentType: "before"|"after") {
     requireApiMode();
@@ -88,29 +87,29 @@ export const journalApi = {
     });
     return apiRequest<DataEnvelope<{id:string;trade_id:string;saved:boolean;storage_provider:string;original_filename:string;byte_size:number}>>(
       `/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/upload?${query.toString()}`,
-      { method:"POST", baseUrl:journalBaseUrl(), headers:{"Content-Type":file.type}, body:file }
+      { method:"POST", service:"journal", headers:{"Content-Type":file.type}, body:file }
     );
   },
   async getAttachmentDownloadUrl(tradeId:string, attachmentId:string) {
     requireApiMode();
-    return (await apiRequest<DataEnvelope<{download_url:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,{baseUrl:journalBaseUrl()})).data;
+    return (await apiRequest<DataEnvelope<{download_url:string;expires_in_seconds:number}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,{service:"journal"})).data;
   },
   async listAttachments(tradeId: string) {
-    requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{baseUrl:journalBaseUrl()})).data;
+    requireApiMode(); return (await apiRequest<DataEnvelope<JournalAttachment[]>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{service:"journal"})).data;
   },
   async createAttachment(tradeId: string,input:Omit<JournalAttachment,"id">) {
-    requireApiMode(); return apiRequest<DataEnvelope<{id:string;trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{method:"POST",baseUrl:journalBaseUrl(),body:JSON.stringify(input)});
+    requireApiMode(); return apiRequest<DataEnvelope<{id:string;trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments`,{method:"POST",service:"journal",body:JSON.stringify(input)});
   },
   async deleteAttachment(tradeId:string,id:string) {
-    requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(id)}`,{method:"DELETE",baseUrl:journalBaseUrl()});
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/attachments/${encodeURIComponent(id)}`,{method:"DELETE",service:"journal"});
   },
   async getPsychology(tradeId: string) {
     requireApiMode();
-    return (await apiRequest<DataEnvelope<JournalPsychology | null>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { baseUrl: journalBaseUrl() })).data;
+    return (await apiRequest<DataEnvelope<JournalPsychology | null>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { service: "journal" })).data;
   },
   async savePsychology(tradeId: string, input: JournalPsychology) {
     requireApiMode();
-    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { method:"PUT", baseUrl:journalBaseUrl(), body:JSON.stringify(input) });
+    return apiRequest<DataEnvelope<{trade_id:string;saved:boolean}>>(`/api/v1/journal/trades/${encodeURIComponent(tradeId)}/psychology`, { method:"PUT", service:"journal", body:JSON.stringify(input) });
   },
   async analyticsSummary(options: { journal_account_id?: string; from?: string; to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
@@ -121,7 +120,7 @@ export const journalApi = {
     if (options.symbol) params.set("symbol", options.symbol);
     if (options.setup_id) params.set("setup_id", options.setup_id);
     const suffix = params.toString() ? `?${params.toString()}` : "";
-    return (await apiRequest<DataEnvelope<JournalAnalytics>>(`/api/v1/journal/analytics/summary${suffix}`, { baseUrl: journalBaseUrl() })).data;
+    return (await apiRequest<DataEnvelope<JournalAnalytics>>(`/api/v1/journal/analytics/summary${suffix}`, { service: "journal" })).data;
   },
   async analyticsIntelligence(options: { journal_account_id?: string; from?: string; to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
@@ -132,39 +131,39 @@ export const journalApi = {
     if (options.symbol) params.set("symbol", options.symbol);
     if (options.setup_id) params.set("setup_id", options.setup_id);
     const suffix = params.toString() ? `?${params.toString()}` : "";
-    return (await apiRequest<DataEnvelope<JournalIntelligence>>(`/api/v1/journal/analytics/intelligence${suffix}`, { baseUrl: journalBaseUrl() })).data;
+    return (await apiRequest<DataEnvelope<JournalIntelligence>>(`/api/v1/journal/analytics/intelligence${suffix}`, { service: "journal" })).data;
   },
-  async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { baseUrl: journalBaseUrl() })).data; },
+  async listAccounts() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount[]>>("/api/v1/journal/accounts", { service: "journal" })).data; },
   async linkTradingAccount(id: string, linkedTradingAccountId: string | null) {
     requireApiMode();
-    return apiRequest<DataEnvelope<{journal_account_id:string;linked_trading_account_id:string|null}>>(`/api/v1/journal/accounts/${encodeURIComponent(id)}/trading-link`, {method:"PUT",baseUrl:journalBaseUrl(),body:JSON.stringify({linked_trading_account_id:linkedTradingAccountId})});
+    return apiRequest<DataEnvelope<{journal_account_id:string;linked_trading_account_id:string|null}>>(`/api/v1/journal/accounts/${encodeURIComponent(id)}/trading-link`, {method:"PUT",service:"journal",body:JSON.stringify({linked_trading_account_id:linkedTradingAccountId})});
   },
   async journalPortfolio() {
     requireApiMode();
-    return (await apiRequest<DataEnvelope<Array<{account_id:string;name:string;currency:string;initial_balance:string;realized_net_pnl:string;journal_equity:string;trade_count:number;linked_trading_account_id:string|null}>>>("/api/v1/journal/portfolio",{baseUrl:journalBaseUrl()})).data;
+    return (await apiRequest<DataEnvelope<Array<{account_id:string;name:string;currency:string;initial_balance:string;realized_net_pnl:string;journal_equity:string;trade_count:number;linked_trading_account_id:string|null}>>>("/api/v1/journal/portfolio",{service:"journal"})).data;
   },
   async updateAccount(id: string, input: { name: string; broker?: string | null; account_type: string; currency: string; initial_balance: string }) {
-    requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "PUT", service: "journal", body: JSON.stringify(input) });
   },
   async archiveAccount(id: string) {
-    requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "DELETE", baseUrl: journalBaseUrl() });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/accounts/${encodeURIComponent(id)}`, { method: "DELETE", service: "journal" });
   },
   async createAccount(input: { name: string; broker?: string; account_type?: string; currency?: string; initial_balance?: string }) {
-    requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount>>("/api/v1/journal/accounts", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
+    requireApiMode(); return (await apiRequest<DataEnvelope<JournalAccount>>("/api/v1/journal/accounts", { method: "POST", service: "journal", body: JSON.stringify(input) })).data;
   },
-  async listSetups() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup[]>>("/api/v1/journal/setups", { baseUrl: journalBaseUrl() })).data; },
+  async listSetups() { requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup[]>>("/api/v1/journal/setups", { service: "journal" })).data; },
   async updateSetup(id: string, input: { name: string; description?: string | null; rules_json?: Record<string, unknown> }) {
-    requireApiMode(); return apiRequest<void>(`/api/v1/journal/setups/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/setups/${encodeURIComponent(id)}`, { method: "PUT", service: "journal", body: JSON.stringify(input) });
   },
   async archiveSetup(id: string) {
-    requireApiMode(); return apiRequest<void>(`/api/v1/journal/setups/${encodeURIComponent(id)}`, { method: "DELETE", baseUrl: journalBaseUrl() });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/setups/${encodeURIComponent(id)}`, { method: "DELETE", service: "journal" });
   },
   async createSetup(input: { name: string; description?: string; rules_json?: Record<string, unknown> }) {
-    requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup>>("/api/v1/journal/setups", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
+    requireApiMode(); return (await apiRequest<DataEnvelope<JournalSetup>>("/api/v1/journal/setups", { method: "POST", service: "journal", body: JSON.stringify(input) })).data;
   },
   async importTrades(input: { journal_account_id: string; source_system: string; trades: Omit<JournalTrade, "id">[] }) {
     requireApiMode();
-    return apiRequest<DataEnvelope<{ batch_id: string; source_count: number; imported_count: number; skipped_count: number; failed_count: number; status: string }>>("/api/v1/journal/import", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) }).then(x=>x.data);
+    return apiRequest<DataEnvelope<{ batch_id: string; source_count: number; imported_count: number; skipped_count: number; failed_count: number; status: string }>>("/api/v1/journal/import", { method: "POST", service: "journal", body: JSON.stringify(input) }).then(x=>x.data);
   },
   async listTrades(options: { journal_account_id?: string; limit?: number; offset?: number; closed_from?: string; closed_to?: string; symbol?: string; setup_id?: string } = {}) {
     requireApiMode();
@@ -178,16 +177,16 @@ export const journalApi = {
     if (options.setup_id) params.set("setup_id", options.setup_id);
     const query = params.toString();
     const suffix = query ? `?${query}` : "";
-    return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { baseUrl: journalBaseUrl() });
+    return apiRequest<PaginatedTrades>(`/api/v1/journal/trades${suffix}`, { service: "journal" });
   },
   async createTrade(input: Omit<JournalTrade, "id">) {
-    requireApiMode(); return (await apiRequest<DataEnvelope<JournalTrade>>("/api/v1/journal/trades", { method: "POST", baseUrl: journalBaseUrl(), body: JSON.stringify(input) })).data;
+    requireApiMode(); return (await apiRequest<DataEnvelope<JournalTrade>>("/api/v1/journal/trades", { method: "POST", service: "journal", body: JSON.stringify(input) })).data;
   },
-  async getTrade(id: string) { requireApiMode(); return (await apiRequest<DataEnvelope<JournalTrade>>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { baseUrl: journalBaseUrl() })).data; },
+  async getTrade(id: string) { requireApiMode(); return (await apiRequest<DataEnvelope<JournalTrade>>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { service: "journal" })).data; },
   async updateTrade(id: string, input: Omit<JournalTrade, "id">) {
-    requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { method: "PUT", baseUrl: journalBaseUrl(), body: JSON.stringify(input) });
+    requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { method: "PUT", service: "journal", body: JSON.stringify(input) });
   },
-  async deleteTrade(id: string) { requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { method: "DELETE", baseUrl: journalBaseUrl() }); },
+  async deleteTrade(id: string) { requireApiMode(); return apiRequest<void>(`/api/v1/journal/trades/${encodeURIComponent(id)}`, { method: "DELETE", service: "journal" }); },
 };
 
 export type JournalAnalytics = {
