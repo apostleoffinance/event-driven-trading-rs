@@ -1,36 +1,37 @@
 # EdgeNest Frontend API Configuration
 
-The Next.js frontend consumes Rust APIs through HTTPS. These are **public origin values**, not credentials. Next.js `NEXT_PUBLIC_*` values are embedded into the browser bundle at build time.
+The browser communicates with backend services only through same-origin Next.js BFF routes. Backend origins and credentials must remain server-side; the browser must not receive access or refresh tokens.
 
-## Origins
+## Server-side origins
 
-## Data source
+Configure one or more server environment variables on the Next.js/Cloudflare deployment:
 
-The frontend is API-only. It does not load seeded or fabricated trading records. If an API is unavailable, the interface displays a loading, error, or empty state rather than substituting sample data.
+| Variable | Service |
+|---|---|
+| `EDGENEST_API_URL` | Organization/workspace and trading gateway |
+| `EDGENEST_IDENTITY_API_URL` | Identity API |
+| `EDGENEST_JOURNAL_API_URL` | Journal API |
+| `EDGENEST_MARKET_DATA_API_URL` | Market Data API |
 
+For backwards-compatible deployments, the BFF currently falls back to the corresponding `NEXT_PUBLIC_*` origin variables. Prefer the server-only `EDGENEST_*` variables and remove the public variables after the deployment configuration has been migrated. These values are origins only, with no path prefix.
 
-Configure one gateway origin or the three service origins:
+Never put private JWT keys, database URLs, broker/MT5 credentials, venue secrets, or privileged tokens in frontend variables.
 
-| Variable | Service | Required routes |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | Shared gateway (optional fallback) | routes below |
-| `NEXT_PUBLIC_IDENTITY_API_URL` | Identity API | `/api/v1/auth/*` |
-| `NEXT_PUBLIC_JOURNAL_API_URL` | Journal API | `/api/v1/journal/*` |
-| `NEXT_PUBLIC_MARKET_DATA_API_URL` | Market Data API | `/api/v1/market-data/*` |
+## BFF and session security
 
-Service-specific origin wins over `NEXT_PUBLIC_API_URL`. Origins should be HTTPS in production and should not include a path prefix unless your gateway is configured to accept the appended service paths.
+- Browser requests use `/api/bff/{identity|journal|market-data|gateway}/...` and remain same-origin.
+- Access and refresh tokens are stored only in `HttpOnly`, `SameSite=Lax` cookies. Cookies use `Secure` on HTTPS.
+- The BFF proxies only explicit service route prefixes; it does not act as an arbitrary URL proxy.
+- Mutating requests require a same-origin `Origin` (when supplied) and a matching double-submit CSRF cookie/header.
+- Obtain the CSRF token with `GET /api/auth/csrf`; send it as `X-CSRF-Token` on POST/PUT/PATCH/DELETE requests.
+- Login, registration, refresh, and logout are handled by the BFF. Token material is never returned to browser JavaScript.
+- The BFF rotates refresh tokens after an upstream 401 and retries the original request once.
+- The small user profile cached in tab-scoped sessionStorage is a UI hint only, not an authentication credential or authorization signal. Backend authorization always depends on the HttpOnly session cookies and verified JWT.
+- Logout revokes the identity session and clears both HttpOnly cookies.
 
-Set:
-```env
-NEXT_PUBLIC_ENVIRONMENT=PAPER
-NEXT_PUBLIC_IDENTITY_API_URL=https://<identity-api-host>
-NEXT_PUBLIC_JOURNAL_API_URL=https://<journal-api-host>
-NEXT_PUBLIC_MARKET_DATA_API_URL=https://<market-data-api-host>
-```
+The BFF must be deployed on the same origin as the frontend. Direct browser calls to backend service origins are not part of the production architecture.
 
-Do not put private JWT keys, refresh-token signing keys, database URLs, broker/MT5 credentials, venue secrets, or privileged tokens in any `NEXT_PUBLIC_*` variable.
-
-## Existing service route contracts
+## API route contracts
 
 Identity:
 - `POST /api/v1/auth/register`
@@ -39,81 +40,28 @@ Identity:
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 
-Journal (JWT bearer):
-- `GET/POST /api/v1/journal/accounts`
-- `GET/POST /api/v1/journal/setups`
-- `GET/POST /api/v1/journal/trades`
-- `GET/PUT/PATCH/DELETE /api/v1/journal/trades/:trade_id`
-- `GET /api/v1/journal/analytics/summary?journal_account_id=...&from=...&to=...`
-- `GET /api/v1/journal/analytics/intelligence?journal_account_id=...&from=...&to=...`
-- `GET/PUT /api/v1/journal/trades/:trade_id/psychology`
-- `GET/POST/DELETE /api/v1/journal/trades/:trade_id/attachments`
-- Analytics summary/intelligence accept optional `symbol` and `setup_id` filters. Trade listing accepts `symbol`, `setup_id`, and optional `closed_from`/`closed_to` UTC timestamps for date-bounded closed-trade drill-down.
-- Analytics saved views are persisted through `GET/POST /api/v1/journal/analytics/saved-views` and `DELETE /api/v1/journal/analytics/saved-views/:id`. The API derives owner scope from the verified JWT and validates account ownership.
+Journal:
+- `/api/v1/journal/*` (JWT-authenticated)
 
-Market Data (read-only):
-- `GET /api/v1/market-data/providers`
-- `GET /api/v1/market-data/instruments`
-- `GET /api/v1/market-data/candles?instrument=EURUSD&timeframe=M1&limit=100`
-- `GET /api/v1/market-data/mt5/latest`
+Market Data:
+- `/api/v1/market-data/*` (read-only)
 
-The frontend exposes sign-in/register at `/login`, Journal at `/journal`, and read-only Market Data at `/market-data`.
-
-## CORS requirements
-
-Use the exact browser-visible frontend origin (scheme + hostname, no path or trailing slash). Never use `*`.
-
-When the frontend uses the combined API gateway (`NEXT_PUBLIC_API_URL`), configure this variable on the gateway service:
-- `EDGENEST_CORS_ORIGINS=https://<your-frontend-host>`
-
-The gateway answers browser `OPTIONS` preflight requests and validates the origin, requested method, and requested headers before proxying the actual request. Its allow-list includes the methods used by the APIs and the headers `Authorization`, `Content-Type`, `Accept`, and `X-Organization-Id`, and `X-Workspace-Id`. The workspace selector is required on workspace-scoped trading requests and is not authorization evidence. The gateway passes the configured origin list to its child API processes as `IDENTITY_CORS_ORIGINS`, `JOURNAL_CORS_ORIGINS`, and `MARKET_DATA_CORS_ORIGINS`.
-
-If the frontend calls the Identity, Journal, or Market Data services directly rather than through the combined gateway, configure the corresponding service allow-list on each service:
-- `IDENTITY_CORS_ORIGINS`
-- `JOURNAL_CORS_ORIGINS`
-- `MARKET_DATA_CORS_ORIGINS`
-
-This client sends bearer tokens in the `Authorization` header. Cross-origin browser calls therefore require a successful preflight; the gateway must return the allow-origin, allow-methods, and allow-headers response headers. Do not use wildcard origins.
-
-## Auth session notes
-
-Current client implementation stores access and refresh tokens in tab-scoped `sessionStorage`, rotates tokens via the Identity API when access-token requests return 401, and clears session state on logout or failed refresh. This is a functional first integration, **not the preferred final production security posture**: sessionStorage is accessible to JavaScript and vulnerable to token theft under XSS. Before production use, move token handling to an HttpOnly/Secure/SameSite cookie-backed BFF/session boundary, add CSRF controls as appropriate, and test refresh-token rotation/replay behavior.
+Organization/workspace gateway:
+- `/api/v1/organizations/*`
+- `/api/v1/trading/*`
 
 ## API mode behavior
 
 - The frontend never substitutes seeded dashboard fixtures.
-- Trading dashboard read endpoints are exposed by the Rust API under `/api/v1/trading/*` and use bearer JWT authentication plus explicit `dashboard_account_access` ownership grants. No mock data is used in the frontend.
-- Journal and Market Data API routes use real API clients and display loading/error/empty states.
+- API failures remain visible; the frontend does not silently fall back to mocks.
 - Market Data classification/freshness must be checked; a response is not automatically production/live feed data.
+- The dashboard is read-only; these endpoints do not submit, cancel, or modify orders.
 
-## Trading dashboard API (read-only)
+## Validation
 
-The following authenticated GET endpoints are currently implemented by the Journal API service and proxied by the combined gateway:
-
-- `GET /api/v1/trading/accounts` and `GET /accounts/:id`
-- `POST /api/v1/trading/accounts` creates an authenticated owner-scoped PAPER account only
-- `/api/v1/trading/portfolio`
-- `/api/v1/trading/strategies`
-- `/api/v1/trading/positions`
-- `/api/v1/trading/orders?limit=...`
-- `/api/v1/trading/risk` and `/risk/decisions`
-- `/api/v1/trading/events?limit=...`
-- `/api/v1/trading/reconciliation`
-- `/api/v1/trading/system/components` and `/system/pipeline`
-
-The dashboard is intentionally read-only; these endpoints do not submit, cancel, or modify orders.
-
-**Account access:** the core execution accounts predate EdgeNest identity grants. Migration `20261107000002_dashboard_account_access.sql` creates `dashboard_account_access`. Accounts are not automatically exposed to a JWT subject. A trusted provisioning/administrative workflow must explicitly grant an account to the authenticated owner; users must never be able to self-claim an arbitrary trading account. Without grants, The API returns truthful empty account/position/order data and disconnected/degraded status rather than fabricated fixtures.
-
-Risk limits are read from linked risk profile policy JSON. Missing risk limits are returned as `null` and rendered as “Not configured”; open risk and exposure values are unknown when the current schema cannot authoritatively calculate them. System health distinguishes the API/database checks from unavailable risk/OMS/venue runtime telemetry.
-
-## Local build and smoke-test sequence
-
-From `frontend/`:
+Run from `frontend/`:
 
 ```bash
-cp .env.example .env.local
-# Fill in API origin(s) locally; do not commit .env.local.
 npm ci
 npm run typecheck
 npm run build
@@ -121,12 +69,4 @@ npm run cloudflare:build
 npm run cloudflare:preview
 ```
 
-Test the deployed frontend from browser devtools/network:
-- Login and register (use a non-production test user).
-- Check `/api/v1/auth/me` after login.
-- Load Journal accounts and trade list; verify empty state if no records.
-- Load Market Data provider/instrument list and request a candle batch.
-- Verify CORS preflight and expired-token refresh.
-- Confirm dashboard figures originate from authenticated API responses.
-
-Backend API hosts are **deployment-specific** and cannot be inferred from the Cloudflare frontend Worker URL. Deploy/route the Rust services first, then set their actual public HTTPS origins. Do not put private service hosts or database ports directly in the browser if a public gateway is available.
+Test login/register, CSRF rejection, authenticated organization/workspace requests, Journal and Market Data access, expired access-token refresh, refresh-token replay, logout, and unavailable backend behavior. Verify no token appears in browser storage, JavaScript responses, URLs, or logs.
