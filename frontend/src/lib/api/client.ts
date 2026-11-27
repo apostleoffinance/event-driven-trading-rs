@@ -93,7 +93,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const method = (init.method ?? "GET").toUpperCase();
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRF-Token", await csrfToken());
   const service = explicitService ?? "gateway";
-  const url = `/api/bff/${service}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalizedPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
+  const url = `/api/bff/${service}${normalizedPath}`;
 
   let response: Response;
   try {
