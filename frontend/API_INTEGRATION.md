@@ -4,7 +4,7 @@ The browser communicates with backend services only through same-origin Next.js 
 
 ## Server-side origins
 
-Configure one or more server environment variables on the Next.js/Cloudflare deployment:
+Configure the following Worker environment variables in the Cloudflare dashboard (or as non-public Wrangler variables) for the deployed frontend Worker. The BFF reads them from the OpenNext Cloudflare runtime context:
 
 | Variable | Service |
 |---|---|
@@ -13,7 +13,7 @@ Configure one or more server environment variables on the Next.js/Cloudflare dep
 | `EDGENEST_JOURNAL_API_URL` | Journal API |
 | `EDGENEST_MARKET_DATA_API_URL` | Market Data API |
 
-For backwards-compatible deployments, the BFF currently falls back to the corresponding `NEXT_PUBLIC_*` origin variables. Prefer the server-only `EDGENEST_*` variables and remove the public variables after the deployment configuration has been migrated. These values are origins only, with no path prefix.
+For local `next dev`, the BFF can also read matching `EDGENEST_*` values from the local process environment. A temporary fallback to legacy `NEXT_PUBLIC_*` origin variables remains for compatibility; remove those public variables once the Worker variables are configured. These values are origins only, with no path prefix.
 
 Never put private JWT keys, database URLs, broker/MT5 credentials, venue secrets, or privileged tokens in frontend variables.
 
