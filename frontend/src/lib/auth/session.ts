@@ -8,17 +8,17 @@ const SESSION_USER_KEY = "edgenest.auth.user.v2";
 function readUser(): SessionUser | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.sessionStorage.getItem(SESSION_USER_KEY);
+    const raw = window.localStorage.getItem(SESSION_USER_KEY);
     return raw ? JSON.parse(raw) as SessionUser : null;
   } catch { return null; }
 }
 function writeUser(user: SessionUser): void {
-  window.sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+  window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
 }
 export function getSessionUser(): SessionUser | null { return readUser(); }
 export function hasSession(): boolean { return Boolean(readUser()); }
 export function clearSession(): void {
-  if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_USER_KEY);
+  if (typeof window !== "undefined") window.localStorage.removeItem(SESSION_USER_KEY);
 }
 
 let csrfTokenPromise: Promise<string> | null = null;
