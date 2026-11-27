@@ -167,6 +167,12 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
     return Response.json({ error: { code: "invalid_bff_path", message: "Unknown API route." } }, { status: 404 });
   }
   const path = `/${pathParts.join("/")}`;
+  if (service === "identity" && path === "/api/v1/auth/refresh") {
+    return Response.json({ error: { code: "bff_managed_refresh", message: "Session refresh is managed by the secure BFF." } }, {
+      status: 404,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
   if (!path.startsWith("/api/v1/")) {
     return Response.json({ error: { code: "invalid_bff_path", message: "Unknown API route." } }, { status: 404 });
   }
@@ -220,7 +226,7 @@ export async function handleBffRequest(request: Request, serviceValue: string, p
 
   let currentAccess = accessToken;
   let rotated: AuthTokens | null = null;
-  if (!currentAccess && refreshToken) {
+  if (!publicRequest && !currentAccess && refreshToken) {
     rotated = await refreshTokens(apiOrigin("identity", request), refreshToken).catch(() => null);
     currentAccess = rotated?.access_token;
     if (!currentAccess) {
