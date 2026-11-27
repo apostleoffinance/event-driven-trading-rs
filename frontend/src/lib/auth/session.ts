@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/api/client";
 
 export type SessionUser = { id: string; email: string; display_name: string };
 const SESSION_KEY = "edgenest.auth.session.v2";
+let sessionVerified = false;
 
 function readUser(): SessionUser | null {
   if (typeof window === "undefined") return null;
@@ -20,6 +21,7 @@ function writeUser(user: SessionUser): void {
     // This is a non-authoritative UI cache only. Session credentials never enter Web Storage.
     window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user }));
     window.sessionStorage.removeItem("edgenest.auth.session.v1");
+    sessionVerified = true;
   }
 }
 
@@ -29,6 +31,7 @@ export function clearSession(): void {
   if (typeof window !== "undefined") {
     window.sessionStorage.removeItem(SESSION_KEY);
     window.sessionStorage.removeItem("edgenest.auth.session.v1");
+    sessionVerified = false;
   }
 }
 
@@ -59,6 +62,8 @@ let restoreInFlight: Promise<SessionUser | null> | null = null;
 
 /** Restores the non-sensitive user hint by asking the same-origin BFF to validate the HttpOnly session. */
 export async function restoreSession(): Promise<SessionUser | null> {
+  const cached = readUser();
+  if (sessionVerified && cached) return cached;
   if (restoreInFlight) return restoreInFlight;
   restoreInFlight = (async () => {
     try {
