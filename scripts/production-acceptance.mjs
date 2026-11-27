@@ -1017,7 +1017,7 @@ try {
       }, tokenState.user);
       await uiContext.route("**/api/bff/session", async route => route.fulfill({
         status: 200, contentType: "application/json",
-        body: JSON.stringify({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
+        body: JSON.stringify({ authenticated: true, user: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
       }));
       await uiContext.route("**/api/bff/journal/api/v1/journal/accounts", async route => route.fulfill({
         status: 200, contentType: "application/json", body: JSON.stringify({ data: uiAccounts }),
@@ -1176,7 +1176,7 @@ try {
         const pathname = url.pathname;
         if (pathname.includes("/market-data/")) replayMarketRequests.push(pathname);
         const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-        if (pathname.endsWith("/auth/me")) return json({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } });
+        if (pathname.endsWith("/api/bff/session")) return json({ authenticated: true, user: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } });
         if (pathname.endsWith("/journal/accounts")) return json({ data: [account] });
         if (pathname.endsWith("/journal/analytics/saved-views")) return json({ data: [] });
         if (pathname.endsWith("/journal/setups")) return json({ data: [] });
