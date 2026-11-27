@@ -21,13 +21,26 @@ export function clearSession(): void {
   if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_USER_KEY);
 }
 
+let csrfTokenPromise: Promise<string> | null = null;
+async function csrfToken(): Promise<string> {
+  if (typeof document !== "undefined") {
+    const existing = document.cookie.split("; ").find((part) => part.startsWith("edgenest_csrf="))?.split("=").slice(1).join("=");
+    if (existing && decodeURIComponent(existing).length >= 32) return decodeURIComponent(existing);
+  }
+  if (!csrfTokenPromise) {
+    csrfTokenPromise = (async () => {
+      const response = await fetch("/api/auth/csrf", { method: "GET", credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error("Unable to establish a secure session. Refresh the page and try again.");
+      const payload = await response.json() as { data?: { csrf_token?: string } };
+      const token = payload.data?.csrf_token;
+      if (!token) throw new Error("Unable to establish a secure session. Refresh the page and try again.");
+      return token;
+    })().finally(() => { csrfTokenPromise = null; });
+  }
+  return csrfTokenPromise;
+}
 async function csrfHeaders(): Promise<Headers> {
-  const response = await fetch("/api/auth/csrf", { method: "GET", credentials: "same-origin", cache: "no-store" });
-  if (!response.ok) throw new Error("Unable to establish a secure session. Refresh the page and try again.");
-  const payload = await response.json() as { data?: { csrf_token?: string } };
-  const token = payload.data?.csrf_token;
-  if (!token) throw new Error("Unable to establish a secure session. Refresh the page and try again.");
-  return new Headers({ "Content-Type": "application/json", "X-CSRF-Token": token });
+  return new Headers({ "Content-Type": "application/json", "X-CSRF-Token": await csrfToken() });
 }
 
 async function authMutation(path: string, body?: unknown): Promise<SessionUser> {
