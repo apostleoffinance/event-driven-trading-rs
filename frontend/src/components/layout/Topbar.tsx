@@ -37,8 +37,7 @@ export function Topbar({
   const [signingOut, setSigningOut] = useState(false);
   const [backendStatus, setBackendStatus] = useState<"checking" | "connected" | "unavailable">("checking");
 
-  // Auth state is stored in sessionStorage, so sync it after client-side route
-  // changes (e.g. returning from login/register) rather than during SSR.
+  // Revalidate the HttpOnly BFF session on first load and after route changes.
   useEffect(() => {
     let active = true;
     const initialize = async () => {
