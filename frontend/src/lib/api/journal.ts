@@ -1,5 +1,4 @@
-import { apiBaseUrl, apiRequest, requireApiMode } from "@/lib/api/client";
-const journalBaseUrl = () => apiBaseUrl("journal");
+import { apiRequest, requireApiMode } from "@/lib/api/client";
 
 export type JournalAnalyticsSavedView = {
   id: string;
