@@ -467,16 +467,16 @@ try {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const organizations = [];
-    // PR #213 moved authentication to HttpOnly cookies. Seed only the
-    // non-sensitive user hint; the browser never receives access/refresh tokens.
+    const csrf = "m5-onboarding-csrf-token-0123456789abcdef";
     await context.addInitScript(() => {
+      // PR #213 uses a non-authoritative user hint; credentials remain HttpOnly cookies.
       sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({
         user: { id: "new-owner", email: "new-owner@example.test", display_name: "New Owner" },
       }));
     });
     await page.route("**/api/bff/csrf", route => route.fulfill({
       status: 204,
-      headers: { "Set-Cookie": "edgenest_csrf=test-csrf-token; Path=/; SameSite=Strict" },
+      headers: { "Set-Cookie": `edgenest_csrf=${csrf}; Path=/; SameSite=Strict` },
     }));
     await page.route("**/api/bff/gateway/api/v1/organizations", async route => {
       if (route.request().method() === "POST") {
