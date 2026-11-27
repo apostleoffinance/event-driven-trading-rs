@@ -889,6 +889,14 @@ pub async fn assign_account(
                  WHERE quant_account_id = $1
                    AND released_at IS NULL
                    AND lease_until > NOW()
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                  FROM broker_worker_sessions s
+                  JOIN broker_worker_assignments bwa ON bwa.id = s.assignment_id
+                 WHERE bwa.quant_account_id = $1
+                   AND s.status = 'READY'
+                   AND s.ready_until > NOW()
             ) AS no_active_worker
         "#,
     )
