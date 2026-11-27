@@ -109,6 +109,8 @@ if (process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true") {
     body: JSON.stringify({}),
   });
   assert.equal((await csrfDenied.json())?.error?.code, "csrf_validation_failed");
+  const directRefresh = await expectHttp(`${authFrontendUrl}/api/bff/identity/api/v1/auth/refresh`, 404);
+  assert.equal((await directRefresh.json())?.error?.code, "bff_managed_refresh");
 }
 
 await mkdir(artifactDir, { recursive: true });
