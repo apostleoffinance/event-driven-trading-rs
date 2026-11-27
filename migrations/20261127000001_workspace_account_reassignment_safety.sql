@@ -42,6 +42,10 @@ BEGIN
 END;
 $$;
 
+CREATE TRIGGER workspace_account_lock_account_assignments
+    BEFORE INSERT OR UPDATE OR DELETE ON workspace_account_assignments
+    FOR EACH ROW EXECUTE FUNCTION workspace_account_state_advisory_lock('account_id');
+
 CREATE TRIGGER workspace_account_lock_account_states
     BEFORE INSERT OR UPDATE OR DELETE ON account_states
     FOR EACH ROW EXECUTE FUNCTION workspace_account_state_advisory_lock('account_id');
