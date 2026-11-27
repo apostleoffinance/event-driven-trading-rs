@@ -1,4 +1,4 @@
-import { clearSession } from "@/lib/auth/session";
+import { clearSession, refreshSession } from "@/lib/auth/session";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly code?: string) {
@@ -69,10 +69,10 @@ async function resolveWorkspaceId(organizationId: string): Promise<string> {
   throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_selection_required");
 }
 
-type ApiRequestOptions = RequestInit & { auth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" };
+type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { auth = true, headers: inputHeaders, service: explicitService, ...init } = options;
+  const { auth = true, retryAuth = true, headers: inputHeaders, service: explicitService, ...init } = options;
   const headers = new Headers(inputHeaders);
   headers.delete("Authorization");
   const requiresOrganization =
@@ -108,7 +108,12 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     throw new ApiError("Unable to connect to EdgeNest services. Please try again.", 0, "network_error");
   }
 
-  if (response.status === 401 && auth) clearSession();
+  if (response.status === 401 && auth) {
+    if (retryAuth && await refreshSession()) {
+      return apiRequest<T>(path, { ...options, retryAuth: false });
+    }
+    clearSession();
+  }
   if (!response.ok) {
     let message = `API request failed (${response.status})`;
     let code: string | undefined;
