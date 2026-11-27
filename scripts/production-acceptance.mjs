@@ -106,6 +106,13 @@ try {
   for (const viewport of viewports) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, timezoneId: "Africa/Lagos" });
     const page = await context.newPage();
+    // Stub health probes before the first navigation; AppShell can issue them on initial mount.
+    await page.route("**/healthz", route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
+    }));
+    await page.route("**/api/bff/gateway/healthz", route => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ status: "ok" }),
+    }));
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
 
