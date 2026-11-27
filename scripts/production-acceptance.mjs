@@ -836,6 +836,10 @@ try {
       secure: authFrontendUrl.startsWith("https://"),
       sameSite: "Lax",
     }]);
+    const protectedProbe = await page.request.get(`${authFrontendUrl}/api/bff/gateway/api/v1/organizations`);
+    assert.equal(protectedProbe.status(), 401, "Protected API proxy should request a managed session refresh instead of rotating a token itself.");
+    const beforeManagedRefresh = await context.cookies(authFrontendUrl);
+    assert.equal(beforeManagedRefresh.find(cookie => cookie.name === refreshCookieName)?.value, refreshCookie.value, "A protected API request rotated the refresh token outside the session endpoint.");
     const refreshProbe = await page.evaluate(async () => {
       const response = await fetch("/api/bff/session", { credentials: "same-origin", cache: "no-store" });
       return { status: response.status, body: await response.json() };
