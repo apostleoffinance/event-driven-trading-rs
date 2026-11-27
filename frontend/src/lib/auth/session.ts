@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/api/client";
 
 export type SessionUser = { id: string; email: string; display_name: string };
 const SESSION_USER_KEY = "edgenest.auth.user.v2";
+const REFRESH_COMPLETED_KEY = "edgenest.auth.refresh.completedAt";
 
 function readUser(): SessionUser | null {
   if (typeof window === "undefined") return null;
@@ -57,6 +58,7 @@ async function authMutation(path: string, body?: unknown): Promise<SessionUser> 
     error?: { message?: string };
   };
   if (!response.ok || !payload.user) throw new Error(payload.error?.message || "Authentication failed.");
+  window.localStorage.removeItem(REFRESH_COMPLETED_KEY);
   writeUser(payload.user);
   return payload.user;
 }
@@ -69,40 +71,42 @@ export async function register(email: string, display_name: string, password: st
 }
 
 let refreshInFlight: Promise<boolean> | null = null;
+async function rotateSessionOnce(): Promise<boolean> {
+  const lastCompleted = Number(window.localStorage.getItem(REFRESH_COMPLETED_KEY) || "0");
+  // Another tab may already have rotated the shared HttpOnly cookie while this tab
+  // was waiting for the cross-tab Web Lock.
+  if (lastCompleted > 0 && Date.now() - lastCompleted < 15_000) return true;
+  try {
+    const headers = await csrfHeaders();
+    const response = await fetch("/api/bff/identity/api/v1/auth/refresh", {
+      method: "POST", headers, credentials: "same-origin", cache: "no-store", body: "{}",
+    });
+    const payload = await response.json().catch(() => ({})) as { user?: SessionUser };
+    if (!response.ok || !payload.user) {
+      clearSession();
+      return false;
+    }
+    writeUser(payload.user);
+    window.localStorage.setItem(REFRESH_COMPLETED_KEY, String(Date.now()));
+    return true;
+  } catch {
+    clearSession();
+    return false;
+  }
+}
 export async function refreshSession(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     try {
-      const headers = await csrfHeaders();
-      const response = await fetch("/api/bff/identity/api/v1/auth/refresh", {
-        method: "POST", headers, credentials: "same-origin", cache: "no-store", body: "{}",
-      });
-      const payload = await response.json().catch(() => ({})) as { user?: SessionUser };
-      if (!response.ok || !payload.user) {
-        clearSession();
-        return false;
+      if (navigator.locks) {
+        return await navigator.locks.request("edgenest-auth-refresh", rotateSessionOnce);
       }
-      writeUser(payload.user);
-      return true;
+      return await rotateSessionOnce();
     } catch {
       clearSession();
       return false;
     } finally { refreshInFlight = null; }
   })();
   return refreshInFlight;
-}
-
-export async function logout(): Promise<void> {
-  try {
-    const headers = await csrfHeaders();
-    const response = await fetch("/api/bff/identity/api/v1/auth/logout", {
-      method: "POST", headers, credentials: "same-origin", cache: "no-store", body: "{}",
-    });
-    if (!response.ok && response.status !== 401) throw new Error("Unable to complete sign out.");
-  } finally { clearSession(); }
-}
-
-export async function getCurrentUser(): Promise<SessionUser> {
-  return apiRequest<{ data: SessionUser }>("/api/v1/auth/me", { baseUrl: "/api/bff/identity" }).then((r) => r.data);
 }
