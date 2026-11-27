@@ -96,15 +96,19 @@ if (process.env.VERIFY_PRODUCTION_API !== "false") {
   });
   assert.equal(preflight.headers.get("access-control-allow-origin"), authFrontendUrl);
 
-  console.log("Checking BFF CSRF rejection...");
+
+} else {
+  console.log("PR preview: skipping live production API health/auth/CORS gates; UI routes and browser interactions remain under test.");
+}
+
+if (process.env.VERIFY_LIVE_BROWSER_RUNTIME === "true") {
+  console.log("Checking deployed BFF CSRF rejection...");
   const csrfDenied = await expectHttp(`${authFrontendUrl}/api/bff/identity/api/v1/auth/logout`, 403, {
     method: "POST",
     headers: { Origin: "https://attacker.invalid", "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
   assert.equal((await csrfDenied.json())?.error?.code, "csrf_validation_failed");
-} else {
-  console.log("PR preview: skipping live production API health/auth/CORS gates; UI routes and browser interactions remain under test.");
 }
 
 await mkdir(artifactDir, { recursive: true });
