@@ -1741,7 +1741,10 @@ mod qos021a_e3a_r2_api_tests {
             &pool,
             &app,
             Method::PUT,
-            &format!("/api/v1/organizations/ws-org/workspaces/{}/accounts/{created_account}/assignment", second.id.as_str()),
+            &format!(
+                "/api/v1/organizations/ws-org/workspaces/{}/accounts/{created_account}/assignment",
+                second.id.as_str()
+            ),
             Some("ws-owner"),
             Some("ws-org"),
             Some(json!({"expected_revision":revision + 1,"reason":"attempt unsafe move"})),
@@ -1775,8 +1778,16 @@ mod qos021a_e3a_r2_api_tests {
         )
         .await;
         assert_eq!(ambiguous_order.status(), StatusCode::CONFLICT);
-        let ambiguous_body = ambiguous_order.into_body().collect().await.unwrap().to_bytes();
+        let ambiguous_body = ambiguous_order
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
         let ambiguous_json: Value = serde_json::from_slice(&ambiguous_body).unwrap();
-        assert_eq!(ambiguous_json["error"]["code"], "account_has_outstanding_orders");
+        assert_eq!(
+            ambiguous_json["error"]["code"],
+            "account_has_outstanding_orders"
+        );
     }
 }
