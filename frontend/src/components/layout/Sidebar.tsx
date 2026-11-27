@@ -55,7 +55,7 @@ const sections = [
   },
   {
     title: "WORKSPACE",
-    items: [{ href: "/settings/workspaces", label: "Workspace settings", icon: Settings }],
+    items: [{ href: "/settings/organization", label: "Organization settings", icon: Settings }, { href: "/settings/workspaces", label: "Workspace settings", icon: Settings }],
   },
   {
     title: "TOOLS",
