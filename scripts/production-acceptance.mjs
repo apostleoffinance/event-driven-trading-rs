@@ -668,7 +668,7 @@ try {
       const visibleCookies = document.cookie;
       return {
         hasUserHint: Boolean(session?.user?.id),
-        authCookieExposedToJavaScript: /(?:^|;\\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(visibleCookies),
+        authCookieExposedToJavaScript: /(?:^|;\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(visibleCookies),
       };
     });
     assert.ok(authenticatedSessionState.hasUserHint, "Identity login returned HTTP 200 but did not persist the non-sensitive user hint.");
@@ -803,7 +803,7 @@ try {
       return {
         user: session?.user ?? null,
         user_email: session?.user?.email ?? null,
-        authCookieExposedToJavaScript: /(?:^|;\\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie),
+        authCookieExposedToJavaScript: /(?:^|;\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie),
       };
     });
     assert.ok(tokenState?.user?.id, "Login succeeded but the browser did not persist the non-sensitive user hint.");
@@ -931,7 +931,7 @@ try {
       await freshPage.goto(`${authFrontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const freshSession = await freshPage.evaluate(() => {
         const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v2") || "null");
-        return { userId: session?.user?.id ?? null, authCookieExposed: /(?:^|;\\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie) };
+        return { userId: session?.user?.id ?? null, authCookieExposed: /(?:^|;\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie) };
       });
       assert.ok(freshSession.userId, "Fresh browser context could not establish an authenticated BFF session.");
       assert.equal(freshSession.authCookieExposed, false, "Fresh browser context exposed an authentication cookie to JavaScript.");
