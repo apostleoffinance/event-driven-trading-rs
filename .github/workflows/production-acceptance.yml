@@ -54,10 +54,8 @@ jobs:
       - name: Build and launch PR Cloudflare Worker preview
         working-directory: frontend
         env:
-          # Keep the PR Worker preview same-origin. Browser acceptance stubs the
-          # health and trading widgets and supplies deterministic market fixtures;
-          # production API/CORS checks run only on main after deployment.
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:8787
+          # The preview uses same-origin BFF routes; deterministic browser fixtures
+          # intercept the health and service calls. No API origin is bundled.
         run: |
           npm run cloudflare:build
           npx opennextjs-cloudflare preview > /tmp/worker-preview.log 2>&1 &
