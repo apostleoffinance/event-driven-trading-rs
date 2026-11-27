@@ -23,19 +23,6 @@ export function apiBaseUrl(service?: "identity" | "journal" | "market-data"): st
 const ACTIVE_ORGANIZATION_KEY = "edgenest.organization.active.v1";
 const ACTIVE_WORKSPACE_KEY = "edgenest.workspace.active.v1";
 
-function serviceFor(baseUrl?: string): "identity" | "journal" | "market-data" | "gateway" {
-  if (!baseUrl) return "gateway";
-  const normalize = (value?: string) => (value ?? "").trim().replace(/\\/$/, "");
-  const configuredGateway = normalize(process.env.NEXT_PUBLIC_API_URL);
-  const identity = normalize(process.env.NEXT_PUBLIC_IDENTITY_API_URL) || configuredGateway;
-  const journal = normalize(process.env.NEXT_PUBLIC_JOURNAL_API_URL) || configuredGateway;
-  const marketData = normalize(process.env.NEXT_PUBLIC_MARKET_DATA_API_URL) || configuredGateway;
-  const target = normalize(baseUrl);
-  if (target && target === identity) return "identity";
-  if (target && target === journal) return "journal";
-  if (target && target === marketData) return "market-data";
-  return "gateway";
-}
 
 function readCsrfCookie(): string | null {
   if (typeof document === "undefined") return null;
@@ -94,10 +81,10 @@ async function resolveWorkspaceId(organizationId: string): Promise<string> {
   throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_selection_required");
 }
 
-type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string; service?: "identity" | "journal" | "market-data" | "gateway" };
+type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { auth = true, retryAuth: _retryAuth = true, headers: inputHeaders, baseUrl, service: explicitService, ...init } = options;
+  const { auth = true, retryAuth: _retryAuth = true, headers: inputHeaders, service: explicitService, ...init } = options;
   const headers = new Headers(inputHeaders);
   headers.delete("Authorization");
   const requiresOrganization =
@@ -117,7 +104,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   const method = (init.method ?? "GET").toUpperCase();
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRF-Token", await csrfToken());
-  const service = explicitService ?? serviceFor(baseUrl);
+  const service = explicitService ?? "gateway";
   const url = `/api/bff/${service}${path.startsWith("/") ? path : `/${path}`}`;
 
   let response: Response;
