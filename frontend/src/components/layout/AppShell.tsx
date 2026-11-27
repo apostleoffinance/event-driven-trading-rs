@@ -20,7 +20,15 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false);
   const pathname = usePathname();
   const stream = useSharedEventStream();
-  useEffect(() => {\n    let active = true;\n    const initialize = async () => {\n      await restoreSession();\n      if (active) { setAuthenticated(hasSession()); setAuthResolved(true); }\n    };\n    void initialize();\n    return () => { active = false; };\n  }, [pathname]);
+  useEffect(() => {
+    let active = true;
+    const initialize = async () => {
+      await restoreSession();
+      if (active) { setAuthenticated(hasSession()); setAuthResolved(true); }
+    };
+    void initialize();
+    return () => { active = false; };
+  }, [pathname]);
 
   if (pathname === "/" && authResolved && !authenticated) return <PublicLandingPage />;
   if (pathname === "/" && !authResolved) return <div className="landing-boot" aria-label="Loading EdgeNest"><img className="landing-boot-symbol" src={EDGENEST_SYMBOL_SRC} alt="" width={85} height={72} /></div>;
