@@ -777,14 +777,29 @@ try {
     }
 
     const tokenState = await page.evaluate(() => {
-      const raw = sessionStorage.getItem("edgenest.auth.session.v1");
-      if (!raw) return null;
-      const session = JSON.parse(raw);
-      return { access_token: session.access_token, user_email: session.user?.email, raw_session: raw };
+      const raw = sessionStorage.getItem("edgenest.auth.session.v2");
+      const session = raw ? JSON.parse(raw) : null;
+      return {
+        user: session?.user ?? null,
+        user_email: session?.user?.email ?? null,
+        authCookieExposedToJavaScript: /(?:^|;\\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie),
+      };
     });
-    assert.ok(tokenState?.access_token, "Login succeeded but the browser session did not contain an access token.");
+    assert.ok(tokenState?.user?.id, "Login succeeded but the browser did not persist the non-sensitive user hint.");
     assert.equal(String(tokenState.user_email || "").toLowerCase(), email.toLowerCase(), "Authenticated session user does not match configured acceptance user.");
-    accessToken = tokenState.access_token;
+    assert.equal(tokenState.authCookieExposedToJavaScript, false, "BFF access and refresh cookies must be HttpOnly.");
+
+    // Backend contract assertions use a separate server-side login. The access
+    // token never enters browser storage, page state, or browser JavaScript.
+    const directLoginResponse = await expectHttp(`${apiUrl}/api/v1/auth/login`, 200, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const directLoginPayload = await directLoginResponse.json();
+    assert.ok(directLoginPayload.access_token, "Server-side acceptance login did not return an access token.");
+    assert.equal(String(directLoginPayload.user?.email || "").toLowerCase(), email.toLowerCase(), "Server-side acceptance identity did not match configured user.");
+    accessToken = directLoginPayload.access_token;
 
     const apiHeaders = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
     const accountsResponse = await expectHttp(`${apiUrl}/api/v1/journal/accounts`, 200, { headers: apiHeaders });
@@ -858,15 +873,19 @@ try {
       await freshPage.getByRole("button", { name: "Sign in" }).click();
       await freshPage.waitForURL(/\/journal(?:[/?#]|$)/, { timeout: 30_000 });
       await freshPage.goto(`${authFrontendUrl}/analytics`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-      const freshToken = await freshPage.evaluate(() => {
-        const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v1") || "null");
-        return session?.access_token ?? null;
+      const freshSession = await freshPage.evaluate(() => {
+        const session = JSON.parse(sessionStorage.getItem("edgenest.auth.session.v2") || "null");
+        return { userId: session?.user?.id ?? null, authCookieExposed: /(?:^|;\\s*)(?:__Host-)?edgenest_(?:access|refresh)=/.test(document.cookie) };
       });
-      assert.ok(freshToken, "Fresh browser context could not establish a new authenticated session.");
+      assert.ok(freshSession.userId, "Fresh browser context could not establish an authenticated BFF session.");
+      assert.equal(freshSession.authCookieExposed, false, "Fresh browser context exposed an authentication cookie to JavaScript.");
       for (const item of created) {
-        const response = await expectHttp(`${savedViewsUrl}?journal_account_id=${encodeURIComponent(item.accountId)}`, 200, { headers: { Authorization: `Bearer ${freshToken}` } });
-        const body = await response.json();
-        assert.ok((body.data ?? []).some(view => view.id === item.id), "Saved view was not available in a fresh authenticated browser context.");
+        const result = await freshPage.evaluate(async accountId => {
+          const response = await fetch(`/api/bff/journal/api/v1/journal/analytics/saved-views?journal_account_id=${encodeURIComponent(accountId)}`, { credentials: "same-origin", cache: "no-store" });
+          return { status: response.status, body: await response.json() };
+        }, item.accountId);
+        assert.equal(result.status, 200, "Saved-view BFF request failed in a fresh authenticated browser context.");
+        assert.ok((result.body.data ?? []).some(view => view.id === item.id), "Saved view was not available in a fresh authenticated browser context.");
       }
       console.log("PASS authenticated acceptance: two-account saved-view scope, reload persistence and fresh-browser persistence.");
     } finally {
@@ -928,9 +947,18 @@ try {
     ]);
     const uiContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId: "Africa/Lagos" });
     try {
-      await uiContext.addInitScript(rawSession => {
-        if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
-      }, tokenState.raw_session);
+      const secureFrontend = frontendUrl.startsWith("https://");
+      await uiContext.addCookies([{
+        name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+        value: "ui-acceptance-csrf",
+        url: frontendUrl,
+        secure: secureFrontend,
+        httpOnly: false,
+        sameSite: "Strict",
+      }]);
+      await uiContext.addInitScript(user => {
+        if (user) sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({ user }));
+      }, tokenState.user);
       await uiContext.route("**/api/bff/identity/api/v1/auth/me", async route => route.fulfill({
         status: 200, contentType: "application/json",
         body: JSON.stringify({ data: { id: "acceptance-user", email, display_name: "QuantOS Acceptance" } }),
@@ -1017,9 +1045,18 @@ try {
     // the displayed metrics without modifying any production Journal trade.
     const replayContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: "Africa/Lagos", locale: "en-US" });
     try {
-      await replayContext.addInitScript(rawSession => {
-        if (rawSession) sessionStorage.setItem("edgenest.auth.session.v1", rawSession);
-      }, tokenState.raw_session);
+      const secureFrontend = frontendUrl.startsWith("https://");
+      await replayContext.addCookies([{
+        name: secureFrontend ? "__Host-edgenest_csrf" : "edgenest_csrf",
+        value: "replay-acceptance-csrf",
+        url: frontendUrl,
+        secure: secureFrontend,
+        httpOnly: false,
+        sameSite: "Strict",
+      }]);
+      await replayContext.addInitScript(user => {
+        if (user) sessionStorage.setItem("edgenest.auth.session.v2", JSON.stringify({ user }));
+      }, tokenState.user);
       const openedAt = "2026-11-12T10:00:00Z";
       const closedAt = "2026-11-12T15:00:00Z";
       const tradeId = "acceptance-replay-trade";
