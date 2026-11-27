@@ -94,10 +94,10 @@ async function resolveWorkspaceId(organizationId: string): Promise<string> {
   throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_selection_required");
 }
 
-type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string };
+type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; baseUrl?: string; service?: "identity" | "journal" | "market-data" | "gateway" };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { auth = true, retryAuth: _retryAuth = true, headers: inputHeaders, baseUrl, ...init } = options;
+  const { auth = true, retryAuth: _retryAuth = true, headers: inputHeaders, baseUrl, service: explicitService, ...init } = options;
   const headers = new Headers(inputHeaders);
   headers.delete("Authorization");
   const requiresOrganization =
@@ -117,7 +117,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   const method = (init.method ?? "GET").toUpperCase();
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) headers.set("X-CSRF-Token", await csrfToken());
-  const service = serviceFor(baseUrl);
+  const service = explicitService ?? serviceFor(baseUrl);
   const url = `/api/bff/${service}${path.startsWith("/") ? path : `/${path}`}`;
 
   let response: Response;
