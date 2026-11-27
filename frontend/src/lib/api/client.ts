@@ -10,7 +10,7 @@ export class ApiError extends Error {
 export function apiBaseUrl(): string {
   const value = (process.env.NEXT_PUBLIC_API_URL || "").trim();
   if (!value) throw new Error("This service is temporarily unavailable. Please try again later.");
-  const normalized = value.replace(/\\/$/, "");
+  const normalized = value.replace(/\/$/, "");
   if (typeof window !== "undefined" && window.location.protocol === "https:" && normalized.startsWith("http://")) {
     throw new Error("API URL must use HTTPS when the frontend is served over HTTPS.");
   }
@@ -78,10 +78,10 @@ async function resolveWorkspaceId(organizationId: string): Promise<string> {
   throw new ApiError("Choose a workspace before loading trading data.", 409, "workspace_selection_required");
 }
 
-type ApiRequestOptions = RequestInit & { auth?: boolean; retryAuth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" };
+type ApiRequestOptions = RequestInit & { auth?: boolean; service?: "identity" | "journal" | "market-data" | "gateway" };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { auth = true, retryAuth: _retryAuth = true, headers: inputHeaders, service: explicitService, ...init } = options;
+  const { auth = true, headers: inputHeaders, service: explicitService, ...init } = options;
   const headers = new Headers(inputHeaders);
   headers.delete("Authorization");
   const requiresOrganization =
