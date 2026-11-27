@@ -25,7 +25,7 @@ function writeUser(user: SessionUser): void {
 export function getSessionUser(): SessionUser | null { return readUser(); }
 export function hasSession(): boolean { return Boolean(readUser()); }
 export function clearSession(): void {
-  if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_KEY);
+  if (typeof window !== "undefined") {\n    window.sessionStorage.removeItem(SESSION_KEY);\n    window.sessionStorage.removeItem("edgenest.auth.session.v1");\n  }
 }
 
 /** Kept temporarily for callers migrating to the BFF; browser access tokens are no longer exposed. */
