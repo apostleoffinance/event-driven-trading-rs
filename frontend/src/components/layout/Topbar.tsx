@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronDown, LogOut, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
 import { EDGENEST_LOGO_SRC } from "@/lib/brand-assets";
-import { apiBaseUrl } from "@/lib/api/client";
 import { useTheme } from "@/features/theme/ThemeProvider";
 import { getSessionUser, hasSession, logout, restoreSession } from "@/lib/auth/session";
 import { usePerformanceDisplay } from "@/features/performance/PerformanceDisplayProvider";
@@ -76,8 +75,7 @@ export function Topbar({
     let active = true;
     const check = async () => {
       try {
-        const origin = apiBaseUrl();
-        const response = await fetch(`${origin}/healthz`, { cache: "no-store", headers: { Accept: "text/plain" } });
+        const response = await fetch("/api/bff/health", { cache: "no-store", headers: { Accept: "text/plain" } });
         if (active) setBackendStatus(response.ok ? "connected" : "unavailable");
       } catch {
         if (active) setBackendStatus("unavailable");
