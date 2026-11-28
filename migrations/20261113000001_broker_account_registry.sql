@@ -68,8 +68,6 @@ CREATE INDEX external_broker_account_tokens_lookup_idx
 
 -- R2 entitlement remains the tenant authority. The redundant unique key
 -- permits a composite FK and prevents a binding from crossing organizations.
--- The organization/account pair is already unique through the primary key
--- on account_id; this explicit composite key is retained for workspace FKs.
 ALTER TABLE organization_account_entitlements
     ADD CONSTRAINT organization_entitlements_org_account_unique UNIQUE (organization_id,account_id);
 
