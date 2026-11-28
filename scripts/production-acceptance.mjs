@@ -464,14 +464,26 @@ try {
     );
 
     await page.getByRole("link", { name: "Sign in" }).click();
-    await page.getByRole("heading", { name: "Welcome back to EdgeNest" }).waitFor();
-    await page.getByLabel("Email").waitFor();
-    await page.getByLabel("Password").waitFor();
+    const loginHeading = page.getByRole("heading", { name: "Welcome back", exact: true });
+    await loginHeading.waitFor({ state: "visible" });
+    await page.getByLabel("Email").waitFor({ state: "visible" });
+    const passwordInput = page.locator("#edgenest-password");
+    await passwordInput.waitFor({ state: "visible" });
+    assert.equal(await page.locator(".topbar").count(), 0, "Standalone sign-in must not render the dashboard topbar.");
+    assert.equal(await page.locator(".sidebar").count(), 0, "Standalone sign-in must not render the dashboard sidebar.");
+    const showPassword = page.getByRole("button", { name: "Show password" });
+    await showPassword.waitFor({ state: "visible" });
+    await passwordInput.fill("Acceptance-Test-Password");
+    await showPassword.click();
+    assert.equal(await passwordInput.getAttribute("type"), "text", "Show password must reveal the entered value.");
+    await page.getByRole("button", { name: "Hide password" }).click();
+    assert.equal(await passwordInput.getAttribute("type"), "password", "Hide password must mask the entered value.");
     const loginResponse = await page.goto(`${frontendUrl}/login`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(loginResponse?.status(), 200, `Login route failed at ${viewport.name}`);
+    await page.getByRole("heading", { name: "Welcome back", exact: true }).waitFor({ state: "visible" });
     await page.screenshot({ path: `${artifactDir}/${viewport.name}-login.png`, fullPage: true });
     assert.deepEqual(pageErrors, [], `Browser errors at ${viewport.name}: ${pageErrors.join("; ")}`);
-    console.log(`PASS ${viewport.name}: signed-out Analytics Lab + login, no horizontal overflow, no page errors`);
+    console.log(`PASS ${viewport.name}: standalone sign-in, no dashboard shell, password visibility, no overflow, no page errors`);
     await context.close();
   }
 

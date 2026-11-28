@@ -2786,3 +2786,30 @@ h1, h2, h3, h4 { font-family: var(--font-sans); font-weight: 500; }
     max-width: calc(100vw - 16px);
   }
 }
+
+
+/* Standalone authentication surface — intentionally outside the dashboard shell. */
+.auth-page{min-height:100vh;background:radial-gradient(ellipse at 50% 0%,rgba(49,85,112,.16),transparent 48%),var(--bg-0)}
+.auth-layout{display:grid;min-height:100vh;place-items:center;padding:32px 20px}
+.auth-card{width:min(100%,440px);padding:clamp(24px,5vw,40px);border:1px solid var(--border);border-radius:10px;background:color-mix(in srgb,var(--bg-1) 94%,transparent);box-shadow:0 24px 80px rgba(0,0,0,.24)}
+.auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:42px;color:var(--text);font-size:12px;font-weight:700;letter-spacing:.13em}
+.auth-brand-mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--border-strong);border-radius:8px;color:#dce7f0;background:linear-gradient(145deg,#315570,#06111c);font-size:17px;letter-spacing:0}
+.auth-brand .env-pill{margin-left:auto}
+.auth-heading{margin-bottom:26px}
+.auth-eyebrow{color:var(--accent);font:10px var(--font-mono);letter-spacing:.13em}
+.auth-heading h1{margin:10px 0 7px;font-size:28px;font-weight:500;letter-spacing:-.035em}
+.auth-heading p{margin:0;color:var(--text-muted);font-size:13px}
+.auth-card form{display:grid;gap:16px}
+.auth-card .journal-field>span{font-size:12px;font-weight:500}
+.auth-card .journal-field input{min-height:44px;font-family:var(--font-sans);font-size:14px}
+.auth-password-control{position:relative}
+.auth-password-control input{padding-right:46px!important}
+.auth-password-toggle{position:absolute;top:50%;right:8px;display:grid;place-items:center;width:32px;height:32px;transform:translateY(-50%);border:0;border-radius:5px;background:transparent;color:var(--text-muted);cursor:pointer}
+.auth-password-toggle:hover{background:var(--bg-3);color:var(--text)}
+.auth-card .btn.primary{min-height:44px;margin-top:4px;font-size:13px}
+.auth-card .btn:disabled{opacity:.6;cursor:wait}
+.auth-card .error{padding:10px 12px;border-color:color-mix(in srgb,var(--negative) 45%,var(--border));color:var(--negative);text-align:left}
+.auth-switch{margin:20px 0 0;color:var(--text-muted);font-size:12px;text-align:center}
+.auth-switch .btn{margin-left:4px;padding:5px 9px;color:var(--accent)}
+.auth-footnote{margin:26px 0 0;padding-top:16px;border-top:1px solid var(--border);color:var(--text-dim);font-size:10px;line-height:1.6;text-align:center}
+@media(max-width:480px){.auth-layout{padding:16px}.auth-card{padding:24px 20px}.auth-brand{margin-bottom:34px}}

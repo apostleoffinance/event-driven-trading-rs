@@ -30,11 +30,18 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     return () => { active = false; };
   }, [pathname]);
 
+  if (pathname === "/login") return <div className="auth-page">{children}</div>;
   if (pathname === "/" && authResolved && !authenticated) return <PublicLandingPage />;
   if (pathname === "/" && !authResolved) return <div className="landing-boot" aria-label="Loading EdgeNest"><img className="landing-boot-symbol" src={EDGENEST_SYMBOL_SRC} alt="" width={85} height={72} /></div>;
 
   return <div className={`app-shell${collapsed ? " collapsed" : ""}`}>
-    <Topbar collapsed={collapsed} eventConnected={stream.connected} onToggleCollapse={() => setCollapsed(v => !v)} onToggleMobile={() => setMobileOpen(v => !v)} />
+    <Topbar collapsed={collapsed} eventConnected={stream.connected} onToggleCollapse={() => {
+      if (typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches) {
+        setMobileOpen(v => !v);
+      } else {
+        setCollapsed(v => !v);
+      }
+    }} />
     <Sidebar collapsed={collapsed} mobileOpen={mobileOpen} onNavigate={() => setMobileOpen(false)} />
     <main className="main">{children}</main>
   </div>;
