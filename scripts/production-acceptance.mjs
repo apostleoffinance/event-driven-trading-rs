@@ -467,7 +467,7 @@ try {
     const loginHeading = page.getByRole("heading", { name: "Welcome back", exact: true });
     await loginHeading.waitFor({ state: "visible" });
     await page.getByLabel("Email").waitFor({ state: "visible" });
-    const passwordInput = page.getByRole("textbox", { name: "Password Show password" });
+    const passwordInput = page.locator("#edgenest-password");
     await passwordInput.waitFor({ state: "visible" });
     assert.equal(await page.locator(".topbar").count(), 0, "Standalone sign-in must not render the dashboard topbar.");
     assert.equal(await page.locator(".sidebar").count(), 0, "Standalone sign-in must not render the dashboard sidebar.");
