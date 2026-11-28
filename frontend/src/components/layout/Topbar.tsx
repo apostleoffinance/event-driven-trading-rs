@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, ChevronDown, LogOut, Menu, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Moon, PanelLeft, Search, Sun, User } from "lucide-react";
 import { environmentLabel, frontendConfig } from "@/config/frontend";
 import { EDGENEST_LOGO_SRC } from "@/lib/brand-assets";
 import { useTheme } from "@/features/theme/ThemeProvider";
@@ -16,12 +16,10 @@ export function Topbar({
   collapsed,
   eventConnected,
   onToggleCollapse,
-  onToggleMobile,
 }: {
   collapsed: boolean;
   eventConnected: boolean;
   onToggleCollapse: () => void;
-  onToggleMobile: () => void;
 }) {
   const env = environmentLabel(frontendConfig.environment);
   const { theme, toggleTheme } = useTheme();
@@ -105,8 +103,7 @@ export function Topbar({
 
   return (
     <header className="topbar">
-      <button type="button" className="icon-btn mobile-nav-btn" aria-label="Open navigation" onClick={onToggleMobile}><Menu size={18} /></button>
-      <button type="button" className="icon-btn" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={onToggleCollapse}><PanelLeft size={16} /></button>
+      <button type="button" className="icon-btn" aria-label={collapsed ? "Expand navigation" : "Toggle navigation"} onClick={onToggleCollapse}><PanelLeft size={16} /></button>
       <div className="brand">
         <img className="brand-logo" src={EDGENEST_LOGO_SRC} alt="EdgeNest" width={315} height={72} />
         <span className={`env-pill${env === "LIVE" ? " live" : env === "SHADOW" ? " shadow" : ""}`} title="Execution environment — PAPER is simulated, never identical to live">{env}</span>
