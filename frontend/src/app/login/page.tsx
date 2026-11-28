@@ -67,6 +67,9 @@ export default function LoginPage() {
             <span>Password</span>
             <div className="auth-password-control">
               <input
+                id="edgenest-password"
+                name="password"
+                aria-label="Password"
                 required
                 type={showPassword ? "text" : "password"}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
